@@ -1,0 +1,28 @@
+## Interface: 16001
+## Title: ezBuff
+## Notes: Out of combat: reports missing buff food, flask or elixir, class buffs and the campfire buff. A button next to Blizzard's buff bar uses the right item or spell; return a buff with a thank-you emote. Part of ezCollection.
+## Notes-deDE: Außerhalb des Kampfes: meldet fehlendes Buff-Essen, Fläschchen oder Elixier, Klassen-Buffs und den Lagerfeuer-Buff. Ein Knopf neben Blizzards Buff-Leiste benutzt den passenden Gegenstand oder Zauber; Buff zurückgeben mit Danke-Emote. Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.8.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_Food_15
+## RequiredDeps: ezCore
+## SavedVariables: ezBuffDB
+## AddonCompartmentFunc: ezBuff_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezBuff_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezBuff_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Profiles.lua
+Buffs.lua
+Weapon.lua
+Checks.lua
+Rebuff.lua
+Button.lua
+ActionGlow.lua
+Group.lua
+Macro.lua
+Panel.lua
+Options.lua

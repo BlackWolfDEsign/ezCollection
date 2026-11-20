@@ -1,0 +1,55 @@
+## Interface: 16001
+## Title: ezPanel
+## Notes: Info bar in the original WoW Forever style with blocks like those known from Titan Panel - built from scratch, takes over Titan's settings. Part of ezCollection.
+## Notes-deDE: Info-Leiste im Originalstil von WoW Forever mit Bausteinen, wie man sie von Titan Panel kennt - neu gebaut, übernimmt Titans Einstellungen. Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.11.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_PocketWatch_01
+## SavedVariables: ezPanelDB
+## RequiredDeps: ezCore
+## OptionalDeps: Titan, TitanUI, ezBag, Leatrix_Plus, Leatrix_Maps
+## AddonCompartmentFunc: ezPanel_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezPanel_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezPanel_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Bar.lua
+TopSpace.lua
+Blocks.lua
+Lockouts.lua
+Blocks\Location.lua
+Blocks\Hearth.lua
+Blocks\XP.lua
+Blocks\Gold.lua
+Blocks\Bags.lua
+Blocks\Repair.lua
+Blocks\Mail.lua
+Blocks\Ammo.lua
+Blocks\Alts.lua
+Blocks\Reputation.lua
+Blocks\Professions.lua
+Blocks\Currencies.lua
+Blocks\Stats.lua
+Blocks\Regen.lua
+Blocks\Combat.lua
+Blocks\Auctions.lua
+Blocks\Gather.lua
+Blocks\Loot.lua
+Blocks\Performance.lua
+Blocks\Volume.lua
+Blocks\Clock.lua
+Blocks\Tools.lua
+Blocks\Minimap.lua
+Blocks\ItemLevel.lua
+Blocks\Speed.lua
+Blocks\Social.lua
+Blocks\Alerts.lua
+Blocks\Broker.lua
+API.lua
+Profiles.lua
+Tour.lua
+Import.lua
+Options.lua

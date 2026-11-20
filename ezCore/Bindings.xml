@@ -1,0 +1,17 @@
+<Bindings>
+	<!-- Blizzards Tastaturbelegung → AddOns → ezCollection (Tasten-Dienst, ezCore/Bausteine/Keys.lua; V-014, EC-73).
+	     Dieselben Einträge stehen in Keys.LIST, die Texte in Locale.lua (BINDING_HEADER_EZCOLLECTION, KEY_…). -->
+	<Binding name="EZCOLLECTION_SETTINGS" header="EZCOLLECTION" category="ADDONS">ezCore.Keys.Run("settings")</Binding>
+	<Binding name="EZCOLLECTION_ERRORS" category="ADDONS">ezCore.Keys.Run("errors")</Binding>
+	<Binding name="EZCOLLECTION_LOOT_HISTORY" category="ADDONS">ezCore.Keys.Run("lootHistory")</Binding>
+	<!-- ezCombats Flächenmodus an/aus (Einstellungs-Prüfung 19.11.2026, Nr. 100) -->
+	<Binding name="EZCOLLECTION_COMBAT_AOE" category="ADDONS">ezCore.Keys.Run("combatAoe")</Binding>
+	<!-- ezBuffs „fehlenden Buff wirken“ und „Durchbuffen“ (Gesamtreview 18.11.2026, T9-NB7: vorher eigener Abschnitt
+	     „ezBuff“ in ezBuff/Bindings.xml) – über je einen Stellvertreter wie unten (Nachlauf zu T9-NB1) -->
+	<Binding name="CLICK ezBuffButtonKey:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ezBuffGroupNextKey:LeftButton" category="ADDONS"/>
+	<!-- Welle 23a (A52): ezMacros sichere Knöpfe der Helfer „Eine Taste“ – über je einen Stellvertreter, der Blizzards
+	     „Aktion bei Tastendruck“ folgt (Gesamtreview 18.11.2026, T9-NB1; Keys.LIST: button, proxy, old) -->
+	<Binding name="CLICK ezMacroOneKeyOpenKey:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK ezMacroOneKeyFeedKey:LeftButton" category="ADDONS"/>
+</Bindings>

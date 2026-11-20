@@ -1,0 +1,7 @@
+# Shell-Skripte immer mit LF, sonst bricht sh unter Git Bash ab
+*.sh text eol=lf
+# Bilder immer binär (keine Zeilenend-Umwandlung)
+*.tga binary
+*.png binary
+*.jpg binary
+*.blp binary

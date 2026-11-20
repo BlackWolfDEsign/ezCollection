@@ -1,0 +1,119 @@
+## Interface: 16001
+## Title: ezCollection |cff9d9d9d(Base)|r
+## Title-deDE: ezCollection |cff9d9d9d(Basis)|r
+## Notes: Shared base of ezCollection: character data of all alts, bags/bank/mail, item and spell knowledge, one mail queue, tooltip pipeline, settings category "ezCollection". Required by every ezCollection module.
+## Notes-deDE: Gemeinsame Basis der ezCollection: Charakterdaten aller Twinks, Taschen/Bank/Post, Item- und Zauber-Wissen, eine Versand-Warteschlange, Tooltip-Pipeline, Einstellungs-Kategorie "ezCollection". Wird von jedem Modul der ezCollection gebraucht.
+## Author: BlackWolf-Design
+## Version: 1.15.0
+## Category: ezCollection
+## IconTexture: Interface\AddOns\ezCore\Media\ezCollection
+## SavedVariables: ezCoreDB
+## OptionalDeps: ezWorld, ezMarket, QuestieDB
+## AddonCompartmentFunc: ezCore_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezCore_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezCore_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Kern\Core.lua
+Kern\Locale.lua
+Kern\Util.lua
+Kern\EquipSlots.lua
+Kern\Bags.lua
+Kern\Channels.lua
+Kern\Framework.lua
+Kern\Panels.lua
+Kern\Serialize.lua
+Kern\Format.lua
+Kern\Names.lua
+Kern\Settings.lua
+Kern\Slash.lua
+Kern\GameState.lua
+Kern\OptInHint.lua
+Bausteine\Style.lua
+Bausteine\Widgets.lua
+Bausteine\Highlight.lua
+Bausteine\Layout.lua
+Bausteine\Graph.lua
+Bausteine\TextDialog.lua
+Bausteine\Measure.lua
+Bausteine\SpellbookView.lua
+
+Bausteine\SlotText.lua
+Bausteine\EditMode.lua
+Bausteine\Mover.lua
+Bausteine\MapPins.lua
+Charakter\Characters.lua
+Charakter\Contacts.lua
+Charakter\Inventory.lua
+Charakter\Mail.lua
+Charakter\MailQueue.lua
+Bausteine\Tooltip.lua
+Bausteine\Inspect.lua
+Bausteine\UnitTooltip.lua
+Wissen\Client\RecipeStages.lua
+Wissen\Client\ClassSpells.lua
+Wissen\Client\Locks.lua
+Wissen\Client\Taxi.lua
+Wissen\Client\Reagents.lua
+Wissen\Client\Categories.lua
+Wissen\Client\Cooldowns.lua
+Wissen\Client\Consumables.lua
+Wissen\Client\WeaponEnchants.lua
+Wissen\Client\SpellKinds.lua
+Wissen\ClientData.lua
+Wissen\SpellKinds.lua
+Wissen\Gathering.lua
+Wissen\Route.lua
+Wissen\KnowledgeData.lua
+Wissen\Knowledge.lua
+Wissen\Collections.lua
+Wissen\Recipes.lua
+Bausteine\ItemTooltip.lua
+Wissen\SpellData.lua
+Wissen\MacroLogic.lua
+Wissen\Spells.lua
+Bausteine\ActionSlots.lua
+Bausteine\Glow.lua
+Wissen\Auras.lua
+Charakter\Profiles.lua
+Charakter\Professions.lua
+Charakter\Lockouts.lua
+Charakter\CharData.lua
+Wissen\Npcs.lua
+Charakter\Durability.lua
+Charakter\Junk.lua
+Bausteine\SlotMarks.lua
+Wissen\DungeonData.lua
+Wissen\Dungeons.lua
+Wissen\Prices.lua
+Wissen\SalvageData.lua
+Wissen\Salvage.lua
+Charakter\History.lua
+Datenbank\DBKeys.lua
+Datenbank\DB.lua
+Datenbank\DBMarket.lua
+Datenbank\Discovery.lua
+Datenbank\DiscoveryView.lua
+Datenbank\DiscoveryLegacy.lua
+Wissen\OtherAddOns.lua
+Bausteine\SecureButton.lua
+Bausteine\GroupFrames.lua
+Bausteine\ClickBindings.lua
+Bausteine\AuraRow.lua
+Wissen\Sources.lua
+Wissen\SourcesQuestie.lua
+Bausteine\ChatBar.lua
+Werkzeuge\ErrorList.lua
+Werkzeuge\Diagnose.lua
+Werkzeuge\SpellCheck.lua
+Werkzeuge\Probe.lua
+Werkzeuge\ProbeStations.lua
+Werkzeuge\Backup.lua
+Werkzeuge\FirstStart.lua
+Werkzeuge\Contribute.lua
+Bausteine\Comfort.lua
+Bausteine\MacroBadge.lua
+Bausteine\Macros.lua
+Bausteine\MoveFrames.lua
+Bausteine\Keys.lua
+Werkzeuge\Collection.lua

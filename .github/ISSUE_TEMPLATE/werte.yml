@@ -1,0 +1,36 @@
+name: "Werte messen / Measure values"
+description: "Grundwerte einer Klasse für die berechneten Talente und Rotationen schicken / Send base values of a class for the computed talents and rotations"
+title: "Werte: Klasse, Volk, Stufe"
+labels: ["werte"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Danke fürs Messen!** Anleitung: [docs/beitragen.md](https://github.com/BlackWolfDEsign/ezCollection/blob/main/docs/beitragen.md), Abschnitt „Werte messen“.
+        Jede Stufe zählt – zwei verschiedene Stufen je Klasse genügen. Alles außer Hemd und Wappenrock ablegen, keine Stärkungszauber, außerhalb des Kampfes. Talentfenster einmal öffnen, dann `/ezt werte` und `/ezk werte`; den Text aus dem Fenster unten einfügen.
+        Die Texte enthalten Klasse, Volk, Stufe, Sprache, Build, Werte, Talente und Zauber – keine Namen. Sie dienen den berechneten Talentverteilungen und Rotationen.
+
+        **Thank you for measuring!** Guide: [docs/beitragen.md](https://github.com/BlackWolfDEsign/ezCollection/blob/main/docs/beitragen.md), section "Measuring values".
+        Any level counts – two different levels per class are enough. Take off everything except shirt and tabard, no buffs, out of combat. Open the talent window once, then `/ezt values` and `/ezk values`; paste the text from the window below.
+        The texts hold class, race, level, language, build, values, talents and spells – no names. They feed the computed talent builds and rotations.
+  - type: textarea
+    id: talent
+    attributes:
+      label: "Text aus /ezt werte / Text from /ezt values"
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: combat
+    attributes:
+      label: "Text aus /ezk werte / Text from /ezk values"
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: "Einwilligung / Consent"
+      options:
+        - label: "Ich räume dem Autor nach Abschnitt 3 b der Lizenz des Projekts (ezCollection License 1.0, Datei LICENSE) das dauerhafte, weltweite, kostenlose und unwiderrufliche Recht ein, die Werte als Teil von ezCollection zu nutzen, zu ändern, zu veröffentlichen und weiterzugeben, auch unter dieser oder einer späteren Lizenz von ezCollection; ich darf das, meine eigenen Rechte behalte ich. / Under section 3 b of the project's licence (ezCollection License 1.0, file LICENSE) I grant the author a permanent, worldwide, free and irrevocable right to use, change, publish and pass on the values as part of ezCollection, also under this or any later licence of ezCollection; I am allowed to grant this and keep my own rights."
+          required: true

@@ -1,0 +1,39 @@
+## Interface: 16001
+## Title: ezBag
+## Notes: The original Blizzard bag, grouped into framed, customizable groups - plus bank/alt counts in tooltips and bag comfort features. Part of ezCollection.
+## Notes-deDE: Die originale Blizzard-Tasche in eingerahmten, anpassbaren Gruppen - dazu Bank-/Twink-Anzahl im Tooltip und Komfortfunktionen. Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.14.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_Bag_08
+## SavedVariables: ezBagDB, TaschenGruppenDB
+## RequiredDeps: ezCore
+## OptionalDeps: ClassicUIForever, Leatrix_Plus, BetterBags
+## AddonCompartmentFunc: ezBag_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezBag_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezBag_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Categories.lua
+Groups.lua
+Render.lua
+Marks.lua
+QuestShine.lua
+Search.lua
+Space.lua
+Info.lua
+Profiles.lua
+Select.lua
+Toolbar.lua
+Transfer.lua
+Layout.lua
+Bank.lua
+GuildBank.lua
+Trade.lua
+Junk.lua
+Inventory.lua
+Window.lua
+Tour.lua
+Options.lua

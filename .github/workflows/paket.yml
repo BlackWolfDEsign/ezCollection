@@ -1,0 +1,54 @@
+# Paket bauen und auf CurseForge und Wago Addons hochladen (BigWigs Packager) – nur bei einem Git-Tag „v…“
+# (z. B. v1.0.0-beta1). Ein Tag mit „beta“ bzw. „alpha“ landet im Kanal Beta bzw. Alpha, sonst im Kanal Release.
+# Die Schlüssel liegen als Secrets im Repo (GitHub » Settings » Secrets and variables » Actions): CF_API_KEY für
+# CurseForge, WAGO_API_TOKEN für Wago – nie in einer Datei.
+name: Paket
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  paket:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262   # v4, feste Fassung (der Packager bekommt Secrets)
+        with:
+          fetch-depth: 0
+
+      # Wache für Tag und Protokoll (dieselben Regeln wie „luajit tools/versions.lua . --tag“, das es im öffentlichen
+      # Repo nicht gibt): Die erste Überschrift „## …“ von CHANGELOG.md beginnt mit genau diesem Tag und sagt nicht mehr
+      # „not released“ / „noch nicht erschienen“, ihr Abschnitt hat keine Platzhalter „(follows / folgt)“ oder
+      # „NACH-27“. Sonst bricht der Lauf vor dem Hochladen ab.
+      - name: Protokoll passt zum Tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          kopf=$(grep -m1 '^## ' CHANGELOG.md || true)
+          wort=$(printf '%s\n' "$kopf" | awk '{print $2}')
+          abschnitt=$(awk '/^## /{n++} n==1' CHANGELOG.md)
+          fehler=0
+          if [ "$wort" != "$tag" ]; then
+            echo "::error::CHANGELOG.md: die erste Überschrift nennt nicht den Tag $tag: $kopf"; fehler=1
+          fi
+          if printf '%s\n' "$kopf" | grep -qiE 'not released|noch nicht erschienen'; then
+            echo "::error::CHANGELOG.md: $kopf sagt noch „nicht erschienen“"; fehler=1
+          fi
+          if printf '%s\n' "$abschnitt" | grep -qE '\(follows / folgt\)|NACH-27'; then
+            echo "::error::CHANGELOG.md: Platzhalter im Abschnitt von $tag"; fehler=1
+          fi
+          exit "$fehler"
+
+      - name: Bauen und hochladen
+        uses: BigWigsMods/packager@01e8631a69c69d7654c788d152630d5fed9e3812   # v2, feste Fassung
+        with:
+          # -n: Datei- und Anzeigename; der Paketordner heißt ezCore (.pkgmeta), das ZIP ezCollection-<Tag>-forever.zip.
+          args: -g forever -n "ezCollection-{project-version}{classic}:{project-version}{classic}"
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}

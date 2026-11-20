@@ -1,0 +1,66 @@
+ezCollection License, Version 1.0
+
+Copyright (c) 2026 BlackWolf-Design. All rights reserved.
+
+"The Software" means the ezCollection addons for World of Warcraft: the
+source code, texts, data files and images in this repository and in the
+packages published by the author. "The author" means BlackWolf-Design.
+
+1. What you may do
+
+   a) Download, install and run the Software, free of charge.
+   b) Read and study the source code.
+   c) Change the Software on your own computer for your own use, as long
+      as you do not pass the changed version on.
+
+2. Your own modules
+
+   You may write and publish your own addons that work together with the
+   Software while both are running (for example by listing ezCore as a
+   dependency and calling its public functions), under any license you
+   choose, provided that
+   a) they contain no code, data or images taken from the Software, and
+   b) they do not give the impression of being part of, or approved by,
+      the ezCollection project.
+
+3. Contributing
+
+   a) You may copy ("fork") the repository for the sole purpose of
+      preparing changes and offering them to the official ezCollection
+      repository, for example as a pull request. Such a copy must not be
+      published or passed on as a product of its own.
+   b) When you offer a contribution (code, text, translations, images or
+      collected game data), you grant the author a permanent, worldwide,
+      free, irrevocable right to use, change, publish and pass on your
+      contribution as part of the Software, under this or any later
+      license of the Software. You confirm that you are allowed to grant
+      this. You keep your own rights in what you contributed.
+
+4. What you may not do
+
+   Without written permission from the author you may not
+   a) copy code, data or images of the Software, or parts of them, into
+      other addons or other projects;
+   b) publish, upload, mirror, repackage or otherwise pass on the
+      Software or changed versions of it;
+   c) sell the Software or charge for access to it;
+   d) use the name "ezCollection" or its logo for other projects.
+
+5. Ending
+
+   These permissions end automatically if you break the terms above.
+
+6. No warranty
+
+   The Software is provided "as is", without warranty of any kind. As far
+   as the law allows, the author is not liable for any damage arising
+   from its use.
+
+7. Blizzard
+
+   World of Warcraft is a trademark of Blizzard Entertainment, Inc. The
+   Software is not affiliated with or endorsed by Blizzard. Blizzard's
+   rules for addons apply in addition to this license.
+
+For anything this license does not allow, ask the author on the project
+page.

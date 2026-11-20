@@ -1,0 +1,56 @@
+## Interface: 16001
+## Title: ezCombat
+## Notes: Combat helpers that look like the original: ability ready glow, expiring DoTs/HoTs, bigger combo points, reactive abilities, swing timer extras, energy tick, five-second rule, interrupt, totem and weapon enchant timers (poisons, oils, stones). Part of ezCollection.
+## Notes-deDE: Kampfhilfen im Originalstil: Leuchten bei bereiter Fähigkeit, auslaufende DoTs/HoTs, größere Combo-Punkte, reaktive Fähigkeiten, Schlagtimer-Extras, Energie-Tick, 5-Sekunden-Regel, Unterbrechen, Totem- und Waffen-Timer (Gifte, Öle, Steine). Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.14.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\Ability_DualWield
+## RequiredDeps: ezCore
+## OptionalDeps: ClassicUIForever
+## SavedVariables: ezCombatDB
+## AddonCompartmentFunc: ezCombat_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezCombat_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezCombat_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Profiles.lua
+Spells.lua
+Readiness.lua
+Glow.lua
+Symbol.lua
+Ready.lua
+Hints.lua
+Auras.lua
+Buffs.lua
+Combo.lua
+Swing.lua
+Ticks.lua
+Totems.lua
+RotationData.lua
+RotationData\Racial.lua
+RotationData\WARRIOR.lua
+RotationData\ROGUE.lua
+RotationData\HUNTER.lua
+RotationData\MAGE.lua
+RotationData\WARLOCK.lua
+RotationData\PRIEST.lua
+RotationData\PALADIN.lua
+RotationData\SHAMAN.lua
+RotationData\DRUID.lua
+RotationComputed.lua
+RotationState.lua
+Rotation.lua
+RotationChecks.lua
+RotationEdit.lua
+RotationOwn.lua
+RotationBook.lua
+RotationMeasure.lua
+Enchants.lua
+Meter.lua
+MeterFrames.lua
+MeterTop.lua
+MeterSummary.lua
+Options.lua

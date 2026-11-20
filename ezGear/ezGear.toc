@@ -1,0 +1,32 @@
+## Interface: 16001
+## Title: ezGear
+## Notes: Better gear at a glance: green arrow on bag slots and quest rewards, gold coin on the most valuable reward, upgrade line in the tooltip, item level and durability on the character frame, item level when inspecting, stat weights per class and spec (Pawn scales can be pasted), equipment sets and automatic swaps when mounting or fishing. Part of ezCollection.
+## Notes-deDE: Bessere Ausrüstung auf einen Blick: grüner Pfeil auf Taschenplätzen und Questbelohnungen, Gold-Symbol auf der wertvollsten Belohnung, Vergleichszeile im Tooltip, Itemlevel und Haltbarkeit am Charakterfenster, Itemlevel beim Betrachten, Gewichtung je Klasse und Spezialisierung (Pawn-Skalen einfügbar), Ausrüstungssets und automatisch umziehen beim Reiten und Angeln. Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.8.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Chest_Chain_05
+## RequiredDeps: ezCore
+## SavedVariables: ezGearDB
+## AddonCompartmentFunc: ezGear_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezGear_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezGear_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Stats.lua
+Weights.lua
+Score.lua
+Marks.lua
+Bags.lua
+Quest.lua
+Tooltip.lua
+Character.lua
+GroupCheck.lua
+GroupPanel.lua
+Sets.lua
+Swap.lua
+Profiles.lua
+Tour.lua
+Options.lua

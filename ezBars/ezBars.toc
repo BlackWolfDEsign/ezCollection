@@ -1,0 +1,23 @@
+## Interface: 16001
+## Title: ezBars
+## Notes: Extra action bars in Blizzard's style with free columns and rows (2×2, 3×3, 4×4, 3×8 …), button size and spacing; key bindings through Blizzard's key bindings. Part of ezCollection.
+## Notes-deDE: Zusatzleisten im Blizzard-Stil mit frei wählbaren Spalten und Reihen (2×2, 3×3, 4×4, 3×8 …), Knopfgröße und Abstand; Tasten über Blizzards Tastaturbelegung. Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.9.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_Gear_01
+## RequiredDeps: ezCore
+## SavedVariables: ezBarsDB
+## AddonCompartmentFunc: ezBars_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezBars_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezBars_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Slots.lua
+Profiles.lua
+Anchors.lua
+Bars.lua
+Options.lua
+Tour.lua

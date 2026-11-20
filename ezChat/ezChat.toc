@@ -1,0 +1,34 @@
+## Interface: 16001
+## Title: ezChat
+## Notes: Persistent chat history, a conversation window per partner and offline messages (delivered by whisper when they come online or as a letter). Part of ezCollection.
+## Notes-deDE: Dauerhafter Chatverlauf, Gesprächsfenster pro Partner und Offline-Nachrichten (Zustellung per Flüstern beim Online-Kommen oder als Brief). Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.11.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Letter_15
+## SavedVariables: ezChatDB
+## RequiredDeps: ezCore
+## AddonCompartmentFunc: ezChat_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezChat_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezChat_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Conversations.lua
+History.lua
+Delivery.lua
+Mail.lua
+Community.lua
+ChatFormat.lua
+Alarms.lua
+Spam.lua
+Situation.lua
+Window.lua
+FriendsDock.lua
+Chat.lua
+ChatBar.lua
+ChatView.lua
+Typing.lua
+API.lua
+Options.lua

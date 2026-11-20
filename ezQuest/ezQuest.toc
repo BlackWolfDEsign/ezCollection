@@ -1,0 +1,35 @@
+## Interface: 16001
+## Title: ezQuest
+## Notes: Complements Questie: quest level in NPC dialogs, tracked quests sorted by level, accept and turn in automatically (switch in the quest window, Shift pauses), new Forever quests tinted, quest items recognised for ezBag, quest progress in the tooltips of objects, enemies and items, quest items sparkle in bags and the loot window, quest objects in the world sparkle again instead of the outline, Blizzard's icons above quest objects, herbs and ores, dungeon quests with level range. Part of ezCollection.
+## Notes-deDE: Ergänzt Questie: Stufe in den NPC-Dialogen, Verfolgung nach Stufe sortiert, automatisch annehmen und abgeben (Schalter im Questfenster, Shift hält an), neue Forever-Quests getönt, Quest-Gegenstände für ezBag erkannt, Quest-Fortschritt im Tooltip von Objekten, Gegnern und Gegenständen, Quest-Gegenstände funkeln in Tasche und Beutefenster, Quest-Objekte in der Welt funkeln wieder statt Umriss, Blizzards Symbole über Quest-Objekten, Kräutern und Erzen, Dungeon-Quests mit Stufenbereich. Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.6.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_Book_08
+## RequiredDeps: ezCore
+## OptionalDeps: Questie, Leatrix_Plus
+## SavedVariables: ezQuestDB
+## AddonCompartmentFunc: ezQuest_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezQuest_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezQuest_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Tint.lua
+Levels.lua
+Tracker.lua
+Auto.lua
+Items.lua
+Progress.lua
+Shine.lua
+World.lua
+Sparkle.lua
+DungeonQuests.lua
+Entrance.lua
+LevelRoute.lua
+XPPreview.lua
+Share.lua
+QuestId.lua
+Tour.lua
+Options.lua

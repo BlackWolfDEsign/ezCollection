@@ -1,0 +1,47 @@
+## Interface: 16001
+## Title: ezMap
+## Notes: Map helpers on Blizzard's own map: /way with Blizzard's map pin and navigation, flight times learned while flying, trainers you visited as waypoints, destinations in the minimap tracking menu, your own gathering spots (herbs, ore, fish) on map and minimap. Part of ezCollection.
+## Notes-deDE: Kartenhilfen auf Blizzards eigener Karte: /way mit Blizzards Kartenmarkierung und Zielverfolgung, Flugzeiten (beim Fliegen gelernt), besuchte Lehrer als Wegpunkt, Ziele im Menü „Aufspüren“ der Minikarte, eigene Sammel-Fundorte (Kräuter, Erz, Fische) auf Karte und Minikarte. Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.12.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_Map_01
+## RequiredDeps: ezCore
+## OptionalDeps: TomTom, Leatrix_Plus, InFlight, Questie
+## SavedVariables: ezMapDB
+## AddonCompartmentFunc: ezMap_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezMap_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezMap_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Icons.lua
+Tree.lua
+Discovery.lua
+Way.lua
+Arrive.lua
+Flights.lua
+FlightNodes.lua
+Trainers.lua
+Rares.lua
+Entrances.lua
+Zones.lua
+Books.lua
+Recipes.lua
+QuestieSpawns.lua
+Gather.lua
+RouteDraw.lua
+Route.lua
+MiniArrow.lua
+MapCoords.lua
+MapButton.lua
+MinimapZoom.lua
+MinimapShape.lua
+Tracking.lua
+TrackingMemory.lua
+TrackingCouple.lua
+Battleground.lua
+Queue.lua
+Guide.lua
+Options.lua

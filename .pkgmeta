@@ -1,0 +1,46 @@
+package-as: ezCore
+
+changelog-title: ezCollection
+
+move-folders:
+  ezCore/ezCore: ezCore
+  ezCore/ezWorld: ezWorld
+  ezCore/ezMarket: ezMarket
+  ezCore/ezBag: ezBag
+  ezCore/ezMail: ezMail
+  ezCore/ezChat: ezChat
+  ezCore/ezPanel: ezPanel
+  ezCore/ezMacro: ezMacro
+  ezCore/ezCombat: ezCombat
+  ezCore/ezGear: ezGear
+  ezCore/ezMerchant: ezMerchant
+  ezCore/ezSocial: ezSocial
+  ezCore/ezQuest: ezQuest
+  ezCore/ezMap: ezMap
+  ezCore/ezCraft: ezCraft
+  ezCore/ezBuff: ezBuff
+  ezCore/ezLoot: ezLoot
+  ezCore/ezBars: ezBars
+  ezCore/ezAuction: ezAuction
+  ezCore/ezHeal: ezHeal
+  ezCore/ezTalent: ezTalent
+
+license-output: LICENSE
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+enable-nolib-creation: no
+
+ignore:
+  - "*/Tests"
+  - "*/README.md"
+  - docs
+  - tools
+  - .github
+  - CLAUDE.md
+  - README.md
+  - ROADMAP.md
+  - .gitattributes
+  - .gitignore

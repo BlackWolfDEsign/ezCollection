@@ -1,0 +1,30 @@
+## Interface: 16001
+## Title: ezCraft
+## Notes: Extends Blizzard's profession window: materials of all alts (bags, bank, guild bank, mail), who can craft it, skill-up color stages, shopping list, missing recipes and their source, request materials from alts by mail. Part of ezCollection.
+## Notes-deDE: Erweitert Blizzards Berufefenster: Material aller Twinks (Tasche, Bank, Gildenbank, Post), wer es herstellen kann, Stufen der Skill-Farben, Einkaufsliste, fehlende Rezepte und wo es sie gibt, Material bei Twinks per Post anfordern. Teil der ezCollection.
+## Author: BlackWolf-Design
+## Version: 1.11.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\Trade_BlackSmithing
+## RequiredDeps: ezCore
+## SavedVariables: ezCraftDB
+## AddonCompartmentFunc: ezCraft_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ezCraft_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ezCraft_OnAddonCompartmentLeave
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+Locale.lua
+Core.lua
+Data.lua
+Icons.lua
+Shopping.lua
+Tooltip.lua
+Where.lua
+Filter.lua
+Salvage.lua
+Shipments.lua
+Panel.lua
+Book.lua
+MailTab.lua
+Alerts.lua
+Options.lua
