@@ -28,9 +28,10 @@ jobs:
         shell: bash
         run: |
           tag="${GITHUB_REF_NAME}"
-          kopf=$(grep -m1 '^## ' CHANGELOG.md || true)
+          # tr -d '\r': robust gegen CRLF (am 20.11.2026 las die Prüfung sonst „v1.0.0-beta1\r“ statt des Tags)
+          kopf=$(tr -d '\r' < CHANGELOG.md | grep -m1 '^## ' || true)
           wort=$(printf '%s\n' "$kopf" | awk '{print $2}')
-          abschnitt=$(awk '/^## /{n++} n==1' CHANGELOG.md)
+          abschnitt=$(tr -d '\r' < CHANGELOG.md | awk '/^## /{n++} n==1')
           fehler=0
           if [ "$wort" != "$tag" ]; then
             echo "::error::CHANGELOG.md: die erste Überschrift nennt nicht den Tag $tag: $kopf"; fehler=1

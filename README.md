@@ -8,6 +8,10 @@ Schlanke Addons für **WoW Forever**, die sich anfühlen wie das Original von Bl
 
 **Stand: Beta.** Vieles ist im Spiel noch nicht lange erprobt – Rückmeldungen sind willkommen (unten, „Mitmachen und Unterstützen“).
 
+**Über ezCollection:** Ich habe ezCollection für mich und meine Freunde entwickeln lassen – mit KI-Unterstützung – und teile es, weil es vielleicht auch dir das Spiel bequemer macht. Wünsche und Kritik werden geprüft und umgesetzt.
+
+*About: I had ezCollection built for myself and my friends – with AI assistance – and I'm sharing it in case it makes the game more comfortable for you too. Wishes and criticism are reviewed and acted on.*
+
 ## Module
 
 | Modul | Stand | Kurz |
@@ -85,9 +89,26 @@ ezCollection braucht kein fremdes Addon – jedes Modul braucht nur die mitgelie
 - **Daten zur Laufzeit:** Läuft Questie oder AtlasLoot Classic Forever, fragt ezCollection sie während des Spiels ab und nennt die Quelle an jeder Angabe („laut Questie“). Anzeigen über LibDataBroker erscheinen als Bausteine in ezPanels Leiste.
 - **Rücksicht:** Erledigt ein laufendes Addon schon dieselbe Aufgabe, hält sich das betreffende Modul an dieser Stelle zurück und sagt es im Tooltip bzw. in seinem `status`; wo es passt, holt „Trotzdem zeigen“ die Funktion zurück.
 
+### Empfohlene Addons – sie ergänzen ezCollection
+
+ezCollection baut bewusst nicht nach, was diese Addons mit gepflegten Daten gut können; laufen sie, arbeiten die ez-Module mit ihnen zusammen. Alle sind freiwillig.
+
+*Recommended addons that complement ezCollection (all optional):*
+
+| Addon | Wofür / What for | Zusammenspiel mit ezCollection |
+|---|---|---|
+| [Questie](https://www.curseforge.com/wow/addons/questie) | Quests auf Karte und Minikarte / quests on the map | ezQuest ergänzt seine Fenster; Fundorte, Beute und Eingänge „laut Questie“ in ezMap und ezLoot |
+| [AtlasLoot Classic Forever](https://www.curseforge.com/wow/addons/atlasloot-forever) | Beute und Rezepte nachschlagen / loot and recipe browser | ezCraft und ezLoot fragen es ab, Angaben „laut AtlasLoot“ |
+| [RareScanner](https://www.curseforge.com/wow/addons/rarescanner) | Seltene Gegner und Schätze / rares and treasures | sein Knopf sitzt in ezPanels Leiste |
+| [HandyNotes](https://www.curseforge.com/wow/addons/handynotes) mit [HandyNotes: WoW Forever](https://www.curseforge.com/wow/addons/handynotes-wow-forever) | Kartenpunkte / map notes | gepflegte Punkte; ezMap zeichnet eigene Punkte nur auf Wunsch |
+| [Atlas](https://www.curseforge.com/wow/addons/atlas) | Dungeonkarten / dungeon maps | Knopf als Baustein in ezPanels Leiste |
+| [Deadly Boss Mods](https://www.curseforge.com/wow/addons/deadly-boss-mods) | Boss-Timer und Warnungen / boss timers | ezMacros Ansage „Pull“ nutzt seinen Befehl |
+| [Details! Damage Meter](https://www.curseforge.com/wow/addons/details) | Schadensmesser / damage meter | ezCombat erweitert nur Blizzards eigene Schadensanzeige; wer mehr Tiefe will, nimmt Details |
+| [BugSack](https://www.curseforge.com/wow/addons/bugsack) | Lua-Fehler sammeln / error collector | hilft bei Fehlermeldungen; ezCollection hat zusätzlich eine eigene Fehlerliste |
+
 ## Mitmachen und Unterstützen
 
-ezCollection ist eine **Beta**. Fühl dich frei zu kommentieren, zu kritisieren, Fehler zu melden und dir etwas zu wünschen – jede Meldung wird gelesen, geprüft und, wenn sie passt, umgesetzt. Entwickelt wird mit KI-Unterstützung (Claude von Anthropic); das macht schnelle Antworten auf Meldungen möglich.
+ezCollection ist eine **Beta**. Fühl dich frei zu kommentieren, zu kritisieren, Fehler zu melden und dir etwas zu wünschen – jede Meldung wird gelesen, Wünsche und Kritik werden geprüft und umgesetzt. Entwickelt wird mit KI-Unterstützung (Claude von Anthropic); das macht schnelle Antworten auf Meldungen möglich.
 
 - **Fehler melden:** in den Kommentaren auf CurseForge bzw. Wago oder als Issue in diesem Repo. Am meisten hilft die Fehlerliste aus dem Spiel: Esc » Optionen » AddOns » ezCollection » Erweitert » „Fehlerliste zum Kopieren“, dazu ein Bildschirmfoto und was du gerade getan hast.
 - **Wünsche und Kritik:** ebenfalls in den Kommentaren oder als Issue – gern mit dem Fenster, an dem dir etwas fehlt.
