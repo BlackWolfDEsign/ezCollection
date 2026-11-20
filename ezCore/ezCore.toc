@@ -13,6 +13,8 @@
 ## AddonCompartmentFuncOnEnter: ezCore_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: ezCore_OnAddonCompartmentLeave
 ## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+## X-Curse-Project-ID: 1818885
+## X-Wago-ID: BKpEDyGE
 
 Kern\Core.lua
 Kern\Locale.lua
