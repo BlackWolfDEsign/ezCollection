@@ -93,6 +93,16 @@ ns.DEFAULTS = {
     rivalsButton = true,        -- Knopf „Konkurrenz ansehen“ neben „Unterbotene abbrechen“ (AH-25)
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+-- risk hier: „Bedarf“ und „nächsten einlegen“ schreiben in Blizzards Felder (Risiko 16/17, Tor T1)
+ns.AGREE = {
+    sellOtherChars = "on", buySetQuantity = "risk", postNext = "risk", upgradeOnly = "choice",
+    tooltipBeside = "choice", floorTrend = "choice", suggestOnly = "choice",
+}
+
 -- „Prozent unter Tiefstpreis“: höchstens so viel (Einstellungs-Prüfung vom 19.11.2026, Abschnitt 4: bis 50 % war
 -- fragwürdig). Ein gespeicherter höherer Wert wird einmal auf diese Grenze gesetzt (ns.MigrateSettings1911).
 ns.UNDERCUT_PERCENT_MAX = 25

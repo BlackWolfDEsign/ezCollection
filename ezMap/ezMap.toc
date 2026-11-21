@@ -3,7 +3,7 @@
 ## Notes: Map helpers on Blizzard's own map: /way with Blizzard's map pin and navigation, flight times learned while flying, trainers you visited as waypoints, destinations in the minimap tracking menu, your own gathering spots (herbs, ore, fish) on map and minimap. Part of ezCollection.
 ## Notes-deDE: Kartenhilfen auf Blizzards eigener Karte: /way mit Blizzards Kartenmarkierung und Zielverfolgung, Flugzeiten (beim Fliegen gelernt), besuchte Lehrer als Wegpunkt, Ziele im Menü „Aufspüren“ der Minikarte, eigene Sammel-Fundorte (Kräuter, Erz, Fische) auf Karte und Minikarte. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.12.0
+## Version: 1.13.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Misc_Map_01
 ## RequiredDeps: ezCore
@@ -38,6 +38,7 @@ MapCoords.lua
 MapButton.lua
 MinimapZoom.lua
 MinimapShape.lua
+MinimapCompact.lua
 Tracking.lua
 TrackingMemory.lua
 TrackingCouple.lua

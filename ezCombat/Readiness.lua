@@ -44,14 +44,13 @@ Readiness.LockedKind = Spells.LockedKind
 -- (gesperrt: Blizzards Objekt für die Spirale, nur weitergereicht), shared = Name (gesperrt und sonst unbekannt: ein
 -- Zauber derselben Kategorie laut Client-Tabellen klingt ab – ns.SharedOnCooldown, Welle 26) }. Offene Werte enthalten
 -- die geteilte Abklingzeit schon (das Spiel legt sie auf jeden Zauber der Kategorie).
+-- Gelesen wird seit dem Paket ezcombat/rotation-recherche (20.11.2026) über ezCores Spells.ReadCooldown (SSOT: die eine
+-- Stelle für C_Spell.GetSpellCooldown, dieselbe Regel wie vorher hier).
 function Readiness.Cooldown(spell)
-    local api = C_Spell and C_Spell.GetSpellCooldown
-    if type(api) ~= "function" or Core.IsSecret(spell) or spell == nil then return nil end
-    local ok, info = pcall(api, spell)
-    if not ok or Core.IsSecret(info) or type(info) ~= "table" then return nil end
-    local start, duration = Core.Num(Core.Peek(info, "startTime")), Core.Num(Core.Peek(info, "duration"))
-    if start and duration then
-        local kind = Spells.CooldownKind(nil, start, duration)
+    if Core.IsSecret(spell) or spell == nil then return nil end
+    local kind, start, duration, locked, info = Spells.ReadCooldown(spell)
+    if not info then return nil end
+    if not locked then
         if kind == "none" then return { kind = "none" } end
         local state = { kind = kind, timer = { start = start, duration = duration } }
         if kind == "real" then state.wait = math.max(0, start + duration - GetTime()) end
@@ -59,8 +58,6 @@ function Readiness.Cooldown(spell)
     end
     -- Gesperrt: nur die nie gesperrten Felder, die Restzeit bleibt bei Blizzard.
     if ns.NoteSecret then ns.NoteSecret("cooldown") end
-    local kind = Spells.CooldownKind(info)
-    if kind == nil and Core.Plain(Core.Peek(info, "isActive")) == true then kind = Spells.LockedKind(spell) end
     if kind == "none" then return { kind = "none", locked = true } end
     local shared
     if kind == nil then
@@ -75,16 +72,12 @@ end
 
 -- Kraft und Nutzbarkeit: "power" (nur die Kraft fehlt), "unusable" (aus anderem Grund nicht nutzbar), "ok" oder nil
 -- (unbekannt: keine Abfrage, gesperrte Antwort, Fehler im Aufruf). Die Abfrage selbst macht ezCore (Spells.Usable,
--- SSOT; ein Fehler im pcall kommt dort seit Welle 23 als dritter Wert „unbekannt“); hier steht nur, was „keine
--- Abfrage“ heißt – ezCore meldet dann false, false wie „nicht nutzbar“.
+-- SSOT; ein Fehler im pcall kommt dort seit Welle 23 als dritter Wert „unbekannt“), „keine Abfrage heißt unbekannt“
+-- ebenso (Spells.UsableState).
+-- Seit dem Paket ezcombat/rotation-recherche (20.11.2026) steht die Regel in ezCore (Spells.UsableState, SSOT); der
+-- Name hier bleibt als Weiterleitung (Leitlinie 8).
 function Readiness.Usable(spell)
-    local api = (C_Spell and C_Spell.IsSpellUsable) or rawget(_G, "IsUsableSpell")
-    if type(api) ~= "function" or Core.IsSecret(spell) or spell == nil then return nil end
-    local usable, noPower, locked = Spells.Usable(spell)
-    if locked then return nil end
-    if usable then return "ok" end
-    if noPower then return "power" end
-    return "unusable"
+    return Spells.UsableState(spell)
 end
 
 -- Alles zusammen für die Anzeige: { cooldown = Readiness.Cooldown, usable = Readiness.Usable, inRange = true/false/nil }.
@@ -95,6 +88,35 @@ function Readiness.State(spell)
         usable = Readiness.Usable(spell),
         inRange = Spells.InRange(spell, "target"),
     }
+end
+
+-- Bereit oder fast bereit? (Spieltest des Nutzers vom 20.11.2026, wörtlich „der goldene rahmen sollte auch erst dann
+-- erscheinen taskleiste und symbol mitte wenn der zauber bereit ist oder fast bereit ist“). Das Leuchten am Knopf der
+-- Leiste und um das Symbol „Als Nächstes“ in der Mitte folgt dieser Antwort (beide aus derselben Rechnung:
+-- Rotation.lua ShowNext gibt sie samt gezählter Restzeit an das Symbol weiter); das Symbol selbst bleibt stehen und
+-- sagt mit Tönung und Text, worauf es wartet. Die anderen Plätze („wieder bereit“, „läuft aus“) leuchten wie bisher.
+--   false: Blizzard meldet „zu wenig Kraft“ oder „nicht nutzbar“ (C_Spell.IsSpellUsable, im Kampf offen), oder eine
+--          echte Abklingzeit läuft länger als Readiness.ALMOST. Die Restzeit ist offen gelesen (cd.wait) oder von der
+--          Rotation gezählt (left: Vorwarnung vorn); im Kampf ist sie auf Forever meist gesperrt – ohne gezählte
+--          Restzeit gilt eine laufende echte Abklingzeit dann als nicht bereit, bis sie vorbei ist.
+--   true:  sonst – auch während der globalen Abklingzeit, bei einer Abklingzeit, die in höchstens ALMOST endet, und bei
+--          gesperrter Antwort zur Nutzbarkeit (dann wird nichts behauptet, die Anzeige leuchtet wie bisher).
+--   nil:   kein Zauber oder der Zauber selbst ist gesperrt.
+-- Kraft, die gleich reicht, ist nicht zu erkennen: Energie, Wut und Mana sind im Kampf gesperrt (Daten-Probe oben);
+-- „fast bereit“ gibt es deshalb nur für Abklingzeiten. Reichweite zählt nicht: sie ist keine Eigenschaft des Zaubers.
+Readiness.ALMOST = 1.5   -- Sekunden: etwa eine globale Abklingzeit
+function Readiness.Ready(spell, state, left)
+    if state == nil then state = Readiness.State(spell) end
+    if not state then return nil end
+    if state.usable == "power" or state.usable == "unusable" then return false end
+    local cd = state.cooldown
+    if cd and cd.kind == "real" then
+        local wait = cd.wait
+        if wait == nil and type(left) == "number" and not Core.IsSecret(left) then wait = left end
+        if wait then return wait <= Readiness.ALMOST end
+        return false
+    end
+    return true
 end
 
 -- Name der eigenen Kraft („Mana“, „Wut“, „Energie“) aus Blizzards Texten; nil, wenn das Spiel sie nicht nennt.

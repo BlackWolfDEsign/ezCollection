@@ -54,6 +54,15 @@ ns.DEFAULTS = {
     salvageMark = true,      -- Marke „lohnt sich zu entzaubern“ am Taschenplatz (ezCores Platzmarken, CRAFT-10)
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+-- choice hier (Spieltest 20.11.2026, Knopf mit „o fehlt“, wörtlich „mh was soll das sein“): die Chance steht schon als Farbe da, die Zahl daneben ist zusätzlicher Text
+ns.AGREE = {
+    chanceNumber = "choice", countGuild = "choice", costsBeside = "choice",
+}
+
 -- Ein- und Ausschalten per /ezcraft <wort> (Core.HandleToggle); en: das englische Wort (T10-1, englischer Client).
 ns.TOGGLES = {
     { "panel", "berufefenster", en = "professions" },   -- „/ezcraft fenster“ klappt das Seitenteil auf und zu

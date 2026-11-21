@@ -9,9 +9,14 @@ local T = ns.RotationData.T
 -- Quellen (abgerufen am 13.11.2026, Stand der Seiten: 4.11.2026) – nur Fakten (Rangfolge, Bedingungen), alle Texte
 -- in eigenen Worten; nichts stammt aus einem Addon:
 --   Vergeltung:  https://www.icy-veins.com/wow-forever/retribution-paladin-melee-dps-pve-rotation-cooldowns-abilities
+--                (Göttliche Gunst 20216 beim Shockadin belegt durch Wowhead (Stand 15.11.2026, im Browser gelesen):
+--                 vor dem Pull und bei jeder Bereitschaft)
+--                (Stand 14.11.2026, nachgeprüft 20.11.2026: Rangfolge beider Spielweisen unverändert, neu ist der
+--                Echo-Wechsel für schnelle Waffen – steht in note; „Divine Favor“ 20216 nennt die Seite nicht)
 --                https://www.icy-veins.com/wow-forever/retribution-paladin-leveling
 --                https://www.wowhead.com/forever/guide/classes/paladin/retribution/rotation-cooldowns-pve-dps
 --   Schutz:      https://www.icy-veins.com/wow-forever/protection-paladin-tank-pve-rotation-cooldowns-abilities
+--                (Stand 04.11.2026, nachgeprüft 20.11.2026: „Templar's Bulwark“ 1311015 nennt die Seite nicht – kein Schritt)
 --                https://www.icy-veins.com/wow-forever/protection-paladin-leveling
 --                https://www.wowhead.com/forever/guide/classes/paladin/protection/rotation-cooldowns-pve-tank
 --   Heilig:      https://www.icy-veins.com/wow-forever/holy-paladin-healer-pve-rotation-cooldowns-abilities
@@ -85,11 +90,13 @@ ns.RotationData.Add("PALADIN", {
           text = T("Sobald bereit, solange ein Siegel aktiv ist.", "Whenever ready while a seal is active.") },    -- Richturteil / Judgement
         { id = 679, kind = "priority", when = "ready",
           text = T("Sobald bereit.", "Whenever it is ready.") },    -- Heiliger Stoß / Holy Strike
-        { id = 26573, kind = "priority", when = "ready", need = { mana = { min = 50 } },    -- Annahme: „soweit bezahlbar“
+        { id = 26573, kind = "priority", when = "ready", need = { mana = { min = 50 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Aktiv halten, solange dein Mana für Heilung reicht.", "Keep it down while you have mana to spare for healing.") },    -- Weihe / Consecration
         { id = 879, kind = "priority", when = "ready", need = { enemy = UNHOLY },
           text = T("Nur gegen Untote und Dämonen, sobald bereit.", "Only on Undead or Demons, whenever ready.") },    -- Exorzismus / Exorcism
-        { id = 1311606, kind = "priority", when = "ready", need = { mana = { min = 60 } },    -- Annahme: nur mit viel Mana
+        { id = 1311606, kind = "priority", when = "ready", need = { mana = { min = 60 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Als Schaden teuer: nur mit viel Mana (Talent).", "Costly as damage: only at high mana (talent).") },    -- Heiliger Schock / Holy Shock
         -- Situativ: Heilen nach Lage (nie vorgeschlagen) ---------------------------------------------------------
         { id = 1328548, kind = "situational", when = "manual",
@@ -139,7 +146,8 @@ ns.RotationData.Add("PALADIN", {
           text = T("Beim Tanken halten; als zweiter Tank gilt dein anderes Siegel.", "Keep up while tanking; as second tank your other seal counts.") },    -- Siegel des Furors / Seal of Fury
         { id = 20154, kind = "maintain", when = "buff", group = "seal", need = { unknown = 1311649 },
           text = T("Solange {1311649} fehlt: dieses Siegel.", "Until you learn {1311649}: this seal.") },    -- Siegel der Rechtschaffenheit / Seal of Righteousness
-        { id = 26573, kind = "priority", when = "ready", need = { mana = { min = 30 } },    -- Annahme: „soweit das Mana reicht“
+        { id = 26573, kind = "priority", when = "ready", need = { mana = { min = 30 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Sobald bereit, solange das Mana reicht; in der Gruppe Pflicht.", "Whenever ready while mana allows; a must on packs.") },    -- Weihe / Consecration
         { id = 20271, kind = "priority", when = "ready", need = { aura = ANY_SEAL },
           text = T("Sobald bereit; mit {1311649} spottet es – nicht als zweiter Tank.", "Whenever ready; with {1311649} it taunts – not as second tank.") },    -- Richturteil / Judgement
@@ -196,7 +204,8 @@ ns.RotationData.Add("PALADIN", {
           need = { unknown = 20375, aura = CRUSADED },
           text = T("Die Schwächung liegt: zurück aufs Schadenssiegel.", "The weakening is up: back to your damage seal.") },    -- Siegel der Rechtschaffenheit / Seal of Righteousness
         { id = 20166, kind = "resource", when = "buff", refresh = 5, optional = true,
-          need = { enemy = LONG_FIGHT, mana = { max = 15 } },    -- Annahme: keine Quelle nennt eine Zahl
+          need = { enemy = LONG_FIGHT, mana = { max = 15 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Lange Kämpfe mit wenig Mana: vorübergehend dieses Siegel.", "Long fights at low mana: this seal for a while.") },    -- Siegel der Weisheit / Seal of Wisdom
         { id = 20154, key = "priority:echo", kind = "priority", when = "proc", aura = 1311703, stacks = 3, optional = true,
           need = { aura = { id = 20375 } },
@@ -210,10 +219,12 @@ ns.RotationData.Add("PALADIN", {
           text = T("Solange {20375} fehlt: dein Schadenssiegel.", "Until you learn {20375}: your damage seal.") },    -- Siegel der Rechtschaffenheit / Seal of Righteousness
         { id = 24275, kind = "phase", when = "reactive",
           text = T("Ziel unter 20 %: sobald bereit, am besten gleich nach deinem Schlag.", "Target below 20 %: whenever ready, ideally right after your swing.") },    -- Hammer des Zorns / Hammer of Wrath
-        { id = 26573, kind = "priority", when = "ready", need = { leveling = false, mana = { min = 40 } },    -- Annahme: „bei Manaknappheit zuerst weglassen“
+        { id = 26573, kind = "priority", when = "ready", need = { leveling = false, mana = { min = 40 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Sobald bereit; bei knappem Mana als Erstes weglassen.", "Whenever ready; the first thing to drop when mana is low.") },    -- Weihe / Consecration
         { id = 26573, key = "priority:26573:level", kind = "priority", when = "ready",
-          need = { leveling = true, moving = false, mana = { min = 70 } },    -- Annahme: „nur mit viel Mana“
+          need = { leveling = true, moving = false, mana = { min = 70 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Beim Leveln nur mit viel Mana und wenn du stehen bleibst.", "While levelling only at high mana and if you stand still.") },    -- Weihe / Consecration
         { id = 20271, kind = "priority", when = "ready", need = { aura = ANY_SEAL },
           text = T("Sobald bereit, solange ein Siegel aktiv ist.", "Whenever ready while a seal is active.") },    -- Richturteil / Judgement
@@ -268,7 +279,8 @@ ns.RotationData.Add("PALADIN", {
           text = T("Vor dem Angriff und sobald bereit; der nächste {1311606} trifft kritisch.", "Before you attack and whenever ready; your next {1311606} crits.") },    -- Göttliche Gunst / Divine Favor [V]
         { id = 24275, kind = "phase", when = "reactive",
           text = T("Ziel unter 20 %: sobald bereit, am besten gleich nach deinem Schlag.", "Target below 20 %: whenever ready, ideally right after your swing.") },    -- Hammer des Zorns / Hammer of Wrath
-        { id = 26573, kind = "priority", when = "ready", need = { mana = { min = 40 } },    -- Annahme: „bei Manaknappheit zuerst weglassen“
+        { id = 26573, kind = "priority", when = "ready", need = { mana = { min = 40 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Sobald bereit; bei knappem Mana als Erstes weglassen.", "Whenever ready; the first thing to drop when mana is low.") },    -- Weihe / Consecration
         { id = 20271, kind = "priority", when = "ready", need = { aura = ANY_SEAL },
           text = T("Sobald bereit, solange ein Siegel aktiv ist.", "Whenever ready while a seal is active.") },    -- Richturteil / Judgement

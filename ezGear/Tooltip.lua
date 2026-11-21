@@ -94,6 +94,17 @@ function Tip.SourceLine(kind)
     return text
 end
 
+-- Waffe zur Spielweise (Paket ezgear/talent-empfehlung; Weights.WeaponFit): grün „passt“, orange „nutzt …“ – nur mit
+-- ezTalents Werten unter „Automatisch“. → Text, Farbe | nil
+local ORANGE = { 1, 0.6, 0.2 }
+function Tip.WeaponLine(link)
+    local fit, want, name, shield = ns.Weights.WeaponFit(link)
+    if not fit then return nil end
+    name = tostring(name or ns.L.WEIGHTS_TALENT_NAME)
+    if fit == "match" then return (shield and ns.L.TIP_SHIELD_MATCH or ns.L.TIP_WEAPON_MATCH):format(name), GREEN end
+    return ns.L.TIP_WEAPON_OTHER:format(name, tostring(want)), ORANGE
+end
+
 -- Hinweis, wenn ein fremdes Addon (Pawn) Pfeile oder Vergleich übernimmt – sonst wüsste niemand, warum sie fehlen.
 function Tip.HeldLines(link)
     local lines = {}
@@ -161,6 +172,10 @@ Core.Tooltip.AddItemSection("ezGear.upgrade", 25, function(tooltip, _, data)
                 if source then Add(source, GREY, true) end
             end
         end
+    end
+    if ns.Active("tooltip") then
+        local weapon, rgb = Tip.WeaponLine(link)
+        if weapon then Add(weapon, rgb, true) end
     end
     for _, line in ipairs(Tip.HeldLines(link)) do Add(line, GREY) end
     local value = Tip.ValueLine(tooltip)

@@ -16,7 +16,7 @@ local block = ns.RegisterBlock({
     icon = "Interface\\Icons\\INV_Misc_PocketWatch_01",
     interval = 1,
     defaults = {
-        enabled = true, zone = "right", order = 30, icon = false,
+        enabled = true, zone = "right", order = 970, icon = false,   -- ganz rechts (Spieltest 20.11.2026, s. Location.lua)
         mode = "server",      -- server | local | both
         h24 = true,
         seconds = false,

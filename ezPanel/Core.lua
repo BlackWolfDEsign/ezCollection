@@ -28,11 +28,23 @@ ns.DEFAULTS = {
     strata = "MEDIUM",
     autoHideTop = false,
     hideInCombat = false,
-    reserveTop = true,      -- Blizzards Fenster oben rücken unter die Leiste (TopSpace.lua)
+    -- Blizzards Fenster oben rücken unter die Leiste (TopSpace.lua). Ab Werk aus, „Allem zustimmen“ schaltet es ein
+    -- (Intro.CONSENT; Entscheidung des Nutzers vom 21.11.2026, wörtlich „ja die 3 default aus: mit "allem einverstanden" an aus bleibt aber Zeichen am Leuchten“). Gespeicherte Werte
+    -- bleiben: ezCores Gerüst schreibt den Standard beim Laden in ezPanelDB.settings (Core.FillDefaults) – wer ezPanel
+    -- schon hatte, hat „an“ gespeichert und behält es; nur neue Installationen starten aus
+    reserveTop = false,
     viewport = false,
     locked = false,
     tooltipsInCombat = true,
     moneyStyle = "coins",
+}
+
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+ns.AGREE = {
+    viewport = "choice", autoHideTop = "choice", hideInCombat = "choice", locked = "choice",
 }
 
 -- Reihenfolge für Slash-Befehle (Schlüssel, deutscher Befehl).

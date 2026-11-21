@@ -155,6 +155,8 @@ local de = {
     RAIDFRAMES_MENU = "Optionen", RAIDFRAMES_CATEGORY = "Interface", RAIDFRAMES_SECTION = "Schlachtzugsrahmen",
 
     -- „Zurück“, wenn zuletzt ein anderes Modul geschrieben hat (HL-06)
+    RESTORE_MACRO = "Zuletzt kam das Makro „%s“ auf %s (über %s). „Zurück“ nimmt es wieder von der Taste und stellt die Belegung davor her.",
+    RESTORE_RANKS = "Zuletzt kam der höchste Rang auf deine Klick-Tasten (Tasten: %d, über %s). „Zurück“ legt die alten Ränge wieder auf.",
     RESTORE_OTHER = "Zuletzt hat %s die Klick-Belegung geändert, nicht ezHeal. „Zurück“ stellt den Stand vor dieser Änderung her; ezHeals Tasten bleiben dabei, wie sie sind.",
     RESTORE_UNKNOWN = "Wer die Klick-Belegung zuletzt geändert hat, ist nicht bekannt (ältere Sicherung). „Zurück“ stellt den Stand davor her; ezHeals Merkliste der eigenen Tasten bleibt, wie sie ist.",
 
@@ -400,6 +402,8 @@ local en = {
     ERR_raidframes = "Blizzard's raid frame options could not be opened. You find them under Esc, %s, %s, %s.",
     RAIDFRAMES_MENU = "Options", RAIDFRAMES_CATEGORY = "Interface", RAIDFRAMES_SECTION = "Raid Frames",
 
+    RESTORE_MACRO = "Last, the macro “%s” was put on %s (through %s). “Undo” takes it off the key again and restores the bindings from before.",
+    RESTORE_RANKS = "Last, the highest rank went on your click keys (keys: %d, through %s). “Undo” puts the old ranks back.",
     RESTORE_OTHER = "The click bindings were last changed by %s, not by ezHeal. “Undo” restores the state from before that change; ezHeal's keys stay as they are.",
     RESTORE_UNKNOWN = "It is not known who last changed the click bindings (older backup). “Undo” restores the state before that; ezHeal's list of its own keys stays as it is.",
 

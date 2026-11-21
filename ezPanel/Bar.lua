@@ -10,7 +10,7 @@ local L = ns.L
     Aussehen: Standard ist der Titelstreifen der Client-Fenster (Optionen,
     Kombinierter Rucksack). Alle Maße wachsen mit der Schriftgröße (ns.Px).
 
-    Platz für Blizzards Fenster („Platz oben für die Leiste“, Standard an):
+    Platz für Blizzards Fenster („Platz oben für die Leiste“, ab Werk aus, „Allem zustimmen“ schaltet es ein):
       Fenster am oberen Rand (Minikarte, Buffs, Spieler-/Zielfenster oben …)
       rücken um die Höhe der Leiste nach unten – taint-sicher und nur in
       Blizzards Standardlage, siehe TopSpace.lua.

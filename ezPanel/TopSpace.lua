@@ -26,6 +26,7 @@ local _, ns = ...
 ]]
 
 local GAP = 2   -- Luft zwischen Leiste und Blizzards Fenstern
+ns.TOP_GAP = GAP
 -- Oben verankerte Fenster außerhalb des Bearbeitungsmodus (Forever: Blizzard_UIWidgetTopCenterFrame.xml, TOP 0/-15).
 local EXTRA = { "UIWidgetTopCenterContainerFrame" }
 
@@ -202,12 +203,14 @@ local function HookAll()
     end
 end
 
+-- Platz oben neu berechnet (Schalter, Höhe, Skalierung, Leiste an, aus oder automatisch ausgeblendet): andere Module
+-- hören zu (API.TOPSPACE, angemeldet in API.lua; ezMaps kompakte Minikarte rückt unter eine Leiste, die nichts reserviert)
+local function Told()
+    if ezCore.Fire and ns.API and ns.API.TOPSPACE then ezCore.Fire(ns.API.TOPSPACE) end
+end
+
 -- Alle Fenster an den aktuellen Versatz anpassen (oder zurückstellen). → Anzahl geänderter Fenster
-function ns.ApplyTopSpace()
-    if ns.InCombat() then
-        Later()
-        return 0
-    end
+local function Place()
     pending = false
     HookAll()
     local dy = ns.TopReserve()
@@ -219,6 +222,16 @@ function ns.ApplyTopSpace()
         local frame = rawget(_G, name)
         if type(frame) == "table" and PlacePlain(frame, dy) then count = count + 1 end
     end
+    return count
+end
+
+function ns.ApplyTopSpace()
+    if ns.InCombat() then
+        Later()
+        return 0
+    end
+    local count = Place()
+    Told()
     return count
 end
 

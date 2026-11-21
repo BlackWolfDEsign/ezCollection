@@ -44,12 +44,11 @@ end
 
 local FOOD_KINDS = { food = true, drink = true, foodDrink = true }
 
--- Wertung: zuerst „gut für meine Klasse“, dann Fläschchen vor Elixier, dann höhere Stufe.
+-- Wertung: zuerst „gut für meine Klasse“, dann Fläschchen vor Elixier, dann höhere Stufe. Seit dem Paket
+-- ezmacro/gifte-waffenzauber steht die Regel in ezCore (Core.BestItems.Score), damit ezMacros Gift-Vorlagen denselben
+-- Gegenstand nehmen; die Funktion bleibt als Weiterleitung (Leitlinie 8). c ist f.consumable.
 local function Score(f, c, class)
-    local score = (f.minLevel or 0)
-    if c.goodFor and not f.goodForAll and c.goodFor[class] then score = score + 1000 end
-    if c.kind == "flask" then score = score + 500 end
-    return score
+    return Core.BestItems.Score(f, class) or 0
 end
 
 -- Zauber der Aura eines Fläschchens, Elixiers oder einer Waffenverzauberung: zuerst, was das Item-Wissen schon
@@ -72,8 +71,16 @@ function Check.ScanBags(class)
     local best = {}
     if not (K and K.Get and Core.ForEachBagItem) then return best, false end
     local scores = {}
+    -- alle Waffenverzauberungen in Taschen-Reihenfolge (Paket ezcore/klinge-wucht): welche zur Waffe passt, wählt
+    -- Weapon.Tasks je Hand über Core.BestItems.PickWeaponEnchant – erst dann, damit ein Waffenwechsel ohne neuen
+    -- Taschen-Durchlauf zählt
+    best.weapons = {}
     local function Offer(slotKind, itemID, f, c)
         local score = Score(f, c, class)
+        if slotKind == "weapon" then
+            best.weapons[#best.weapons + 1] = { itemID = itemID, name = f.name, icon = Core.ItemIcon(itemID), kind = c.kind,
+                facts = f, score = score }
+        end
         if not scores[slotKind] or score > scores[slotKind] then
             scores[slotKind] = score
             best[slotKind] = { itemID = itemID, name = f.name, icon = Core.ItemIcon(itemID), kind = c.kind }
@@ -88,8 +95,9 @@ function Check.ScanBags(class)
         if not itemID then return end
         local f = K.Get(itemID)
         local c = f and f.consumable
-        if not c or f.usableNow == false then return end
-        if c.goodFor and class and not c.goodFor[class] then return end
+        -- Vorauswahl über ezCore (Core.BestItems.Usable: benutzbar, „gut für <Klasse>“) – dieselbe wie bei
+        -- Core.BestItems.WeaponEnchant für ezMacros Gift-Vorlagen
+        if not c or not Core.BestItems.Usable(f, class) then return end
         if c.kind == "flask" or c.kind == "elixir" then
             local spell = Check.AuraSpell(itemID, f)
             if spell then
@@ -494,13 +502,23 @@ end
 -- für immer bei Macht und bekäme den Segen der Könige nie vorgeschlagen.
 -- onOther: der Zauber ging auf einen anderen Spieler (Check.CastOnOther) – dann bleibt deine Wahl unberührt. Er
 -- wird auch nicht zur Einzelwahl dieses Spielers; die setzt nur das Menü am Rahmen (Check.SetPlayerBlessing).
+-- Gemerkte Wahl setzen und, wenn sie sich ändert, anderen Modulen melden (EZBUFF_PREFER_CHANGED; ezMacros Vorlage
+-- „Waffenzauber“ schreibt sich danach außerhalb des Kampfes neu).
+local function StorePrefer(id, key)
+    local prefer = ns.CharDB().prefer
+    if prefer[id] == key then return end
+    prefer[id] = key
+    Core.Fire("EZBUFF_PREFER_CHANGED", id)
+end
+Check.StorePrefer = StorePrefer
+
 function Check.Remember(spellID, onOther)
     if onOther then return end
     -- Waffenzauber des Schamanen (Welle 23, A4): dieselbe Regel für die Wahlgruppe „imbue“ (Weapon.lua)
     local imbue = ns.Weapon and ns.Weapon.ImbueKeyOf(spellID)
     if imbue then
         local group = Check.ChoiceGroup(ns.Weapon.IMBUE_ID)
-        if group then ns.CharDB().prefer[group.id] = DefaultKey(group) ~= imbue and imbue or nil end
+        if group then StorePrefer(group.id, DefaultKey(group) ~= imbue and imbue or nil) end
         return
     end
     local key = Buffs.KeyOf(spellID)
@@ -510,9 +528,9 @@ function Check.Remember(spellID, onOther)
             for _, entry in ipairs(group.entries) do
                 if entry.key == key then
                     if DefaultKey(group) == key then
-                        ns.CharDB().prefer[group.id] = nil
+                        StorePrefer(group.id, nil)
                     else
-                        ns.CharDB().prefer[group.id] = key
+                        StorePrefer(group.id, key)
                     end
                     return
                 end
@@ -597,7 +615,7 @@ function Check.SetPrefer(id, key)
         end
         if not known then return false end
     end
-    ns.CharDB().prefer[id] = key
+    StorePrefer(id, key)
     Check.Request()
     return true
 end
@@ -1090,7 +1108,7 @@ local function CheckConsumables(list, auras, minLeft, class)
     -- Waffenverzauberung (BF-17, Schalter „weapon“, ab Werk an seit 19.11.2026): je Hand eine Aufgabe, mit Passendem in der Tasche
     -- (nur, wenn „Wann prüfen“ es erlaubt) oder dem gelernten Waffenzauber des Schamanen
     if ns.S.weapon and ns.Weapon then
-        for _, task in ipairs(ns.Weapon.Tasks(items.weapon, minLeft)) do Add(list, task) end
+        for _, task in ipairs(ns.Weapon.Tasks(items.weapon, minLeft, items.weapons)) do Add(list, task) end
     end
 end
 
@@ -1240,6 +1258,11 @@ ns.OnReady(function()
         "SPELLS_CHANGED", "PLAYER_ALIVE", "PLAYER_UNGHOST", "ZONE_CHANGED_NEW_AREA" }) do
         ns.On(event, function() Check.Request() end)
     end
+    -- Waffe gewechselt (auch Waffen- und Schildhand getauscht, ohne dass sich die Tasche ändert): je Hand gilt dann
+    -- eine andere Waffenverzauberung (Paket ezcore/klinge-wucht, Review)
+    ns.On("PLAYER_EQUIPMENT_CHANGED", function(_, slot)
+        if Core.IsSecret(slot) or slot == nil or slot == 16 or slot == 17 then Check.Request() end
+    end)
     -- Begleiter gerufen, entlassen oder gestorben: Seelenverbindung braucht ihn (lange Selbst-Buffs, T14-2)
     ns.OnUnit("UNIT_PET", "player", function() Check.Request() end)
     -- UNIT_FLAGS (tot, Geist, im Kampf, offline …) nur für dich und die Mitglieder, nicht für jede Einheit

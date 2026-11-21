@@ -44,64 +44,18 @@ local DELAY = 0.5                              -- Sekunden: Taschen-Ereignisse k
 
 local Plain = Core.Plain   -- Wert nur, wenn er nicht geheim ist (ezCore, Leitlinie 2)
 
-local function Num(value) return tonumber(Plain(value)) end
-
 ---------------------------------------------------------------------------
 -- Gegenstände
 ---------------------------------------------------------------------------
 
--- Regeln je Art: test(c) → passt die Art? prefer(c) → bevorzugt (ohne Buff, reine Art)?
-local RULES = {
-    food = {
-        test = function(c) return (c.kind == "food" or c.kind == "foodDrink") and c.restoresHealth == true end,
-        prefer = function(c) return c.kind == "food" and not c.buff end,
-    },
-    drink = {
-        test = function(c) return (c.kind == "drink" or c.kind == "foodDrink") and c.restoresMana == true end,
-        prefer = function(c) return c.kind == "drink" and not c.buff end,
-    },
-    bandage = {
-        test = function(c) return c.kind == "bandage" end,
-    },
-    potion = {
-        test = function(c) return c.kind == "potion" and c.restoresHealth == true and not c.restoresMana end,
-    },
-}
-OneClick.ITEM_KINDS = { "food", "drink", "bandage", "potion" }
+-- Die Regeln je Art und die Rangfolge stehen seit dem Paket ezmacro/ssot-doppelungen in ezCore
+-- (Core.BestItems.RULES, Core.BestItems.Consumable) – neben ezBuffs Wertung für Buff-Essen und Fläschchen
+-- (Core.BestItems.Score), eine Stelle für beide. Die Namen hier bleiben (Leitlinie 8).
+OneClick.ITEM_KINDS = Core.BestItems.CONSUMABLE_KINDS
 
--- a besser als b? Schlüssel { bevorzugt, Mindeststufe, Gegenstandsstufe, -ID }
-local function Better(a, b)
-    if not b then return true end
-    for i = 1, #a do
-        if a[i] ~= b[i] then return a[i] > b[i] end
-    end
-    return false
-end
-
--- Bester Gegenstand einer Art in den Taschen → itemID, facts | nil, Grund ("noItem" | "noKnowledge").
+-- Bester Gegenstand einer Art in den Taschen → itemID, facts | nil, Grund ("noItem" | "noKnowledge" | "unknown").
 function OneClick.Best(kind)
-    local rule = RULES[kind]
-    if not rule then return nil, "unknown" end
-    local K = Core.Knowledge
-    if type(K) ~= "table" or type(K.Get) ~= "function" then return nil, "noKnowledge" end
-    local level = Core.PlayerLevel() or 1          -- ezCore: gesperrt oder unbekannt → nil (V-179)
-    local consumable = Core.ITEM_CLASS and Core.ITEM_CLASS.Consumable or 0
-    local seen, bestID, bestFacts, bestKey = {}, nil, nil, nil
-    Core.ForEachBagItem(function(_, _, info)
-        local id = type(info) == "table" and Num(info.itemID) or nil
-        if not id or seen[id] then return end
-        seen[id] = true
-        if Core.ItemClass(id) ~= consumable then return end
-        local link = Plain(info.hyperlink)
-        local facts = K.Get(type(link) == "string" and link or id)
-        local c = type(facts) == "table" and facts.consumable or nil
-        if type(c) ~= "table" or not rule.test(c) then return end
-        if facts.usableNow == false or (Num(facts.minLevel) or 0) > level then return end
-        local key = { (rule.prefer and rule.prefer(c)) and 1 or 0, Num(facts.minLevel) or 0, Num(facts.itemLevel) or 0, -id }
-        if Better(key, bestKey) then bestID, bestFacts, bestKey = id, facts, key end
-    end)
-    if not bestID then return nil, "noItem" end
-    return bestID, bestFacts
+    return Core.BestItems.Consumable(kind)
 end
 
 local function ItemLines(kind)

@@ -5,6 +5,7 @@ local T = ns.RotationData.T
 -- Quellen: Icy Veins, WoW Forever, abgerufen am 13.11.2026 – nur Fakten (Rangfolge, Bedingungen), alle Texte in
 -- eigenen Worten. Stand der Seiten in Klammern.
 --   Arkan:  https://www.icy-veins.com/wow-forever/arcane-mage-ranged-dps-pve-rotation-cooldowns-abilities (10.11.2026)
+--           (nachgeprüft 20.11.2026: Stand der Seite unverändert)
 --           https://www.icy-veins.com/wow-forever/arcane-mage-leveling (04.11.2026)
 --           https://www.icy-veins.com/wow-forever/arcane-mage-ranged-dps-pve-spec-builds-talents (04.11.2026)
 --           https://www.icy-veins.com/wow-forever/arcane-mage-ranged-dps-pve-guide (10.11.2026)
@@ -165,7 +166,8 @@ ns.RotationData.Add("MAGE", {
           text = T("Nur mit {400588}.", "Only with {400588}.") },    -- Arkane Geschosse / Arcane Missiles
         { id = 400574, kind = "maintain", when = "buff", refresh = "missing",
           text = T("Einmal wirken, sobald die Stapel-Stärkung ausgelaufen ist.", "Cast once after the stacking bonus has dropped.") },    -- Arkanschlag / Arcane Blast
-        { id = 400574, key = "maintain:400574-stack", kind = "maintain", when = "ready", need = { aura = { id = 400574, max = 2 } },    -- Annahme: Obergrenze der Quelle
+        { id = 400574, key = "maintain:400574-stack", kind = "maintain", when = "ready", need = { aura = { id = 400574, max = 2 } },
+          guess = T("„Höchstens dreimal in Folge“ ist als höchstens 2 Stapel vor dem Wirken umgesetzt.", "“Three in a row at most” is applied as at most 2 stacks before casting."),
           text = T("Höchstens dreimal in Folge – jeder Stapel kostet mehr Mana.", "Three in a row at most – each stack costs more mana.") },    -- Arkanschlag / Arcane Blast
         { id = 12051, kind = "resource", when = "lowmana", max = 5,
           text = T("Bei fast leerem Mana, wenn du ungestört kanalisieren kannst.", "Nearly out of mana, when you can channel undisturbed.") },    -- Hervorrufung / Evocation
@@ -226,7 +228,8 @@ ns.RotationData.Add("MAGE", {
         -- Im Kampf (Reihenfolge = Rang) -----------------------------------------------------------------------------
         { id = 11366, kind = "priority", when = "proc", aura = 400624, stacks = 3,
           text = T("Sofort bei drei Stapeln {400624} – auch mitten im Aufbau.", "At once at three stacks of {400624} – even mid-setup.") },    -- Pyroschlag / Pyroblast
-        { id = 2948, kind = "maintain", when = "dot", aura = 22959, stacks = 5, refresh = 6, mine = false,    -- Annahme: 6 s; Debuff geteilt [V]
+        { id = 2948, kind = "maintain", when = "dot", aura = 22959, stacks = 5, refresh = 6, mine = false,
+          guess = T("Erneuern ab 6 Sek. Rest ist geschätzt.", "Refreshing at 6 sec left is estimated."),
           text = T("Bis fünf Stapel {22959}; danach vor Ablauf erneuern.", "Up to five stacks of {22959}; then refresh before it ends.") },    -- Versengen / Scorch
         { id = 2136, kind = "priority", when = "ready",
           text = T("Sobald bereit: baut {400624} auf.", "Whenever ready: builds {400624}.") },    -- Feuerschlag / Fire Blast
@@ -286,7 +289,8 @@ ns.RotationData.Add("MAGE", {
         -- Im Kampf (Reihenfolge = Rang) -----------------------------------------------------------------------------
         { id = 11366, kind = "priority", when = "proc", aura = 400624, stacks = 3,
           text = T("Sofort bei drei Stapeln {400624} – auch mitten im Aufbau.", "At once at three stacks of {400624} – even mid-setup.") },    -- Pyroschlag / Pyroblast
-        { id = 2948, kind = "maintain", when = "dot", aura = 22959, stacks = 5, refresh = 6, mine = false,    -- Annahme: 6 s; Debuff geteilt [V]
+        { id = 2948, kind = "maintain", when = "dot", aura = 22959, stacks = 5, refresh = 6, mine = false,
+          guess = T("Erneuern ab 6 Sek. Rest ist geschätzt.", "Refreshing at 6 sec left is estimated."),
           text = T("Bis fünf Stapel {22959}; danach vor Ablauf erneuern.", "Up to five stacks of {22959}; then refresh before it ends.") },    -- Versengen / Scorch
         { id = 2136, kind = "priority", when = "ready",
           text = T("Sobald bereit: baut {400624} auf.", "Whenever ready: builds {400624}.") },    -- Feuerschlag / Fire Blast
@@ -352,7 +356,8 @@ ns.RotationData.Add("MAGE", {
           text = T("Nur mit {400588}.", "Only with {400588}.") },    -- Arkane Geschosse / Arcane Missiles
         { id = 400574, kind = "maintain", when = "buff", refresh = "missing",
           text = T("Einmal wirken, sobald die Stapel-Stärkung ausgelaufen ist.", "Cast once after the stacking bonus has dropped.") },    -- Arkanschlag / Arcane Blast
-        { id = 400574, key = "maintain:400574-stack", kind = "maintain", when = "ready", need = { aura = { id = 400574, max = 1 } },    -- Annahme: Obergrenze der Quelle
+        { id = 400574, key = "maintain:400574-stack", kind = "maintain", when = "ready", need = { aura = { id = 400574, max = 1 } },
+          guess = T("„Höchstens zweimal in Folge“ ist als höchstens 1 Stapel vor dem Wirken umgesetzt.", "“Twice in a row at most” is applied as at most 1 stack before casting."),
           text = T("Höchstens zweimal in Folge – jeder Stapel kostet mehr Mana.", "Twice in a row at most – each stack costs more mana.") },    -- Arkanschlag / Arcane Blast
         { id = 2136, kind = "priority", when = "ready",
           text = T("Auf Abklingzeit.", "On cooldown.") },    -- Feuerschlag / Fire Blast

@@ -87,6 +87,21 @@ ns.DEFAULTS = {
     diagPlain = false,    -- Diagnose (/ezchat diag) speichert Namen im Klartext statt unkenntlich (ns.MaskName)
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+-- risk hier: weitere automatische Antworten senden ohne Klick (an Fremde auch ohne Bekanntschaft)
+-- choice hier (Spieltest 20.11.2026, Knopf mit „o fehlt“, wörtlich „mh was soll das sein“): nur Darstellung des Chats – alte Zeilen beim Einloggen zeigen (restore),
+-- Kanalnamen kürzen, Text nicht verblassen lassen
+ns.AGREE = {
+    historySay = "on", restore = "choice", shortChannels = "choice", noFade = "choice", arrowKeys = "on", replyInstance = "risk",
+    replyRest = "risk", replyStrangers = "risk", alarmGuild = "choice", alarmOfficer = "choice",
+    alarmParty = "choice", alarmRaid = "choice", alarmInstance = "choice", alarmSay = "choice",
+    alarmCommunity = "choice", spamBusy = "choice", sitToneCombat = "choice", sitToneInstance = "choice",
+    sitToneAway = "choice", sitToneRest = "choice", sitAlarmCombat = "choice", diagPlain = "choice",
+}
+
 -- „Alles sichern“ (ezCore/Backup.lua) nimmt diese Einstellungen nicht mit: Stichwörter sind frei eingegebener Text
 -- und können Namen von Mitspielern tragen – ezCores Filter kennt nur die eigenen Charaktere. Ebenso die Texte der
 -- automatischen Antworten.

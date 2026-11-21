@@ -9,8 +9,11 @@ local Core = ezCore
     Kampfes, kein automatisches Einholen).
 
     Technik (ezCores Dienst Core.SecureButton, docs/ezcore.md „Sichere Knöpfe“):
-      - ein unsichtbarer sicherer Knopf „ezMacroFishing“ (Besitzer ezMacro) mit der Aktion „Angeln“ (Zaubername vom
-        Client, so wirkt immer der höchste Rang)
+      - ein unsichtbarer sicherer Knopf „ezMacroFishing“ (Besitzer ezMacro) mit der Aktion „/cast [nocombat] Angeln“
+        (Zaubername vom Client, so wirkt immer der höchste Rang; im Kampf wirft er nicht aus – Spieltest 20.11.2026)
+      - eigene Taste (Spieltest 20.11.2026): „ezMacro: Angeln“ in Blizzards Tastaturbelegung drückt über ezCores
+        Stellvertreter den Knopf (keine Übersteuerung); während des Kanals legt ezMacro sie als Übersteuerung auf
+        INTERACTTARGET (knopf:Bind(tasten, { command = … }), bleibt auch im Kampf), danach nach dem Loslassen zurück
       - eingeschaltet, mit angelegter Angel und außerhalb des Angel-Kanals legt ezMacro die Tasten, die heute auf
         Blizzards Befehl „Mit Ziel interagieren“ (INTERACTTARGET) liegen, als Übersteuerung auf den Knopf
         (knopf:Bind(tasten, { inCombat = false })) – Blizzards eigene Belegung bleibt unberührt
@@ -59,6 +62,11 @@ ns.Fishing = Fishing
 local SPELL = Core.Spells and Core.Spells.FISHING   -- „Angeln“ (ezCore, MACRO-18)
 local BUTTON = "ezMacroFishing"
 local COMMAND = "INTERACTTARGET"
+-- Eigene Taste (Spieltest 20.11.2026, Entscheidung „Eigene Taste (Empfohlen)“): Eintrag „ezMacro: Angeln“ in Blizzards
+-- Tastaturbelegung (ezCore/Bindings.xml, Core.Keys.LIST "fishing"), über ezCores Stellvertreter auf BUTTON – drücken
+-- wirft aus; während des Kanals legt ezMacro dieselbe Taste auf COMMAND (einholen). Ohne eigene Taste wie bisher die
+-- Taste von COMMAND.
+local OWN_BINDING = "CLICK ezMacroFishingKey:LeftButton"
 local AFTER_KEY = "fishing"
 
 local HOLD_RETRY = 0.1  -- Sekunden zwischen zwei Blicken, ob die Taste losgelassen ist
@@ -88,6 +96,11 @@ function Fishing.Other()
     return nil
 end
 
+-- Text der Aktion „auswerfen“: nur außerhalb des Kampfes (siehe Update)
+function Fishing.CastText(name)
+    return "/cast [nocombat] " .. tostring(name)
+end
+
 function Fishing.SpellName()
     local name = ns.SpellName(SPELL)
     return type(name) == "string" and name ~= "" and name or nil
@@ -104,7 +117,15 @@ function Fishing.Available()
     return true
 end
 
-function Fishing.Keys() return Core.SecureButtons and Core.SecureButtons.KeysOf(COMMAND) or {} end
+function Fishing.OwnKeys() return Core.SecureButtons and Core.SecureButtons.KeysOf(OWN_BINDING) or {} end
+function Fishing.InteractKeys() return Core.SecureButtons and Core.SecureButtons.KeysOf(COMMAND) or {} end
+-- "own": eine eigene Taste liegt auf „ezMacro: Angeln“; sonst "interact" (Taste von „Mit Ziel interagieren“)
+function Fishing.Mode() return #Fishing.OwnKeys() > 0 and "own" or "interact" end
+function Fishing.Keys()
+    local own = Fishing.OwnKeys()
+    if #own > 0 then return own end
+    return Fishing.InteractKeys()
+end
 
 function Fishing.State() return state end
 function Fishing.Channeling() return channeling end
@@ -229,9 +250,12 @@ function Fishing.Lost(keys)
     if type(get) ~= "function" or not knopf or type(knopf.Applied) ~= "function" then return false end
     local applied = knopf:Applied()
     for _, key in ipairs(keys or {}) do
-        if applied[key] then
+        local spec = applied[key]
+        if spec then
+            -- erwartet: „auswerfen“ (Klick auf den Knopf) oder beim Einholen mit eigener Taste der Befehl
+            local want = type(spec) == "table" and spec.command or CAST_ACTION
             local ok, action = pcall(get, key, true)
-            if ok and not Core.IsSecret(action) and type(action) == "string" and action ~= CAST_ACTION then return true end
+            if ok and not Core.IsSecret(action) and type(action) == "string" and action ~= want then return true end
         end
     end
     return false
@@ -267,13 +291,16 @@ function Fishing.Update()
         return state
     end
     if ns.InCombat() then
-        -- Im Kampf ändert ezMacro nichts; ezCores Dienst hat die Taste beim Kampfbeginn gelöst
+        -- Im Kampf ändert ezMacro nichts; ezCores Dienst hat die Taste beim Kampfbeginn gelöst (Interaktionstaste) bzw.
+        -- „einholen“ auf der eigenen Taste stehen lassen (inCombat an) – nach dem Kampf legt Update sie passend
         ns.AfterCombat(UpdateAfterCombat, AFTER_KEY)
         state = ns.S.fishingKey and "combat" or "off"
         return state
     end
     local name = Fishing.SpellName()
     local want = ns.S.fishingKey == true
+    local own = Fishing.Mode() == "own"
+    local reel = false
     otherName = want and Fishing.Other() or nil
     if otherName then
         state, want = "other", false
@@ -282,11 +309,17 @@ function Fishing.Update()
     elseif want and not Fishing.PoleEquipped() then
         state, want = "noPole", false
     elseif want and channeling then
-        state, want = "reel", false
+        -- mit eigener Taste: ezMacro legt sie aufs Einholen; sonst ist die Interaktionstaste ohnehin Blizzards Einholen
+        if own then reel = true else state, want = "reel", false end
     end
     if not want then
         heldSince = nil
         Release()
+        if not ns.S.fishingKey or otherName then
+            -- aus (oder ein anderes Addon angelt): auch die eigene Taste wirft nicht mehr aus
+            local knopf = Fishing.Button(false)
+            if knopf and knopf:Get("type") ~= nil then knopf:ClearAction() end
+        end
         if not ns.S.fishingKey then state = "off" end
         return state
     end
@@ -295,13 +328,17 @@ function Fishing.Update()
         state = "missing"
         return state
     end
-    if knopf:Get("spell") ~= name or knopf:Get("type") ~= "spell" then knopf:SetAction({ type = "spell", spell = name }) end
+    -- Auswerfen nur außerhalb des Kampfes: Mit eigener Taste liegt die Taste auch im Kampf auf ezCores Stellvertreter
+    -- (Blizzards Belegung), deshalb die Bedingung im Text statt im Spiel nachzufragen (Leitlinie 5)
+    local text = Fishing.CastText(name)
+    if knopf:Get("macrotext") ~= text or knopf:Get("type") ~= "macro" then knopf:SetAction({ type = "macro", macrotext = text }) end
     local keys = Fishing.Keys()
     if #keys == 0 then
         Release()
         state = "unbound"
         return state
     end
+    if own then return Fishing.UpdateOwn(knopf, keys, reel) end
     local bound, taken = SameKeys(knopf:Keys(), keys), false
     if bound and Fishing.Lost(keys) then
         -- ezMacro meint, die Taste liegt auf dem Knopf, der Client sagt etwas anderes: neu legen – oder, nach
@@ -331,6 +368,57 @@ function Fishing.Update()
     end
     heldSince = nil
     state = taken and "taken" or "on"
+    return state
+end
+
+-- Eigene Taste: auswerfen über Blizzards Belegung (ezCores Stellvertreter klickt BUTTON) – keine Übersteuerung nötig;
+-- während des Kanals liegt die Taste als Übersteuerung auf COMMAND (einholen). Nach dem Kanal bleibt „einholen“
+-- liegen, bis die Taste losgelassen ist (sonst würfe das Loslassen über den Stellvertreter gleich neu aus).
+local function AllCommand(bound, keys)
+    if not SameKeys(bound, keys) then return false end
+    for _, spec in pairs(bound) do
+        if type(spec) ~= "table" or spec.command ~= COMMAND then return false end
+    end
+    return true
+end
+
+function Fishing.UpdateOwn(knopf, keys, reel)
+    if reel then
+        local bound, taken = AllCommand(knopf:Keys(), keys), false
+        if bound and Fishing.Lost(keys) then
+            -- wie bei der Interaktionstaste: höchstens REBIND_MAX Mal neu legen, sonst „taken“ (keine Schleife über
+            -- UPDATE_BINDINGS, wenn ein anderes Addon die Taste mit Vorrang hält)
+            if MayRebind() then
+                Note("rebind")
+                bound = false
+            else
+                taken = true
+            end
+        end
+        if not bound then
+            knopf:Unbind()
+            -- inCombat bleibt an: beginnt der Kampf mitten im Angeln, holt die Taste weiter ein (INTERACTTARGET ist
+            -- nicht geschützt); nach dem Kampf räumt UpdateAfterCombat auf
+            knopf:Bind(keys, { command = COMMAND })
+        end
+        heldSince = nil
+        state = taken and "taken" or "reel"
+        return state
+    end
+    if next(knopf:Keys()) ~= nil then
+        if Fishing.KeyHeld(keys) then
+            heldSince = heldSince or Core.Uptime()
+            if Core.Uptime() - heldSince < HOLD_MAX then
+                if state ~= "held" then Note("held") end
+                state = "held"
+                RetryLater()
+                return state
+            end
+        end
+        knopf:Unbind()
+    end
+    heldSince = nil
+    state = "on"
     return state
 end
 
@@ -444,6 +532,34 @@ local function KeyText()
     for _, key in ipairs(keys) do names[#names + 1] = (GetBindingText and GetBindingText(key, "KEY_")) or key end
     return table.concat(names, ", ")
 end
+Fishing.KeyText = KeyText
+
+-- Angel-Symbol der Seite: ziehen oder klicken legt Blizzards Zauber „Angeln“ auf den Mauszeiger – auf eine Leiste
+-- gelegt, wirft ein Klick dort aus (wie Blizzards Zauberbuch). Ein sicherer Knopf auf der Seite selbst ginge nicht:
+-- er machte die Seite, das Fenster und ihre Verankerung im Kampf geschützt (docs/ezcore.md, sichere Knöpfe, Punkt 2).
+-- Einholen per Mausklick auf ein Symbol erlaubt Blizzard nicht – nur die Taste oder Rechtsklick auf den Schwimmer.
+function Fishing.PickupSpell()
+    if ns.InCombat() or not Fishing.Known() then return false end
+    local pickup = (C_Spell and C_Spell.PickupSpell) or rawget(_G, "PickupSpell")
+    local name = Fishing.SpellName()
+    if type(pickup) ~= "function" or not name then return false end
+    return (pcall(pickup, name))
+end
+
+local function CastIcon(panel)
+    local icon = CreateFrame("Button", nil, panel)
+    icon:SetAllPoints(panel.icon)
+    icon:RegisterForDrag("LeftButton")
+    icon:SetScript("OnDragStart", function() Fishing.PickupSpell() end)
+    icon:SetScript("OnClick", function() Fishing.PickupSpell() end)
+    icon:SetScript("OnEnter", function(self)
+        local tip = Fishing.Known() and L.FISH_ICON_TIP:format(KeyText()) or L.FISH_INFO_NOSPELL
+        UI.Tip(self, L.FISH_ICON_TITLE, tip)
+    end)
+    icon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return icon
+end
+Fishing.CastIcon = CastIcon
 
 function Fishing.StatusText()
     if not ns.S.fishingKey then return L.FISH_STATE_off end
@@ -499,6 +615,11 @@ ns.Tools.Register({
             if toggle then Core.Call(toggle) end
         end, L.FISH_GEAR, L.FISH_GEAR_TIP)
         panel.gear:SetPoint("LEFT", panel.toggle, "RIGHT", 6, 0)
+        -- eigene Taste wählen: Blizzards Tastaturbelegung (Spieltest 20.11.2026)
+        panel.key = UI.Button(panel, L.FISH_KEY_BUTTON, 140, function() Core.Keys.Open() end,
+            L.FISH_KEY_BUTTON, L.FISH_KEY_TIP)
+        panel.key:SetPoint("LEFT", panel.gear, "RIGHT", 6, 0)
+        panel.cast = CastIcon(panel)
         panel.info = UI.Text(panel, "GameFontHighlightSmall", panel.width)
         panel.info:SetPoint("TOPLEFT", panel.toggle, "BOTTOMLEFT", 0, -10)
         panel.diag = UI.Button(panel, L.FISH_DIAG_BUTTON, 140, function() Fishing.PrintStatus() end,
@@ -508,14 +629,19 @@ ns.Tools.Register({
     refresh = function(panel)
         panel.toggle:SetText(ns.S.fishingKey and L.FISH_OFF or L.FISH_ON)
         panel.toggle:SetEnabled(not ns.InCombat())
+        panel.key:SetEnabled(not ns.InCombat())
         local gear = Fishing.GearSet()
         panel.gear:SetEnabled(gear ~= nil and not ns.InCombat())
         local lines = {
-            L.FISH_INFO_KEY:format(KeyText()),
+            (Fishing.Mode() == "own" and L.FISH_INFO_OWNKEY or L.FISH_INFO_KEY):format(KeyText()),
+            (not ns.S.fishingKey and Fishing.Mode() == "own") and L.FISH_INFO_OWN_OFF or nil,
             Fishing.Known() and L.FISH_INFO_SPELL or L.FISH_INFO_NOSPELL,
             Fishing.PoleEquipped() and L.FISH_INFO_POLE or L.FISH_INFO_NOPOLE,
             gear and L.FISH_INFO_GEAR or L.FISH_INFO_NOGEAR,
         }
+        local compact = {}
+        for index = 1, table.maxn(lines) do if lines[index] then compact[#compact + 1] = lines[index] end end
+        lines = compact
         local other = Fishing.Other()
         if other then table.insert(lines, 1, L.FISH_INFO_OTHER:format(other)) end
         -- Diagnose in einer Zeile (wie „/ezmacro angeln status“, aber ohne Zeiten), damit ein Spieltest eindeutig ist

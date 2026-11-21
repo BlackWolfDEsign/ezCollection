@@ -56,6 +56,10 @@ local Core = ezCore
       SM.KnownSpells()           → IDs der gelernten Zauber (ezCore Spells.ForEachKnown, höchster Rang)
       SM.TipLines(eintrag)       → Zeilen für den Tooltip: Art, erzeugtes Makro, Quelle
       SM.HEADER                  Kopfzeile der Gruppe in der Liste (Feld header = true)
+      SM.Page()                  Seite der Kopfzeile (Spieltest 20.11.2026, Entscheidung „Erklärseite + Knöpfe“):
+                                 was die Gruppe ist, wie viele Makros, Knöpfe „Ersten zeigen“, „Einklappen“,
+                                 „Ausblenden“ – ein Werkzeug (ns.Tools) ohne eigenen Reiter, angelegt beim ersten Aufruf
+      SM.Collapsed() / SM.SetCollapsed(an)   Gruppe in der Liste eingeklappt (nur die Kopfzeile, ns.db.window)
 ]]
 
 local SM = {}
@@ -77,14 +81,83 @@ SM.LOGIC = {
 -- Heilung und Stärkung, die nicht auf dich gehen (ns.NOT_SELF, Data\Classes.lua – laut Client-Tabelle SpellMisc;
 -- Fund c des Reviews vor dem Merge von Welle 27): dieselbe Kette ohne „sonst du“ – das letzte Glied ist das Ziel
 -- („[@mouseover,party][@mouseover,raid][@mouseover,help,nodead][]“; passt es nicht, meldet Blizzard es selbst)
+-- Ohne Spells.MacroCast: dieselben Bedingungen über ezCores Spells.MacroCondition (Paket ezmacro/ssot-doppelungen –
+-- vorher fester Text hier; ns.GroupFirst hebt sie danach wie zuvor auf die Gruppen-Glieder). Ehrlich: Den Rückfall
+-- erreicht nur noch ein ezCore, das MacroCondition, aber nicht MacroCast kennt; beide verlangt ns.CORE_NEEDS.
+local Cond = Core.Spells.MacroCondition
 SM.FRIEND_OTHERS = { kind = "mouseover", unit = "help", chain = { "mouseover", "target" }, suffix = "(MO)",
-    fallback = "[@mouseover,help,nodead][]" }
--- Ohne Spells.MacroCast (ezCore zu alt): dieselben Bedingungen als Text
-local FALLBACK = { focus = "[@focus,harm,nodead][]", harm = "[@mouseover,harm,nodead][]",
-    help = "[@mouseover,help,nodead][help,nodead][@player]", exists = "[@mouseover,exists,nodead][]" }
+    fallback = Cond(nil, "help", { "mouseover", "target" }) }
+local FALLBACK = { focus = Cond(nil, FOCUS.unit, FOCUS.chain), harm = Cond(nil, ENEMY.unit, ENEMY.chain),
+    help = Cond(nil, FRIEND.unit, FRIEND.chain), exists = Cond(nil, ANY.unit, ANY.chain) }
 
 function SM.Enabled()
     return ns.S == nil or ns.S.macroFromSpells ~= false
+end
+
+SM.ICON = { "INV_Misc_Book_09", "INV_Misc_Book_11" }   -- Buch wie Blizzards Zauberbuch (das erste, das der Client kennt)
+
+function SM.Collapsed()
+    return ns.db ~= nil and type(ns.db.window) == "table" and ns.db.window.spellsCollapsed == true
+end
+
+function SM.SetCollapsed(collapsed)
+    if not (ns.db and type(ns.db.window) == "table") then return end
+    ns.db.window.spellsCollapsed = collapsed and true or nil
+    if ns.Browser and ns.Browser.Refresh then ns.Browser.Refresh() end
+end
+
+-- Wie viele Makros stehen in der Gruppe, wie viele davon gibt es schon in Blizzards Makroverwaltung?
+function SM.Counts()
+    local total, existing = 0, 0
+    local find = ns.Import and ns.Import.Find
+    for _, entry in ipairs(SM.Entries()) do
+        total = total + 1
+        if type(find) == "function" and find(ns.EntryName(entry)) then existing = existing + 1 end
+    end
+    return total, existing
+end
+
+local page
+function SM.Page()
+    if page or not ns.Tools then return page end
+    local UI = ns.UI
+    page = ns.Tools.Register({
+        key = "spellGroup", order = 99, place = "spellgroup", icon = SM.ICON,
+        shown = function() return false end,   -- kein Werkzeug der Listen und Statuszeilen, nur die Seite der Kopfzeile
+        name = L.SPELLMACRO_GROUP, why = L.SPELLMACRO_GROUP_DESC, desc = L.SPELLMACRO_PAGE_DESC,
+        status = function()
+            local total, existing = SM.Counts()
+            return L.SPELLMACRO_PAGE_COUNT:format(total, existing)
+        end,
+        build = function(panel)
+            panel.first = UI.Button(panel, L.SPELLMACRO_PAGE_FIRST, 150, function()
+                local first = SM.Entries()[1]
+                if not first then return end
+                if SM.Collapsed() then SM.SetCollapsed(false) end
+                ns.Browser.ShowEntry(first)
+            end, L.SPELLMACRO_PAGE_FIRST, L.SPELLMACRO_PAGE_FIRST_TIP)
+            panel.first:SetPoint("TOPLEFT", panel.top, "BOTTOMLEFT", 0, -10)
+            panel.fold = UI.Button(panel, L.SPELLMACRO_PAGE_COLLAPSE, 130, function()
+                SM.SetCollapsed(not SM.Collapsed())
+                ns.Tools.RefreshKey("spellGroup")
+            end, L.SPELLMACRO_PAGE_COLLAPSE, L.SPELLMACRO_PAGE_COLLAPSE_TIP)
+            panel.fold:SetPoint("LEFT", panel.first, "RIGHT", 6, 0)
+            panel.hide = UI.Button(panel, L.SPELLMACRO_PAGE_HIDE, 130, function()
+                ns.SetSetting("macroFromSpells", false)
+                if ns.Browser and ns.Browser.Refresh then ns.Browser.Refresh() end
+            end, L.SPELLMACRO_PAGE_HIDE, L.SPELLMACRO_PAGE_HIDE_TIP)
+            panel.hide:SetPoint("LEFT", panel.fold, "RIGHT", 6, 0)
+            panel.info = UI.Text(panel, "GameFontHighlightSmall", panel.width)
+            panel.info:SetPoint("TOPLEFT", panel.first, "BOTTOMLEFT", 0, -10)
+        end,
+        refresh = function(panel)
+            panel.fold:SetText(SM.Collapsed() and L.SPELLMACRO_PAGE_EXPAND or L.SPELLMACRO_PAGE_COLLAPSE)
+            panel.first:SetEnabled(#SM.Entries() > 0)
+            panel.info:SetText(L.SPELLMACRO_PAGE_HOW)
+        end,
+    })
+    page.id = SM.HEADER.id      -- die Kopfzeile in der Liste ist der Platz dieser Seite (Auswahl, Hervorhebung)
+    return page
 end
 
 -- Geht der Zauber nicht auf dich selbst? (ns.NOT_SELF; Rang über die Grund-ID aus ezCore)

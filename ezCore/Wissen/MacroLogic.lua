@@ -22,7 +22,8 @@ local Core = ezCore
              "mouseover" wirkt auf die Einheit unter der Maus, sonst auf das Ziel bzw. dich
              "focus"     wirkt auf den Fokus, sonst die Maus, sonst das Ziel (Unterbrechen, Kontrolle)
       unit   "help" (Mitspieler), "harm" (Gegner), "exists" (beides), "dead" (tot, Wiederbeleben); nil = ohne Ziel
-      chain  Reihenfolge der Ziele: "focus", "mouseover", "target", "player" (Standard je kind, siehe CHAINS)
+      chain  Reihenfolge der Ziele: "focus", "mouseover", "target", "player" (Standard je kind, siehe CHAINS);
+             "any" = leeres Glied „[]“ (nur die Bedingung des Schritts, z. B. Wiederbeleben „…[help,dead][]“)
              Steht die Maus auf einem Mitglied deiner Gruppe bzw. deines Schlachtzugs, wirkt ein Zauber auf Mitspieler
              (unit "help", "exists", "dead") auf genau dieses Mitglied oder gar nicht – nie rutscht er auf das Ziel
              durch (Spieltest des Nutzers vom 15.11.2026, siehe Spells.MACRO_GROUP_FIRST unten).
@@ -43,6 +44,22 @@ Spells.MACRO_CHAINS = {
     mouseover = { "mouseover", "target", "player" },
     focus = { "focus", "mouseover", "target" },
 }
+
+-- Haltungen und Gestalten, in die ein Makro nur als Rückfall wechselt („…; Kampfhaltung“, Knurren wechselt erst in die
+-- Bärengestalt): Sie ersetzen auf der Aktionsleiste keine Fähigkeit (ezMacro, ns.ReplacedSpells). Abgeleitet aus
+-- FAMILIES.stance (alle Haltungen des Kriegers) und den Bärengestalten aus FAMILIES.form (FORM_IDS gleich
+-- Spells.BEAR_FORM) – Katze und Mondkin nicht, die stehen als eigene Vorlage da („Katzengestalt“). Vorher als feste
+-- Liste in ezMacro/Resolver.lua (STANCE_FALLBACKS; Paket ezmacro/ssot-doppelungen). → Menge { [Zauber-ID] = true } (Kopie)
+function Spells.MacroFallbackForms()
+    local out = {}
+    local families = Spells.FAMILIES or {}
+    for _, id in ipairs(families.stance and families.stance.spells or {}) do out[id] = true end
+    local bear = Spells.BEAR_FORM
+    for _, id in ipairs(families.form and families.form.spells or {}) do
+        if bear ~= nil and (Spells.FORM_IDS or {})[id] == bear then out[id] = true end
+    end
+    return out
+end
 
 Spells.MACRO_LOGIC = {
     WARRIOR = {
@@ -91,6 +108,9 @@ Spells.MACRO_LOGIC = {
         -- Die Teilung „im Kampf Wiedergeburt, sonst Wiederbeleben“ bei rebirth entfällt: 50769 gibt es auf Forever nicht.
         { key = "decurse", kind = "mouseover", unit = "help", steps = { { spell = 2893, when = { mod = "shift" } },
             { spell = 2782 } } },
+        -- Spieltest 20.11.2026 (Abgleich aller Klassen gegen die Client-Tabellen, wowf 1.60.1.70938): Wiederbeleben
+        -- auf den Toten unter der Maus wie beim Priester (Wiederbeleben 437138, außerhalb des Kampfes)
+        { key = "revive", kind = "mouseover", unit = "dead", chain = { "mouseover", "target" }, steps = { { spell = 437138 } } },
     },
     SHAMAN = {
         { key = "interrupt", kind = "focus", unit = "harm", chain = { "focus", "target" }, pre = { "stopcasting" },
@@ -99,6 +119,9 @@ Spells.MACRO_LOGIC = {
             steps = { { spell = 331, when = { mod = "shift" } }, { spell = 8004 } } },
         { key = "purge", kind = "mouseover", unit = "harm", chain = { "mouseover", "target" }, steps = { { spell = 370 } } },
         { key = "wolf", kind = "oneKey", steps = { { spell = 2645, when = { noform = true } } } },
+        -- Spieltest 20.11.2026 (Abgleich aller Klassen gegen die Client-Tabellen, wowf 1.60.1.70938): Wiederbeleben
+        -- auf den Toten unter der Maus wie beim Priester (Geist der Ahnen 2008)
+        { key = "res", kind = "mouseover", unit = "dead", chain = { "mouseover", "target" }, steps = { { spell = 2008 } } },
     },
     PALADIN = {
         { key = "heal", kind = "mouseover", unit = "help", chain = { "mouseover", "target" },
@@ -106,6 +129,9 @@ Spells.MACRO_LOGIC = {
         { key = "cleanse", kind = "mouseover", unit = "help", steps = { { spell = 4987 } } },
         { key = "hammer", kind = "focus", unit = "harm", steps = { { spell = 853 } } },
         { key = "layOnHands", kind = "mouseover", unit = "help", steps = { { spell = 633 } } },
+        -- Spieltest 20.11.2026 (Abgleich aller Klassen gegen die Client-Tabellen, wowf 1.60.1.70938): Wiederbeleben
+        -- auf den Toten unter der Maus wie beim Priester (Erlösung 7328)
+        { key = "res", kind = "mouseover", unit = "dead", chain = { "mouseover", "target" }, steps = { { spell = 7328 } } },
     },
     MAGE = {
         { key = "counterspell", kind = "focus", unit = "harm", chain = { "focus", "target" }, pre = { "stopcasting" },
@@ -217,7 +243,10 @@ function Spells.MacroCondition(when, unit, chain, kind, opts)
     for index, target in ipairs(chain) do
         local parts = {}
         for _, p in ipairs(base) do parts[#parts + 1] = p end
-        if target == "player" then
+        if target == "any" then
+            -- leeres Glied „sonst ohne Ziel-Bedingung“ (z. B. Wiederbeleben: „…[help,dead][]“; Paket
+            -- ezmacro/ssot-doppelungen) – nur die Bedingung des Schritts
+        elseif target == "player" then
             parts[#parts + 1] = "@player"
         elseif target == "target" then
             -- Als letztes Glied ohne Prüfung („sonst das Ziel“: Blizzard meldet selbst, wenn es nicht passt),

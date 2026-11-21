@@ -8,6 +8,7 @@ local T = ns.RotationData.T
 --               https://www.icy-veins.com/wow-forever/assassination-rogue-leveling
 --               https://www.wowhead.com/forever/guide/classes/rogue/assassination/rotation-cooldowns-pve-dps          (Stand 30.10.2026, älterer Talentstand)
 --   Kampf:      https://www.icy-veins.com/wow-forever/combat-rogue-melee-dps-pve-rotation-cooldowns-abilities        (Stand 04.11.2026)
+--               (nachgeprüft 20.11.2026: Nierenhieb 408 nennen alle drei Seiten nur als Werkzeug – Listeneintrag)
 --               https://www.icy-veins.com/wow-forever/combat-rogue-leveling
 --               https://www.wowhead.com/forever/guide/classes/rogue/combat/rotation-cooldowns-pve-dps                (Stand 30.10.2026)
 --   Täuschung:  https://www.icy-veins.com/wow-forever/subtlety-rogue-melee-dps-pve-rotation-cooldowns-abilities      (Stand 04.11.2026)
@@ -78,18 +79,22 @@ ns.RotationData.Add("ROGUE", {
           text = T("Mit 5 Combo-Punkten direkt vor {2098}, wenn die Bedrohung steht.", "At 5 combo points right before {2098}, once threat is settled.") },    -- Kaltblütigkeit / Cold Blood
         { id = 2098, kind = "priority", when = "finisher", cp = 5,
           text = T("Mit 5 Combo-Punkten, wenn {5171} und {1943} laufen.", "At 5 combo points while {5171} and {1943} are up.") },    -- Ausweiden / Eviscerate
-        -- Annahme: Aufbauer nur bis 4 Punkte – sind die Punkte gesperrt, wird nichts geraten
         { id = 399956, kind = "filler", when = "filler", need = { cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Combo-Punkte aufbauen; braucht zwei Dolche.", "Build combo points; needs two daggers.") },    -- Verstümmeln / Mutilate
         { id = 53, kind = "filler", when = "filler", need = { unknown = 399956, weapon = DAGGER, cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Solange {399956} fehlt: Aufbau von hinten mit Dolch.", "Until you learn {399956}: build from behind with a dagger.") },    -- Meucheln / Backstab
         { id = 1752, kind = "filler", when = "filler", need = { cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Aufbau ohne Dolche oder von vorn.", "Builder without daggers or from the front.") },    -- Finsterer Stoß / Sinister Strike
         -- Situativ -------------------------------------------------------------------------------------------------
         { id = 8647, kind = "situational", when = "manual",
           text = T("Nur, wenn keine stärkere Rüstungssenkung auf dem Ziel liegt.", "Only when no stronger armor reduction is on the target.") },    -- Rüstung schwächen / Expose Armor
         { id = 1856, kind = "situational", when = "manual",
           text = T("Kein Schadensknopf: Mechanik umgehen oder Bedrohung abwerfen.", "Not a damage button: dodge a mechanic or drop threat.") },    -- Verschwinden / Vanish
+        { id = 408, kind = "situational", when = "manual",
+          text = T("Betäubung, je mehr Combo-Punkte, desto länger – kein Schadensknopf.", "Stun, longer with more combo points – not a damage button.") },    -- Nierenhieb / Kidney Shot
       } },
 
     ---------------------------------------------------------------------------------------------------------------
@@ -134,10 +139,11 @@ ns.RotationData.Add("ROGUE", {
           text = T("Falls geskillt: mit 5 Combo-Punkten direkt vor {2098}.", "If talented: at 5 combo points right before {2098}.") },    -- Kaltblütigkeit / Cold Blood
         { id = 2098, kind = "priority", when = "finisher", cp = 5,
           text = T("Mit 5 Combo-Punkten, wenn {5171} und {1943} laufen.", "At 5 combo points while {5171} and {1943} are up.") },    -- Ausweiden / Eviscerate
-        -- Annahme: Aufbauer nur bis 4 Punkte – sind die Punkte gesperrt, wird nichts geraten
         { id = 53, kind = "filler", when = "filler", need = { weapon = DAGGER, cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Dolch-Spielweise: Aufbau von hinten statt {1752}.", "Dagger build: build from behind instead of {1752}.") },    -- Meucheln / Backstab
         { id = 1752, kind = "filler", when = "filler", need = { cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Combo-Punkte aufbauen.", "Build combo points.") },    -- Finsterer Stoß / Sinister Strike
         -- Situativ -------------------------------------------------------------------------------------------------
         { id = 8647, kind = "situational", when = "manual",
@@ -146,6 +152,8 @@ ns.RotationData.Add("ROGUE", {
           text = T("Für den Notfall; in Gruppen aufheben.", "For emergencies; save it in groups.") },    -- Entrinnen / Evasion
         { id = 1856, kind = "situational", when = "manual",
           text = T("Kein Schadensknopf: Mechanik umgehen oder Bedrohung abwerfen.", "Not a damage button: dodge a mechanic or drop threat.") },    -- Verschwinden / Vanish
+        { id = 408, kind = "situational", when = "manual",
+          text = T("Betäubung, je mehr Combo-Punkte, desto länger – kein Schadensknopf.", "Stun, longer with more combo points – not a damage button.") },    -- Nierenhieb / Kidney Shot
       } },
 
     ---------------------------------------------------------------------------------------------------------------
@@ -186,15 +194,16 @@ ns.RotationData.Add("ROGUE", {
         -- ohne Energie-Bedingung: die Kraft ist im Kampf oft gesperrt (siehe Dateikopf)
         { id = 1329283, kind = "priority", when = "ready", need = { cp = { max = 3 } },
           text = T("Sobald bereit, bei 0 bis 3 Combo-Punkten; Energie nicht überlaufen lassen.", "Whenever ready, at 0 to 3 combo points; don't let energy overcap.") },    -- Scharfe Klinge / Shank
-        -- Annahme: höchstens 2 Punkte, weil 703 danach weitere bringt
         { id = 14278, kind = "priority", when = "ready", need = { cp = { max = 2 } },
+          guess = T("Höchstens 2 Punkte ist geschätzt, weil {703} danach weitere bringt.", "At most 2 points is estimated, as {703} adds more afterwards."),
           text = T("Sobald bereit; danach sofort {703}.", "Whenever ready; follow up with {703} at once.") },    -- Geisterhafter Stoß / Ghostly Strike
         { id = 14183, kind = "cooldown", when = "ready", need = { combat = true, cp = { max = 3 } },
           text = T("Sobald bereit, bei höchstens 3 Combo-Punkten.", "Whenever ready, at 3 combo points or fewer.") },    -- Konzentration / Premeditation
-        -- Annahme: Aufbauer nur bis 4 Punkte – sind die Punkte gesperrt, wird nichts geraten
         { id = 16511, kind = "filler", when = "filler", need = { cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Einziger Aufbauer; mit vollen Punkten nicht weiterdrücken.", "Your only builder; don't keep pressing it at full points.") },    -- Blutsturz / Hemorrhage
         { id = 1752, kind = "filler", when = "filler", need = { unknown = 16511, cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Aufbau, solange {16511} fehlt.", "Builder until you learn {16511}.") },    -- Finsterer Stoß / Sinister Strike
         -- Situativ -------------------------------------------------------------------------------------------------
         { id = 2098, kind = "situational", when = "manual",
@@ -203,6 +212,8 @@ ns.RotationData.Add("ROGUE", {
           text = T("Aufheben: Zusatzgegner, Schadensphase oder Notfall.", "Save it: adds, a damage phase or an emergency.") },    -- Verschwinden / Vanish
         { id = 14185, kind = "situational", when = "manual",
           text = T("Aufheben; setzt deine Abklingzeiten zurück.", "Save it; resets your cooldowns.") },    -- Vorbereitung / Preparation
+        { id = 408, kind = "situational", when = "manual",
+          text = T("Betäubung, je mehr Combo-Punkte, desto länger – kein Schadensknopf.", "Stun, longer with more combo points – not a damage button.") },    -- Nierenhieb / Kidney Shot
       } },
 
     ---------------------------------------------------------------------------------------------------------------
@@ -239,12 +250,14 @@ ns.RotationData.Add("ROGUE", {
           text = T("Mit 5 Combo-Punkten direkt vor {2098}.", "At 5 combo points right before {2098}.") },    -- Kaltblütigkeit / Cold Blood
         { id = 2098, kind = "priority", when = "finisher", cp = 5,
           text = T("Mit 5 Combo-Punkten; bei fast totem Ziel von Hand auch früher.", "At 5 combo points; by hand earlier on a nearly dead target.") },    -- Ausweiden / Eviscerate
-        -- Annahme: Aufbauer nur bis 4 Punkte – sind die Punkte gesperrt, wird nichts geraten
         { id = 399956, kind = "filler", when = "filler", need = { cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Sobald gelernt der Aufbauer; braucht zwei Dolche.", "Your builder once learned; needs two daggers.") },    -- Verstümmeln / Mutilate
         { id = 53, kind = "filler", when = "filler", need = { unknown = 399956, weapon = DAGGER, cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Solange {399956} fehlt: Aufbau von hinten mit Dolch.", "Until you learn {399956}: build from behind with a dagger.") },    -- Meucheln / Backstab
         { id = 1752, kind = "filler", when = "filler", need = { cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Aufbau ohne Dolch oder von vorn.", "Builder without a dagger or from the front.") },    -- Finsterer Stoß / Sinister Strike
         -- Situativ -------------------------------------------------------------------------------------------------
         { id = 3408, kind = "situational", when = "manual",
@@ -292,10 +305,11 @@ ns.RotationData.Add("ROGUE", {
           text = T("Sobald bereit; bei fast voller Energie vorher etwas ausgeben.", "Whenever ready; at nearly full energy spend some first.") },    -- Scharfe Klinge / Shank
         { id = 2098, kind = "priority", when = "finisher", cp = 5,
           text = T("Mit 5 Combo-Punkten; bei fast totem Ziel von Hand auch früher.", "At 5 combo points; by hand earlier on a nearly dead target.") },    -- Ausweiden / Eviscerate
-        -- Annahme: Aufbauer nur bis 4 Punkte – sind die Punkte gesperrt, wird nichts geraten
         { id = 53, kind = "filler", when = "filler", need = { weapon = DAGGER, cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Dolch-Spielweise: Aufbau von hinten statt {1752}.", "Dagger build: build from behind instead of {1752}.") },    -- Meucheln / Backstab
         { id = 1752, kind = "filler", when = "filler", need = { cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Combo-Punkte aufbauen.", "Build combo points.") },    -- Finsterer Stoß / Sinister Strike
         -- Situativ -------------------------------------------------------------------------------------------------
         { id = 5277, kind = "situational", when = "manual",
@@ -349,19 +363,21 @@ ns.RotationData.Add("ROGUE", {
         -- ohne Energie-Bedingung: die Kraft ist im Kampf oft gesperrt (siehe Dateikopf)
         { id = 1329283, kind = "priority", when = "ready", need = { cp = { max = 3 } },
           text = T("Sobald bereit, bei 0 bis 3 Combo-Punkten; Energie nicht überlaufen lassen.", "Whenever ready, at 0 to 3 combo points; don't let energy overcap.") },    -- Scharfe Klinge / Shank
-        -- Annahme: höchstens 2 Punkte, weil 703 danach weitere bringt
         { id = 14278, kind = "priority", when = "ready", need = { cp = { max = 2 } },
+          guess = T("Höchstens 2 Punkte ist geschätzt, weil {703} danach weitere bringt.", "At most 2 points is estimated, as {703} adds more afterwards."),
           text = T("Sobald bereit; danach sofort {703}.", "Whenever ready; follow up with {703} at once.") },    -- Geisterhafter Stoß / Ghostly Strike
         { id = 14183, kind = "cooldown", when = "ready", need = { combat = true, cp = { max = 3 } },
           text = T("Sobald bereit, bei höchstens 3 Combo-Punkten.", "Whenever ready, at 3 combo points or fewer.") },    -- Konzentration / Premeditation
         { id = 2098, kind = "phase", when = "finisher", cp = 5,
           text = T("Mit 5 Punkten, wenn alles läuft oder das Ziel gleich fällt.", "At 5 points when all is up or the target is about to die.") },    -- Ausweiden / Eviscerate
-        -- Annahme: Aufbauer nur bis 4 Punkte – sind die Punkte gesperrt, wird nichts geraten
         { id = 16511, kind = "filler", when = "filler", need = { cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Sobald gelernt dein einziger Aufbauer.", "Your only builder once learned.") },    -- Blutsturz / Hemorrhage
         { id = 53, kind = "filler", when = "filler", need = { unknown = 16511, weapon = DAGGER, cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Solange {16511} fehlt: Aufbau von hinten mit Dolch.", "Until you learn {16511}: build from behind with a dagger.") },    -- Meucheln / Backstab
         { id = 1752, kind = "filler", when = "filler", need = { unknown = 16511, cp = { max = 4 } },
+          guess = T("„Aufbauen bis 4 Punkte“ ist geschätzt; die Quelle nennt keine Zahl.", "“Build up to 4 points” is estimated; the source gives no number."),
           text = T("Solange {16511} fehlt: Aufbau von vorn oder ohne Dolch.", "Until you learn {16511}: build from the front or without a dagger.") },    -- Finsterer Stoß / Sinister Strike
         -- Situativ -------------------------------------------------------------------------------------------------
         { id = 3408, kind = "situational", when = "manual",

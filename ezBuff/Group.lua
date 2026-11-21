@@ -216,6 +216,8 @@ local function ShowTooltip(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local r, g, b = Core.GlowColor("missing")
     GameTooltip:SetText(Core.ClassText(entry.name or "?", entry.class), r, g, b)
+    -- Was das Symbol ist und woher ezBuff es weiß (Spieltest 20.11.2026: „was soll das rote symbol sein?“; Leitlinie 11)
+    Core.TipLine(GameTooltip, L.GROUP_ICON_WHAT, "hint", true)
     for _, need in ipairs(entry.needs or {}) do
         -- Rollen statt Farbzahlen (T9-6): der Buff, den der Klick wirkt, grün
         local text = Group.NeedText(need)
@@ -239,17 +241,16 @@ local function ShowTooltip(self)
     GameTooltip:Show()
 end
 
--- Aufbau des Symbols (einmal, außerhalb des Kampfes; alles Ungeschützte).
+-- Aufbau des Symbols (einmal, außerhalb des Kampfes; alles Ungeschützte). Blizzards Optik eines Buffs am Rahmen
+-- (Leitlinie 1): nur das Symbol des Zaubers, grau wenn er fehlt, farbig mit Minuten wenn er ausläuft – wie Blizzards
+-- Buffs an Gruppen- und Raidrahmen ohne Rand. Bis zum 20.11.2026 lag Blizzards Debuff-Rand (UI-Debuff-Overlays) in
+-- Orange darum; am Spielerrahmen las er sich als rotes Warnzeichen (Spieltest 20.11.2026: „was soll das rote symbol
+-- sein?“) – ein Debuff-Rand gehört zu Schwächungen, nicht zu einem fehlenden eigenen Buff.
 local function BuildIcon(frame, blizzard)
     iconOf[frame] = blizzard
     pcall(frame.SetFrameLevel, frame, (ns.Num(blizzard:GetFrameLevel()) or 1) + 5)
     frame.Icon = frame:CreateTexture(nil, "ARTWORK")
     frame.Icon:SetAllPoints()
-    frame.Border = frame:CreateTexture(nil, "OVERLAY")
-    frame.Border:SetPoint("TOPLEFT", -1, 1)
-    frame.Border:SetPoint("BOTTOMRIGHT", 1, -1)
-    frame.Border:SetTexture("Interface\\Buttons\\UI-Debuff-Overlays")
-    frame.Border:SetVertexColor(Core.GlowColor("missing"))
     frame.Text = frame:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     frame.Text:SetPoint("BOTTOMRIGHT", 2, -2)
     frame:SetScript("OnEnter", ShowTooltip)
@@ -376,6 +377,51 @@ local function Signs(frame, entry)
     elseif kid then
         kid:Hide()
     end
+end
+
+-- Zeichen für Essen und Fläschchen erklären (Spieltest 20.11.2026: „was soll das rote symbol sein?“ – die Zeichen
+-- sitzen am selben Platz wie das Symbol, sind mausdurchlässig und hatten keine Erklärung; Fund des code-reviewers):
+-- Abschnitt in Blizzards Einheiten-Tooltip am Gruppen- bzw. Raidrahmen (Core.Tooltip.AddUnitSection, nur lesen),
+-- solange die Zeichen an diesem Rahmen zu sehen sind – mit Quelle (Leitlinie 11).
+Group.TOOLTIP_KEY, Group.TOOLTIP_ORDER = "ezBuffGroupSigns", 53
+
+-- Blizzards Rahmen zum Tooltip: sein Besitzer oder dessen Eltern-Rahmen, wenn Core.GroupFrames ihn kennt (nur lesen).
+local function TooltipFrame(tooltip)
+    if type(tooltip) ~= "table" or type(tooltip.GetOwner) ~= "function" then return nil end
+    local ok, owner = pcall(tooltip.GetOwner, tooltip)
+    if not ok or ns.IsSecret(owner) or type(owner) ~= "table" then return nil end
+    if GF.Unit(owner) then return owner end
+    if type(owner.GetParent) ~= "function" then return nil end
+    local okParent, parent = pcall(owner.GetParent, owner)
+    if okParent and not ns.IsSecret(parent) and type(parent) == "table" and GF.Unit(parent) then return parent end
+    return nil
+end
+
+-- Zeilen zu den sichtbaren Zeichen eines Rahmens: { text … } (leer, wenn keine zu sehen sind).
+function Group.SignLines(frame)
+    local data = type(frame) == "table" and GF.Data(OWNER, frame)
+    local kid = type(frame) == "table" and GF.Part(OWNER, frame, Group.SIGNS_KEY)
+    local entry = data and data.entry
+    if not (entry and kid and kid:IsShown()) then return {} end
+    local lines = {}
+    if entry.food and kid.Food and kid.Food:IsShown() then lines[#lines + 1] = L.MISSING_FOOD end
+    if entry.flask and kid.Flask and kid.Flask:IsShown() then lines[#lines + 1] = L.GROUP_FLASK end
+    return lines
+end
+
+function Group.AddTooltip(tooltip)
+    if not GF then return 0 end
+    local lines = Group.SignLines(TooltipFrame(tooltip))
+    if #lines == 0 then return 0 end
+    if Core.Tooltip and Core.Tooltip.Gap then Core.Tooltip.Gap(tooltip) end
+    Core.TipLine(tooltip, L.GROUP_SIGNS_HEAD, "normal")
+    for _, text in ipairs(lines) do Core.TipLine(tooltip, text, "highlight") end
+    Core.TipLine(tooltip, L.GROUP_SIGNS_SOURCE:format(ns.PathText("OPT_HEADER_GROUP", "OPT_groupSigns")), "hint", true)
+    return #lines
+end
+
+if Core.Tooltip and Core.Tooltip.AddUnitSection then
+    Core.Tooltip.AddUnitSection(Group.TOOLTIP_KEY, Group.TOOLTIP_ORDER, function(tooltip) Group.AddTooltip(tooltip) end, OWNER)
 end
 
 -- Einen Rahmen neu füllen (nach jeder Prüfung, bei neuem Mitglied, nach dem Kampf).

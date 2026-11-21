@@ -7,15 +7,19 @@ local T = ns.RotationData.T
 --                       https://www.icy-veins.com/wow-forever/balance-druid-leveling
 --                       https://www.wowhead.com/forever/guide/classes/druid/balance/rotation-cooldowns-pve-dps
 --   Wilder Kampf:       https://www.icy-veins.com/wow-forever/feral-druid-melee-dps-and-tank-pve-rotation-cooldowns-abilities
+--                       (Stand 04.11.2026, nachgeprüft 20.11.2026: „Primal Bite“ nur in der Bärengestalt, „Feral Charge“
+--                       nicht in der Rangfolge; Katze unverändert)
 --                       https://www.icy-veins.com/wow-forever/feral-druid-leveling
 --                       https://www.wowhead.com/forever/guide/classes/druid/feral/rotation-cooldowns-pve-dps
 --                       https://www.wowhead.com/forever/guide/classes/druid/feral/rotation-cooldowns-pve-tank
 --   Wiederherstellung:  https://www.icy-veins.com/wow-forever/restoration-druid-healer-pve-rotation-cooldowns-abilities
+--                       (nachgeprüft 20.11.2026: Heilende Berührung 5185 selten (Leveln-Seite: wenn Verjüngung und
+--                        Nachwachsen laufen) – Listeneintrag)
 --                       https://www.icy-veins.com/wow-forever/restoration-druid-leveling
 --   Gestalten:          https://www.icy-veins.com/wow-forever/druid-shapeshift-forms
 -- Zauber-IDs (Rang 1) geprüft gegen nether.wowhead.com/forever. Nichts stammt aus einem Addon. Name, Symbol, Ränge,
 -- gelernt, Lernstufe, Kosten, Zauberzeit, Abklingzeit und Dauer liefert der Client zur Laufzeit; hier stehen nur
--- Zauber-ID und Logik. Zahlen sind Schwellen der Logik; wo keine Quelle sie nennt, steht „Annahme“ davor.
+-- Zauber-ID und Logik. Zahlen sind Schwellen der Logik; wo keine Quelle sie nennt, sagt es das Feld guess (Tooltip „Annahme: …“).
 -- [V] = ID oder Annahme nicht im Spiel bestätigt (der Selbsttest über den Befehl ez test meldet unbekannte IDs).
 --
 -- Wahl bei „Nach Talentbaum“ (Wilder Kampf): in der Katzengestalt die Katze, sonst der Bär. Der Bär steht bewusst
@@ -172,17 +176,18 @@ ns.RotationData.Add("DRUID", {
         -- Normalgestalt nur, solange keine der beiden Bärengestalten gelernt ist: Die höhere löst die erste ab [V].
         { id = 8921, key = "caster:8921", kind = "maintain", when = "dot", refresh = "missing", need = { unknown = { 5487, 9634 } },
           text = T("Vor der ersten Tiergestalt: auf dem Ziel halten.", "Before your first animal form: keep it on the target.") },    -- Mondfeuer / Moonfire
-        -- Annahme: „Wutmangel“ = höchstens 10 Wut; die Quelle nennt keine Zahl. Steht vor Debuffs und Biss (Icy Veins
-        -- Leveln: allein auch im Kampf bei Wutmangel); weiter hinten käme er nur, wenn alles andere liegt oder abklingt.
+        -- Steht vor Debuffs und Biss (Icy Veins Leveln: allein auch im Kampf bei Wutmangel); weiter hinten käme er nur,
+        -- wenn alles andere liegt oder abklingt.
         { id = 5229, key = "resource:5229", kind = "resource", when = "ready", need = { solo = true, combat = true, rage = { max = 10 } },
+          guess = T("„Wutmangel“ ist als höchstens 10 Wut geschätzt.", "“Starved for rage” is estimated as at most 10 rage."),
           text = T("Allein bei Wutmangel; senkt deine Rüstung.", "Solo when starved for rage; lowers your armor.") },    -- Wutanfall / Enrage
         { id = 770, kind = "maintain", when = "dot", mine = false, refresh = "missing",
           text = T("Auf dem Ziel halten; egal von wem es stammt.", "Keep it on the target; anyone's counts.") },    -- Feenfeuer / Faerie Fire [V in Tiergestalt]
         { id = 99, kind = "maintain", when = "dot", mine = false, refresh = "missing",
           text = T("Fehlt es: setzen – außer jemand hält es schon.", "Missing: apply – unless someone already keeps it up.") },    -- Demoralisierendes Gebrüll / Demoralizing Roar
-        -- Annahme: „läuft gleich aus“ = höchstens drei Sekunden Rest (zwei globale Abklingzeiten).
         { id = 1328617, key = "rescue:1328617", kind = "maintain", when = "ready",
           need = { aura = { id = 1328617, unit = "target", min = 5, left = { max = 3 } } },
+          guess = T("„Läuft gleich aus“ ist als höchstens 3 Sek. Rest geschätzt.", "“About to expire” is estimated as at most 3 sec left."),
           text = T("Volle Stapel laufen gleich aus: erst retten.", "Full stacks about to drop: save them first.") },    -- Aufschlitzen / Lacerate
         { id = 407995, kind = "priority", when = "ready",
           text = T("Bei jeder Abklingzeit; nie verzögern.", "On every cooldown; never delay it.") },    -- Urtümlicher Biss / Primal Bite
@@ -238,8 +243,8 @@ ns.RotationData.Add("DRUID", {
         -- In der Gruppe erst im Kampf: Der Heiler eröffnet dort nicht.
         { id = 5570, key = "group:5570", kind = "maintain", when = "dot", refresh = "missing", need = { grouped = true, combat = true },
           text = T("In der Gruppe nebenbei auf dem Boss halten.", "In a group keep it on the boss on the side.") },    -- Insektenschwarm / Insect Swarm
-        -- Annahme: „ein guter Teil des Manas ist weg“ = höchstens 30 %; die Quelle nennt keine Zahl.
         { id = 29166, kind = "resource", when = "lowmana", max = 30,
+          guess = T("„Ein guter Teil des Manas ist weg“ ist als höchstens 30 % geschätzt.", "“A good part of your mana is gone” is estimated as at most 30%."),
           text = T("Auf dich, wenn ein guter Teil des Manas fehlt.", "On yourself once a good part of your mana is gone.") },    -- Anregen / Innervate
         { id = 5176, kind = "filler", when = "filler", need = { solo = true },
           text = T("Allein dein Lückenfüller.", "Your gap filler when solo.") },    -- Zorn / Wrath
@@ -252,6 +257,8 @@ ns.RotationData.Add("DRUID", {
           text = T("Auf Verletzte; auf dem Tank dauerhaft halten.", "On the injured; keep it rolling on the tank.") },    -- Nachwachsen / Regrowth
         { id = 18562, kind = "situational", when = "manual",
           text = T("Günstige Sofortheilung bei plötzlichem Schaden.", "Cheap instant heal for sudden damage.") },    -- Rasche Heilung / Swiftmend
+        { id = 5185, kind = "situational", when = "manual",
+          text = T("Selten: nur wenn {774} und {8936} schon laufen und der Tank weiter Schaden nimmt.", "Rarely: only when {774} and {8936} already run and the tank keeps taking damage.") },    -- Heilende Berührung / Healing Touch
         { id = 408120, kind = "situational", when = "manual",
           text = T("Wenn die ganze Gruppe tief ist, am besten mit {16870}.", "When the whole group is low, ideally with {16870}.") },    -- Wildwuchs / Wild Growth
         { id = 740, kind = "situational", when = "manual",

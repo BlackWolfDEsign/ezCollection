@@ -3,7 +3,7 @@
 ## Notes: Group finder with classes, roles and levels in Blizzard's window, group messages from the chat sorted by dungeon, coloured who, friends and guild lists, ready timer and automatic summon/resurrection. Part of ezCollection.
 ## Notes-deDE: Gruppensuche mit Klassen, Rollen und Stufen in Blizzards Fenster, Gruppen-Nachrichten aus dem Chat nach Dungeon, farbige Wer-, Freundes- und Gildenliste, Bereitschafts-Timer, Beschwörung und Wiederbelebung annehmen. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.5.0
+## Version: 1.6.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Misc_GroupNeedMore
 ## RequiredDeps: ezCore

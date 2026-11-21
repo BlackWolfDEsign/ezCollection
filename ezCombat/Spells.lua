@@ -44,13 +44,10 @@ end
 -- Start und Dauer der Abklingzeit, wenn das Spiel sie offen nennt (sonst nil, nil) – nur gelesen, nie verglichen,
 -- solange gesperrt (Leitlinie 6).
 function ns.CooldownTimes(spell)
-    local api = C_Spell and C_Spell.GetSpellCooldown
-    if type(api) ~= "function" or ns.IsSecret(spell) or spell == nil then return nil, nil end   -- IsSecret zuerst (T3-6)
-    local ok, info = pcall(api, spell)
-    if not ok or ns.IsSecret(info) or type(info) ~= "table" then return nil, nil end
-    local start, duration = ns.Num(ezCore.Peek(info, "startTime")), ns.Num(ezCore.Peek(info, "duration"))
-    if start and duration then return start, duration end
-    return nil, nil
+    if ns.IsSecret(spell) or spell == nil then return nil, nil end   -- IsSecret zuerst (T3-6)
+    -- gelesen über ezCores Spells.ReadCooldown (SSOT, Paket ezcombat/rotation-recherche vom 20.11.2026)
+    local _, start, duration = Spells.ReadCooldown(spell)
+    return start, duration
 end
 
 -- Geteilte Abklingzeiten (Welle 26, Folge-Paket F10 aus docs/wago-tools.md; Paket modul/ezcombat-kategorien): Zauber

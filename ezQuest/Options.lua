@@ -111,6 +111,9 @@ local function Register()
     page:Checkbox("routeHard", nil, route())
     page:Checkbox("routeLine", nil, route())
     page:Checkbox("routeMiniArrow", nil, route())
+    -- Größe des Pfeils (Spieltest 20.11.2026): eingerückt und grau, solange der Pfeil aus ist
+    page:Slider("routeMiniArrowSize", 12, 48, 2, ezCore.Pixels, nil, { parent = "routeMiniArrow",
+        enabledWhen = function() return ns.Enabled("levelRoute") and ns.Enabled("routeMiniArrow") end })
     page:Checkbox("routeWatch", nil, route())
 
     -- Erfahrungsleiste (XPPreview.lua): Quest-Erfahrung als Vorschau auf Blizzards Leiste (Feature I1, 18.11.2026)

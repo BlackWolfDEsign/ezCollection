@@ -191,34 +191,107 @@ function XP.Sums() return sums end
 function XP.Overlays() return order end
 
 ---------------------------------------------------------------------------
--- Tooltip: „nach Abgabe Stufe X, Y %“
+-- Tooltip: „nach Abgabe Stufe X, Y %“ und was die Farben der Leiste bedeuten
+-- Spieltest 20.11.2026 (wörtlich „ep balken tooltip scheint nicht formatiert zu sein und keiner versteht die farben
+-- (bedeutung/farben müssen in tooltip ersichtlich sein)“): breiter Tooltip (Core.TipWide) mit Abstand zu Blizzards
+-- Zeilen (Core.Tooltip.Gap), die Menge rechtsbündig, „nach Abgabe“ in eigener Zeile, darunter eine Legende mit
+-- Farbproben: Blizzards eigene Füllungen als Atlas (Forever-Quelle Blizzard_StatusTrackingBar/Mainline/
+-- ExpBarOverrides.lua: UI-HUD-ExperienceBar-Fill-Rested bzw. -Fill-Experience; Mainline/ExpBar.xml:
+-- ExhaustionLevelFillBar mit -Fill-Prediction) und ezQuests Gold in den beiden Helligkeiten der Leiste.
 ---------------------------------------------------------------------------
 
--- Text einer Summe: „<Kopf> (n): 1.234 EP – nach Abgabe Stufe 21, 30 %“ (+ „geschätzt“, Höchststufe bzw. Stufengrenze
--- eines Probe-Kontos über Core.XPLevelCap: dort bleibt die Stufe stehen, die Erfahrung wird gesammelt)
-local function SumText(fmt, count, gain, level, xp, max)
-    local after
-    local cap, trial = Core.XPLevelCap()
-    local lvl, frac, estimated, top = Core.LevelAfterXP(gain, level, xp, max, cap)
-    if not lvl then
-        after = ""
-    elseif top then
-        after = (trial and L.XPP_AFTER_CAP or L.XPP_AFTER_MAX):format(lvl)
-    else
-        after = L.XPP_AFTER:format(lvl, Core.Percent(math.floor(frac * 100)))
-        if estimated then after = after .. L.XPP_GUESS end
-    end
-    return fmt:format(count, Core.FormatNumber(gain), after), estimated
+XP.SWATCH_W, XP.SWATCH_H = 22, 10
+XP.ATLAS_RESTED = "UI-HUD-ExperienceBar-Fill-Rested"
+XP.ATLAS_PREDICTION = "UI-HUD-ExperienceBar-Fill-Prediction"
+XP.INDENT = "    "      -- Einzug der Zeile „nach Abgabe …“ unter ihrer Summe
+
+-- Farbprobe: Blizzards Atlas → „|A…|a“; ohne Atlas eine Fläche in r, g, b (0–1) mit Deckkraft alpha über dem dunklen
+-- Tooltip-Grund → „|T…|t“
+function XP.Swatch(atlas, r, g, b, alpha)
+    if atlas then return ("|A:%s:%d:%d|a"):format(atlas, XP.SWATCH_H, XP.SWATCH_W) end
+    local a = type(alpha) == "number" and alpha or 1
+    local function C(v) return math.floor((v or 1) * a * 255 + 0.5) end
+    return ("|TInterface\\Buttons\\WHITE8X8:%d:%d:0:0:8:8:0:8:0:8:%d:%d:%d|t"):format(XP.SWATCH_H, XP.SWATCH_W,
+        C(r), C(g), C(b))
 end
 
--- Zeilen des Tooltips → { { text, rolle } … }, leer, wenn die Vorschau aus ist oder keine Erfahrung kommt
+local function GoldSwatch(alpha)
+    local r, g, b = Core.Style.Color("normal")
+    return XP.Swatch(nil, r, g, b, alpha)
+end
+
+-- „nach Abgabe …“ einer Summe (Höchststufe bzw. Stufengrenze eines Probe-Kontos über Core.XPLevelCap: dort bleibt die
+-- Stufe stehen, die Erfahrung wird gesammelt) → Text oder nil, geschätzt
+local function AfterText(gain, level, xp, max)
+    local cap, trial = Core.XPLevelCap()
+    local lvl, frac, estimated, top = Core.LevelAfterXP(gain, level, xp, max, cap)
+    if not lvl then return nil, false end
+    if top then return (trial and L.XPP_AFTER_CAP or L.XPP_AFTER_MAX):format(lvl), estimated end
+    local text = L.XPP_AFTER:format(lvl, Core.Percent(math.floor(frac * 100)))
+    if estimated then text = text .. L.XPP_GUESS end
+    return text, estimated
+end
+
+-- eine Summe: Farbprobe und Name links, Menge rechts, darunter eingerückt „nach Abgabe …“ → geschätzt
+local function AddSum(lines, swatch, fmt, count, gain, level, xp, max)
+    lines[#lines + 1] = { swatch .. " " .. fmt:format(count), "highlight", right = L.XPP_AMOUNT:format(Core.FormatNumber(gain)) }
+    local after, estimated = AfterText(gain, level, xp, max)
+    if after then lines[#lines + 1] = { after, "highlight", indent = true } end
+    return estimated
+end
+
+-- Blizzards Erholung: GetRestState() → 1 erholt (Füllung Fill-Rested), sonst normal (Fill-Experience).
+-- Streifen (ExhaustionLevelFillBar, Shared/ExpBar.lua ExhaustionTickMixin:UpdateTickPosition): nur mit
+-- GetXPExhaustion() > 0; reicht die Erholung über die Stufe hinaus, zeigt Blizzard ihn nur mit
+-- ShouldRestedXpBarDisplayWhenOverflowing() – dann bis zum Rand und ohne Marke (ab 99 %). → erholt, Streifen
+-- (nil | "tick" bis zur Marke | "over" über die Stufe hinaus)
+function XP.RestInfo()
+    local state = Num(Core.Call(rawget(_G, "GetRestState")))
+    local left = Num(Core.Call(rawget(_G, "GetXPExhaustion")))
+    local band
+    if left and left > 0 then
+        local xp = Num(Core.Call(rawget(_G, "UnitXP"), "player"))
+        local max = Num(Core.Call(rawget(_G, "UnitXPMax"), "player"))
+        local ratio = (xp and max and max > 0) and (xp + left) / max or 0
+        if ratio > 1 then
+            if Core.Call(rawget(_G, "ShouldRestedXpBarDisplayWhenOverflowing")) == true then band = "over" end
+        elseif ratio > 0.99 then
+            band = "over"
+        else
+            band = "tick"
+        end
+    end
+    return state == 1, band
+end
+local RestInfo = XP.RestInfo
+
+-- Legende der Leiste: deine Erfahrung (Blizzards Füllung je nach Erholung), Streifen bis zur Marke, ezQuests Gold
+function XP.Legend()
+    local rested, band = RestInfo()
+    local out = { { L.XPP_LEGEND_HEAD, "normal", gap = true } }
+    if rested then
+        out[#out + 1] = { XP.Swatch(XP.ATLAS_RESTED) .. " " .. L.XPP_LEG_XP_RESTED, "highlight" }
+    else
+        out[#out + 1] = { XP.Swatch(XP.ATLAS) .. " " .. L.XPP_LEG_XP, "highlight" }
+    end
+    if band then
+        out[#out + 1] = { XP.Swatch(XP.ATLAS_PREDICTION) .. " " .. (band == "over" and L.XPP_LEG_REST_OVER or L.XPP_LEG_REST),
+            "highlight" }
+    end
+    out[#out + 1] = { GoldSwatch(XP.ALPHA_DONE) .. " " .. L.XPP_LEG_DONE, "highlight" }
+    out[#out + 1] = { GoldSwatch(XP.ALPHA_ALL) .. " " .. L.XPP_LEG_ALL, "highlight" }
+    return out
+end
+
+-- Zeilen des Tooltips → { { text, rolle [, right = Text] [, indent = true] [, gap = true] } … }, leer, wenn die Vorschau
+-- aus ist oder keine Erfahrung kommt (gap: Abstand davor; indent: eingerückt unter der Zeile davor)
 function XP.Lines()
     local lines = {}
     if not XP.Active() then return lines end
     if not sums then sums = Core.QuestLogXP() end
     local s = sums
     if not s then return lines end
-    lines[#lines + 1] = { L.XPP_HEADER, "normal" }
+    lines[#lines + 1] = { L.XPP_HEADER, "normal", gap = true }
     if s.allCount == 0 then
         lines[#lines + 1] = { L.XPP_EMPTY, "gray" }
         return lines
@@ -232,29 +305,34 @@ function XP.Lines()
     local max = Num(Core.Call(rawget(_G, "UnitXPMax"), "player"))
     local guess = false
     if s.done > 0 then
-        local text, est = SumText(L.XPP_DONE, s.doneCount, s.done, level, xp, max)
-        lines[#lines + 1] = { text, "highlight" }
-        guess = guess or est
+        guess = AddSum(lines, GoldSwatch(XP.ALPHA_DONE), L.XPP_DONE, s.doneCount, s.done, level, xp, max) or guess
     else
-        lines[#lines + 1] = { L.XPP_DONE_NONE, "highlight" }
+        lines[#lines + 1] = { GoldSwatch(XP.ALPHA_DONE) .. " " .. L.XPP_DONE_NONE, "highlight" }
     end
-    local text, est = SumText(L.XPP_ALL, s.allCount, s.all, level, xp, max)
-    lines[#lines + 1] = { text, "highlight" }
-    guess = guess or est
+    guess = AddSum(lines, GoldSwatch(XP.ALPHA_ALL), L.XPP_ALL, s.allCount, s.all, level, xp, max) or guess
     if s.unknown > 0 then lines[#lines + 1] = { Core.Plural(s.unknown, L.XPP_UNKNOWN_ONE, L.XPP_UNKNOWN_MANY), "gray" } end
     if guess then lines[#lines + 1] = { L.XPP_GUESS_TIP, "gray" } end
-    lines[#lines + 1] = { L.XPP_LEGEND, "gray" }
+    for _, line in ipairs(XP.Legend()) do lines[#lines + 1] = line end
     return lines
 end
 
--- Zeilen an einen offenen Tooltip hängen (Erholungs-Marke: Blizzards Tooltip steht schon)
+-- Zeilen an einen offenen Tooltip hängen (Erholungs-Marke: Blizzards Tooltip steht schon); breit, damit auch Blizzards
+-- Zeilen darüber nicht eng umbrechen
 function XP.AddToTip(tooltip)
     if type(tooltip) ~= "table" or type(tooltip.AddLine) ~= "function" then return false end
     local lines = XP.Lines()
     if #lines == 0 then return false end
+    Core.TipWide(tooltip)
     for _, line in ipairs(lines) do
+        if line.gap and Core.Tooltip and Core.Tooltip.Gap then Core.Tooltip.Gap(tooltip) end
         local r, g, b = Core.Style.Color(line[2])
-        tooltip:AddLine(line[1], r, g, b, true)
+        local text = line.indent and (XP.INDENT .. line[1]) or line[1]
+        if line.right and type(tooltip.AddDoubleLine) == "function" then
+            local hr, hg, hb = Core.Style.Color("highlight")
+            tooltip:AddDoubleLine(text, line.right, r, g, b, hr, hg, hb)
+        else
+            tooltip:AddLine(line.right and (text .. "  " .. line.right) or text, r, g, b, true)
+        end
     end
     tooltip:Show()
     return true

@@ -251,9 +251,12 @@ function CHECKS.counter(value, _, ctx)
 end
 
 function CHECKS.cp(value) return InRange(Rotation.ComboPoints(), value) end
-function CHECKS.rage(value) return InRange(Rotation.Power("Rage"), value) end
-function CHECKS.energy(value) return InRange(Rotation.Power("Energy"), value) end
-function CHECKS.mana(value) return InRange(Rotation.ManaPercent(), value) end
+-- Wut, Energie, Mana (Prozent): die Zahl, wenn offen, sonst die Spanne aus Blizzards Nutzbarkeit der gelernten Zauber
+-- (Rotation.PowerRange, Rotation.ManaRange; Paket ezcombat/rotation-recherche, 20.11.2026). Ein Wert ohne Bereich gilt
+-- wie bisher als erfüllt, solange die Zahl offen ist.
+function CHECKS.rage(value, _, ctx) return Rotation.PowerRange("Rage", value, ctx) end
+function CHECKS.energy(value, _, ctx) return Rotation.PowerRange("Energy", value, ctx) end
+function CHECKS.mana(value, _, ctx) return Rotation.ManaRange(value, ctx) end
 
 -- Aura für need.aura / need.noaura: { id, unit, mine, filter, … } → Aura, Zahl der unbekannten Auren, Einheit.
 -- unit: "player" (Standard), "target", "pet", "pettarget"; filter: HELPFUL beim Spieler und Begleiter, HARMFUL bei

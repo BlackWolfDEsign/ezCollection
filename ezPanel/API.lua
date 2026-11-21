@@ -37,6 +37,28 @@ local _, ns = ...
             events, interval, defaults, Warnings … Ab Werk ist ein fremder Baustein aus (defaults.enabled).
         panel.UpdateBlock(id)             Text neu berechnen (wenn sich beim Modul etwas geändert hat)
         panel.BlockEnabled(id)            → steht er auf der Leiste?
+        panel.BlockShown(id)              → eingeschaltet und die Leiste oben an (Einstellung „Leiste oben“)?
+                                            Unabhängig davon, ob der Baustein gerade nach Lage verborgen ist („in
+                                            Städten ausblenden“ usw.), angehalten ist oder die Leiste gerade
+                                            verborgen ist (Kampf, Haustierkampf, automatisch ausblenden)
+        panel.PlaceBlocks(ids, zone)      → Anzahl: schaltet die Bausteine (Liste von Kennungen, z. B. { "location",
+                                            "clock" }) ein und stellt sie in dieser Reihenfolge ans Ende der Zone
+                                            ("left" | "center" | "right"; rechts steht der letzte ganz außen).
+                                            Einmal auf einen Wunsch des Nutzers, nicht bei jedem Einloggen – wer
+                                            die Bausteine danach woandershin zieht, behält seine Ordnung
+        panel.LAYOUT                      Name der Nachricht nach jedem Neuanordnen der Leiste (Core.Listen;
+                                            Baustein an oder aus, verschoben, Leiste an oder aus) – ohne Werte
+
+    Leiste oben (TopSpace.lua):
+
+        panel.TopCover()                  → Höhe in Einheiten von UIParent, die die Leiste oben am Bildschirm
+                                            einnimmt, mit der Luft, die ezPanel unter ihr lässt (2); 0, wenn die
+                                            Leiste aus oder automatisch ausgeblendet ist. Gilt auch bei „Platz oben
+                                            für die Leiste“ an: ob ein Fenster darunter steht, misst der Abnehmer an
+                                            dessen Lage (ezPanel rückt nur Fenster in Blizzards Standardlage)
+        panel.TOPSPACE                    Name der Nachricht, wenn der Platz oben neu berechnet ist (Schalter,
+                                            Schriftgröße, Skalierung, Leiste an, aus oder automatisch ausgeblendet,
+                                            Bearbeitungsmodus) – ohne Werte
 
     Fehler in fn, GetText und den übrigen Rückrufen fängt ezPanel ab und meldet sie an einer Stelle
     (ns.BlockError in Blocks.lua) über ns.Error: Sie stehen in ezCores Fehlerliste unter „ezPanel“ mit Rückruf,
@@ -172,6 +194,31 @@ end
 
 function API.BlockEnabled(id)
     return ns.BlockEnabled(id)
+end
+
+function API.BlockShown(id)
+    return ns.BlockEnabled(id) and ns.ActiveBar() ~= nil
+end
+
+API.PlaceBlocks = ns.PlaceBlocks
+
+function API.TopCover()
+    if not (ns.bar and ns.ReservedHeight) then return 0 end
+    local height = ns.ReservedHeight(UIParent)       -- 0: Leiste aus oder automatisch ausgeblendet
+    if not height or height <= 0 then return 0 end
+    return height + (ns.TOP_GAP or 0)
+end
+
+API.TOPSPACE = "EZPANEL_TOPSPACE"
+if Core.RegisterMessage then
+    Core.RegisterMessage(API.TOPSPACE, "ezPanel", "Der Platz oben ist neu berechnet (Schalter „Platz oben für die "
+        .. "Leiste“, Höhe, Skalierung, Leiste an oder aus). Zuhörer: ezMap (Kompakte Minikarte, panel.TopCover).")
+end
+
+API.LAYOUT = "EZPANEL_LAYOUT"
+if Core.RegisterMessage then
+    Core.RegisterMessage(API.LAYOUT, "ezPanel", "Die Leiste von ezPanel wurde neu angeordnet (Baustein an oder aus, "
+        .. "verschoben, Leiste an oder aus). Zuhörer: ezMap (Kompakte Minikarte).")
 end
 
 ---------------------------------------------------------------------------

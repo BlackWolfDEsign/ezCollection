@@ -300,6 +300,10 @@ local function Register()
     -- der Tooltip nennt Details bzw. einen Rahmen-Ersatz, wenn sie laufen.
     page:Checkbox("meterFramesDamage", ns.MeterFrames.Tooltip("meterFramesDamage"))
     page:Checkbox("meterFramesHealing", ns.MeterFrames.Tooltip("meterFramesHealing"))
+    -- Zahlen neben den Linien (Spieltest 20.11.2026: rechts neben dem klassischen Rahmen, mit Tooltip); aus: nur Linien
+    page:Checkbox("meterFramesNumbers", ns.MeterFrames.Tooltip("meterFramesNumbers"))
+    -- Nur die Art der eigenen Rolle (Spieltest 20.11.2026: „angezeigt wird am rahmen nur, was den spieler betrifft“)
+    page:Checkbox("meterFramesOwnRole", ns.MeterFrames.Tooltip("meterFramesOwnRole"))
     -- Top-3-Ansicht und weitere Arten (MeterTop.lua, Antwort des Nutzers vom 16.11.2026: „Ja, beides“): Darstellung
     -- (Zeilen, nur die ersten 3, beides) und je weitere Art ein Schalter – dieselben wie im Zahnrad-Menü.
     page:Dropdown("meterFramesView", Choices("meterFramesView", ns.MeterFrames.ViewLabel))

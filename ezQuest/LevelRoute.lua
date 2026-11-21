@@ -33,9 +33,14 @@ local Core = ezCore
     Rechnung: Stationen je offenem Teilziel (Ort der dichtesten Gruppe seiner Fundorte, nie die Mitte aller) und je
     Abgabe (erst nach allen Zielen der Quest – Vorrang); Weg in Weltkoordinaten (Core.Route.WorldDistance, Yards),
     Zeit = Weg / LR.SPEED + Arbeit am Ziel; Bewertung = Summe der EP mal Ankunftszeit der Abgaben (viel EP früh) plus
-    eine große Strafe je Quest, die bis zu ihrer Abgabe grau würde (Stufe entlang des Wegs hochgerechnet). Reihenfolge
-    über ezCores Rechner (Core.Route.Nearest, TwoOpt, Relocate mit Vorrang und Bewertung – Entscheidung 11). Danach
-    „wird grau“ und „lohnt nicht“ mit Grund aus der Route, Händlerhalt und Sammel-Abstecher eingefügt.
+    eine große Strafe je Quest, die bis zu ihrer Abgabe grau würde (Stufe entlang des Wegs hochgerechnet). Die EP jeder
+    Abgabe zählen mit dem Stufenabstand gewichtet (Spieltest vom 20.11.2026; LR.Weight): orange und rot laut Client bei
+    der Stufe an dieser Stelle drängen weniger nach vorn, ebenso jetzt schon graue und – ohne Gruppe – Elite-, Gruppen-
+    und Dungeonquests. Reihenfolge über ezCores Rechner (Core.Route.Nearest, TwoOpt, Relocate mit Vorrang und Bewertung
+    – Entscheidung 11); der Anfang nach dem kürzesten Weg ist nur der Ausgang. Danach „wird grau“ und „lohnt nicht“ mit
+    Grund aus der Route, zurückgestellte Quests als Block nach hinten (LR.PushBack, bei Gleichstand später), eine
+    schwere Quest allein nicht als ersten Schritt (LR.HoldBack), Händlerhalt und Sammel-
+    Abstecher eingefügt. Der Tooltip jedes Schritts sagt, warum er dort steht (LR.WhyHere).
     Weiterrücken (Entscheidung 8): erfülltes Teilziel bzw. Abgabe nimmt den Schritt weg, ohne neu zu rechnen; eine neue
     Quest wird eingefügt (Core.Route.Insert); neu gerechnet wird auf Klick und nach dem Abbrechen einer Quest.
     Automatisch (Wunsch des Nutzers vom 18.11.2026, Schalter routeAuto, ab Werk an; LR.AutoSchedule): ohne Route einmal
@@ -101,7 +106,12 @@ LR.SMOOTH_ROUNDS = 20   -- höchstens so viele Verschiebungen gegen das Hin und 
 LR.NEXT_BONUS = 1.5     -- Gewicht der Abgabe einer Quest mit Folgequest (die Kette läuft dort gleich weiter)
 LR.TIMED_BONUS = 3      -- Gewicht einer Quest mit Zeitlimit (kommt nach vorn)
 LR.GREY_PENALTY = 1e12  -- Strafe je Quest, die bis zu ihrer Abgabe grau würde
-LR.TRIVIAL_FALLBACK = 5 -- Stufen unter dir, ab denen eine Quest grau ist, wenn der Client es nicht sagt (Vermutung)
+LR.TRIVIAL_FALLBACK = Core.QUEST_TRIVIAL_FALLBACK or 5 -- Stufen unter dir, ab denen grau gilt ohne Client (Vermutung)
+-- Stufenabstand (Spieltest vom 20.11.2026, wörtlich „optimiert wäre es an lvl stufe bzw lvl differenz von questlevel zu
+-- meinem lvl und zeit ersparnis“): Gewicht der Abgabe je Farbe der Quest laut Client (Core.QuestDifficulty) bei der
+-- Stufe, die du an dieser Stelle der Route voraussichtlich hast. Kleiner heißt: drängt weniger nach vorn (Vermutungen).
+LR.LEVEL_WEIGHT = { impossible = 0.1, verydifficult = 0.3, difficult = 1, standard = 1, trivial = 0.3 }
+LR.ALONE_WEIGHT = 0.3   -- Elite-, Gruppen- und Dungeonquests ohne Gruppe (Vermutung)
 LR.REMOVED_WAIT = 0.5   -- Sekunden: so lange wartet „Quest abgebrochen?“ auf ein QUEST_TURNED_IN derselben Quest
 LR.AUTO_DELAY = 3       -- Sekunden nach dem Einloggen bis zur ersten Rechnung ohne Klick (Questlog und Ort stehen dann)
 LR.AUTO_BUNDLE = 1      -- Sekunden: Änderungen im Questlog so lange sammeln, dann einmal rechnen
@@ -205,6 +215,9 @@ function LR.ReadQuest(questID, info, order)
         or Num(type(info) == "table" and info.level)
     if q.level and q.level <= 0 then q.level = nil end
     q.elite = Bool(Call(log.IsEliteQuest, questID), false) == true
+    -- Gruppenquest laut Client (C_QuestLog.GetSuggestedGroupSize, sonst suggestedGroup aus GetInfo; Spieltest 20.11.2026)
+    q.groupSize = Num(Call(log.GetSuggestedGroupSize, questID)) or Num(type(info) == "table" and info.suggestedGroup)
+    q.group = (q.groupSize or 0) > 1
     q.trivial = Bool(Call(log.IsQuestTrivial, questID), false) == true
     q.dungeon = ns.DungeonQuests ~= nil and ns.DungeonQuests.For(questID) ~= nil
     q.timed = (Num(Call(log.GetTimeAllowed, questID)) or 0) > 0
@@ -370,7 +383,13 @@ function LR.Context()
     if not xpMax or xpMax <= 0 then xpMax = nil end
     local range, rangeSrc = LR.TrivialRange()
     return { start = start, zone = ZoneOf(map), continent = start.continent, level = level, xp = xp, xpMax = xpMax,
-        range = range, rangeSrc = rangeSrc, hard = ns.Enabled("routeHard"), detour = Num(ns.S and ns.S.routeDetour) or 60 }
+        range = range, rangeSrc = rangeSrc, hard = ns.Enabled("routeHard"), detour = Num(ns.S and ns.S.routeDetour) or 60,
+        alone = not LR.InGroup() }
+end
+
+-- In einer Gruppe? (IsInGroup laut Client; gesperrt oder unbekannt heißt allein)
+function LR.InGroup()
+    return Core.Flag(Call(rawget(_G, "IsInGroup")), false) == true
 end
 
 -- Warum eine Quest gar nicht in die Route kommt (vor den Orten) → Grund oder nil
@@ -380,6 +399,78 @@ function LR.Excluded(q, ctx)
     if q.dungeon then return "dungeon" end
     if q.level and q.level > ctx.level + LR.HARD_LEVELS then return "high" end
     return nil
+end
+
+--[[
+    Stufenabstand (Spieltest vom 20.11.2026: Stufe 22 bei Astranaar, die Route begann mit einer nahen Elite-Quest der
+    Stufe 25, die nahen Quests der Stufen 18–21 standen dahinter). Bewertet wird die Farbe laut Client
+    (Core.QuestDifficulty: rot, orange, gelb, grün, grau; ohne Antwort geschätzt nach Blizzards Grenzen):
+      LR.Difficulty(stufe, spielerstufe, ctx) → Farbe, Quelle (je Rechnung zwischengespeichert in ctx.diff)
+      LR.Weight(q, stufe, ctx)  → Gewicht der Abgabe in der Bewertung (LR.LEVEL_WEIGHT bei der Stufe an dieser Stelle der
+                                  Route, mal LR.ALONE_WEIGHT für Elite, Gruppe, Dungeon ohne Gruppe). Grau zählt nur,
+                                  wenn die Quest jetzt schon grau ist – was erst unterwegs grau würde, zieht LR.PullForward
+                                  nach vorn.
+      LR.Held(q, ctx)           → { key, src, high, grey, elite, group, dungeon, first, later } bei deiner Stufe jetzt:
+                                  first = darf nicht der erste Schritt sein (orange, rot, Elite, Gruppe, Dungeon allein),
+                                  later = dazu grau. LR.HoldBack, LR.Smooth und LR.Uncross halten das ein.
+]]
+local function Cached(ctx, name)
+    local t = ctx[name]
+    if not t then t = {} ctx[name] = t end
+    return t
+end
+
+function LR.Difficulty(qlevel, plevel, ctx)
+    qlevel, plevel = Num(qlevel), Num(plevel)
+    if not (qlevel and plevel) then return nil end
+    local cache = ctx and Cached(ctx, "diff")
+    local k = qlevel * 1000 + plevel
+    local e = cache and cache[k]
+    if not e then
+        local key, src = Core.QuestDifficulty(qlevel, plevel)
+        e = { key or false, src }
+        if cache then cache[k] = e end
+    end
+    return e[1] or nil, e[2]
+end
+
+function LR.Held(q, ctx)
+    local cache = Cached(ctx, "held")
+    local h = cache[q]
+    if h then return h end
+    h = {}
+    if q.trivial then
+        h.key, h.src = "trivial", "client"
+    elseif q.level then
+        h.key, h.src = LR.Difficulty(q.level, ctx.level, ctx)
+    end
+    h.high = h.key == "impossible" or h.key == "verydifficult"
+    h.grey = h.key == "trivial"
+    -- eine Quest mit Zeitlimit kommt nach vorn (LR.TIMED_BONUS) und wird nie zurückgestellt (Fund 5 des code-reviewers
+    -- vom 20.11.2026); Stufe und Farbe nennt der Tooltip trotzdem
+    if ctx.alone and not q.timed then h.elite, h.group, h.dungeon = q.elite == true, q.group == true, q.dungeon == true end
+    h.first = not q.timed and (h.high or h.elite or h.group or h.dungeon) or false
+    h.later = h.first or (h.grey and not q.timed) or false
+    cache[q] = h
+    return h
+end
+
+function LR.Weight(q, level, ctx)
+    local byQuest = Cached(ctx, "weight")
+    local known = byQuest[q]
+    if not known then known = {} byQuest[q] = known end
+    local w = known[level]
+    if w then return w end
+    w = 1
+    if q.trivial or (q.level and LR.Held(q, ctx).grey) then
+        w = LR.LEVEL_WEIGHT.trivial
+    elseif q.level then
+        local key = LR.Difficulty(q.level, level, ctx)
+        if key and key ~= "trivial" then w = LR.LEVEL_WEIGHT[key] or 1 end
+    end
+    if ctx.alone and (q.elite or q.group or q.dungeon) then w = w * LR.ALONE_WEIGHT end
+    known[level] = w
+    return w
 end
 
 local function Work(o)
@@ -572,7 +663,7 @@ local function Walk(stations, order, dist, ctx, full)
                 if full then grey[q.id] = level end
                 cost = cost + LR.GREY_PENALTY
             end
-            local weight = (s.next and LR.NEXT_BONUS or 1) * (q.timed and LR.TIMED_BONUS or 1)
+            local weight = (s.next and LR.NEXT_BONUS or 1) * (q.timed and LR.TIMED_BONUS or 1) * LR.Weight(q, level, ctx)
             cost = cost + (s.xp or 0) * weight * t
             gained = gained + (s.xp or 0)
             if need then
@@ -597,6 +688,58 @@ function LR.Walk(stations, order, dist, ctx) return Walk(stations, order, dist, 
 -- Nur die Bewertung (und die Zeit) einer Reihenfolge → cost, Sekunden – dieselbe Rechnung wie LR.Walk ohne Tabellen
 function LR.Cost(stations, order, dist, ctx) return Walk(stations, order, dist, ctx, false) end
 
+-- Gehört ein Schritt zur Quest? Auch eine gebündelte Abgabe (s.quests; s.quest ist dort nur die erste Quest)
+local function HasQuest(s, questID)
+    for _, q in ipairs(LR.QuestsOf(s)) do
+        if q.id == questID then return true end
+    end
+    return false
+end
+
+-- Alle Stationen einer Quest aus order nehmen (in ihrer Folge) → Block. Eine gebündelte Abgabe, an der die Quest
+-- hängt, kommt mit: sie nach hinten zu legen bleibt gültig, die Ziele ihrer übrigen Quests stehen davor (Fund 1 des
+-- code-reviewers vom 20.11.2026: vorher blieb sie stehen, und das Ziel landete hinter seiner eigenen Abgabe).
+local function TakeBlock(stations, order, questID)
+    local block = {}
+    for pos = #order, 2, -1 do
+        if HasQuest(stations[order[pos]], questID) then table.insert(block, 1, table.remove(order, pos)) end
+    end
+    return block
+end
+
+-- Vorrang einer Reihenfolge von Schritten bzw. Stationen: kein Ziel nach einer Abgabe derselben Quest → true | false
+-- (für Reihenfolgen ohne Tabelle after, LR.Insert)
+local function StepsValid(stations, order)
+    local handed = {}
+    for pos = 2, #order do
+        local s = stations[order[pos]]
+        if s.kind == "obj" and s.quest and handed[s.quest.id] then return false end
+        if s.kind == "turnin" then
+            for _, q in ipairs(LR.QuestsOf(s)) do handed[q.id] = true end
+        end
+    end
+    return true
+end
+
+-- Günstigste Stelle für einen Block (ab Stelle from) nach LR.Cost; late: bei Gleichstand die spätere → Stelle, Bewertung
+-- (Gleichstand bei late relativ zur Bewertung; sonst wie vorher in LR.PullForward fest 1e-9 – Hinweis des code-reviewers)
+local function BestSpot(stations, order, block, dist, ctx, from, late, tick)
+    local bestAt, bestCost
+    for at = from, #order + 1 do
+        for k, idx in ipairs(block) do table.insert(order, at + k - 1, idx) end
+        local cost = LR.Cost(stations, order, dist, ctx)
+        local tol = late and 1e-9 * math.max(1, math.abs(bestCost or 0)) or 1e-9
+        if not bestCost or cost < bestCost - tol or (late and cost <= bestCost + tol) then bestAt, bestCost = at, cost end
+        if tick then tick(#order) end
+        for _ = 1, #block do table.remove(order, at) end
+    end
+    return bestAt or from, bestCost
+end
+
+local function PutBlock(order, block, at)
+    for k, idx in ipairs(block) do table.insert(order, at + k - 1, idx) end
+end
+
 -- Quests, die bis zu ihrer Abgabe grau würden, als Block nach vorn ziehen (Antwort 2: „eine grüne quest nicht während
 -- des ablaufen … grau wird“): Ziele und Abgabe der Quest zusammen an die Stelle, an der die Bewertung am kleinsten ist.
 -- Einzelne Züge (2-opt, Verschieben) schaffen das nicht – das Ziel allein nach vorn bringt nichts, solange die Abgabe
@@ -605,22 +748,43 @@ function LR.PullForward(stations, order, dist, ctx, tick)
     local moved = 0
     local walk = LR.Walk(stations, order, dist, ctx)
     for questID in pairs(walk.grey) do
-        local block = {}
-        for pos = #order, 2, -1 do
-            local s = stations[order[pos]]
-            if s.quest and s.quest.id == questID then table.insert(block, 1, table.remove(order, pos)) end
-        end
-        local bestAt, bestCost
-        for at = 2, #order + 1 do
-            for k, idx in ipairs(block) do table.insert(order, at + k - 1, idx) end
-            local cost = LR.Cost(stations, order, dist, ctx)
-            if not bestCost or cost < bestCost - 1e-9 then bestAt, bestCost = at, cost end
-            if tick then tick(#order) end
-            for _ = 1, #block do table.remove(order, at) end
-        end
-        for k, idx in ipairs(block) do table.insert(order, bestAt + k - 1, idx) end
+        local block = TakeBlock(stations, order, questID)
+        local bestAt, bestCost = BestSpot(stations, order, block, dist, ctx, 2, false, tick)
+        PutBlock(order, block, bestAt)
         if bestCost and bestCost < walk.cost - 1e-9 then moved = moved + 1 end
         walk = LR.Walk(stations, order, dist, ctx)
+    end
+    return moved
+end
+
+--[[
+    Zurückgestellte Quests als Block nach hinten (Spieltest vom 20.11.2026): je Quest mit LR.Held(…).later (orange, rot,
+    grau, Elite/Gruppe/Dungeon allein) Ziele und Abgabe zusammen an die Stelle mit der kleinsten Bewertung, bei
+    Gleichstand an die spätere – genommen nur, wenn die Bewertung dadurch nicht steigt. Einzelne Züge (2-opt,
+    Verschieben) holen eine Quest, die der kürzeste Weg an den Anfang gelegt hat, nicht als Ganzes nach hinten; und wo
+    der Weg gleich lang ist (zwei Ziele, eine Abgabe-Stelle), entscheidet so die Stufe. tick (freiwillig): je Bewertung.
+    → Zahl der verschobenen Quests
+]]
+function LR.PushBack(stations, order, dist, ctx, tick)
+    local moved, ids, seen = 0, {}, {}
+    for pos = 2, #order do
+        local q = stations[order[pos]].quest
+        if q and not seen[q.id] and LR.Held(q, ctx).later then seen[q.id], ids[#ids + 1] = true, q.id end
+    end
+    for _, questID in ipairs(ids) do
+        local before = {}
+        for k, v in ipairs(order) do before[k] = v end
+        local current = LR.Cost(stations, order, dist, ctx)
+        local block = TakeBlock(stations, order, questID)
+        local bestAt, bestCost = BestSpot(stations, order, block, dist, ctx, 2, true, tick)
+        if bestCost and bestCost <= current + 1e-9 * math.max(1, math.abs(current)) then
+            PutBlock(order, block, bestAt)
+            for k, v in ipairs(order) do
+                if before[k] ~= v then moved = moved + 1 break end
+            end
+        else
+            for k, v in ipairs(before) do order[k] = v end
+        end
     end
     return moved
 end
@@ -687,11 +851,50 @@ local function TimedLater(cand, w, before)
     return false
 end
 
+--[[
+    Zurückgestellte Quests beim Kürzen (LR.Smooth, LR.Uncross; Spieltest vom 20.11.2026, Funde 3 und 4 des
+    code-reviewers): HeldState(order) → { counts = { [questID] = Stationen nicht zurückgestellter Quests vor ihrer ersten
+    Station }, bad = der erste Quest-Schritt darf nicht zuerst kommen (LR.Held: first), obwohl eine andere Quest zuerst
+    dürfte, cost = Bewertung }. HeldWorse(cand, w, before) sperrt einen kürzeren Weg, wenn er eine solche Quest an den
+    Anfang bringt, oder wenn er eine zurückgestellte Quest vor passende holt und die Bewertung (die den Stufenabstand
+    kennt, LR.Weight) dabei steigt. Ein Kürzen, das die Bewertung nicht verschlechtert, bleibt erlaubt – sonst blieben
+    Kreuzungen und Hin und Her an jeder zurückgestellten Quest stehen.
+]]
+local function HeldState(stations, order, ctx, cost)
+    local counts, easy, firstQ, anyMay = {}, 0, nil, false
+    for pos = 2, #order do
+        local q = stations[order[pos]].quest
+        if q then
+            local h = LR.Held(q, ctx)
+            if firstQ == nil then firstQ = h end
+            if not h.first then anyMay = true end
+            if not h.later then
+                easy = easy + 1
+            elseif counts[q.id] == nil then
+                counts[q.id] = easy
+            end
+        end
+    end
+    return { counts = counts, bad = firstQ ~= nil and firstQ.first and anyMay, cost = cost }
+end
+
+local function HeldWorse(stations, cand, ctx, before, candCost)
+    local now = HeldState(stations, cand, ctx, candCost)
+    if now.bad and not before.bad then return true end
+    for id, n in pairs(now.counts) do
+        if before.counts[id] and n < before.counts[id] then
+            return candCost > before.cost + 1e-9 * math.max(1, math.abs(before.cost))
+        end
+    end
+    return false
+end
+
 function LR.Smooth(stations, order, dist, ctx, after, tick)
     local moved, rounds = 0, 0
     local walk = LR.Walk(stations, order, dist, ctx)
     local grey = Greys(walk)
     local timed = TimedArrivals(stations, order, walk)
+    local held = HeldState(stations, order, ctx, walk.cost)
     local changed = true
     while changed and rounds < LR.SMOOTH_ROUNDS do
         changed, rounds = false, rounds + 1
@@ -707,10 +910,12 @@ function LR.Smooth(stations, order, dist, ctx, after, tick)
                                 local _, total = LR.Cost(stations, cand, dist, ctx)
                                 if total <= walk.total - LR.FLOW_GAIN then
                                     local w = LR.Walk(stations, cand, dist, ctx)
-                                    if Greys(w) <= grey and not TimedLater(cand, w, timed) then
+                                    if Greys(w) <= grey and not TimedLater(cand, w, timed)
+                                        and not HeldWorse(stations, cand, ctx, held, w.cost) then
                                         for k, v in ipairs(cand) do order[k] = v end
                                         walk, grey, moved, changed = w, Greys(w), moved + 1, true
                                         timed = TimedArrivals(stations, order, w)
+                                        held = HeldState(stations, order, ctx, w.cost)
                                         break
                                     end
                                 end
@@ -772,6 +977,7 @@ function LR.Uncross(stations, order, dist, ctx, after, tick)
     local walk = LR.Walk(stations, order, dist, ctx)
     local grey = Greys(walk)
     local timed = TimedArrivals(stations, order, walk)
+    local held = HeldState(stations, order, ctx, walk.cost)
     local tried = {}            -- [Strecken-Paar] = true: ging nicht (Vorrang, grau, Zeitlimit); gilt bis zum nächsten Zug
     local changed = true
     while changed and moved < LR.UNCROSS_ROUNDS do
@@ -792,10 +998,12 @@ function LR.Uncross(stations, order, dist, ctx, after, tick)
                     if tick then tick(3 * #cand) end     -- Kopie, Vorrang, Zeit
                     local ok = Valid(cand, after)
                     local w = ok and LR.Walk(stations, cand, dist, ctx) or nil
-                    if w and Greys(w) <= grey and not TimedLater(cand, w, timed) then
+                    if w and Greys(w) <= grey and not TimedLater(cand, w, timed)
+                        and not HeldWorse(stations, cand, ctx, held, w.cost) then
                         for k, v in ipairs(cand) do order[k] = v end
                         walk, grey, moved, changed = w, Greys(w), moved + 1, true
                         timed = TimedArrivals(stations, order, w)
+                        held = HeldState(stations, order, ctx, w.cost)
                         tried = {}      -- die Reihenfolge rundherum ist neu: gescheiterte Paare dürfen wieder
                         break
                     end
@@ -804,6 +1012,36 @@ function LR.Uncross(stations, order, dist, ctx, after, tick)
             end
             if changed then break end
         end
+    end
+    return moved
+end
+
+--[[
+    Allein nicht zuerst (Spieltest vom 20.11.2026): steht am Anfang der Route eine Quest, die nicht zuerst kommen soll
+    (LR.Held: first – orange, rot, Elite, Gruppe, Dungeon ohne Gruppe), und gibt es eine andere, die zuerst kommen darf,
+    kommt die Quest mit allen Stationen als Block an die günstigste Stelle hinter der ersten Station einer solchen Quest
+    (Bewertung LR.Cost; der Vorrang bleibt, weil der Block alle Stationen der Quest in ihrer Folge enthält). Gilt auch
+    für Händler- und Sammel-Schritte dazwischen (LR.Insert). only (freiwillig): nur diese Quest – beim Einfügen einer neu
+    angenommenen Quest bleibt eine schon geplante, zu der du vielleicht gerade läufst, wo sie ist (Fund 2 des
+    code-reviewers vom 20.11.2026). tick (freiwillig): je Bewertung → Zahl der Verschiebungen
+]]
+function LR.HoldBack(stations, order, dist, ctx, tick, only)
+    local moved = 0
+    local function FirstQuest(pred)
+        for pos = 2, #order do
+            local q = stations[order[pos]].quest
+            if q and pred(q) then return pos, q end
+        end
+        return nil
+    end
+    local function Any() return true end
+    local function May(q) return not LR.Held(q, ctx).first end
+    for _ = 1, #order do
+        local _, q = FirstQuest(Any)
+        if not q or May(q) or (only and q.id ~= only) or not FirstQuest(May) then break end
+        local block = TakeBlock(stations, order, q.id)
+        PutBlock(order, block, (BestSpot(stations, order, block, dist, ctx, FirstQuest(May) + 1, false, tick)))
+        moved = moved + 1
     end
     return moved
 end
@@ -1024,13 +1262,6 @@ function LR.QuestsOf(s)
     return s.quest and { s.quest } or {}
 end
 
-local function HasQuest(s, questID)
-    for _, q in ipairs(LR.QuestsOf(s)) do
-        if q.id == questID then return true end
-    end
-    return false
-end
-
 -- Zusammenfassung über die Schritte ab ctx.start: EP, Sekunden, Stufe danach, EP bekannt? (Händler und Sammel-
 -- Abstecher zählen mit ihrer Zeit)
 local function Totals(steps, ctx)
@@ -1049,6 +1280,7 @@ end
 -- Ergebnis aus Reihenfolge und Listen → state
 local function Finish(stations, order, dist, ctx, outside, sources, tick, after)
     LR.Prune(stations, order, dist, ctx, outside, tick)
+    LR.HoldBack(stations, order, dist, ctx, tick)
     LR.Smooth(stations, order, dist, ctx, after, tick)
     LR.Uncross(stations, order, dist, ctx, after, tick)
     local steps = {}
@@ -1079,6 +1311,7 @@ function LR.Plan(quests, ctx, client, tick)
         Route.TwoOpt(stations, order, nil, nil, false, tick, opts)
         Route.Relocate(stations, order, opts, tick)
         LR.PullForward(stations, order, dist, ctx, tick)
+        LR.PushBack(stations, order, dist, ctx, tick)
     end
     return Finish(stations, order, dist, ctx, outside, sources, tick, after)
 end
@@ -1519,6 +1752,109 @@ function LR.StepText(s, n)
     return head .. "?"
 end
 
+-- Warum ein Schritt an seiner Stelle steht (Auftrag aus dem Spieltest vom 20.11.2026: „Erklärbar“)
+local COLOR_TEXT = { impossible = "ROUTE_COLOR_RED", verydifficult = "ROUTE_COLOR_ORANGE", difficult = "ROUTE_COLOR_YELLOW",
+    standard = "ROUTE_COLOR_GREEN", trivial = "ROUTE_COLOR_GREY" }
+
+-- „orange laut Spiel“ bzw. „orange, geschätzt nach Blizzards Farbgrenzen“
+function LR.ColorText(key, src)
+    local name = L[COLOR_TEXT[key] or "ROUTE_COLOR_YELLOW"]
+    return name .. (src == "client" and L.ROUTE_COLOR_CLIENT or L.ROUTE_COLOR_GUESS)
+end
+
+-- Zeilen zu Stufe, Elite, Gruppe einer Quest bei deiner Stufe → Liste
+function LR.LevelLines(q, ctx)
+    local h, out = LR.Held(q, ctx), {}
+    if h.high and q.timed then
+        out[#out + 1] = L.ROUTE_HERE_HIGH_NOTE:format(q.level, q.level - ctx.level, LR.ColorText(h.key, h.src))
+    elseif h.high then
+        out[#out + 1] = L.ROUTE_HERE_HIGH:format(q.level, q.level - ctx.level, LR.ColorText(h.key, h.src))
+    elseif h.grey then
+        out[#out + 1] = L.ROUTE_HERE_GREY:format(q.level or "?", LR.ColorText(h.key, h.src))
+    elseif h.key then
+        out[#out + 1] = L.ROUTE_HERE_FIT:format(q.level, LR.ColorText(h.key, h.src))
+    end
+    if h.elite then out[#out + 1] = L.ROUTE_HERE_ELITE end
+    if h.group then out[#out + 1] = L.ROUTE_HERE_GROUP:format(q.groupSize or "?") end
+    if h.dungeon then out[#out + 1] = L.ROUTE_HERE_DUNGEON end
+    return out
+end
+
+-- Kurzer Grund, warum eine Quest später kommt („Stufe 25, orange laut Spiel“) oder nil
+function LR.LaterText(q, ctx)
+    local h = LR.Held(q, ctx)
+    if not h.later then return nil end
+    if h.high then return L.ROUTE_HERE_SHORT_HIGH:format(q.level, LR.ColorText(h.key, h.src)) end
+    if h.elite then return L.ROUTE_HERE_SHORT_ELITE end
+    if h.group then return L.ROUTE_HERE_SHORT_GROUP end
+    if h.dungeon then return L.ROUTE_HERE_SHORT_DUNGEON end
+    if h.grey then return L.ROUTE_HERE_SHORT_GREY end
+    return nil
+end
+
+-- Ist Schritt k (die Route ab Schritt n) jetzt dran? Eine Abgabe erst, wenn kein Ziel ihrer Quest davor offen steht.
+local function OpenAt(steps, n, k)
+    local t = steps[k]
+    if t.kind ~= "turnin" then return true end
+    for j = n, k - 1 do
+        local o = steps[j]
+        if o.kind == "obj" and HasQuest(t, o.quest.id) then return false end
+    end
+    return true
+end
+
+local function Yards(d) return math.floor(d + 0.5) end
+
+-- Zeilen „Warum an dieser Stelle“ für einen Quest-Schritt der aktuellen Route (leer für Händler, Sammel-Stellen und
+-- Schritte außerhalb der Route): Abstand zum vorigen Punkt (beim ersten: zu dir), ob ein offener Punkt näher läge und
+-- warum der später kommt, Stufe und Farbe laut Client, Elite/Gruppe allein, Zeitlimit. Stufe und „allein“ gelten wie
+-- zur Zeit der Rechnung (state.ctx) – so erklärt der Tooltip, was die Route entschieden hat; nach einem Stufenaufstieg
+-- oder Gruppenwechsel rechnet „Route berechnen“ neu (Hinweis des code-reviewers vom 20.11.2026)
+function LR.WhyHere(s)
+    local lines = {}
+    local ctx = state and state.ctx
+    if not (ctx and (s.kind == "obj" or s.kind == "turnin")) then return lines end
+    local steps, n = state.steps, nil
+    for i, t in ipairs(steps) do
+        if t == s then n = i break end
+    end
+    if not n then return lines end
+    local prev = steps[n - 1]
+    if not prev then
+        local map, x, y = Core.PlayerPosition()
+        local here = map and { map = map, x = x, y = y } or nil
+        prev = here and World(here) and here or ctx.start
+    end
+    local dist = R().WorldDistance
+    lines[#lines + 1] = L.ROUTE_HERE_HEAD
+    local d = dist(prev, s)
+    local nearK, nearD
+    for k = n, #steps do
+        local t = steps[k]
+        if (t.kind == "obj" or t.kind == "turnin") and OpenAt(steps, n, k) then
+            local dk = dist(prev, t)
+            if dk < math.huge and (not nearD or dk < nearD - 1e-6) then nearK, nearD = k, dk end
+        end
+    end
+    if d < math.huge then
+        if not nearK or nearK == n or nearD >= d - 1e-6 then
+            lines[#lines + 1] = L.ROUTE_HERE_NEAREST:format(Yards(d))
+        else
+            local later = LR.LaterText(steps[nearK].quest, ctx)
+            local why = later and L.ROUTE_HERE_LATER:format(later) or L.ROUTE_HERE_ORDER
+            lines[#lines + 1] = L.ROUTE_HERE_NEARER:format(nearK, Yards(nearD), Yards(d), why)
+        end
+    end
+    local qs = LR.QuestsOf(s)
+    for _, q in ipairs(qs) do
+        for _, line in ipairs(LR.LevelLines(q, ctx)) do
+            lines[#lines + 1] = #qs > 1 and (q.title .. ": " .. line) or line
+        end
+        if q.timed then lines[#lines + 1] = L.ROUTE_HERE_TIMED end
+    end
+    return lines
+end
+
 -- Tooltip eines Schritts: Zeilen
 function LR.StepTip(s)
     local lines = {}
@@ -1551,6 +1887,7 @@ function LR.StepTip(s)
     elseif s.kind == "gather" then
         lines[#lines + 1] = L.ROUTE_TIP_GATHER:format(Num(s.cnt) or 0, math.floor((s.detour or 0) + 0.5))
     end
+    for _, line in ipairs(LR.WhyHere(s)) do lines[#lines + 1] = line end
     lines[#lines + 1] = L.ROUTE_TIP_PLACE:format(Core.MapName and Core.MapName(s.map) or tostring(s.map),
         Core.Decimal((s.x or 0) * 100, 1), Core.Decimal((s.y or 0) * 100, 1))
     return table.concat(lines, "\n"), LR.SourceText(s.src)
@@ -1735,7 +2072,8 @@ function LR.DrawArrow()
         api.ClearMiniArrow(LR.OWNER)
         return false
     end
-    return api.ShowMiniArrow(LR.OWNER, { map = s.map, x = s.x, y = s.y }, { family = LR.PATH_FAMILY }) == true
+    return api.ShowMiniArrow(LR.OWNER, { map = s.map, x = s.x, y = s.y },
+        { family = LR.PATH_FAMILY, size = ns.S and ns.S.routeMiniArrowSize }) == true
 end
 
 function LR.DrawPath()
@@ -2046,6 +2384,13 @@ function LR.Insert(questID, quiet)
         deps[map[b]] = l
     end
     R().Insert(groups, order, new, { dist = R().WorldDistance, after = deps })
+    -- eine schwere neue Quest kommt allein nicht zuerst; bräche das den Vorrang, bleibt die Reihenfolge davor
+    local placed = {}
+    for k, v in ipairs(order) do placed[k] = v end
+    LR.HoldBack(groups, order, R().WorldDistance, ctx, nil, questID)
+    if not StepsValid(groups, order) then
+        for k = #order, 1, -1 do order[k] = placed[k] end
+    end
     local steps = {}
     for pos = 2, #order do steps[#steps + 1] = groups[order[pos]] end
     state.steps = steps
@@ -2359,6 +2704,8 @@ ns.OnSettingChanged(function(key)
         LR.AutoSchedule()
     elseif key == "routeLine" or key == "routeMiniArrow" then
         ns.Try("LevelRoutePath", LR.DrawPath)
+    elseif key == "routeMiniArrowSize" then
+        ns.Try("LevelRouteArrow", LR.DrawArrow)     -- nur der Pfeil, nicht die Linie auf der Weltkarte
     elseif key == "routeWatch" then
         ns.Try("LevelRouteWatch", LR.Watch)
     elseif state and (key == "routeVendor" or key == "routeGather" or key == "routeHard" or key == "routeDetour"

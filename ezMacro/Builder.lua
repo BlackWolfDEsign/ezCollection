@@ -10,10 +10,13 @@ ns.Builder = Builder
 
 -- Fertige Bausteine: Text der Bedingung und Beschreibung (L.BUILDER_Q_<key>). „Heilen: Maus“ setzt das Mitglied unter
 -- der Maus zuerst – kein Durchrutschen auf das Ziel (ns.GroupFirst, Spieltest 15.11.2026).
+-- Die Ketten der ersten drei baut ezCores Makro-Logik (Spells.MacroCondition; Paket ezmacro/ssot-doppelungen – vorher
+-- fester Text hier): Maus, sonst Ziel (Mitspieler bzw. Gegner) und Fokus, sonst Ziel.
+local Cond = ezCore.Spells.MacroCondition
 Builder.QUICK = {
-    { key = "MOUSE_HELP", text = ns.GroupFirst("[@mouseover,help,nodead][]") },
-    { key = "MOUSE_HARM", text = "[@mouseover,harm,nodead][]" },
-    { key = "FOCUS", text = "[@focus,harm,nodead][]" },
+    { key = "MOUSE_HELP", text = ns.GroupFirst(Cond(nil, "help", { "mouseover", "target" })) },
+    { key = "MOUSE_HARM", text = Cond(nil, "harm", { "mouseover", "target" }) },
+    { key = "FOCUS", text = Cond(nil, "harm", { "focus", "target" }) },
     { key = "SELF_ALT", text = "[mod:alt,@player][]" },
     { key = "CURSOR", text = "[@cursor]" },
     { key = "COMBAT", text = "[combat]" },

@@ -102,8 +102,10 @@ function Panel.BlockDef()
         events = { "PLAYER_LEVEL_UP" },
         interval = 30,          -- abgelaufene Nachrichten fallen aus der Zahl, auch ohne neue Nachricht
         -- Mit Beschriftung: ezPanels Baustein „Freunde/Gilde“ trägt dasselbe Symbol und hat den Platz direkt
-        -- daneben – eine nackte Zahl wäre nicht zu unterscheiden (abschaltbar in ezPanels Menü des Bausteins)
-        defaults = { enabled = false, zone = "right", order = 56, label = true },
+        -- daneben – eine nackte Zahl wäre nicht zu unterscheiden (abschaltbar in ezPanels Menü des Bausteins).
+        -- „Freunde/Gilde“ steht ab Werk in der Mitte (Spieltest 20.11.2026, „das ezpanel sollte nach dem zurücksetzen
+        -- aber wie auf zweiten bild angeordnet sein“): dieser Baustein bleibt direkt daneben
+        defaults = { enabled = false, zone = "center", order = 20, label = true },
         hints = { L.PANEL_HINT_LEFT },
         -- Leitlinie 3: der Klick steht auch als Eintrag im Menü des Bausteins
         actions = { { text = L.PANEL_ACTION_OPEN, fn = function() ns.API.OpenChatTab() end } },

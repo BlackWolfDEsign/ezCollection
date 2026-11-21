@@ -29,7 +29,9 @@ end
 --   ("missing" | "cast" | Sekunden), once ("target" | "combat"), side, hold, optional, mine, need = { … } (weitere
 --   Bedingungen, Rotation.CHECKS), aura (andere Aura als der Zauber), stacks, unit, group (schließen sich aus), cp,
 --   min, max, item, hand, slot, burst (true: große Burst-Abklingzeit, nur an kind = "cooldown" – nur sie folgt
---   „Große Abklingzeiten vorschlagen“, alle übrigen Abklingzeiten kommen, sobald sie bereit sind); nur für
+--   „Große Abklingzeiten vorschlagen“, alle übrigen Abklingzeiten kommen, sobald sie bereit sind), guess = T(de, en)
+--   (was am Schritt geschätzt ist, weil die Quelle keine Zahl nennt – steht im Tooltip als „Annahme: …“; Paket
+--   ezcombat/rotation-recherche-2 vom 20.11.2026, vorher nur als Kommentar im Quelltext); nur für
 --   Volksfähigkeiten: race, class.
 -- Ungelernte Schritte überspringt ezCombat – so passt dieselbe Liste beim Leveln.
 local function T(de, en) return { de, en } end
@@ -184,6 +186,7 @@ local function StepIDs(step, fn)
     EachNumber(step.item, function(id) fn(id, "item", "item", step) end)
     NeedIDs(step.need, "need.", fn, step)
     TextIDs(step.text, "text", fn, step)
+    TextIDs(step.guess, "guess", fn, step)
 end
 
 local function RotationIDs(rotation, fn)

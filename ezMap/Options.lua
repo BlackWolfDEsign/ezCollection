@@ -169,6 +169,8 @@ local function Register()
     page:Button(L.OPT_TRACK_ALL_OFF, Core.Style.AllText(false), function() ns.TrackingMemory.SetAllAndSay(false) end,
         L.OPT_TRACK_ALL_OFF_TIP)
     page:Checkbox("minimapSquare")
+    -- Koordinaten ins Zonenkästchen, Lupe und Kalender auf den Ring (Spieltest 20.11.2026, MinimapCompact.lua)
+    page:Checkbox("minimapCompact")
     -- von selbst wieder herauszoomen: ein Schieber mit 0 = aus (Nr. 91, 92); der Haken im Menü „Aufspüren“ bleibt
     page:Slider("minimapAutoZoomDelay", 0, ns.MinimapZoom.MAX, 1, ns.MinimapZoom.Label)
 

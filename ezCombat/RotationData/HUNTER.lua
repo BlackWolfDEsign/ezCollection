@@ -7,9 +7,13 @@ local T = ns.RotationData.T
 --                    https://www.icy-veins.com/wow-forever/beast-mastery-hunter-leveling
 --                    https://www.wowhead.com/forever/guide/classes/hunter/beast-mastery/rotation-cooldowns-pve-dps
 --   Treffsicherheit: https://www.icy-veins.com/wow-forever/marksmanship-hunter-ranged-dps-pve-rotation-cooldowns-abilities
+--                    (nachgeprüft 20.11.2026: Schwarzer Pfeil 3674 (laut SkillLineAbility.csv Treffsicherheit) nennt
+--                     keine Jäger-Seite – kein Schritt)
 --                    https://www.icy-veins.com/wow-forever/marksmanship-hunter-leveling
 --                    https://www.wowhead.com/forever/guide/classes/hunter/marksmanship/rotation-cooldowns-pve-dps
 --   Überleben:       https://www.icy-veins.com/wow-forever/survival-hunter-melee-dps-pve-rotation-cooldowns-abilities
+--                    (Stand 20.11.2026, nachgeprüft am selben Tag: Rangfolge unverändert; Falken nur im Nahkampf –
+--                    „Überleben (Fernkampf)“ ohne Falken-Schritt ist richtig)
 --                    https://www.icy-veins.com/wow-forever/survival-hunter-leveling
 --                    https://www.icy-veins.com/wow-forever/survival-hunter-melee-dps-pve-guide
 --                    https://www.wowhead.com/forever/guide/classes/hunter/survival/rotation-cooldowns-pve-dps
@@ -85,18 +89,18 @@ ns.RotationData.Add("HUNTER", {
           text = T("Sobald bereit; dafür stehen bleiben.", "Whenever ready; stand still for it.") },    -- Gezielter Schuss / Aimed Shot
         { id = 13813, kind = "aoe", when = "ready", need = { inrange = 2973 },
           text = T("Mehrere Gegner bei dir: statt {13795} legen.", "Several enemies next to you: place it instead of {13795}.") },    -- Sprengfalle / Explosive Trap
-        -- 5: Annahme – etwas unter der geteilten Abklingzeit, damit Reaktionszeit bleibt (Quelle: „länger als die Abklingzeit“)
         { id = 3044, kind = "priority", when = "ready",
           need = { leveling = false, known = 1293241, outrange = 2973,
               counter = { name = "hawks", min = 2, oldest = { min = 5 } } },
+          guess = T("„Bleiben noch eine Weile“ ist als 5 Sek. geschätzt.", "“Will stay a while” is estimated as 5 sec."),
           text = T("Nur wenn beide Falken noch eine Weile bleiben.", "Only while both hawks will stay a while.") },    -- Arkaner Schuss / Arcane Shot
-        -- 90: Annahme für „Mana voll“ (die Quelle nennt keine Zahl)
         { id = 3044, key = "level:arcane", kind = "priority", when = "ready",
           need = { leveling = true, known = 1293241, mana = { min = 90 }, outrange = 2973,
               counter = { name = "hawks", min = 2, oldest = { min = 5 } } },
+          guess = T("„Bleiben noch eine Weile“ ist als 5 Sek., „volles Mana“ als 90 % geschätzt.", "“Will stay a while” is estimated as 5 sec, “full mana” as 90%."),
           text = T("Leveln: nur mit zwei Falken und vollem Mana.", "Levelling: only with two hawks and full mana.") },    -- Arkaner Schuss / Arcane Shot
-        -- 50: Annahme für „Mana übrig“ (die Quelle nennt keine Zahl)
         { id = 3044, key = "early:arcane", kind = "priority", when = "ready", need = { unknown = 1293241, mana = { min = 50 }, outrange = 2973 },
+          guess = T("„Mana übrig“ ist als 50 % geschätzt.", "“Mana to spare” is estimated as 50%."),
           text = T("Solange {1293241} fehlt: wenn Mana übrig ist.", "Until you learn {1293241}: when you have mana to spare.") },    -- Arkaner Schuss / Arcane Shot
         { id = 13795, kind = "maintain", when = "ready", need = { inrange = 2973, aoe = false },
           text = T("Gegner bei dir und nichts Wichtigeres: legen.", "Enemy next to you and nothing better to do: place it.") },    -- Feuerbrandfalle / Immolation Trap
@@ -163,18 +167,19 @@ ns.RotationData.Add("HUNTER", {
           text = T("Falls geskillt: sobald weniger als zwei Falken fliegen.", "If talented: whenever fewer than two hawks are out.") },    -- Falke beschwören / Summon Hawk
         { id = 3044, kind = "priority", when = "ready", need = { leveling = false, unknown = 1293241, outrange = 2973 },
           text = T("Zuletzt, sobald bereit.", "Last, whenever it is ready.") },    -- Arkaner Schuss / Arcane Shot
-        -- 90: Annahme für „Mana voll“ (die Quelle nennt keine Zahl)
         { id = 3044, key = "level:arcane", kind = "priority", when = "ready",
           need = { leveling = true, unknown = 1293241, mana = { min = 90 }, outrange = 2973 },
+          guess = T("„Volles Mana“ ist als 90 % geschätzt.", "“Full mana” is estimated as 90%."),
           text = T("Beim Leveln nur mit vollem Mana.", "While levelling only at full mana.") },    -- Arkaner Schuss / Arcane Shot
-        -- 5 und 90: Annahmen wie bei der Tierherrschaft; die Mana-Schwelle gilt nur beim Leveln
         { id = 3044, key = "hawk:arcane", kind = "priority", when = "ready",
           need = { leveling = false, known = 1293241, outrange = 2973,
               counter = { name = "hawks", min = 2, oldest = { min = 5 } } },
+          guess = T("„Bleiben noch eine Weile“ ist als 5 Sek. geschätzt.", "“Will stay a while” is estimated as 5 sec."),
           text = T("Mit Falken: nur wenn beide noch eine Weile bleiben.", "With hawks: only while both will stay a while.") },    -- Arkaner Schuss / Arcane Shot
         { id = 3044, key = "level:hawk:arcane", kind = "priority", when = "ready",
           need = { leveling = true, known = 1293241, mana = { min = 90 }, outrange = 2973,
               counter = { name = "hawks", min = 2, oldest = { min = 5 } } },
+          guess = T("„Bleiben noch eine Weile“ ist als 5 Sek., „volles Mana“ als 90 % geschätzt.", "“Will stay a while” is estimated as 5 sec, “full mana” as 90%."),
           text = T("Leveln mit Falken: nur wenn beide bleiben und das Mana voll ist.", "Levelling with hawks: only while both stay and mana is full.") },    -- Arkaner Schuss / Arcane Shot
         { id = 13795, kind = "maintain", when = "ready", need = { inrange = 2973, aoe = false },
           text = T("Gegner bei dir und nichts Wichtigeres: legen.", "Enemy next to you and nothing better to do: place it.") },    -- Feuerbrandfalle / Immolation Trap
@@ -297,8 +302,8 @@ ns.RotationData.Add("HUNTER", {
           text = T("Sobald bereit; dafür stehen bleiben.", "Whenever ready; stand still for it.") },    -- Gezielter Schuss / Aimed Shot
         { id = 3044, kind = "priority", when = "ready", need = { leveling = false, outrange = 2973 },
           text = T("Sobald bereit.", "Whenever it is ready.") },    -- Arkaner Schuss / Arcane Shot
-        -- 50: Annahme für „Mana übrig“ (die Quelle nennt keine Zahl)
         { id = 3044, key = "level:arcane", kind = "priority", when = "ready", need = { leveling = true, mana = { min = 50 }, outrange = 2973 },
+          guess = T("„Mana übrig“ ist als 50 % geschätzt.", "“Mana to spare” is estimated as 50%."),
           text = T("Beim Leveln nur, wenn Mana übrig ist.", "While levelling only with mana to spare.") },    -- Arkaner Schuss / Arcane Shot
         { id = 1510, kind = "aoe", when = "ready", hold = true, need = { moving = false, outrange = 2973 },
           text = T("Lückenfüller bei vielen Gegnern; bis zum Ende kanalisieren.", "Gap filler on many enemies; let the channel finish.") },    -- Salve / Volley

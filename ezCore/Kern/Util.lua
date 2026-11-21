@@ -1353,6 +1353,10 @@ end
                                         Art: "dagger", "sword", "mace", "axe", "fist", "staff", "polearm", "bow", "gun",
                                         "crossbow", "wand", "thrown", "fishing", "shield", "held" (in der Nebenhand
                                         gehalten), "other"; nil bei leerem Platz
+      Core.ItemWeaponKind(item)       → Art, istWaffe, zweihändig   dieselbe Art für einen Gegenstand (Link oder ID),
+                                        nicht für eine Hand – etwa für den Vergleich im Tooltip (ezGear,
+                                        Paket ezgear/talent-empfehlung); nil, wenn der Client ihn (noch) nicht kennt
+                                        oder er kein Gegenstand der Hände ist (Brustteil, Ring …)
 ]]
 
 ---------------------------------------------------------------------------
@@ -1562,24 +1566,63 @@ end
 ---------------------------------------------------------------------------
 
 local HAND_SLOTS = { main = 16, off = 17, ranged = 18 }
+-- Plätze der Hände für Module (Paket ezmacro/gifte-waffenzauber: ezMacros Gift- und Waffenzauber-Vorlagen) – eine
+-- eigene Tabelle, damit ein Modul, das hineinschreibt, Core.WeaponKind nicht verändert.
+Core.HAND_SLOTS = { main = HAND_SLOTS.main, off = HAND_SLOTS.off, ranged = HAND_SLOTS.ranged }
 -- Unterarten der Waffen (Blizzards Enum.ItemWeaponSubclass, seit Classic unverändert).
 local WEAPON_KINDS = { [0] = "axe", [1] = "axe", [2] = "bow", [3] = "gun", [4] = "mace", [5] = "mace", [6] = "polearm",
     [7] = "sword", [8] = "sword", [10] = "staff", [13] = "fist", [15] = "dagger", [16] = "thrown", [18] = "crossbow",
     [19] = "wand", [20] = "fishing" }
 local ARMOR_SHIELD = 6
 
-function Core.WeaponKind(hand)
+-- Gegenstand in dieser Hand ("main" | "off" | "ranged" | Platznummer) → itemID | nil, Grund: "empty" (leerer Platz),
+-- "unknown" (Hand oder Wert gesperrt, Abfrage fehlt oder wirft). Eine Stelle für Core.WeaponKind und
+-- Core.BestItems.FitsHand (Paket ezcore/klinge-wucht); liest die eigene Platztabelle, nicht Core.HAND_SLOTS.
+function Core.HandItem(hand)
+    if Core.IsSecret(hand) then return nil, "unknown" end
     local slot = HAND_SLOTS[hand or "main"] or Core.Num(hand)
-    if not slot then return nil end
-    local item = Core.Num((Core.Call(rawget(_G, "GetInventoryItemID"), "player", slot)))
-    if not item then return nil end
-    local classID, subClassID = Core.ItemClass(item)
+    local api = rawget(_G, "GetInventoryItemID")
+    if not slot or type(api) ~= "function" then return nil, "unknown" end
+    local ok, raw = pcall(api, "player", slot)
+    if not ok or Core.IsSecret(raw) then return nil, "unknown" end
+    local item = Core.Num(raw)
+    if not item then return nil, "empty" end
+    return item
+end
+
+-- Gegenstände der Hände, die keine Waffe und kein Schild sind (in der Nebenhand gehalten, Relikt)
+local HELD_LOCS = { INVTYPE_HOLDABLE = true, INVTYPE_RELIC = true }
+
+function Core.ItemWeaponKind(item)
+    if Core.IsSecret(item) or item == nil then return nil end
+    local classID, subClassID, equipLoc = Core.ItemClass(item)
     if not classID then return nil end
     if classID == Core.ITEM_CLASS.Weapon then
-        return WEAPON_KINDS[subClassID or -1] or "other", true
+        -- die eine Zweihänder-Regel (Core.EquipSlots.IsTwoHand)
+        return WEAPON_KINDS[subClassID or -1] or "other", true, Core.EquipSlots.IsTwoHand(equipLoc or item) == true
     end
-    if classID == Core.ITEM_CLASS.Armor and subClassID == ARMOR_SHIELD then return "shield", false end
-    return "held", false
+    if classID == Core.ITEM_CLASS.Armor and subClassID == ARMOR_SHIELD then return "shield", false, false end
+    if HELD_LOCS[equipLoc or ""] then return "held", false, false end
+    return nil       -- kein Gegenstand der Hände (Brustteil, Ring …)
+end
+
+function Core.WeaponKind(hand)
+    local item = Core.HandItem(hand)
+    if not item then return nil end
+    local classID = Core.ItemClass(item)
+    if not classID then return nil end
+    local kind, isWeapon = Core.ItemWeaponKind(item)
+    if not kind then return "held", false end     -- was sonst in einer Hand liegt, gilt wie bisher als gehalten
+    return kind, isWeapon
+end
+
+-- Nimmt die Waffe dieser Hand eine Verzauberung auf Zeit an (Gift, Wetzstein, Öl, Waffenzauber)? Eine Waffe, keine
+-- Angelrute; Schild, Nebenhand-Gegenstand und leerer Platz nicht. Eine Regel für ezBuff (Weapon.HasWeapon) und ezMacro
+-- (Gift- und Waffenzauber-Vorlagen; Paket ezmacro/gifte-waffenzauber). → true | false
+function Core.WeaponEnchantable(hand)
+    local kind, isWeapon = Core.WeaponKind(hand)
+    if Core.IsSecret(kind) or Core.IsSecret(isWeapon) then return false end
+    return isWeapon == true and kind ~= "fishing"
 end
 
 ---------------------------------------------------------------------------
@@ -1732,4 +1775,62 @@ function Core.Migrated(key)
     local db = Core.db
     local done = type(db) == "table" and db.migrated or nil
     return type(done) == "table" and key ~= nil and done[key] ~= nil and done[key] ~= false or false
+end
+
+-- Rolle des Spielers: "TANK" | "HEALER" | "DAMAGER" | nil (unbekannt), dazu die Quelle ("group" | "spec").
+-- Spieltest 20.11.2026 (ezCombat, Kampfanzeige am Rahmen): „angezeigt wird am rahmen nur, was den spieler betrifft“.
+-- Reihenfolge:
+--   1. Rolle in der Gruppe (UnitGroupRolesAssigned("player"), „NONE“ zählt nicht). Laut Datenkatalog kann das Spiel
+--      sie sperren (docs/datenkatalog-client.md, Gruppe) – dann gilt die zuletzt offen gelesene Gruppenrolle, solange
+--      der Spieler in einer Gruppe ist (Review 20.11.2026: sonst spränge ein Heiler bei Kampfbeginn auf Schaden).
+--   2. Rolle der aktiven Spezialisierung: Index über C_SpecializationInfo.GetSpecialization (Forever) bzw. global
+--      GetSpecialization, Rolle über GetSpecializationRole bzw. die fünfte Rückgabe von GetSpecializationInfo.
+--      Ob Forever (Camelot, eine Spezialisierung je Klasse) dort eine verlässliche Rolle nennt, prüft der Spieltest.
+-- Blizzards Abfragen werden nur gelesen, per pcall, jeder Wert zuerst auf geheim geprüft (Leitlinie 6).
+Core.ROLES = { TANK = true, HEALER = true, DAMAGER = true }
+-- Klassen, die heilen können (Blizzards Klassen-Kennungen) – für „Rolle unbekannt“: wer nicht heilen kann, heilt nicht.
+Core.HEAL_CLASSES = { PRIEST = true, DRUID = true, PALADIN = true, SHAMAN = true, MONK = true, EVOKER = true }
+local lastGroupRole = nil
+local function KnownRole(role)
+    if Core.IsSecret(role) or type(role) ~= "string" then return nil end
+    return Core.ROLES[role] and role or nil
+end
+local function Call(fn, ...)
+    if type(fn) ~= "function" then return false end
+    return pcall(fn, ...)
+end
+local function InGroup()
+    local ok, grouped = Call(rawget(_G, "IsInGroup"))
+    return ok and not Core.IsSecret(grouped) and grouped == true
+end
+local function SpecRole()
+    local api = rawget(_G, "C_SpecializationInfo")
+    local getSpec = type(api) == "table" and api.GetSpecialization or rawget(_G, "GetSpecialization")
+    local ok, index = Call(getSpec)
+    if not ok or Core.IsSecret(index) or type(index) ~= "number" then return nil end
+    local okRole, role = Call(rawget(_G, "GetSpecializationRole"), index)
+    role = okRole and KnownRole(role) or nil
+    if role then return role end
+    local okInfo, _, _, _, _, infoRole = Call(rawget(_G, "GetSpecializationInfo"), index)
+    return okInfo and KnownRole(infoRole) or nil
+end
+function Core.PlayerRole()
+    local ok, role = Call(rawget(_G, "UnitGroupRolesAssigned"), "player")
+    if ok and Core.IsSecret(role) then
+        if lastGroupRole and InGroup() then return lastGroupRole, "group" end
+    else
+        role = ok and KnownRole(role) or nil
+        if ok then lastGroupRole = role end
+        if role then return role, "group" end
+    end
+    role = SpecRole()
+    if role then return role, "spec" end
+    return nil
+end
+
+-- Kann der Spieler heilen (Klasse)? → true | false | nil (Klasse unbekannt)
+function Core.PlayerCanHeal()
+    local ok, _, class = Call(rawget(_G, "UnitClass"), "player")
+    if not ok or Core.IsSecret(class) or type(class) ~= "string" then return nil end
+    return Core.HEAL_CLASSES[class] == true
 end

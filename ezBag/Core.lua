@@ -35,6 +35,16 @@ ns.DEFAULTS = {
     sortMode = "type",
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+-- risk hier: „Leichter zerstören“ hebt Blizzards Schutz gegen versehentliches Zerstören auf
+-- choice hier (Spieltest 20.11.2026, Knopf mit „o fehlt“, wörtlich „mh was soll das sein“): „Gleiche Gegenstände zusammenfassen“ ändert nur die Darstellung der Tasche
+ns.AGREE = {
+    compactStacks = "choice", easyDelete = "risk", transferStacksOnly = "choice",
+}
+
 -- Reihenfolge für Einstellungen und Slash-Befehle (Schlüssel, deutscher Befehl, Abschnitt der Einstellungsseite,
 -- optional der Funktionsschlüssel aus ezCores Liste fremder Addons für den Hinweis „Übernimmt schon: …“ im Tooltip;
 -- en: das englische Wort für den englischen Client – T10-1).

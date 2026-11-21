@@ -25,11 +25,14 @@ ns.Weapon = Weapon
 
 Weapon.HANDS = { "main", "off" }
 Weapon.SLOTS = { main = rawget(_G, "INVSLOT_MAINHAND") or 16, off = rawget(_G, "INVSLOT_OFFHAND") or 17 }
-Weapon.MACRO = "/use item:%d\n/use %d"
+-- Form des Makros: ezCores Core.Macro.WEAPON_ITEM (eine Stelle für ezBuff und ezMacros Gift-Vorlagen); das Feld bleibt.
+Weapon.MACRO = Core.Macro.WEAPON_ITEM
 Weapon.IMBUE_ID = "imbue"     -- id der Wahlgruppe (ns.CharDB().prefer.imbue, Check.CHOICE_KINDS)
 -- Vorschlag ohne eigene Wahl: der zuletzt lernbare zuerst (Windzorn ab 30, Flammenzunge ab 10, Frostbrand ab 20,
--- Felsbeißer ab 1). Empfehlung aus Welle 23, umkehrbar über die Wahl (docs/roadmap/ezBuff.md).
-Weapon.IMBUE_ORDER = { "windfury", "flametongue", "frostbrand", "rockbiter" }
+-- Felsbeißer ab 1). Empfehlung aus Welle 23, umkehrbar über die Wahl (docs/roadmap/ezBuff.md). Seit dem Paket
+-- ezmacro/gifte-waffenzauber führt ezCore die Reihenfolge (Spells.IMBUE_ORDER, auch für ezMacro); das Feld zeigt auf
+-- dieselbe Tabelle.
+Weapon.IMBUE_ORDER = Core.Spells.IMBUE_ORDER
 
 -- Verzauberung auf Zeit beider Hände: lesbar, hatMain, msMain, hatOff, msOff (wie Blizzards GetWeaponEnchantInfo;
 -- die Werte können gesperrt sein). Seit Welle 23 (A3) ezCores gemeinsamer Leser Core.WeaponEnchantInfo (das Globale
@@ -52,22 +55,13 @@ end
 -- Wahlgruppe „Waffenzauber“ der Klasse (Form wie die Wahlgruppen in Checks.lua) oder nil für Klassen ohne:
 -- { id = "imbue", kind = "imbue", imbue = true, entries = { { key, spells, levels } … } } in der Reihenfolge des
 -- Vorschlags (IMBUE_ORDER, unbekannte Schlüssel aus ezCore dahinter).
+-- Die Reihenfolge sortiert seit dem Paket ezmacro/gifte-waffenzauber ezCore (Spells.OrderedImbues, eine Regel für
+-- ezBuff und ezMacro); vorher stand dieselbe Sortierung hier.
 function Weapon.ImbueGroup(class)
-    local list, byKey = Imbues(class), {}
-    for _, entry in ipairs(list) do
-        if type(entry) == "table" and type(entry.key) == "string" then byKey[entry.key] = entry end
-    end
-    local entries = {}
-    for _, key in ipairs(Weapon.IMBUE_ORDER) do
-        if byKey[key] then
-            entries[#entries + 1] = byKey[key]
-            byKey[key] = nil
-        end
-    end
-    for _, entry in ipairs(list) do
-        if type(entry) == "table" and byKey[entry.key] then entries[#entries + 1] = entry end
-    end
-    if #entries == 0 then return nil end
+    local Spells = Core.Spells
+    if not (Spells and Spells.OrderedImbues) or ns.IsSecret(class) or type(class) ~= "string" then return nil end
+    local entries = Core.Call(Spells.OrderedImbues, class)
+    if type(entries) ~= "table" or #entries == 0 then return nil end
     return { id = Weapon.IMBUE_ID, kind = Weapon.IMBUE_ID, imbue = true, entries = entries, target = "self" }
 end
 
@@ -102,23 +96,23 @@ function Weapon.ImbueChoices()
     return out
 end
 
--- Vorschlag ohne eigene Wahl: der erste gelernte in IMBUE_ORDER (Schlüssel) oder nil.
+-- Vorschlag ohne eigene Wahl: der erste gelernte in IMBUE_ORDER (Schlüssel) oder nil. Seit dem Paket
+-- ezmacro/gifte-waffenzauber rechnet ezCore (Spells.ChooseImbue ohne Wahl) – dieselbe Regel für ezMacros Vorlage.
 function Weapon.DefaultImbue()
-    local first = Weapon.ImbueChoices()[1]
-    return first and first.key or nil
+    if ns.IsSecret(ns.playerClass) or type(ns.playerClass) ~= "string" then return nil end
+    local key = Core.Call(Core.Spells.ChooseImbue, nil, ns.playerClass)
+    return type(key) == "string" and key or nil
 end
 
 -- Gewählter Waffenzauber: die gemerkte Wahl, wenn gelernt, sonst der Vorschlag. → Schlüssel, Zauber-ID | nil.
+-- Die Regel steht in ezCore (Spells.ChooseImbue, eine Quelle mit ezMacro); hier nur die gemerkte Wahl dazu.
 function Weapon.ChooseImbue()
     if not Weapon.ImbueGroup(ns.playerClass) then return nil end
     local prefer = ns.db and ns.CharDB().prefer[Weapon.IMBUE_ID]
-    if not ns.IsSecret(prefer) and type(prefer) == "string" then
-        local spell = Weapon.ImbueRank(prefer)
-        if spell then return prefer, spell end
-    end
-    local key = Weapon.DefaultImbue()
-    if key then return key, Weapon.ImbueRank(key) end
-    return nil
+    if ns.IsSecret(prefer) or type(prefer) ~= "string" then prefer = nil end
+    local key, spell = Core.Call(Core.Spells.ChooseImbue, prefer, ns.playerClass)
+    if type(key) ~= "string" then return nil end
+    return key, ns.Num(spell)
 end
 
 -- Schlüssel des Waffenzaubers zu einer Zauber-ID (jeder Rang) oder nil – für das Merken eines selbst gewirkten.
@@ -139,15 +133,11 @@ end
 -- Trägt die Hand eine Waffe? Schild und Nebenhand-Gegenstände nehmen keine Verzauberung an, eine Angelrute zählt
 -- nicht (Art Waffe, Unterart Angelrute – wie ezGear, Char.Enchantable). Nummern der Arten aus ezCore
 -- (Core.ITEM_CLASS), die Unterart aus Blizzards Enum.ItemWeaponSubclass.
+-- Seit dem Paket ezmacro/gifte-waffenzauber eine Regel in ezCore (Core.WeaponEnchantable, auch für ezMacros Gift- und
+-- Waffenzauber-Vorlagen); die Funktion leitet weiter (Leitlinie 8).
 function Weapon.HasWeapon(hand)
-    local slot = Weapon.SLOTS[hand]
-    if not slot then return false end
-    local itemID = ns.Num(ns.Value(GetInventoryItemID, "player", slot))
-    if not itemID then return false end
-    local classID, subClassID = Core.ItemClass(itemID)
-    if classID == nil or classID ~= ((Core.ITEM_CLASS or {}).Weapon or 2) then return false end
-    local weaponSub = Enum and Enum.ItemWeaponSubclass
-    return subClassID ~= (weaponSub and weaponSub.Fishingpole or 20)
+    if not Weapon.SLOTS[hand] then return false end
+    return Core.WeaponEnchantable(hand) == true
 end
 
 -- Zustand einer Hand: "ok" | "missing" | "expiring" | "unknown" (gesperrt). minLeft in Sekunden.
@@ -214,13 +204,26 @@ function Weapon.DurationNote(spell, seenMs)
 end
 
 -- Makro für den Klick: Gegenstand benutzen, dann die Waffe dieser Hand als Ziel.
+-- Text über ezCore (Core.Macro.WeaponItem), damit ezMacros Vorlagen „Gift Waffenhand“/„Gift Schildhand“ dasselbe
+-- schreiben (Form Core.Macro.WEAPON_ITEM, auch als Weapon.MACRO).
 function Weapon.Macro(itemID, hand)
-    return Weapon.MACRO:format(itemID, Weapon.SLOTS[hand] or Weapon.SLOTS.main)
+    return Core.Macro.WeaponItem(itemID, Weapon.SLOTS[hand] or Weapon.SLOTS.main)
 end
 
 -- Aufgaben für den Buff-Knopf (Checks.lua): item = bester Gegenstand aus Check.BagItems (weapon) oder nil. Ein
 -- gelernter Waffenzauber des Schamanen (Weapon.ChooseImbue) geht auf der Waffenhand dem Gegenstand vor.
-function Weapon.Tasks(item, minLeft)
+-- candidates (Check.BagItems, weapons; Paket ezcore/klinge-wucht): alle Waffenverzauberungen – je Hand gilt dann
+-- der beste, den die Waffe dieser Hand annimmt (Core.BestItems.PickWeaponEnchant, dieselbe Regel wie ezMacros
+-- „Stein/Öl …“): Wetzstein nur auf Klingen, Gewichtsstein nur auf Wuchtwaffen. Ohne candidates wie vorher item.
+local function HandItem(item, candidates, hand)
+    local pick = Core.BestItems and Core.BestItems.PickWeaponEnchant
+    if type(candidates) ~= "table" or type(pick) ~= "function" then return item end
+    local e = pick(candidates, hand)
+    if type(e) ~= "table" or not ns.Num(e.itemID) then return nil end
+    return e
+end
+
+function Weapon.Tasks(item, minLeft, candidates)
     local out = {}
     if type(item) ~= "table" or not ns.Num(item.itemID) then item = nil end
     local imbueKey, imbueSpell = Weapon.ChooseImbue()
@@ -231,7 +234,8 @@ function Weapon.Tasks(item, minLeft)
     for _, hand in ipairs(Weapon.HANDS) do
         local spell = hand == "main" and imbueSpell or nil
         local seenMs = Weapon.Seen(hand, values[hand][1], values[hand][2])
-        if (spell or item) and Weapon.HasWeapon(hand) then
+        local handItem = not spell and item and HandItem(item, candidates, hand) or nil
+        if (spell or handItem) and Weapon.HasWeapon(hand) then
             local state = Weapon.State(values[hand][1], values[hand][2], Weapon.Threshold(minLeft, seenMs, spell))
             if state == "unknown" then
                 ns.NoteSecret("weapon")
@@ -245,8 +249,8 @@ function Weapon.Tasks(item, minLeft)
                     task.action = { type = "spell", spell = spell }
                     task.note = Weapon.DurationNote(spell, seenMs)
                 else
-                    task.icon, task.itemName = item.icon, item.name
-                    task.action = { type = "macro", macrotext = Weapon.Macro(item.itemID, hand) }
+                    task.icon, task.itemName = handItem.icon, handItem.name
+                    task.action = { type = "macro", macrotext = Weapon.Macro(handItem.itemID, hand) }
                 end
                 out[#out + 1] = task
             end

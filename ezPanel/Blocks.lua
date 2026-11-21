@@ -497,6 +497,44 @@ function ns.MoveBlock(def, zone)
     ns.RequestLayout()
 end
 
+-- Bausteine in dieser Reihenfolge ans Ende einer Zone stellen und einschalten (für andere Module über API.lua, heute
+-- ezMaps „Kompakte Minikarte“: Ort und Uhr rechts; Antwort des Nutzers vom 20.11.2026, wörtlich „die bestehenden
+-- bausteine rechts anordnen“). Gezählt wird nach den gespeicherten Plätzen (cfg), nicht nach der Zeichnung wie in
+-- ns.MoveBlock – ein eben eingeschalteter oder verschobener Baustein steht noch nicht auf der Leiste. Eine Nummer
+-- wird nie gesenkt: Steht ein Baustein schon in der Zone hinter allen anderen (Ort 960, Uhr 970 ab Werk), behält er
+-- seine – sonst rückte später jeder neu eingeschaltete Baustein rechts neben die Uhr. → Anzahl
+function ns.PlaceBlocks(ids, zone)
+    if type(ids) ~= "table" then return 0 end
+    local known = false
+    for _, z in ipairs(ns.ZONES) do if z == zone then known = true end end
+    if not known then return 0 end
+    local list, moving = {}, {}
+    for _, id in ipairs(ids) do
+        local def = type(id) == "string" and ns.blocks[id] or nil
+        if def and def.cfg and not moving[def] then
+            moving[def] = true
+            list[#list + 1] = def
+        end
+    end
+    if #list == 0 then return 0 end
+    local top = 0
+    for _, def in ipairs(ns.blockList) do
+        local cfg = def.cfg
+        if cfg and not moving[def] and cfg.enabled and cfg.zone == zone then
+            local order = tonumber(cfg.order)
+            if order and order > top then top = order end
+        end
+    end
+    for _, def in ipairs(list) do
+        local order = def.cfg.zone == zone and tonumber(def.cfg.order) or nil
+        if order and order > top then top = order else top = top + 10 end
+        def.cfg.zone, def.cfg.order = zone, top
+        if not def.cfg.enabled then ns.SetBlockEnabled(def.id, true) end
+    end
+    ns.RequestLayout()
+    return #list
+end
+
 function ns.ShiftBlock(def, dir)
     local b = def.frame
     if not b or not b.ezBar then return end
@@ -918,6 +956,12 @@ end
 -- Anordnen
 ---------------------------------------------------------------------------
 
+-- Leiste neu angeordnet: andere Module hören zu (API.LAYOUT, angemeldet in API.lua; ezMap blendet Blizzards Kästchen
+-- unter der Minikarte aus, solange Ort und Uhr auf der Leiste stehen)
+local function Laid()
+    if ezCore.Fire and ns.API and ns.API.LAYOUT then ezCore.Fire(ns.API.LAYOUT) end
+end
+
 DoLayout = function()
     local bar = ns.ActiveBar()
     local lists = { left = {}, center = {}, right = {} }
@@ -933,7 +977,10 @@ DoLayout = function()
             end
         end
     end
-    if not bar then return end
+    if not bar then
+        Laid()
+        return
+    end
 
     -- Ränder und Abstand wachsen mit der Schriftgröße (Bezug: Schriftgröße 10).
     local pad, spacing = ns.Px(8), ns.Px(ns.S.spacing)
@@ -985,6 +1032,7 @@ DoLayout = function()
         def.frame:SetPoint("LEFT", bar, "CENTER", x, 0)
         x = x + (def.frame.width or def.frame:GetWidth()) + spacing
     end
+    Laid()
 end
 
 -- Werte eines Profils übernehmen (Profiles.lua): je Baustein dieselbe cfg-Tabelle, neu befüllt

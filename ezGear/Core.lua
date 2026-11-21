@@ -122,6 +122,8 @@ Core.NewModule(ADDON, ns, {
         -- Nummer
         "Inspect.NewQueue", "Inspect.GroupUnits", "NewSidePanel", "Style.SetTextColor", "UnitIs",
         "ClassOfGUID", "PlainCall", "EquipSlots.IsTwoHand",
+        -- Paket ezgear/talent-empfehlung (ohne neue Nummer): Waffenart eines Gegenstands
+        "ItemWeaponKind",
         -- Oberflächen-Einheit (Gesamtreview 18.11.2026, P13 D2): Addon-Fach und Befehl ohne Wort nach Entscheidung 5,
         -- Hilfe aus ezCore, Kampfsperre, Wege zu Einstellungen und Menüeintrag aus ezCore
         "compartmentMain", "slashMain", "CombatNotice", "SettingsPathText", "Menu.Settings",
@@ -244,6 +246,12 @@ function ns.Changed()
     throttledBroadcast = throttledBroadcast or ns.Throttle(Broadcast, 0.2)
     throttledBroadcast()
 end
+
+-- ezTalent hat eine andere Verteilung für dich (Talente, Fragebogen; ezTalent/Gear.lua): Gewichtung neu
+Core.Listen("EZTALENT_GEAR_CHANGED", function()
+    if ns.Weights then ns.Weights.ForgetTalent() end
+    ns.Changed()
+end, "ezGear")
 
 ns.OnReady(function()
     for _, event in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "PLAYER_SPECIALIZATION_CHANGED",

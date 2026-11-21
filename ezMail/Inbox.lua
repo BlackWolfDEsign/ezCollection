@@ -244,7 +244,7 @@ end
 ---------------------------------------------------------------------------
 
 -- Farbenblind-Hilfe (EC-47): Mit ezCores Schalter „Zeichen am Leuchten“ steht vor der gefärbten Restzeit zusätzlich
--- das Zeichen der Farbe aus ezCores Ampel („o“ orange, „!“ rot). Leitet seit ezCore 1.12.0 auf ezCore.MarkSign weiter
+-- das Zeichen der Farbe aus ezCores Ampel (Core.GLOW_COLORS: „?“ orange, „!“ rot). Leitet seit ezCore 1.12.0 auf ezCore.MarkSign weiter
 -- (Schalter und Zeichen an einem Ort); ein älteres ezCore ohne den Helfer: kein Zeichen.
 local function ColorMark(color)
     local mark = type(ezCore.MarkSign) == "function" and ezCore.MarkSign(color)

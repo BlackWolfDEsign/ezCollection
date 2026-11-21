@@ -15,9 +15,10 @@ local Core = ezCore
 -- Platz „center“ (Core.GroupFrames.SLOT_HEIGHT, 10 px), damit sie in Blizzards Mittelband passen.
 --
 -- Wo (Platzplan „Mittelband teilen“, Lage aus Core.GroupFrames.SLOTS, Platz "center", Teil MF.TEXT_PART):
---   • klassische Gruppenrahmen und Spielerrahmen: auf Blizzards Lebensbalken links neben ezHeals HoTs (Platz
---     "center"; seit dem Spielbefund vom 18.11.2026 im Rahmen statt rechts daneben) – auch im Kampf. Stehen Marken
---     dort, entfällt für diesen Rahmen die kurze Zahl wie im Raidstil (die Linien auf dem Manabalken bleiben).
+--   • klassische Gruppenrahmen und Spielerrahmen: seit dem Spieltest vom 20.11.2026 rechts neben dem Rahmen (Platz
+--     "beside", derselbe Halter wie die Zahlen der Zeilen, MF.TextHolder) – hinter den Zahlen, die dort bleiben
+--     (Top.Start); auch im Kampf. Vom 18. bis 20.11.2026 lagen sie auf Blizzards Lebensbalken links neben ezHeals
+--     HoTs (Platz "center"), wo die kurze Zahl ihnen wich.
 --   • Raidstil: in der Mitte des Rahmens wie die kurze Zahl der Zeilen; dieser Platz ist nur außerhalb des Kampfes und
 --     ab 30 px Höhe frei (GF.SlotInCombat, minHeight). Stehen Marken dort, entfällt für diesen Rahmen die kurze Zahl
 --     (die Linien oben bleiben). Im Kampf bleibt die Mitte frei – auch für Aggro: Blizzards eigene Aggro-Markierung
@@ -220,14 +221,31 @@ function Top.BadgesFor(unit, plan)
     return out
 end
 
--- Halter der Marken (Platz "center", derselbe Teil wie die kurze Zahl der Zeilen im Raidstil). Außerhalb des Kampfes
--- legt ezCore ihn an, im Kampf nur den schon vorhandenen – darum legt ihn Top.Fill schon vor dem Kampf an, sobald
--- Marken gebraucht werden können (any).
+-- Halter der Marken (derselbe Teil wie die Zahlen der Zeilen, MF.TextHolder: Raidstil Platz "center", klassisch
+-- "beside"). Außerhalb des Kampfes legt ezCore ihn an, im Kampf nur den schon vorhandenen – darum legt ihn Top.Fill
+-- schon vor dem Kampf an, sobald Marken gebraucht werden können (any).
 function Top.Holder(frame, need)
     if not GF then return nil end
     local holder = GF.Part(ADDON, frame, MF.TEXT_PART)
     if holder or not need or ns.InCombat() then return holder end
-    return GF.Slot(ADDON, frame, MF.TEXT_SLOT, MF.TEXT_PART, { level = MF.LEVEL })
+    return MF.TextHolder(frame)
+end
+
+-- Neben dem Rahmen: Marken beginnen hinter der längsten sichtbaren Zahl der Zeilen (+ MF.SIDE_GAP), damit beide zu
+-- sehen sind; ohne Zahlen am linken Rand. Breite der Schrift über MF.TextWidth (dieselbe Messung wie die Maus-Fläche
+-- MF.SideHover; ein gesperrter Text wird nie gelesen, Leitlinie 6). → px
+function Top.Start(holder)
+    local lines = holder and holder.side and holder.linesHolder
+    if not (lines and lines.rows) then return 0 end
+    local widest = 0
+    for _, row in pairs(lines.rows) do
+        if row.text:IsShown() then
+            local width = MF.TextWidth(row.text)
+            if row.suffix and row.suffix:IsShown() then width = width + MF.TextWidth(row.suffix) end
+            if width > widest then widest = width end
+        end
+    end
+    return widest > 0 and math.ceil(widest + MF.SIDE_GAP) or 0
 end
 
 local function Badge(holder, index)
@@ -276,7 +294,15 @@ end
 local function Show(holder, list)
     -- T8-9: dieselbe Tabelle je Halter, geleert statt je Takt neu angelegt
     if holder.badgeState then wipe(holder.badgeState) else holder.badgeState = {} end
+    local start = Top.Start(holder)
     local room, used, shown = HolderWidth(holder), 0, 0
+    if room then room = math.max(0, room - start) end
+    holder.badgeStart = start
+    if #list > 0 then
+        local first = Badge(holder, 1)
+        first.icon:ClearAllPoints()
+        first.icon:SetPoint("LEFT", holder, "LEFT", start, 0)
+    end
     for index, want in ipairs(list) do
         local badge = Badge(holder, index)
         local text = want.text
@@ -315,6 +341,7 @@ local function Show(holder, list)
         badge.text:Hide()
     end
     holder.badgeCut = #list - shown
+    holder.badgeUsed = used
 end
 Top.Show = Show                              -- für die Prüfungen
 
@@ -325,7 +352,7 @@ function Top.Fill(item, plan, rowsHolder)
     -- Raidstil im Kampf: die Mitte bleibt frei – zuerst fragen, dann erst die Marken bauen (T8-9)
     local list = plan.any and MF.TextAllowed(item.kind) and Top.BadgesFor(item.unit, plan) or {}
     Show(holder, list)
-    if #list > 0 and rowsHolder and rowsHolder.rows and not rowsHolder.classic then
+    if #list > 0 and rowsHolder and rowsHolder.rows and not rowsHolder.classic and not holder.side then
         for _, row in pairs(rowsHolder.rows) do
             if row.text:GetParent() == holder and row.text:IsShown() then
                 row.text:Hide()
@@ -367,7 +394,7 @@ function Top.Preview(item, index, rowsHolder)
     local holder = Top.Holder(item.frame, true)
     if not holder then return end
     Show(holder, list)
-    if #list > 0 and rowsHolder and rowsHolder.rows and not rowsHolder.classic then
+    if #list > 0 and rowsHolder and rowsHolder.rows and not rowsHolder.classic and not holder.side then
         for _, row in pairs(rowsHolder.rows) do
             if row.text:GetParent() == holder then row.text:Hide() end
         end

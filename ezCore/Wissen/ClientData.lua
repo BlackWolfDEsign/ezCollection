@@ -55,7 +55,10 @@ local Core = ezCore
               Rückfall über den englischen Namen; 0 = keine Aura) }
           ClientData.Consumables(art?) → { [Gegenstand] = { kind, level, spell } }
           Waffenzauber: ClientData.EnchantOfSpell(zauber) → Verzauberung oder nil; ClientData.EnchantInfo(verzauberung)
-              → { duration (Sekunden), charges } oder nil; ClientData.EnchantDuration(zauber) → Sekunden oder nil
+              → { duration (Sekunden), charges } oder nil; ClientData.EnchantDuration(zauber) → Sekunden oder nil;
+              ClientData.EnchantFit(zauber) → { itemClass, subclassMask (Bit = Enum.ItemWeaponSubclass, 0 = jede),
+              invTypeMask (Bit = Enum.InventoryType, 0 = jeder) } oder nil – welche Waffe der Zauber annimmt
+              (SpellEquippedItems; Paket ezcore/klinge-wucht)
       F6  ClientData.ITEM_RUNTIME_FIELDS: die Felder der Entdecker-Datenbank, die C_Item zur Laufzeit liefert (DB.Client) –
           darum werden Gegenstände nicht ausgeliefert (docs/wago-tools.md, Abschnitt 7)
 ]]
@@ -457,4 +460,12 @@ end
 function ClientData.EnchantDuration(spellID)
     local info = ClientData.EnchantInfo(ClientData.EnchantOfSpell(spellID))
     return info and info.duration > 0 and info.duration or nil
+end
+
+function ClientData.EnchantFit(spellID)
+    spellID = Id(spellID)
+    local data = spellID and ClientData.Table("enchants")
+    local f = data and type(data.fit) == "table" and data.fit[spellID]
+    if type(f) ~= "table" then return nil end
+    return { itemClass = Num(f[1]) or -1, subclassMask = Num(f[2]) or 0, invTypeMask = Num(f[3]) or 0 }
 end

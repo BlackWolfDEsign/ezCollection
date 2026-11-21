@@ -62,6 +62,14 @@ ns.DEFAULTS = {
     blockInvites = false,
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+ns.AGREE = {
+    chatGeneral = "choice",
+}
+
 -- Gerüst aus ezCore (docs/ezcore.md „Gerüst-Dienste“): Datenbank, Login, Befehle und Status kommen von dort.
 --   db/tables  ezSocialDB mit settings (ns.DEFAULTS), chat (gesammelte LFG/LFM-Nachrichten und „zuletzt
 --              gesehen“, ChatLFG.lua) und
@@ -89,7 +97,9 @@ Core.NewModule(ADDON, ns, {
     -- Gesamtreview 18.11.2026 (P19a, kern/ssot-helfer; ohne neue Nummer): gemeinsame Helfer statt Kopien
     "PlaySound", "ICON_FALLBACK",
     -- Prüfung der Einstellungen vom 19.11.2026: einmalige Umstellung (ns.MigrateSettings1911)
-    "MigrateOnce" },
+    "MigrateOnce",
+    -- Paket ezsocial/levelfarbe (ezCore ohne neue Versionsnummer): Stufenfarbe aus ezCore
+    "QuestDifficultyRGB" },
     db = "ezSocialDB",
     -- migrated: Merker der einmaligen Umstellungen (ns.MigrateSettings1911)
     tables = { "chat", "tour", "migrated" },
@@ -235,25 +245,24 @@ end
 -- Farben nach Stufe
 ---------------------------------------------------------------------------
 
--- Eigene Stufe aus ezCore; 1, solange der Client sie nicht kennt (nur für die Farben unten).
+-- Eigene Stufe für die Farben unten: wie Blizzard die wirksame Stufe (Stufensynchronisierung, Zeitwanderung) –
+-- Forever-Quelle Blizzard_FrameXMLUtil/Mainline/DifficultyUtil.lua: GetQuestDifficultyColor rechnet mit
+-- UnitEffectiveLevel("player"); ohne sie die Stufe aus ezCore, 1, solange der Client sie nicht kennt.
 local function PlayerLevel()
+    local effective = Core.Num(Core.Call(rawget(_G, "UnitEffectiveLevel"), "player"))
+    if effective and effective > 0 then return effective end
     return Core.PlayerLevel() or 1
 end
 
--- r, g, b für die Stufe eines Spielers aus deiner Sicht: Blizzards Quest-Farben (rot … gelb … grau).
+-- r, g, b für die Stufe eines Spielers aus deiner Sicht: Blizzards Quest-Farben (rot … gelb … grau) über ezCore
+-- (Core.QuestDifficultyRGB: zuerst der Client, sonst dieselben Grenzen wie Blizzards Forever-Quelle; Paket
+-- ezsocial/levelfarbe – vorher eigene Grenzen, die von Blizzards abwichen). Ohne Stufe weiß.
 function ns.LevelRGB(level)
     level = Core.Num(level)
     if not level or level <= 0 then return 1, 1, 1 end
-    if type(GetQuestDifficultyColor) == "function" then
-        local ok, color = pcall(GetQuestDifficultyColor, level)
-        if ok and type(color) == "table" and color.r then return color.r, color.g, color.b end
-    end
-    local diff = level - PlayerLevel()
-    if diff >= 5 then return 1, 0.1, 0.1 end
-    if diff >= 3 then return 1, 0.5, 0.25 end
-    if diff >= -2 then return 1, 0.82, 0 end
-    if diff >= -8 then return 0.25, 0.75, 0.25 end
-    return 0.5, 0.5, 0.5
+    local r, g, b = Core.QuestDifficultyRGB(level, PlayerLevel())
+    if not r then return 1, 1, 1 end
+    return r, g, b
 end
 
 -- Stufenbereich (Zone, Dungeon): Farbe aus ezCore.Dungeons – weiß passt, rot zu schwer, grau zu leicht.

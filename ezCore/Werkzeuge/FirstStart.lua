@@ -389,7 +389,11 @@ end
         „Allem zustimmen“ – nichts bleibt ungenannt). Danach gelten die Hinweise „Einschalten“ der Schalter als
         erledigt, die sich einschalten ließen (Intro.SettleAll); was nicht ging, nennt eine Chatzeile. Die Erklärblasen
         der Fenster kommen beim ersten Öffnen wie bisher. Ein „Ja“ im Kampf wird nach dem Kampf ausgeführt. Mit
-        gesetzt werden die Schalter aus Intro.ALSO („Nur, was ich abbauen kann“ von ezMap). Die Kurzfassung ist nur zum Lesen und erledigt nichts.
+        gesetzt werden die Schalter aus Intro.ALSO und jeder Schalter, den ein Modul in ns.AGREE mit „on“ anmeldet
+        (ezCore: Intro.OWN_AGREE) – alles, was ab Werk aus ist und Blizzards Regeln erlauben (Spieltest 20.11.2026).
+        Was sie riskiert („risk“), bleibt aus und steht im Tooltip des Knopfs; Geschmack, Filter, Rücksicht auf fremde
+        Addons, Entdecker-Wissen und Entwicklerwerkzeuge („choice“) bleiben, wie sie sind, und stehen in der
+        Kurzfassung. Die Kurzfassung ist nur zum Lesen und erledigt nichts.
       * Einverständnis: Intro.CONSENT nennt die Schalter aller Abläufe ohne Klick (Liste in docs/blizzard-regeln.md,
         Abschnitt 5; eine Prüfung vergleicht sie mit ZEILEN und EINZELN aus tools/Tests/optin_test.lua). Quelle der
         Wahrheit bleibt die Einstellung des Moduls: Die Häkchen lesen sie bei jedem Zeichnen, ein Klick setzt sie über
@@ -411,7 +415,9 @@ end
       Core.Intro.CommandLine(name)    → „Befehl: … – alle Befehle: …“ (Core.SlashCmd)
       Core.Intro.Get(eintrag)         → true/false; nil, wenn das Modul nicht läuft oder eintrag.available() nicht gilt
       Core.Intro.Default(eintrag)     → Standard ab Werk (ein Eintrag aus Core.OptInHint gilt als ab Werk aus)
-      Core.Intro.Set(eintrag, an)     → ok, Grund ("combat" | "absent" | "same" | "own" | "hint" | "module" | "where")
+      Core.Intro.Set(eintrag, an)     → ok, Grund ("combat" | "absent" | "same" | "blocked" | "own" | "hint" | "module" | "where")
+      Core.Intro.CanSwitchOn(eintrag) → false, wenn das Modul den Schalter in ns.SWITCHABLE[Schlüssel] als hier wirkungslos
+                                      meldet („Allem zustimmen“ lässt ihn aus, die Kästchen sind grau, Set → "blocked")
       Core.Intro.Label(eintrag), Core.Intro.What(eintrag)   Name des Schalters, was passiert, wenn an
       Core.Intro.Rows(nurLaufende)    → { { entry, module, key, label, what, value, default } … }
       Core.Intro.Lines() / Text()     → Kurzfassung (alle Module, Einverständnis, Mithelfen)
@@ -421,7 +427,16 @@ end
       Core.Intro.Show(nr | key)       → true, wenn die Blase dieser Seite jetzt steht; Core.Intro.ShowModule(name)
       Core.Intro.HidePager(), Core.Intro.current (Nummer der offenen Seite), Core.Intro.nav (Fenster, Modul der Seite)
       Core.Intro.ALSO                 wie CONSENT, mit dem Einverständnis gesetzt, kein Ablauf ohne Klick
-                                      [, on = Wert für „zugestimmt“] [, label = , what = Text von ezCore]
+                                      [, on = Wert für „zugestimmt“] [, label = , what = Text von ezCore] – nur für
+                                      Einträge ohne eigenes Modul; Module melden ihre über ns.AGREE an (unten)
+      ns.AGREE (je Modul)             { [Schlüssel] = "on" | "risk" | "choice" | { "on", on = , label = , what = } }:
+                                      jeder Schalter des Moduls, der ab Werk aus ist und kein Ablauf ohne Klick
+                                      (Intro.CONSENT); tools/Tests/agree_test.lua prüft die Vollständigkeit
+      Core.Intro.OWN_AGREE            dasselbe für ezCores eigene Schalter: { { Schlüssel, Art, group = , text = } … }
+      Core.Intro.Registered()         → { { module, key, kind, entry } … } aller laufenden Module und ezCore
+      Core.Intro.AlsoEntries()        → Intro.ALSO und die Anmeldungen mit „on“ (wie Intro.CONSENT)
+      Core.Intro.Excluded(art, auchAn) → Text „ezBag: Leichter zerstören, …“ der Anmeldungen dieser Art oder nil
+      Core.Intro.AgreeTip()           → Tooltip des Knopfs „Allem zustimmen“ (mit den Ausnahmen „risk“)
       Core.Intro.SplitAlso(zeilen)    → Zeilen aus CONSENT, Zeilen aus ALSO (row.also) – Anzahlen zählen nur die ersten
       Core.Intro.HintIds(zeilen)      → Kennungen der Hinweise „Einschalten“ dieser Zeilen (Modul.Schlüssel, hint, hints)
       Core.Intro.WINDOWS[modul]       { panel = Name in Core.Panels.LIST, side [, frames + why nur abweichend] } (Spieltest 19.11.)
@@ -537,14 +552,58 @@ function Intro.HintIds(rows)
     return out
 end
 -- Mit dem Einverständnis gesetzt, ohne ein Ablauf ohne Klick zu sein (darum nicht in Intro.CONSENT und nicht in
--- docs/blizzard-regeln.md, Abschnitt 5): Anzeige-Schalter, die der Spieler mit der Zustimmung mit gesetzt haben will.
+-- docs/blizzard-regeln.md, Abschnitt 5): Schalter, die der Spieler ausdrücklich mit der Zustimmung gesetzt haben will.
 -- Felder wie in Intro.CONSENT; on = der Wert, der „zugestimmt“ heißt (ohne: true); label/what = Text von ezCore.
 -- Spielbefund des Nutzers vom 20.11.2026 (Bild 37, wörtlich: „zu dem sollte dieser haken bei dem einverständnis auch
 -- gesetzt werden“): „Nur, was ich abbauen kann“ – in ezMap seit der Einstellungs-Prüfung vom 19.11.2026 (Nr. 88) der
--- abgewählte Eintrag „Rot – noch nicht abbaubar“ (gatherColorRed) im Kartenfilter „Sammeln“ » „Nach Farbe“.
-Intro.ALSO = {
-    { "ezMap", "gatherColorRed", on = false, label = "INTRO_LABEL_gatherOnly", what = "INTRO_ON_gatherOnly" },
+-- abgewählte Eintrag „Rot – noch nicht abbaubar“ (gatherColorRed) im Kartenfilter „Sammeln“ » „Nach Farbe“. Seit dem
+-- Spieltest vom 20.11.2026 meldet ezMap ihn selbst an (ns.AGREE in ezMap/Core.lua); hier stehen nur noch Einträge, die
+-- keinem Modul gehören (heute keiner).
+Intro.ALSO = {}
+
+-- „Allem zustimmen“ setzt auch die übrigen Schalter, die ab Werk aus sind – soweit Blizzards Regeln es erlauben
+-- (Spieltest 20.11.2026, wörtlich: „"allem zustimmen" muss auch die kompakte minikarte aktivieren sowie folgende
+-- fuunktionen wenn blizz es erlaubt“). Keine feste Liste hier (Leitlinie 2): Jedes Modul meldet seine Schalter in
+-- ns.AGREE neben seinen Standards an (<Modul>/Core.lua), ezCore die eigenen in Intro.OWN_AGREE. Art je Schlüssel:
+--   "on"      mit dem Einverständnis gesetzt (ergänzt eine Funktion oder Auskunft, keine reine Optik; nichts davon
+--             handelt ohne Klick an Spielern, Gold oder Blizzards geschützten Abläufen)
+--   "risk"    bleibt aus: riskiert Blizzards Regeln oder einen Schutz von Blizzard (sendet, wählt, verbraucht oder
+--             gibt Gold aus ohne Klick, schreibt in Blizzards Felder, hebt eine Sicherung auf; docs/blizzard-regeln.md)
+--             – der Tooltip von „Allem zustimmen“ und die Rückfrage nennen ihn
+--   "choice"  bleibt, wie es ist: keine Funktion, sondern Geschmack oder Filter, Hilfe, die nur manche brauchen
+--             (Farbenblind-Hilfe, Entscheidung vom 21.11.2026), Rücksicht auf ein fremdes Addon
+--             (Leitlinie 9), Entdecker-Wissen (Leitlinie 11, nur auf ausdrücklichen Wunsch) oder Entwicklerwerkzeug –
+--             die Kurzfassung nennt ihn
+--   { "on", on = false, label = , what = }   wie ein Eintrag in Intro.CONSENT (on = Wert, der „zugestimmt“ heißt)
+-- Abläufe ohne Klick (Intro.CONSENT) stehen nicht in ns.AGREE. tools/Tests/agree_test.lua liest die Standards jedes
+-- Moduls und meldet jeden Schalter, der ab Werk aus ist und weder in Intro.CONSENT noch angemeldet ist.
+Intro.AGREE_KINDS = { on = true, risk = true, choice = true }
+-- available wie in Intro.CONSENT: Übernimmt ein fremdes Addon die Funktion (Leitlinie 9), steht die Zeile nicht da und
+-- „Allem zustimmen“ schaltet nichts ein, was ezCore dann ohnehin ruhen lässt
+-- Was nur die Optik nach Geschmack ändert (Zeichen, Farben, zusätzliche Texte oder Knöpfe, Skalierung, Ausblenden),
+-- ergänzt keine Funktion und ist "choice" (Spieltest 20.11.2026, Knopf mit „o fehlt“, wörtlich „mh was soll das sein“; Folgeauftrag der Hauptsession)
+Intro.OWN_AGREE = {
+    -- Blizzards Fehlerbericht-Knopf und Umfragen ausblenden: nur weniger auf dem Bildschirm, Geschmack
+    { "betaHints", "choice", group = "comfort", available = function() return NoOther("betaHints") end },
+    -- Farbenblind-Zeichen (? > + !) am Leuchten: Barrierefreiheit nach Bedarf, nur wer sie braucht (Entscheidung vom
+    -- 21.11.2026: „nur optional anschaltbar, standardmäßig aus“)
+    { "glowMarks", "choice", group = "comfort" },
+    { "moveFrames", "on", group = "comfort", available = function() return NoOther("moveFrames") end },
+    -- Skalieren: zusätzliche Knöpfe „-“ und „+“ an jeder Titelleiste, Größe nach Geschmack
+    { "frameScale", "choice", group = "comfort", available = function() return NoOther("moveFrames") end },
+    -- Kennungen im Tooltip sind ein Werkzeug zum Nachschlagen, kein Gewinn für jeden (Entscheidung vom 19.11.2026)
+    { "ids", "choice", group = "tooltip", text = "ttIDs" },
+    -- zusätzliche Münze an Taschenplätzen (dieselbe Auskunft steht am Händler und im Tooltip): Zeichen nach Geschmack
+    { "worthBag", "choice", group = "priceOpts", text = "auctionWorthBag" },
+    -- Gildengold geht ohne Klick aus (Reparatur am Händler)
+    { "repairGuild", "risk", group = "vendor", text = "vendorRepairGuild" },
+    -- Entdecker-Wissen nur auf ausdrücklichen Wunsch (Leitlinie 11)
+    { "explorer", "choice", group = "discovery" },
+    { "locked", "choice", group = "gatherCare", text = "gatherLocked" },
+    { "developer", "choice", group = "comfort" },
+    { "editModeOpen", "choice", group = "comfort" },
 }
+
 Intro.OFFER_DELAY = 12          -- Sekunden nach dem Einloggen (die Chatzeile des ersten Starts kommt nach 8)
 Intro.MAX_OFFERS = 2             -- so oft je Account höchstens
 Intro.AFTER_COMBAT_DELAY = 5     -- Sekunden nach dem Kampf, bevor ein im Kampf fälliges Angebot kommt
@@ -553,6 +612,7 @@ Intro.BUTTON_WIDTH = 100         -- „Zurück“ und „Weiter“ nebeneinander
 Intro.BOX_WIDTH = 300            -- Blase der Seiten: breiter als Blizzards 226, je Ablauf ohne Klick ein Häkchen
 Intro.TEXT_WIDTH = 270
 Intro.CHECK_SIZE = 24
+Intro.ALSO_NAMES = 6             -- „Allem zustimmen“: bis zu so vielen Mit-Schaltern die Namen im Chat, darüber die Anzahl
 Intro.AGREE_LINES = 10           -- „Allem zustimmen“: bis zu so vielen Modulen Core.Confirm, darüber ein Textfenster
 Intro.COMBAT_KEY = "ezCore.intro"
 Intro.OFFER_KEY = "ezCore.introOffer"
@@ -694,6 +754,23 @@ function Intro.What(entry)
     return Lookup(mL, "OPTIN_" .. key) or Lookup(L, "INTRO_ON_" .. key) or Lookup(mL, "OPT_" .. key .. "_TIP") or ""
 end
 
+-- Lässt sich die Zeile hier sinnvoll einschalten? Ein Modul meldet Schalter, die auf diesem Client nie wirken können, in
+-- ns.SWITCHABLE[Schlüssel] = fn() → bool – dieselbe Funktion graut das Kästchen auf der Seite des Moduls (ezMacro
+-- „Fremden Heilern danken“: WoW Forever sperrt die Heilvorhersage). Spieltest 20.11.2026: „Allem zustimmen“ schaltete
+-- ihn trotzdem ein, ezMacro meldete gleich danach „ohne Wirkung“. Ohne Eintrag, bei einem Fehler im Prädikat (steht in
+-- der Fehlerliste) oder einem geheimen Wert: ja. Nur für Einstellungen eines Moduls, nicht für group/hint, und nur, wo
+-- „zustimmen“ die Einstellung einschaltet (ein umgekehrter Eintrag mit on = false schaltet sie aus – das geht immer). → bool
+function Intro.CanSwitchOn(entry)
+    if type(entry) ~= "table" or entry.group or entry.hint or not Wanted(entry) then return true end
+    local mns = ModuleNs(entry[1])
+    local list = mns and mns.SWITCHABLE
+    local fn = type(list) == "table" and list[entry[2]] or nil
+    if type(fn) ~= "function" then return true end
+    local ok, yes = Core.Try(entry[1], "Intro.CanSwitchOn", fn)
+    if not ok or Core.IsSecret(yes) then return true end
+    return yes ~= false
+end
+
 function Intro.Set(entry, value)
     value = value == true
     if type(entry) ~= "table" then return false, "absent" end
@@ -704,6 +781,11 @@ function Intro.Set(entry, value)
     local current = Intro.Get(entry)
     if current == nil then return false, "absent" end
     if current == value then return true, "same" end
+    -- zustimmen zu einem Schalter, der hier nie wirkt: nicht einschalten (Ausschalten geht immer)
+    if value and not Intro.CanSwitchOn(entry) then
+        ns.Print(L.INTRO_SET_BLOCKED:format(Intro.Label(entry), tostring(entry[1])))
+        return false, "blocked"
+    end
     local key = entry[2]
     -- der Wert der Einstellung: „zugestimmt“ ist Wanted(entry), sonst das Gegenteil
     local target = Wanted(entry)
@@ -740,11 +822,81 @@ function Intro.Set(entry, value)
     return mns.S[key] == target, "module"
 end
 
--- Zeilen aus Intro.CONSENT, danach Intro.ALSO (je Modul in dieser Reihenfolge); row.also: aus Intro.ALSO – kein
+-- Art und Felder einer Anmeldung: "on" | "risk" | "choice" oder { Art, on = …, label = …, what = … }. → Art, Felder
+local function AgreeKind(value)
+    if type(value) == "string" then return value, nil end
+    if type(value) == "table" then return value[1], value end
+    return nil, nil
+end
+
+local function AgreeEntry(module, key, fields)
+    local entry = { module, key }
+    for field, value in pairs(fields or {}) do
+        if type(field) == "string" then entry[field] = value end
+    end
+    return entry
+end
+
+-- Alle Anmeldungen laufender Module (Reihenfolge der Module, je Modul nach Schlüssel), danach ezCores eigene.
+-- → { { module, key, kind, entry } … }; entry wie in Intro.CONSENT
+function Intro.Registered()
+    local out = {}
+    for _, name in ipairs(Core.ModuleNames and Core.ModuleNames() or {}) do
+        local mns = name ~= ADDON and ModuleNs(name) or nil
+        local list = mns and mns.AGREE
+        if type(list) == "table" then
+            local keys = {}
+            for key in pairs(list) do
+                if type(key) == "string" then keys[#keys + 1] = key end
+            end
+            table.sort(keys)
+            for _, key in ipairs(keys) do
+                local kind, fields = AgreeKind(list[key])
+                if Intro.AGREE_KINDS[kind] then
+                    out[#out + 1] = { module = name, key = key, kind = kind, entry = AgreeEntry(name, key, fields) }
+                end
+            end
+        end
+    end
+    for _, own in ipairs(Intro.OWN_AGREE or {}) do
+        if type(own) == "table" and Intro.AGREE_KINDS[own[2]] then
+            out[#out + 1] = { module = ADDON, key = own[1], kind = own[2], entry = AgreeEntry(ADDON, own[1], own) }
+        end
+    end
+    return out
+end
+
+-- Intro.ALSO und alle Anmeldungen mit „on“ (wie Einträge in Intro.CONSENT). → Liste
+-- Kennung einer Zeile: Modul[.Gruppe].Schlüssel (ezCores Schlüssel gibt es in mehreren Gruppen)
+local function EntryId(entry)
+    return tostring(entry[1]) .. "." .. (entry.group and (entry.group .. ".") or "") .. tostring(entry[2])
+end
+Intro.EntryId = EntryId
+
+-- Intro.ALSO und alle Anmeldungen mit „on“ (wie Einträge in Intro.CONSENT), ohne Doppel: was schon in Intro.CONSENT
+-- oder davor in der Liste steht, kommt nicht noch einmal (sonst zwei Zeilen und zwei gleichnamige Häkchen). → Liste
+function Intro.AlsoEntries()
+    local list, seen = {}, {}
+    for _, entry in ipairs(Intro.CONSENT or {}) do seen[EntryId(entry)] = true end
+    local function Add(entry)
+        local id = EntryId(entry)
+        if not seen[id] then
+            seen[id] = true
+            list[#list + 1] = entry
+        end
+    end
+    for _, entry in ipairs(Intro.ALSO or {}) do Add(entry) end
+    for _, reg in ipairs(Intro.Registered()) do
+        if reg.kind == "on" then Add(reg.entry) end
+    end
+    return list
+end
+
+-- Zeilen aus Intro.CONSENT, danach Intro.ALSO und die Anmeldungen mit „on“ (Intro.AlsoEntries); row.also: kein
 -- Ablauf ohne Klick, darum in keiner Anzahl „Abläufe ohne Klick“ und unter eigenem Kopf (Intro.SplitAlso)
 function Intro.Rows(runningOnly)
     local rows = {}
-    for index, list in ipairs({ Intro.CONSENT, Intro.ALSO or {} }) do
+    for index, list in ipairs({ Intro.CONSENT, Intro.AlsoEntries() }) do
         for _, entry in ipairs(list) do
             local value = Intro.Get(entry)
             if value ~= nil or not runningOnly then
@@ -770,6 +922,28 @@ local function RowNames(rows)
     local names = {}
     for _, row in ipairs(rows) do names[#names + 1] = L.INTRO_AGREE_LINE:format(row.module, row.label) end
     return table.concat(names, ", ")
+end
+
+-- Anmeldungen dieser Art („risk“ oder „choice“) laufender Module, die jetzt aus sind („ezBag: Leichter zerstören,
+-- …“; mit Komma). Was der Spieler selbst schon eingeschaltet hat, nennt die Liste nicht – außer mit evenIfOn (Tooltip
+-- des Knopfs: er steht ab dem Bau der Seite fest und sagt nur, was „Allem zustimmen“ nicht einschaltet). → Text oder nil
+function Intro.Excluded(kind, evenIfOn)
+    local names = {}
+    for _, reg in ipairs(Intro.Registered()) do
+        local value = Intro.Get(reg.entry)
+        if reg.kind == kind and (value == false or (evenIfOn and value ~= nil)) then
+            names[#names + 1] = L.INTRO_AGREE_LINE:format(reg.module, Intro.Label(reg.entry))
+        end
+    end
+    if #names == 0 then return nil end
+    return table.concat(names, ", ")
+end
+
+-- Tooltip des Knopfs „Allem zustimmen“: was er tut und was er auslässt, weil es Blizzards Regeln riskiert. → Text
+function Intro.AgreeTip()
+    local risk = Intro.Excluded("risk", true)
+    if not risk then return L.INTRO_AGREE_TIP end
+    return L.INTRO_AGREE_TIP .. "\n\n" .. L.INTRO_AGREE_RISK:format(risk)
 end
 
 ---------------------------------------------------------------------------
@@ -818,6 +992,10 @@ function Intro.Lines()
     lines[#lines + 1] = ""
     lines[#lines + 1] = L.INTRO_CONSENT_HEAD
     ConsentLines(lines, Intro.Rows(true))
+    -- was „Allem zustimmen“ auslässt (Anmeldungen „risk“ und „choice“, Spieltest 20.11.2026)
+    local risk, choice = Intro.Excluded("risk"), Intro.Excluded("choice")
+    if risk then lines[#lines + 1] = L.INTRO_AGREE_RISK:format(risk) end
+    if choice then lines[#lines + 1] = L.INTRO_AGREE_CHOICE:format(choice) end
     lines[#lines + 1] = L.INTRO_CONSENT_WHERE
     if Core.Contribute then
         lines[#lines + 1] = ""
@@ -937,13 +1115,27 @@ end
 -- Allem zustimmen: alle Abläufe ohne Klick der laufenden Module auf einmal an
 ---------------------------------------------------------------------------
 
--- Was „Allem zustimmen“ einschalten würde: die Zeilen laufender Module, die jetzt aus sind. → Liste wie Intro.Rows
+-- Was „Allem zustimmen“ einschalten würde: die Zeilen laufender Module, die jetzt aus sind – ohne Schalter, die auf
+-- diesem Client nie wirken (Intro.CanSwitchOn; nicht in Rückfrage, Anzahl und Chatzeile). → Liste wie Intro.Rows
 function Intro.AgreeRows()
     local out = {}
     for _, row in ipairs(Intro.Rows(true)) do
-        if row.value == false then out[#out + 1] = row end
+        if row.value == false and Intro.CanSwitchOn(row.entry) then out[#out + 1] = row end
     end
     return out
+end
+
+-- Was „Allem zustimmen“ auslässt: aus, aber hier wirkungslos (Intro.CanSwitchOn) – Rückfrage und Chat nennen sie.
+-- → Text „ezMacro: Fremden Heilern danken“ (mehrere mit Komma) oder nil
+function Intro.SkippedNames()
+    local names = {}
+    for _, row in ipairs(Intro.Rows(true)) do
+        if row.value == false and not Intro.CanSwitchOn(row.entry) then
+            names[#names + 1] = L.INTRO_AGREE_LINE:format(row.module, row.label)
+        end
+    end
+    if #names == 0 then return nil end
+    return table.concat(names, ", ")
 end
 
 -- Liste je Modul („ezMerchant: Plunder verkaufen, Reparieren“) – vollständig (Gegenprüfung: vorher verschwanden ab dem
@@ -998,7 +1190,13 @@ function Intro.ApplyAll()
     if done > #also or #also == 0 then
         ns.Print(L.INTRO_AGREE_DONE:format(done - #also, Core.SlashCmd(ns, L.INTRO_CMD_WORD)))
     end
-    if #also > 0 then ns.Print(L.INTRO_AGREE_ALSO_DONE:format(RowNames(also))) end
+    -- viele Mit-Schalter (Anmeldungen der Module): die Anzahl statt einer überlangen Chatzeile; die Namen standen in
+    -- der Rückfrage und stehen in der Kurzfassung
+    if #also > Intro.ALSO_NAMES then
+        ns.Print(L.INTRO_AGREE_ALSO_DONE_N:format(#also, Core.SlashCmd(ns, L.INTRO_CMD_WORD)))
+    elseif #also > 0 then
+        ns.Print(L.INTRO_AGREE_ALSO_DONE:format(RowNames(also)))
+    end
     if failed > 0 then ns.Print(L.INTRO_AGREE_FAILED:format(failed, table.concat(names, ", "))) end
     return done, failed
 end
@@ -1010,11 +1208,12 @@ end
 function Intro.AgreeAll(onCancel)
     if Core.InCombat() then return Later(function() Intro.AgreeAll(onCancel) end) end
     local rows = Intro.AgreeRows()
+    local skipped = Intro.SkippedNames()
     if #rows == 0 then
         -- alles schon an: entschieden ist nichts Neues, kein Hinweis gilt dadurch als gesehen (Nachlauf PR 536)
         local store = OfferStore()
         if store then store.done = store.done or (time and time() or 0) end
-        ns.Print(L.INTRO_AGREE_NONE)
+        ns.Print(skipped and L.INTRO_AGREE_NONE_SKIPPED:format(skipped) or L.INTRO_AGREE_NONE)
         return false
     end
     local _, modules = Intro.AgreeList(rows)
@@ -1028,6 +1227,9 @@ function Intro.AgreeAll(onCancel)
         if #also > 0 then list = list .. "\n\n" .. L.INTRO_AGREE_ALSO:format((Intro.AgreeList(also))) end
         prompt = L.INTRO_AGREE_CONFIRM:format(#consent, list)
     end
+    if skipped then prompt = prompt .. "\n\n" .. L.INTRO_AGREE_SKIPPED:format(skipped) end
+    local risk = Intro.Excluded("risk")
+    if risk then prompt = prompt .. "\n\n" .. L.INTRO_AGREE_RISK:format(risk) end
     local function Cancel() if type(onCancel) == "function" then onCancel() end end
     if modules > Intro.AGREE_LINES then
         Core.TextDialog({ title = L.INTRO_AGREE_LABEL, text = prompt, readOnly = true, maxLetters = 0, owner = ADDON,
@@ -1270,12 +1472,36 @@ end
 
 -- Ein Häkchen der Blase umlegen: setzt den Schalter über denselben Weg wie die Seite „Einführung“ (Intro.Set) und
 -- zeigt danach den echten Stand (im Kampf oder bei einem nur einschaltbaren Schalter bleibt er). → ok
+-- Tooltip einer Einverständnis-Zeile; ist der Schalter aus und hier wirkungslos, mit dem Grund fürs Grau (Leitlinie 11)
+local function RowTip(entry, what, module)
+    local text = L.INTRO_ROW_TIP:format(what, module)
+    if Intro.Get(entry) ~= true and not Intro.CanSwitchOn(entry) then
+        text = text .. "\n\n" .. L.INTRO_ROW_BLOCKED:format(tostring(module))
+    end
+    return text
+end
+Intro.RowTip = RowTip
+
+-- Häkchen der Blase nach dem echten Stand: Haken, und grau samt Beschriftung, solange aus und hier wirkungslos
+-- (Blizzards UICheckButtonTemplate hat für ein gesperrtes leeres Kästchen keine eigene Textur)
+local function RowState(row)
+    local entry = row and row.entry
+    if not (entry and row.Check) then return end
+    local on = Intro.Get(entry) == true
+    if row.Check.SetChecked then row.Check:SetChecked(on) end
+    local usable = on or Intro.CanSwitchOn(entry)
+    if row.Check.SetEnabled then row.Check:SetEnabled(usable) end
+    if row.Label and row.Label.SetFontObject then
+        row.Label:SetFontObject(usable and "GameFontHighlightSmallLeft" or "GameFontDisableSmallLeft")
+    end
+end
+
 function Intro.ToggleRow(row)
     local entry = type(row) == "table" and row.entry or nil
     if not entry then return false end
     local ok = Intro.Set(entry, Intro.Get(entry) ~= true)
     Core.PlaySound("IG_MAINMENU_OPTION_CHECKBOX_ON")
-    if row.Check and row.Check.SetChecked then row.Check:SetChecked(Intro.Get(entry) == true) end
+    RowState(row)
     return ok
 end
 
@@ -1315,8 +1541,12 @@ local function FillRows(box, page, rows)
         end
         row.entry = data.entry
         row.Label:SetText(data.label)
-        row.Check:SetChecked(data.value == true)
-        row.Check:SetScript("OnEnter", Core.TipScript(data.label, L.INTRO_ROW_TIP:format(data.what, data.module), "ANCHOR_RIGHT"))
+        -- grau wie auf der Seite des Moduls, solange der Schalter aus ist und hier nie wirkt (Intro.CanSwitchOn)
+        RowState(row)
+        local label, entry, what, module = data.label, data.entry, data.what, data.module
+        row.Check:SetScript("OnEnter", function(self)
+            Core.ShowTip(self, label, RowTip(entry, what, module), "ANCHOR_RIGHT")
+        end)
         local h = math.max(Intro.CHECK_SIZE, Height(row.Label, 12) + 6)
         row:SetSize(Intro.TEXT_WIDTH, h)
         row:ClearAllPoints()
@@ -1433,7 +1663,7 @@ function Intro.AddPage(parent)
     Intro.page = page
     page:Button(L.INTRO_SHORT_LABEL, L.INTRO_SHORT_BUTTON, function() Intro.ShowShort() end, L.INTRO_SHORT_TIP)
     page:Button(L.INTRO_PAGES_LABEL, L.INTRO_PAGES_BUTTON, function() Intro.Show(1) end, L.INTRO_PAGES_TIP)
-    page:Button(L.INTRO_AGREE_LABEL, L.INTRO_AGREE_BUTTON, function() Intro.AgreeAll() end, L.INTRO_AGREE_TIP)
+    page:Button(L.INTRO_AGREE_LABEL, L.INTRO_AGREE_BUTTON, function() Intro.AgreeAll() end, Intro.AgreeTip())
     page:Header(L.INTRO_MODULES_HEADER, L.INTRO_MODULES_HEADER_TIP)
     for _, name in ipairs(RunningPageModules()) do
         page:Button(name, L.INTRO_MODULE_BUTTON, function() Intro.ShowModule(name) end, Intro.PageTip(name))
@@ -1455,11 +1685,21 @@ function Intro.AddPage(parent)
                     head = true
                 end
                 local entry = row.entry
-                page:ProxyCheckbox("intro_" .. row.module .. "_" .. row.key,
+                -- Mit-Schalter von ezCore tragen ihre Gruppe im Namen (gleiche Schlüssel in zwei Gruppen); die Namen der
+                -- Abläufe ohne Klick bleiben, wie sie waren
+                local name = row.module .. "_" .. ((row.also and entry.group) and (entry.group .. "_") or "") .. row.key
+                local _, checkRow = page:ProxyCheckbox("intro_" .. name,
                     function() return Intro.Get(entry) == true end,
                     function(value) Intro.Set(entry, value) end,
-                    { label = L.INTRO_ROW_LABEL:format(row.module, row.label), tooltip = L.INTRO_ROW_TIP:format(row.what, row.module),
+                    { label = L.INTRO_ROW_LABEL:format(row.module, row.label), -- Tooltip als Funktion: der Grund fürs Grau steht nur da, solange er gilt
+                      tooltip = function() return RowTip(entry, row.what, row.module) end,
                       default = row.default == true })
+                -- grau wie auf der Seite des Moduls, solange aus und hier wirkungslos (Intro.CanSwitchOn; an bleibt
+                -- es bedienbar, damit man es ausschalten kann)
+                if type(checkRow) == "table" and type(checkRow.AddModifyPredicate) == "function" then
+                    pcall(checkRow.AddModifyPredicate, checkRow,
+                        function() return Intro.Get(entry) == true or Intro.CanSwitchOn(entry) end)
+                end
             end
         end
     end

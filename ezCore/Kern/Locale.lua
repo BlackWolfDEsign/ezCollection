@@ -545,7 +545,7 @@ local de = {
 
     -- Farbenblind-Hilfe (V-043)
     OPT_glowMarks = "Zeichen am Leuchten (Farbenblind-Hilfe)",
-    OPT_glowMarks_TIP = "Zeigt am leuchtenden Knopf zusätzlich zur Farbe ein Zeichen: * jetzt nutzen (Gold), + bereit (Grün), o erneuern (Orange), ! sofort (Rot). Auch die Marken der Module bekommen diese Zeichen, etwa die Pfeile in der Tasche, die Questfarben und die Restzeit der Post; eine graue Platzmarke in der Tasche (erledigt, nicht für dich) bekommt ein -. An Schlachtfeld-Zeiten steht stattdessen das Kürzel der Fraktion ([A] oder [H]). Hilft, wenn Grün, Orange und Rot schwer zu unterscheiden sind.",
+    OPT_glowMarks_TIP = "Zeigt am leuchtenden Knopf zusätzlich zur Farbe ein Zeichen: > jetzt nutzen (Gold), + bereit (Grün), ? fehlt oder erneuern (Orange), ! sofort (Rot). Auch die Marken der Module bekommen diese Zeichen, etwa die Pfeile in der Tasche, die Questfarben und die Restzeit der Post; eine graue Platzmarke in der Tasche (erledigt, nicht für dich) bekommt ein -. An Schlachtfeld-Zeiten steht stattdessen das Kürzel der Fraktion ([A] oder [H]). Hilft, wenn Grün, Orange und Rot schwer zu unterscheiden sind.",
 
     -- Daten: Charaktere (V-004), Verlauf
     DATA_HEADER = "Daten",
@@ -1566,7 +1566,7 @@ local en = {
     RESET_OWN_TIP = "Puts the switches of this page back to their defaults: comfort, tooltip and marks on glows. Blizzard's own settings (dismount, compare, screenshot) and all saved data stay.",
 
     OPT_glowMarks = "Marks on glows (colour-blind help)",
-    OPT_glowMarks_TIP = "Shows a mark on the glowing button in addition to the colour: * use now (gold), + ready (green), o renew (orange), ! right now (red). The modules' marks get these signs too, for example the arrows in your bags, quest colours and the time left on mail; a grey slot mark in your bags (done, not for you) gets a -. Battleground timers show the faction's short form instead ([A] or [H]). Helps when green, orange and red are hard to tell apart.",
+    OPT_glowMarks_TIP = "Shows a mark on the glowing button in addition to the colour: > use now (gold), + ready (green), ? missing or renew (orange), ! right now (red). The modules' marks get these signs too, for example the arrows in your bags, quest colours and the time left on mail; a grey slot mark in your bags (done, not for you) gets a -. Battleground timers show the faction's short form instead ([A] or [H]). Helps when green, orange and red are hard to tell apart.",
 
     DATA_HEADER = "Data",
     DATA_HEADER_TIP = "What ezCollection has remembered about your characters – manage and clear it.",
@@ -2068,6 +2068,8 @@ en.FIRST_YIELD_SWITCH = "%s (%s – only with its own switch, which is off right
 -- Tasten-Dienst (Bausteine/Keys.lua, Bindings.xml): ezMacros sichere Knöpfe der Helfer „Eine Taste“
 de.KEY_ONEKEY_OPEN = "ezMacro: öffnen und entzaubern (eine Taste)"
 en.KEY_ONEKEY_OPEN = "ezMacro: open and disenchant (one key)"
+de.KEY_FISHING = "ezMacro: Angeln – auswerfen und einholen (eine Taste)"
+en.KEY_FISHING = "ezMacro: fishing – cast and reel in (one key)"
 de.KEY_ONEKEY_FEED = "ezMacro: Begleiter füttern (eine Taste)"
 en.KEY_ONEKEY_FEED = "ezMacro: feed your pet (one key)"
 -- Tasten-Dienst: ezBuffs „Durchbuffen“ (Gesamtreview 18.11.2026, T9-NB7; vorher BINDING_NEXT in ezBuff/Locale.lua)
@@ -2436,18 +2438,26 @@ for key, text in pairs({
     INTRO_PAGE_CONSENT = "Ohne Klick – ein Häkchen ist dein Einverständnis:",
     INTRO_AGREE_LABEL = "Allem zustimmen",
     INTRO_AGREE_BUTTON = "Allem zustimmen",
-    INTRO_AGREE_TIP = "Schaltet alle Abläufe ohne Klick der laufenden Module auf einmal ein. Vorher zeigt eine Rückfrage, was dann passiert; zurücknehmen lässt sich jeder einzeln unter „Einverständnis“ auf der Seite „Einführung“.",
+    INTRO_AGREE_TIP = "Schaltet alle Abläufe ohne Klick der laufenden Module auf einmal ein – und jede Funktion, die ab Werk aus ist und die Blizzards Regeln erlauben (etwa die kompakte Minikarte). Vorher zeigt eine Rückfrage, was dann passiert; zurücknehmen lässt sich jeder einzeln unter „Einverständnis“ auf der Seite „Einführung“.",
+    INTRO_AGREE_RISK = "Nicht eingeschaltet, weil es Blizzards Regeln oder einen Schutz von Blizzard riskiert (sendet, wählt, verbraucht oder zahlt ohne Klick, legt in Blizzards Kauf- und Verkaufsfelder oder hebt eine Sicherung auf): %s",
+    INTRO_AGREE_CHOICE = "Nicht eingeschaltet, bleibt deine Wahl (Geschmack, Filter, Hilfe, die nur manche brauchen, Rücksicht auf ein anderes Addon, Entdecker-Wissen oder Entwicklerwerkzeug): %s",
     INTRO_AGREE_CONFIRM = "Allem zustimmen? Dann schaltet ezCollection %d |4Ablauf:Abläufe; ohne Klick ein:\n\n%s\n\nZurücknehmen kannst du jeden einzeln: Einstellungen » ezCollection » Einführung.",
     INTRO_AGREE_LINE = "%s: %s",
     INTRO_AGREE_DONE = "%d |4Ablauf:Abläufe; ohne Klick eingeschaltet. Einzeln ändern: Einstellungen » ezCollection » Einführung oder %s.",
     INTRO_AGREE_NONE = "Alle Abläufe ohne Klick sind schon eingeschaltet.",
+    -- Spieltest 20.11.2026: Schalter, die ein Modul hier als wirkungslos meldet (ns.SWITCHABLE, Intro.CanSwitchOn)
+    INTRO_AGREE_NONE_SKIPPED = "Alle Abläufe ohne Klick, die hier wirken, sind schon eingeschaltet. Aus bleibt, weil es in diesem Spiel-Client nicht wirkt: %s",
+    INTRO_AGREE_SKIPPED = "Aus bleibt, weil es in diesem Spiel-Client nicht wirkt: %s",
+    INTRO_SET_BLOCKED = "„%s“ wirkt in diesem Spiel-Client nicht und bleibt aus. Warum, steht im Tooltip auf der Seite von %s.",
+    INTRO_ROW_BLOCKED = "Wirkt in diesem Spiel-Client nicht – darum grau. Warum, steht im Tooltip auf der Seite von %s.",
     INTRO_AGREE_FAILED = "Nicht eingeschaltet (bleibt aus), %d |4Schalter:Schalter;: %s. Einzeln versuchen: Einstellungen » ezCollection » Einführung.",
     INTRO_LABEL_gatherOnly = "Sammel-Fundorte: nur, was ich abbauen kann",
-    INTRO_ALSO_HEAD = "Mit dem Einverständnis gesetzt (Anzeige, kein Ablauf ohne Klick):",
-    INTRO_PAGE_ALSO = "Dazu mit dem Einverständnis gesetzt (eine Anzeige, kein Ablauf ohne Klick): %s",
-    INTRO_AGREE_ALSO = "Dazu gesetzt (Anzeige, kein Ablauf ohne Klick):\n%s",
+    INTRO_ALSO_HEAD = "Mit dem Einverständnis gesetzt (Funktionen, die ab Werk aus sind):",
+    INTRO_PAGE_ALSO = "Dazu mit dem Einverständnis gesetzt (Funktionen, die ab Werk aus sind): %s",
+    INTRO_AGREE_ALSO = "Dazu gesetzt (Funktionen, die ab Werk aus sind):\n%s",
     INTRO_AGREE_CONFIRM_ALSO = "Allem zustimmen? Alle Abläufe ohne Klick sind schon an. Dazu setzt ezCollection:\n\n%s\n\nZurücknehmen kannst du jeden einzeln: Einstellungen » ezCollection » Einführung.",
     INTRO_AGREE_ALSO_DONE = "Dazu gesetzt: %s.",
+    INTRO_AGREE_ALSO_DONE_N = "Dazu %d |4Funktion:Funktionen; eingeschaltet, die ab Werk aus |4ist:sind;. Die Liste: %s, „Kurz“.",
     INTRO_ON_gatherOnly = "ezMap blendet Kräuter und Erze aus, für die dein Rang noch nicht reicht (Kartenfilter „Sammeln“ » „Nach Farbe“: „Rot – noch nicht abbaubar“ ist dann abgewählt).",
     INTRO_HELP_HEAD = "Mithelfen",
     INTRO_HELP = "Freiwillig: Schick dem Projekt deine Entdeckungen (Fundorte, Beute, Flugzeiten), damit alle sie bekommen. Versandt wird nie etwas von selbst – %s erklärt den Weg.",
@@ -2467,7 +2477,7 @@ for key, text in pairs({
     INTRO_CONSENT_HEADER = "Einverständnis: ab Werk aus",
     INTRO_CONSENT_HEADER_TIP = "Diese Abläufe handeln ohne Klick, kosten Gold, senden etwas oder stellen Blizzards Einstellungen um – darum sind sie ab Werk aus. Ein Häkchen schaltet denselben Schalter wie auf der Seite des Moduls ein.",
     INTRO_ALSO_HEADER = "Mit dem Einverständnis gesetzt",
-    INTRO_ALSO_HEADER_TIP = "Keine Abläufe ohne Klick, sondern Anzeigen: „Allem zustimmen“ setzt sie mit. Ein Häkchen schaltet denselben Schalter wie auf der Seite des Moduls.",
+    INTRO_ALSO_HEADER_TIP = "Funktionen, die ab Werk aus sind und Blizzards Regeln nicht riskieren: „Allem zustimmen“ setzt sie mit. Ein Häkchen schaltet denselben Schalter wie auf der Seite des Moduls.",
     INTRO_CONSENT_ON_HEADER = "Abläufe ohne Klick: ab Werk an",
     INTRO_CONSENT_ON_HEADER_TIP = "Diese Abläufe sind ab Werk an, weil sie nur auf deine eigene Handlung folgen oder nichts senden. Hier lassen sie sich abschalten – derselbe Schalter wie auf der Seite des Moduls.",
     INTRO_ROW_LABEL = "%s: %s",
@@ -2510,7 +2520,7 @@ for key, text in pairs({
     INTRO_MOD_ezMail = "Ergänzt Blizzards Postfenster: mehrere Briefe auswählen und öffnen, schneller anhängen, Verlauf und Ablaufwarnung für alle Charaktere. Häkchen sitzen an jedem Brief, ein Pfeil neben „Alle öffnen“, Lupe und Schriftrolle als Seitenreiter.",
     INTRO_MOD_ezMap = "Kartenhilfen auf Blizzards eigener Karte: Blizzards Kartenmarkierung per Befehl, Flugzeiten im Tooltip der Flugpunkte und deine eigenen Sammel-Fundorte. Der Knopf rechts neben Blizzards Pin-Knopf auf der Weltkarte bündelt Koordinaten, Lehrer, Dungeoneingänge und mehr.",
     INTRO_MOD_ezMerchant = "Händler und Lehrer im Originalstil: ein breiteres Händlerfenster mit Suche und Filter oben, mehrere Waren auf einmal kaufen und beim Lehrer alles auf einmal lernen. Plunder verkaufen, Reparieren und Auffüllen ohne Klick sind ab Werk aus.",
-    INTRO_MOD_ezPanel = "Eine Info-Leiste am oberen Bildschirmrand im Stil von WoW Forever: Ort, Gold, Erfahrung, Haltbarkeit, Taschen und mehr als einzelne Bausteine. Jeder Baustein hat einen Tooltip und ein Rechtsklick-Menü; Blizzards Fenster oben rücken unter die Leiste.",
+    INTRO_MOD_ezPanel = "Eine Info-Leiste am oberen Bildschirmrand im Stil von WoW Forever: Ort, Gold, Erfahrung, Haltbarkeit, Taschen und mehr als einzelne Bausteine. Jeder Baustein hat einen Tooltip und ein Rechtsklick-Menü; auf Wunsch („Platz oben für die Leiste“) rücken Blizzards Fenster oben unter die Leiste.",
     INTRO_MOD_ezQuest = "Erweitert Quest- und Gossip-Fenster, Questlog und Verfolgung: Stufe vor jeder Quest, Häkchen „Automatisch“ oben rechts im Questfenster und die Leveling-Route im Zahnrad-Menü am Questlog. Ergänzt Questie, ersetzt es nicht.",
     INTRO_MOD_ezSocial = "Erweitert Blizzards „Gruppe suchen“, Freundesliste und Gildenliste: Klassen und Stufen der Gruppen, Twinks deiner Battle.net-Freunde und Gruppen aus dem Chat. Suchen startest nur du, ezSocial filtert und färbt.",
     INTRO_MOD_ezTalent = "Vorlagen und Auswirkungen an Blizzards Talent- und Vermächtnis-Fenster: Der Reiter „Vorlagen“ rechts am Talentfenster speichert Verteilungen und setzt sie als Vorschau. Gültig wird sie erst mit Blizzards eigenem Knopf „Übernehmen“.",
@@ -2558,18 +2568,25 @@ for key, text in pairs({
     INTRO_PAGE_CONSENT = "Without a click – a tick is your consent:",
     INTRO_AGREE_LABEL = "Agree to everything",
     INTRO_AGREE_BUTTON = "Agree to all",
-    INTRO_AGREE_TIP = "Turns on everything the running modules do without a click, all at once. A question first shows what will happen; you can undo each one under “Consent” on the page “Introduction”.",
+    INTRO_AGREE_TIP = "Turns on everything the running modules do without a click, all at once – and every feature that is off by default and that Blizzard's rules allow (such as the compact minimap). A question first shows what will happen; you can undo each one under “Consent” on the page “Introduction”.",
+    INTRO_AGREE_RISK = "Not turned on because it risks Blizzard's rules or one of Blizzard's safeguards (sends, picks, uses up or pays without a click, puts things into Blizzard's buy and sell fields or lifts a safeguard): %s",
+    INTRO_AGREE_CHOICE = "Not turned on, stays your choice (a matter of taste, a filter, help only some people need, consideration for another addon, explorer knowledge or a developer tool): %s",
     INTRO_AGREE_CONFIRM = "Agree to everything? ezCollection then turns on %d |4thing that runs:things that run; without a click:\n\n%s\n\nYou can undo each one: Settings » ezCollection » Introduction.",
     INTRO_AGREE_LINE = "%s: %s",
     INTRO_AGREE_DONE = "Turned on %d |4thing that runs:things that run; without a click. Change them one by one: Settings » ezCollection » Introduction or %s.",
     INTRO_AGREE_NONE = "Everything that runs without a click is already on.",
+    INTRO_AGREE_NONE_SKIPPED = "Everything that runs without a click and works here is already on. Stays off because it has no effect in this game client: %s",
+    INTRO_AGREE_SKIPPED = "Stays off because it has no effect in this game client: %s",
+    INTRO_SET_BLOCKED = "“%s” has no effect in this game client and stays off. The tooltip on the page of %s says why.",
+    INTRO_ROW_BLOCKED = "Has no effect in this game client – that is why it is grey. The tooltip on the page of %s says why.",
     INTRO_AGREE_FAILED = "Could not turn on (stays off), %d |4switch:switches;: %s. Try one by one: Settings » ezCollection » Introduction.",
     INTRO_LABEL_gatherOnly = "Gathering nodes: only what I can gather",
-    INTRO_ALSO_HEAD = "Set along with your consent (a display option, does not run anything):",
-    INTRO_PAGE_ALSO = "Also set along with your consent (a display option, does not run anything): %s",
-    INTRO_AGREE_ALSO = "Also set (display option, does not run anything):\n%s",
+    INTRO_ALSO_HEAD = "Set along with your consent (features that are off by default):",
+    INTRO_PAGE_ALSO = "Also set along with your consent (features that are off by default): %s",
+    INTRO_AGREE_ALSO = "Also set (features that are off by default):\n%s",
     INTRO_AGREE_CONFIRM_ALSO = "Agree to everything? Everything that runs without a click is already on. ezCollection then also sets:\n\n%s\n\nYou can undo each one: Settings » ezCollection » Introduction.",
     INTRO_AGREE_ALSO_DONE = "Also set: %s.",
+    INTRO_AGREE_ALSO_DONE_N = "Also turned on %d |4feature:features; that |4is:are; off by default. The list: %s, “Short”.",
     INTRO_ON_gatherOnly = "ezMap hides herbs and ores your skill is not high enough for yet (map filter “Gathering” » “By colour”: “Red – cannot gather yet” is then unticked).",
     INTRO_HELP_HEAD = "Help out",
     INTRO_HELP = "Voluntary: send the project your discoveries (gathering spots, loot, flight times) so everyone gets them. Nothing is ever sent by itself – %s explains how.",
@@ -2588,7 +2605,7 @@ for key, text in pairs({
     INTRO_CONSENT_HEADER = "Consent: off by default",
     INTRO_CONSENT_HEADER_TIP = "These act without a click, cost gold, send something or change Blizzard's settings – that is why they are off by default. A tick turns on the same switch as on the module's page.",
     INTRO_ALSO_HEADER = "Set along with your consent",
-    INTRO_ALSO_HEADER_TIP = "Not things that run without a click but display options: “Agree to everything” sets them too. A tick turns on the same switch as on the module's page.",
+    INTRO_ALSO_HEADER_TIP = "Features that are off by default and do not risk Blizzard's rules: “Agree to everything” sets them too. A tick turns on the same switch as on the module's page.",
     INTRO_CONSENT_ON_HEADER = "Things without a click: on by default",
     INTRO_CONSENT_ON_HEADER_TIP = "These are on by default because they only follow your own action or send nothing. You can turn them off here – the same switch as on the module's page.",
     INTRO_ROW_LABEL = "%s: %s",
@@ -2627,7 +2644,7 @@ for key, text in pairs({
     INTRO_MOD_ezMail = "Extends Blizzard's mail window: select and open several letters, attach faster, history and expiry warning for all characters. Ticks sit on each letter, an arrow next to “Open All”, magnifier and scroll as side tabs.",
     INTRO_MOD_ezMap = "Map helpers on Blizzard's own map: Blizzard's map pin by command, flight times in the flight point tooltip and your own gathering spots. The button right of Blizzard's pin button on the world map bundles coordinates, trainers, dungeon entrances and more.",
     INTRO_MOD_ezMerchant = "Vendors and trainers in the original style: a wider vendor window with search and filter at the top, buy several goods at once and learn everything at once at the trainer. Selling junk, repairing and restocking without a click are off by default.",
-    INTRO_MOD_ezPanel = "An info bar at the top of the screen in WoW Forever's style: location, gold, experience, durability, bags and more as separate blocks. Every block has a tooltip and a right-click menu; Blizzard's windows at the top move below the bar.",
+    INTRO_MOD_ezPanel = "An info bar at the top of the screen in WoW Forever's style: location, gold, experience, durability, bags and more as separate blocks. Every block has a tooltip and a right-click menu; on request (\"Reserve space at the top\") Blizzard's windows at the top move below the bar.",
     INTRO_MOD_ezQuest = "Extends quest and gossip windows, quest log and tracker: level before every quest, the tick “Automatic” at the top right of the quest window and the leveling route in the gear menu at the quest log. Complements Questie, does not replace it.",
     INTRO_MOD_ezSocial = "Extends Blizzard's “Group Finder”, friends list and guild roster: classes and levels of groups, alts of your Battle.net friends and groups from the chat. Only you start a search, ezSocial filters and colors.",
     INTRO_MOD_ezTalent = "Templates and effects at Blizzard's talent and legacy windows: the tab “Templates” on the right of the talent window saves builds and sets them as a preview. It only takes effect with Blizzard's own button “Apply”.",

@@ -17,6 +17,12 @@ local Core = ezCore
     Simulation und nicht aus Pawn oder einem anderen Addon übernommen. Im Spiel nennt Weights.Source() die Quelle der
     aktiven Gewichtung („ezGears Standardwerte“ bzw. die eingefügte Pawn-Skala; Texte WEIGHTS_SOURCE_DEFAULT und
     WEIGHTS_SOURCE_PAWN).
+
+    Dritte Quelle (Paket ezgear/talent-empfehlung; Wunsch des Nutzers vom 20.11.2026: „anhand eztalent dem
+    ausgewählten talentbaum/spielstil ausrüstung und waffen empfehlung geben … genau da mit einfließen lassen“): Läuft
+    ezTalent, nimmt „Automatisch“ die Gewichte seines Rechenmodells für die Verteilung, die zu deinem Fragebogen bzw.
+    deinen Talenten passt (ezCore.API("ezTalent").GearAdvice; Werte aus tools/talent_sim.lua, computed.gear). Ohne
+    ezTalent oder ohne passende Verteilung bleibt es bei den Standardwerten je Rolle. Text WEIGHTS_SOURCE_TALENT.
 ]]
 
 local Weights = {}
@@ -201,7 +207,34 @@ function Weights.SetChoice(choice)
     ns.Changed()
 end
 
--- Gewichtung einer Wahl auflösen → weights, label, key
+-- Ausrüstungswerte aus ezTalent (Rechenmodell) → { weights, weapon, weapons, name, reason, pct, source } | nil.
+-- Ein Fehler in ezTalent landet in ezCores Fehlerliste unter ezTalent (Core.Try); dann gelten die Standardwerte.
+-- Zwischengespeichert bis ezTalent eine neue Wahl meldet (EZTALENT_GEAR_CHANGED, Zuhörer in Core.lua):
+-- Score.Of vergleicht die Gewichte über die Tabelle – eine neue Tabelle je Frage leerte seinen Speicher jedes Mal
+-- (Review vor dem Merge). ezTalent sagt false für „sicher keine“ (gemerkt) und nil für „noch nicht bereit“ (nicht
+-- gemerkt, die nächste Frage versucht es wieder).
+local talentCache
+function Weights.Talent()
+    if talentCache ~= nil then return talentCache or nil end
+    local api = Core.API and Core.API("ezTalent")
+    if type(api) ~= "table" or type(api.GearAdvice) ~= "function" then return nil end
+    local ok, advice = Core.Try("ezTalent", "GearAdvice (ezGear)", api.GearAdvice)
+    if not ok then
+        talentCache = false
+        return nil
+    end
+    if advice == nil then return nil end
+    if type(advice) ~= "table" or type(advice.weights) ~= "table" or next(advice.weights) == nil then advice = false end
+    talentCache = advice
+    return advice or nil
+end
+
+function Weights.ForgetTalent()
+    talentCache = nil
+end
+
+-- Gewichtung einer Wahl auflösen → weights, label, key ("DEF:<Klasse>_<Rolle>", "PAWN:<Name>" oder "TALENT" für
+-- ezTalents Werte unter „Automatisch“; "TALENT" ist keine eigene Wahl und wird nie zurückgeschrieben)
 function Weights.Resolve(choice)
     local class = ClassOf()
     if choice:sub(1, 5) == "PAWN:" then
@@ -212,7 +245,11 @@ function Weights.Resolve(choice)
         local key = choice:sub(5)
         return W[key], Weights.ProfileLabel(key), choice
     end
-    -- automatisch
+    -- automatisch: zuerst ezTalents Rechenmodell für deine Spielweise, sonst die Standardwerte je Rolle
+    local talent = Weights.Talent()
+    if talent then
+        return talent.weights, type(talent.name) == "string" and talent.name or L.WEIGHTS_TALENT_NAME, "TALENT"
+    end
     local profiles = Weights.CLASS_PROFILES[class or ""]
     if not profiles then return EMPTY, L.WEIGHTS_NONE, "auto" end
     local specRole, specName = Weights.SpecRole(class)
@@ -240,10 +277,74 @@ function Weights.Label()
 end
 
 -- Woher die aktive Gewichtung stammt (Regel „Datenquellen“ des Nutzers: jede Angabe nennt ihre Quelle)
--- → "pawn" (eingefügte Skala) | "default" (ezGears Standardwerte je Klasse und Rolle), Text für Status und Anzeigen
+-- → "pawn" (eingefügte Skala) | "talent" (ezTalents Rechenmodell) | "default" (ezGears Standardwerte je Klasse und
+-- Rolle), Text für Status und Anzeigen
 function Weights.Source()
-    if Weights.Choice():sub(1, 5) == "PAWN:" then return "pawn", L.WEIGHTS_SOURCE_PAWN end
+    local choice = Weights.Choice()
+    if choice:sub(1, 5) == "PAWN:" then return "pawn", L.WEIGHTS_SOURCE_PAWN end
+    if choice == "auto" then
+        local talent = Weights.Talent()
+        if talent then
+            local why = L.WEIGHTS_WHY_TALENTS:format(Core.Percent(math.floor((tonumber(talent.pct) or 0) + 0.5)))
+            if talent.reason == "advice" then why = L.WEIGHTS_WHY_ADVICE end
+            return "talent", L.WEIGHTS_SOURCE_TALENT:format(tostring(talent.name or L.WEIGHTS_TALENT_NAME), why)
+        end
+    end
     return "default", L.WEIGHTS_SOURCE_DEFAULT
+end
+
+-- Passt eine Waffe zur Spielweise aus ezTalent? Nur, solange „Automatisch“ ezTalents Werte nimmt. Bedingungen aus
+-- computed.gear: Art (weapon und die Arten in weapons: Schwert, Dolch …) und Hand (weapons bzw. weapon: "2h", "1h",
+-- "dualwield", "shield"); „passt“ nur, wenn beide erfüllt sind (Waffen-Arms: Zweihand UND Axt).
+-- → "match" | "other", Beschreibung des Gewünschten (Text), Name der Verteilung, shield (true bei einem Schild) – oder
+-- nil (keine Aussage: kein Nahkampf-Gegenstand der Hände, Fernkampf, keine Vorgabe der Spielweise)
+Weights.MELEE_KINDS = { sword = true, dagger = true, mace = true, axe = true, fist = true, polearm = true, staff = true }
+Weights.HAND_RULES = { ["2h"] = true, ["1h"] = true, dualwield = true, shield = true }
+
+-- Bedingungen der Spielweise → { [Art] = true } (leer: jede), Hand | nil
+function Weights.WeaponWants(talent)
+    local kinds, hand, list = {}, nil, { talent.weapon }
+    for _, w in ipairs(type(talent.weapons) == "table" and talent.weapons or {}) do list[#list + 1] = w end
+    for _, w in ipairs(list) do
+        if Weights.MELEE_KINDS[w] then kinds[w] = true
+        elseif Weights.HAND_RULES[w] and not hand then hand = w end
+    end
+    return kinds, hand
+end
+
+-- Text des Gewünschten: „Schwerter“, „Äxte (zweihändig)“, „Zweihandwaffen“, „einen Schild“
+function Weights.WeaponWantText(kinds, hand)
+    local names = {}
+    for _, k in ipairs({ "sword", "dagger", "mace", "axe", "fist", "polearm", "staff" }) do
+        if kinds[k] then names[#names + 1] = L["WEAPON_" .. k] end
+    end
+    local kindText = #names > 0 and table.concat(names, L.WEAPON_OR) or nil
+    if kindText and hand then return L.WEAPON_WITH_HAND:format(kindText, L["HAND_" .. hand]) end
+    if kindText then return kindText end
+    return hand and L["WEAPON_" .. hand] or nil
+end
+
+function Weights.WeaponFit(link)
+    if type(link) ~= "string" or Core.IsSecret(link) or Weights.Choice() ~= "auto" then return nil end
+    local talent = Weights.Talent()
+    if not talent or type(Core.ItemWeaponKind) ~= "function" then return nil end
+    local kinds, hand = Weights.WeaponWants(talent)
+    if next(kinds) == nil and not hand then return nil end
+    local kind, isWeapon, twoHand = Core.ItemWeaponKind(link)
+    if not kind then return nil end
+    local text = Weights.WeaponWantText(kinds, hand)
+    if kind == "shield" then
+        if hand == "shield" then return "match", text, talent.name, true end
+        return nil
+    end
+    if not (isWeapon and Weights.MELEE_KINDS[kind]) then return nil end
+    local kindOk = next(kinds) == nil or kinds[kind] == true
+    local handOk = true
+    if hand == "2h" then handOk = twoHand == true
+    elseif hand then handOk = twoHand ~= true end      -- Einhand, zwei Waffen, Schild: kein Zweihänder
+    -- Schild als einzige Vorgabe: Einhandwaffen ohne Aussage (die Waffe daneben ist frei)
+    if hand == "shield" and next(kinds) == nil and handOk then return nil end
+    return (kindOk and handOk) and "match" or "other", text, talent.name
 end
 
 ---------------------------------------------------------------------------

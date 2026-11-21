@@ -5,12 +5,13 @@ local Core = ezCore
     Pfeil auf der Minikarte zum nächsten Schritt einer Route anderer Module (Spieltest des Nutzers vom 19.11.2026,
     wörtlich „ezmap sollte auf der mini map einen kleinen pfeil für die leveling route anzeigen, aber so dass es gut
     sichtbar ist aber nicht stört“; Auftrag freigegeben am 20.11.2026). Schnittstelle für ezQuests Leveling-Route:
-      ezCore.API("ezMap").ShowMiniArrow(besitzer, { map, x, y }, { family })  → true | false
+      ezCore.API("ezMap").ShowMiniArrow(besitzer, { map, x, y }, { family, size })  → true | false
       ezCore.API("ezMap").ClearMiniArrow(besitzer)                              → true
     Je Besitzer ein Ziel; gezeigt wird eines (das erste nach Namen). Den Schalter führt das Modul, dem die Route gehört
     (ezQuest: „Pfeil zur Leveling-Route auf der Minikarte“, routeMiniArrow).
 
-    Aussehen: Blizzards Pfeil der Minikarte (Interface\Minimap\MinimapArrow), klein (MiniArrow.SIZE) und in der
+    Aussehen: Blizzards Pfeil der Minikarte (Interface\Minimap\MinimapArrow), MiniArrow.SIZE Bildpunkte oder die Größe
+    des Besitzers (opts.size, MiniArrow.SIZE_MIN bis SIZE_MAX; ezQuest: Regler „Größe des Pfeils“) und in der
     Anfangsfarbe der Route (Familie aus ns.RouteDraw, Gold für die Leveling-Route). Er steht am Rand der Minikarte in
     Richtung des Ziels; liegt das Ziel im Sichtbereich (C_Minimap.GetViewRadius), rückt er nach innen an seine Stelle,
     nie näher als MiniArrow.INNER an die Mitte (dort steht dein eigener Pfeil). In der Nähe (MiniArrow.NEAR Yards)
@@ -25,17 +26,30 @@ local Arrow = {}
 ns.MiniArrow = Arrow
 
 Arrow.TEXTURE = "Interface\\Minimap\\MinimapArrow"
-Arrow.SIZE = 16             -- Bildpunkte: klein, aber gut zu sehen
+-- Bildpunkte: Spieltest 20.11.2026 („der minimap pfeil der routen ist doch sehr klein“) – vorher 16; die Grafik hat
+-- einen breiten leeren Rand, der Pfeil selbst ist nur etwa halb so groß
+Arrow.SIZE = 24
+Arrow.SIZE_MIN, Arrow.SIZE_MAX = 12, 48
 Arrow.ALPHA = 0.9
-Arrow.INSET = 9             -- Bildpunkte vom Rand der Minikarte nach innen
+Arrow.INSET = 9             -- Bildpunkte vom Rand der Minikarte nach innen (mindestens; größere Pfeile rücken weiter)
 Arrow.INNER = 0.35          -- Anteil des Halbmessers: näher an die Mitte rückt der Pfeil nicht
 Arrow.NEAR = 25             -- Yards: so nah am Ziel verschwindet er
 Arrow.EVERY = 0.1           -- Sekunden zwischen zwei Lagen
 Arrow.FAMILY = "gold"       -- Farbfamilie ohne eigene Angabe (wie Route.PATH_FAMILY)
 
 local sqrt, atan2, sin, cos, max, min = math.sqrt, math.atan2, math.sin, math.cos, math.max, math.min
-local targets = {}          -- [Besitzer] = { map, x, y, family }
+local targets = {}          -- [Besitzer] = { map, x, y, family, size }
 local frame, tex
+
+-- Größe aus opts.size, auf SIZE_MIN bis SIZE_MAX begrenzt; sonst SIZE → Bildpunkte
+function Arrow.SizeOf(value)
+    local n = ns.Num(value)
+    if not n then return Arrow.SIZE end
+    return max(Arrow.SIZE_MIN, min(Arrow.SIZE_MAX, n))
+end
+
+-- Abstand vom Rand: der Pfeil bleibt ganz auf der runden Minikarte → Bildpunkte
+local function Inset(size) return max(Arrow.INSET, (size or Arrow.SIZE) / 2 + 2) end
 
 -- Das gezeigte Ziel (das erste nach Namen) → Eintrag, Besitzer oder nil
 function Arrow.Current()
@@ -109,9 +123,11 @@ local function Place(force)
     if not force and last.target == target and last.map == map and last.x == px and last.y == py
         and last.facing == facing and last.width == width and last.view == view then return end
     last.target, last.map, last.x, last.y, last.facing, last.width, last.view = target, map, px, py, facing, width, view
+    local size = target and target.size or Arrow.SIZE
     local angle, dx, dy = nil, nil, nil
     if target and width and width > 0 then
-        angle, dx, dy = Arrow.Layout(target, width / 2 - Arrow.INSET)
+        local radius = width / 2 - Inset(size)
+        if radius > 0 then angle, dx, dy = Arrow.Layout(target, radius) end   -- zu kleine Minikarte: kein Pfeil statt verkehrt
     end
     if not angle then
         tex:Hide()
@@ -157,6 +173,7 @@ function Arrow.Refresh()
     local fam = ns.RouteDraw.Family(target.family)
     local c = fam and fam.from or { 1, 0.82, 0 }
     tex:SetVertexColor(c[1], c[2], c[3], Arrow.ALPHA)
+    frame:SetSize(target.size or Arrow.SIZE, target.size or Arrow.SIZE)
     frame:Show()
     Place(true)
     return true
@@ -172,7 +189,7 @@ function Arrow.Show(owner, point, opts)
     end
     opts = type(opts) == "table" and opts or {}
     local family = type(opts.family) == "string" and ns.RouteDraw.FAMILY[opts.family] and opts.family or Arrow.FAMILY
-    targets[owner] = { map = m, x = x, y = y, family = family }
+    targets[owner] = { map = m, x = x, y = y, family = family, size = Arrow.SizeOf(opts.size) }
     Arrow.Refresh()
     return true
 end

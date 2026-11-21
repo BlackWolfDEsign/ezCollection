@@ -9,7 +9,8 @@ local UI = ns.UI
 -- Ausnahmen für bewusstes Downranking („Rang behalten“) gelten je Charakter und Stelle (ezMacroDB.rankKeep).
 -- Was ein Rang ist und welcher der höchste gelernte, weiß ezCores Zauber-Wissen (ezCore.Spells).
 -- Taint: PlaceAction, EditMacro und Klick-Zauber nur außerhalb des Kampfes, sonst danach (PLAYER_REGEN_ENABLED).
--- Blizzards Klick-Zauber liest und schreibt ezCore (Core.ClickBindings, eine Stelle für ezMacro und ezHeal).
+-- Blizzards Klick-Zauber liest und schreibt ezCore (Core.ClickBindings, eine Stelle für ezMacro und ezHeal); läuft
+-- ezHeal, tauscht ezHeal die Ränge dort (Ranks.SwapClicks, ezCore.API("ezHeal").ReplaceSpells).
 local Ranks = {}
 ns.Ranks = Ranks
 
@@ -265,6 +266,53 @@ end
 -- Aktualisieren
 ---------------------------------------------------------------------------
 
+-- Ein Besitzer der Klick-Belegung (Paket ezmacro/rangtausch-ezheal; Entscheidung des Nutzers vom 13.11.2026: „ezHeal
+-- bleibt die Klick-Schicht“): Läuft ezHeal, tauscht ezHeal die Ränge (ezCore.API("ezHeal").ReplaceSpells) – seine
+-- Merkliste und sein „Zurück“ wissen dann davon. Nur ohne ezHeal (oder mit einem ezHeal ohne ReplaceSpells) schreibt
+-- ezMacro wie bisher selbst über ezCore. → Schnittstelle von ezHeal | nil
+function Ranks.ClickOwner()
+    local api = Core.API and Core.API("ezHeal")
+    if type(api) == "table" and type(api.ReplaceSpells) == "function" then return api end
+    return nil
+end
+
+-- Ränge in Blizzards Klick-Zauber tauschen. changes: { { button, modifiers, id, newID } } → Anzahl der Stellen
+function Ranks.SwapClicks(changes)
+    local owner = Ranks.ClickOwner()
+    if owner then
+        -- ein Fehler in ezHeal landet in ezCores Fehlerliste unter ezHeal (Core.Try), die Belegung bleibt, wie sie war
+        local ok, done, reason = Core.Try("ezHeal", "ReplaceSpells (ezMacro)", owner.ReplaceSpells, changes,
+            { via = "ezMacro", quiet = true })
+        if not ok or done ~= true then
+            if not (ok and reason == "combat") then ns.Print(L.RANKS_CLICK_FAILED) end
+            return 0
+        end
+        return type(reason) == "number" and reason or 0
+    end
+    local CB = ClickBindings()
+    local clicks = ClickList()
+    if not (CB and clicks) then return 0 end
+    local count = 0
+    for _, change in ipairs(changes) do
+        local entry = CB.Find(clicks, change.button, change.modifiers)
+        if entry and entry.kind == "spell" and entry.id == change.id then
+            entry.id = change.newID
+            count = count + 1
+        end
+    end
+    if count > 0 then
+        -- nur IDs getauscht: Blizzards Standard nicht ergänzen (keepDefaults = false); ezCore sichert die alte
+        -- Belegung (Core.ClickBindings.Restore) und wartet im Kampf selbst
+        local ok, reason = CB.Set(clicks, { owner = "ezMacro", keepDefaults = false, quiet = true })
+        -- gescheitert (nicht nur auf das Kampfende verschoben): nichts getauscht, wie der Weg über ezHeal
+        if not ok and reason ~= "combat" then
+            ns.Print(L.RANKS_CLICK_FAILED)
+            return 0
+        end
+    end
+    return count
+end
+
 -- Ersetzt alle veralteten Ränge (ohne Ausnahmen). Im Kampf: nach dem Kampf. Rückgabe: Anzahl der Stellen.
 function Ranks.Update(silent)
     if not Ranks.Available() then return 0 end
@@ -276,7 +324,7 @@ function Ranks.Update(silent)
     FlushClicks()
     local list = Ranks.Scan()
     local done = 0
-    local clicks, clicksChanged
+    local changes = {}
     for _, item in ipairs(list) do
         if item.kind == "slot" then
             if ns.Profiles.PlaceSpell(item.slot, item.newID) then done = done + 1 end
@@ -284,22 +332,11 @@ function Ranks.Update(silent)
             local index = ns.Macros.Find(item.macro, item.perChar)
             if index and ns.Import.Rewrite(index, item.newBody) then done = done + 1 end
         elseif item.kind == "click" then
-            -- einmal lesen; je Fund über Taste und Umschalttasten (stabiler als die Stelle in der Liste)
-            clicks = clicks or ClickList()
-            local entry = clicks and ClickBindings().Find(clicks, item.button, item.modifiers)
-            if entry and entry.kind == "spell" and entry.id == item.id then
-                entry.id = item.newID
-                clicksChanged = true
-                done = done + 1
-            end
+            -- je Fund über Taste und Umschalttasten (stabiler als die Stelle in der Liste)
+            changes[#changes + 1] = { button = item.button, modifiers = item.modifiers, id = item.id, newID = item.newID }
         end
     end
-    if clicksChanged then
-        -- nur IDs getauscht: Blizzards Standard nicht ergänzen (keepDefaults = false); ezCore sichert die alte
-        -- Belegung (Core.ClickBindings.Restore) und wartet im Kampf selbst
-        local ok, reason = ClickBindings().Set(clicks, { owner = "ezMacro", keepDefaults = false, quiet = true })
-        if not ok and reason ~= "combat" then ns.Print(L.RANKS_CLICK_FAILED) end
-    end
+    if #changes > 0 then done = done + Ranks.SwapClicks(changes) end
     if not silent or done > 0 then
         ns.Print(done > 0 and L.RANKS_DONE:format(done) or L.RANKS_NOTHING)
     end

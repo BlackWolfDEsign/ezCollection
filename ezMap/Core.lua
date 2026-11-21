@@ -126,6 +126,25 @@ ns.DEFAULTS = {
     -- ns.MigrateSettings1911); den Haken im Menü „Aufspüren“ gibt es weiter (MinimapZoom.SetOn)
     minimapAutoZoomDelay = 0,
     minimapSquare = false,      -- eckige Minikarte: die Ecken zeigen rund 27 % mehr Fläche
+    -- Koordinaten ins Zonenkästchen, Lupe und Kalender auf den Ring, Minikarte nach oben (MinimapCompact.lua;
+    -- Spieltest 20.11.2026) – stellt Blizzards Anzeige um, darum ab Werk aus
+    minimapCompact = false,
+}
+
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+-- choice hier (Spieltest 20.11.2026, Knopf mit „o fehlt“, wörtlich „mh was soll das sein“): runde Symbole der Punkte und Nummern an allen Schritten der Route ändern nur
+-- die Optik. Die kompakte Minikarte bleibt "on": ausdrücklicher Wunsch des Nutzers vom 20.11.2026 („"allem zustimmen"
+-- muss auch die kompakte minikarte aktivieren“)
+ns.AGREE = {
+    minimapCompact = "on", pinsRound = "choice", routeNumbers = "choice", rareAlert = "on", minimapSquare = "choice",
+    mapFilterSection = { "choice", text = "mapPlace" }, bookTargets = "choice", bookPins = "choice", rarePins = "choice",
+    questieNpcs = "choice", questieObjects = "choice", questieRares = "choice", gatherChest = "choice",
+    gatherMiniChest = "choice", gatherOverride = "choice", rareOverride = "choice",
+    -- „Nur, was ich abbauen kann“: Rot im Kartenfilter abgewählt heißt zugestimmt (vorher Intro.ALSO in ezCore)
+    gatherColorRed = { "on", on = false, label = "INTRO_LABEL_gatherOnly", what = "INTRO_ON_gatherOnly" },
 }
 
 local Core = ezCore

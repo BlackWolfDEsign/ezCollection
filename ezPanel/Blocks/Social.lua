@@ -26,7 +26,7 @@ local block = ns.RegisterBlock({
     events = { "FRIENDLIST_UPDATE", "BN_FRIEND_ACCOUNT_ONLINE", "BN_FRIEND_ACCOUNT_OFFLINE", "BN_FRIEND_INFO_CHANGED",
         "GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE" },
     defaults = {
-        enabled = false, zone = "right", order = 55, label = false,
+        enabled = false, zone = "center", order = 10, label = false,   -- Mitte (Spieltest 20.11.2026, s. Location.lua)
         friends = true,     -- Freunde auf der Leiste
         guild = true,       -- Gilde auf der Leiste
         unread = false,     -- ungelesene Nachrichten (ezChat) auf der Leiste

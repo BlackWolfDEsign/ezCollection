@@ -5,6 +5,7 @@ local Traits = ns.Traits
 local Templates = ns.Templates
 local Effects = ns.Effects
 local Plan = ns.Plan
+local Advice = ns.Advice
 
 --[[
     Seitenreiter und Seitenteile an Blizzards Fenstern (Leitlinie 1: keine freien Fenster).
@@ -62,6 +63,13 @@ UI.hosts = {}
 UI.PANEL_WIDTH = 360       -- Wunschbreite des Seitenteils (Spieltest 15.11.2026: Liste zu schmal – vorher 320; nur, wo
                            -- rechts so viel Platz ist, sonst schmaler bis UI.PANEL_MIN)
 UI.PANEL_MIN = 240         -- schmaler wird es nicht (dann zwei statt drei Knöpfe je Reihe)
+UI.WIDE_WIDTH = 480        -- Wunschbreite von „Auswirkungen“ (Spielbefund 20.11.2026, Bild: Werte in drei Spalten brachen
+                           -- um – „sollte erneut besser formatiert werden, ggf etwas breiteres fenster“); nur wo Platz ist
+UI.COL_WIDTH = 112         -- Breite einer Wertspalte (UI.Fill, line.cols), schmaler nach Platz bis UI.COL_MIN
+UI.COL_MIN = 56            -- schmaler nicht: dann stehen die Spalten unter dem Namen (UI.ColumnLayout)
+UI.COL_JOIN = 100          -- ab dieser Spaltenbreite Wert und Unterschied in einer Zeile, sonst untereinander
+UI.NAME_MIN = 110          -- so viel bleibt mindestens für den Namen links der Spalten
+UI.CELL_PAD = 6            -- Abstand der letzten Spalte zum rechten Rand (die Liste schneidet 4 Punkte vor ihrem Inhalt ab)
 UI.SCREEN_MARGIN = 4       -- Luft zum Bildschirmrand
 UI.BUTTON_COLUMNS_AT = 300 -- ab dieser Breite drei Knöpfe je Reihe
 UI.ROW_GAP = 2
@@ -164,7 +172,9 @@ local function CreateScroll(parent)
     return scroll
 end
 
--- Zeilen schreiben: lines = { { text, sub, font, subFont, indent, gap, onClick, tip, tipTitle, selected } }
+-- Zeilen schreiben: lines = { { text, sub, font, subFont, indent, gap, onClick, tip, tipTitle, selected, cols } }
+-- cols (freiwillig): Werte in Spalten rechts neben text, rechtsbündig, alle gleich breit (UI.ColumnWidth) – eine Tabelle
+-- wie „Charakterwerte“ (Spielbefund 20.11.2026: „jetzt » mit | mit“ in einer Zeile brach mitten in den Zahlen um).
 -- Je Eintrag eine Hauptzeile (text, Name) und höchstens eine Unterzeile (sub: Zweck · Verteilung · Zustand) – Spieltest
 -- 15.11.2026: Einträge brachen mitten in der Zeile um, Unterzeilen standen in mehreren Farben und Größen durcheinander.
 -- Schriften nur aus Blizzards Schrift-Objekten (UI.FONTS); beide Texte brechen an Wortgrenzen um, nichts wird gekürzt.
@@ -212,6 +222,7 @@ local function Row(scroll, index)
     end)
     row:SetScript("OnLeave", GameTooltip_Hide)
     row:SetScript("OnClick", function(self) if self.onClick then ns.Try("UI", self.onClick, self) end end)
+    row.cells = {}
     scroll.rows[index] = row
     return row
 end
@@ -241,12 +252,87 @@ function UI.RowHeight(textH, subH)
     return math.max(14, h)
 end
 
+-- Lage der Wertspalten für eine Liste der Breite width (Inhalt, einmal je Fill – alle Zeilen gleiche Kanten): Breite
+-- je Spalte bis UI.COL_WIDTH, der Name behält UI.NAME_MIN. Passt das nicht (Spalte schmaler als UI.COL_MIN; Review
+-- 20.11.2026: bei 240 blieben dem Namen 24 Punkte), stehen die Spalten unter dem Namen über die ganze Breite (stacked).
+-- join: Wert und Unterschied in einer Zeile (" ") oder untereinander (Zeilenumbruch) – sonst bräche
+-- „12,34 % (+1,25 %)“ irgendwo um. → colW, stacked, join
+function UI.ColumnLayout(width, count)
+    if count <= 0 then return 0, false, " " end
+    width = width or 0
+    local colW = math.min(UI.COL_WIDTH, math.floor((width - UI.NAME_MIN - UI.CELL_PAD) / count))
+    local stacked = colW < UI.COL_MIN
+    if stacked then colW = math.floor((width - 12 - UI.CELL_PAD) / count) end
+    return colW, stacked, colW >= UI.COL_JOIN and " " or "\n"
+end
+
+function UI.ColumnWidth(width, count)
+    return (UI.ColumnLayout(width, count))
+end
+
+-- Text einer Zelle: Text, oder { Wert, Zusatz } (Zusatz = Unterschied, je nach Breite daneben oder darunter)
+function UI.CellText(cell, join)
+    if type(cell) == "table" then
+        if cell[2] == nil or cell[2] == "" then return cell[1] or "" end
+        return (cell[1] or "") .. join .. cell[2]
+    end
+    return cell or ""
+end
+
+local function Cell(row, k)
+    local cell = row.cells[k]
+    if cell then return cell end
+    cell = row:CreateFontString(nil, "ARTWORK", UI.FONTS.row)
+    cell:SetJustifyH("RIGHT")
+    cell:SetJustifyV("TOP")
+    Core.Call(cell.SetWordWrap, cell, true)
+    row.cells[k] = cell
+    return cell
+end
+
+-- Spalten einer Zeile setzen: Name links bis vor die Spalten, die Spalten von rechts; bei stacked der Name über die
+-- ganze Breite und die Spalten darunter. width: Breite des Listeninhalts (nicht der Zeile – gleiche Kanten trotz
+-- Einzug). → größte Höhe der Spalten, stacked
+local function FillCells(row, line, font, width)
+    local cols = type(line.cols) == "table" and line.cols or {}
+    local n, tallest = #cols, 0
+    local colW, stacked, join = UI.ColumnLayout(width, n)
+    row.text:ClearAllPoints()
+    row.text:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -1)
+    row.text:SetPoint("TOPRIGHT", row, "TOPRIGHT", (n > 0 and not stacked) and (-(n * colW) - UI.CELL_PAD) or -2, -1)
+    for k = 1, math.max(n, #row.cells) do
+        local cell = Cell(row, k)
+        if k <= n then
+            cell:SetFontObject(line.colFont or font)
+            cell:SetText(UI.CellText(cols[k], join))
+            cell:ClearAllPoints()
+            local right = -(n - k) * colW - UI.CELL_PAD
+            if stacked then          -- unter dem Namen, Kante wie sonst am rechten Rand der Zeile
+                cell:SetPoint("TOPLEFT", row.text, "BOTTOMRIGHT", right - colW + 4 + 2, -UI.SUB_GAP)
+                cell:SetPoint("TOPRIGHT", row.text, "BOTTOMRIGHT", right + 2, -UI.SUB_GAP)
+            else
+                cell:SetPoint("TOPLEFT", row, "TOPRIGHT", right - colW + 4, -1)
+                cell:SetPoint("TOPRIGHT", row, "TOPRIGHT", right, -1)
+            end
+            cell:Show()
+            tallest = math.max(tallest, TextHeight(cell, line.colFont or font))
+        else
+            cell:SetText("")
+            cell:Hide()
+        end
+    end
+    row.colWidth, row.stacked = n > 0 and colW or nil, n > 0 and stacked or nil
+    return tallest, n > 0 and stacked
+end
+
 function UI.Fill(scroll, lines)
     local y = 0
+    local width = Core.Num(Read(scroll.content, "GetWidth")) or (UI.PANEL_WIDTH - 40)
     for i, line in ipairs(lines) do
         local row = Row(scroll, i)
         local font = line.font or UI.FONTS.note
         row.text:SetFontObject(font)
+        local cellsH, stacked = FillCells(row, line, font, width)
         row.text:SetText(line.text or "")
         local subFont = line.subFont or UI.FONTS.sub
         local hasSub = type(line.sub) == "string" and line.sub ~= ""
@@ -260,13 +346,17 @@ function UI.Fill(scroll, lines)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", scroll.content, "TOPLEFT", line.indent or 0, -y)
         row:SetPoint("RIGHT", scroll.content, "RIGHT", 0, 0)
-        local height = UI.RowHeight(TextHeight(row.text, font), hasSub and TextHeight(row.sub, subFont) or nil)
+        local textH = TextHeight(row.text, font)
+        textH = stacked and (textH + UI.SUB_GAP + cellsH) or math.max(textH, cellsH)
+        local height = UI.RowHeight(textH, hasSub and TextHeight(row.sub, subFont) or nil)
         row:SetHeight(height)
         row.top, row.bottom = y, y + height          -- Lage in der Liste (für die Prüfung: keine Überlappung)
         row:Show()
         y = y + height + (line.gap or UI.ROW_GAP)
     end
     for i = #lines + 1, #scroll.rows do scroll.rows[i]:Hide() end
+    scroll.hasCols = false
+    for _, line in ipairs(lines) do if type(line.cols) == "table" then scroll.hasCols = true end end
     scroll.used = #lines
     scroll.lines = lines
     scroll.content:SetHeight(math.max(1, y))
@@ -324,15 +414,16 @@ end
 
 -- Breite aus dem freien Platz: Wunschbreite, sonst was frei ist (mindestens UI.PANEL_MIN). room = nil (Lage
 -- unbekannt) gilt als genug. → Breite, oder nil = nicht einmal die Mindestbreite
-function UI.WidthFor(room)
-    if room == nil or room >= UI.PANEL_WIDTH then return UI.PANEL_WIDTH end
+function UI.WidthFor(room, wish)
+    wish = wish or UI.PANEL_WIDTH
+    if room == nil or room >= wish then return wish end
     if room >= UI.PANEL_MIN then return math.floor(room) end
     return nil
 end
 
 -- Breite für das Seitenteil außen rechts. → Breite, oder nil = außen passt nicht einmal die Mindestbreite
 function UI.PanelWidth(anchor, panel, gap)
-    return UI.WidthFor(UI.RoomRight(anchor, panel, gap))
+    return UI.WidthFor(UI.RoomRight(anchor, panel, gap), type(panel) == "table" and panel.wish or nil)
 end
 
 ---------------------------------------------------------------------------
@@ -492,7 +583,7 @@ function UI.Place(host, panel, roomOK)
     local width = UI.PanelWidth(host.anchor, panel, host.gap)
     if width == nil and roomOK then
         local room = UI.MakeRoom(host, panel)
-        if room then width = UI.WidthFor(room) end
+        if room then width = UI.WidthFor(room, panel.wish) end
     end
     local inside = width == nil
     width = width or UI.PANEL_WIDTH
@@ -641,6 +732,10 @@ local function NewPanel(host, title)
         self.scroll:ClearAllPoints()
         self.scroll:SetPoint("TOPLEFT", self.head, "BOTTOMLEFT", 0, -UI.HEAD_LIST_GAP)
         self.scroll:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -30, bottom)
+        -- neue Breite bei einer Liste mit Spalten: neu zeichnen, die Spalten rechnen mit der Breite (Review 20.11.2026)
+        local changed = self.laidOut ~= nil and self.laidOut ~= width
+        self.laidOut = width
+        if changed and self.scroll.hasCols and self.Render and self:IsShown() then ns.Try("UI", self.Render, self) end
     end
     UI.Place(host, panel)
     panel:Hide()
@@ -882,6 +977,54 @@ function UI.AdjustPlan(host, nodeID, delta)
         -- vorgemerkte Vorschau weiter angepasst: die Vormerkung bekommt die neuen Ränge (Nr. 29)
         if UI.IsQueuedHere(host, ctx) then UI.SetQueued(UI.QueueRecord(ctx, plan)) end
         UI.Refresh()
+    end
+end
+
+-- „Bewerten“ als Text (Einzelheiten im Reiter „Empfehlung“ » „Als Text zeigen“; ohne den Reiter der Knopf selbst): der
+-- geladene Baum (mit Vorschau die Vorschau, sonst der Baum, wie er steht) gegen das Beste jeder berechneten Verteilung
+-- mit genau seinen Punkten (Advice.Rate, Spieltest 20.11.2026; vorher gegen die volle Verteilung). → Name, Text
+function UI.RateText(host, ctx)
+    local plan = UI.ActivePlan(host, ctx)
+    local rating, why = Advice.Rate(ctx, plan, UI.AdvicePrefer(ctx), 99, true)
+    local _, split = Plan.SpellRanks(plan or { tpl = Traits.Snapshot(ctx.configID, ctx.treeID, false) }, ctx)
+    local name = plan and plan.name or L.RATE_CURRENT
+    local lines = { L.RATE_HEAD:format(name, table.concat(split, "/")), "" }
+    if not rating then
+        lines[#lines + 1] = why == "empty" and L.RATE_EMPTY or L.RATE_NONE
+        return name, table.concat(lines, "\n")
+    end
+    local function Num(x) return Core.Decimal(x, 1) end
+    local ordered = { rating.ref }
+    for _, r in ipairs(rating.results) do if r ~= rating.ref then ordered[#ordered + 1] = r end end
+    for i, r in ipairs(ordered) do
+        lines[#lines + 1] = L.RATE_LINE:format(Templates.PresetName(r.preset), Core.Percent(math.min(100, math.floor(r.pct + 0.5))),
+            Num(r.value), Num(r.best), rating.points, tostring(r.preset.computed.model or "?"))
+        if i == 1 then
+            for _, row in ipairs(r.more) do
+                lines[#lines + 1] = "    " .. L.RATE_MORE:format(UI.RateTalentName(row), row.mine, row.theirs, Num(row.delta))
+            end
+            for _, row in ipairs(r.less) do
+                lines[#lines + 1] = "    " .. L.RATE_LESS:format(UI.RateTalentName(row), row.mine, row.theirs, Num(row.delta))
+            end
+            lines[#lines + 1] = ""
+        end
+    end
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = L.RATE_NOTE
+    return name, table.concat(lines, "\n")
+end
+
+function UI.Rate(host)
+    local ctx = UI.Context(host)
+    if not (ctx and ctx.configID and ctx.treeID and ctx.scope) then ns.Print(L.APPLY_FAIL_noconfig) return end
+    -- nur der eigene Klassen-Talentbaum: die berechneten Verteilungen gelten für deine Klasse (Review)
+    if ctx.kind ~= "class" or ctx.inspecting then ns.Print(L.RATE_BLOCKED) return end
+    local name, text = UI.RateText(host, ctx)
+    if Core.TextDialog then
+        Core.TextDialog({ title = L.RATE_TITLE:format(name), hint = L.RATE_HINT, text = text, readOnly = true,
+            owner = ADDON })
+    else
+        for line in text:gmatch("[^\n]+") do ns.Print(line) end
     end
 end
 
@@ -2177,7 +2320,8 @@ end
 
 -- Kästchen „Vor dem Übernehmen zurücksetzen“ (Einstellung legacyReset) als Zeile über die ganze Breite: Blizzards
 -- Kästchen-Vorlage und ein Text in Blizzards Schrift; der Tooltip ist der der früheren Einstellung.
-function UI.LegacyResetBox(panel)
+-- Kästchen mit Text über die Breite des Seitenteils (Blizzards UICheckButtonTemplate): get() → an?, set(an).
+function UI.CheckRow(panel, text, tip, get, set)
     local row = CreateFrame("Frame", nil, panel)
     row:SetHeight(22)
     local check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
@@ -2187,13 +2331,18 @@ function UI.LegacyResetBox(panel)
     label:SetPoint("LEFT", check, "RIGHT", 2, 0)
     label:SetPoint("RIGHT", row, "RIGHT", 0, 0)
     label:SetJustifyH("LEFT")
-    label:SetText(L.OPT_legacyReset)
-    check:SetChecked(ns.Enabled("legacyReset"))
-    check:SetScript("OnClick", function(self) ns.SetSetting("legacyReset", self:GetChecked() and true or false) end)
-    check:SetScript("OnEnter", function(self) UI.ShowRowTip(self, L.OPT_legacyReset, L.OPT_legacyReset_TIP) end)
+    label:SetText(text)
+    check:SetChecked(get() == true)
+    check:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
+    check:SetScript("OnEnter", function(self) UI.ShowRowTip(self, text, tip) end)
     check:SetScript("OnLeave", GameTooltip_Hide)
     row.check, row.label = check, label
     return row
+end
+
+function UI.LegacyResetBox(panel)
+    return UI.CheckRow(panel, L.OPT_legacyReset, L.OPT_legacyReset_TIP, function() return ns.Enabled("legacyReset") end,
+        function(on) ns.SetSetting("legacyReset", on) end)
 end
 
 local function BuildTemplatesPanel(host)
@@ -2201,6 +2350,10 @@ local function BuildTemplatesPanel(host)
     local w = 92
     panel.buttons = {
         save = Button(panel, L.BTN_SAVE, L.BTN_SAVE_TIP, function() UI.Save(host) end, w, true),
+        -- „Bewerten“ öffnet den Reiter „Empfehlung“ (Spieltest 20.11.2026); ist er aus, der Bericht als Text
+        rate = Button(panel, L.BTN_RATE, L.BTN_RATE_TIP, function()
+            if not UI.Open(host, "advice") then UI.Rate(host) end
+        end, w, true),
         -- inaktive Spezialisierung: derselbe Knopf merkt vor (Nr. 29, UI.ToggleQueue)
         apply = Button(panel, L.BTN_APPLY, L.BTN_APPLY_TIP, function()
             if UI.CanQueue(host) then UI.ToggleQueue(host) else UI.Apply(host) end
@@ -2219,6 +2372,7 @@ local function BuildTemplatesPanel(host)
     -- Fenster den Plan zeigen kann; Speichern nur mit Talentbaum
     b.share.whyDisabled, b.rename.whyDisabled, b.delete.whyDisabled = L.BTN_OWN_ONLY, L.BTN_OWN_ONLY, L.BTN_OWN_ONLY
     b.edit.whyDisabled, b.save.whyDisabled = L.BTN_EDIT_BLOCKED, L.APPLY_FAIL_noconfig
+    b.rate.whyDisabled = L.RATE_BLOCKED
     b.resetApply:SetShown(host.kind == "class")    -- Vermächtnis setzt beim Anwenden ohnehin zurück (legacyReset)
     -- Vermächtnis: „Vor dem Übernehmen zurücksetzen“ als Kästchen direkt bei „Übernehmen“ (Einstellungs-Prüfung
     -- 19.11.2026, Abschnitt 3: diese Wahl trifft man beim Übernehmen; vorher auf der Einstellungsseite)
@@ -2230,7 +2384,10 @@ local function BuildTemplatesPanel(host)
     panel.help:SetSize(UI.HELP_SIZE, UI.HELP_SIZE)
     panel.help:SetScript("OnEnter", ShowHelp)
     -- Reihenfolge wie der Ablauf: laden (Liste) » Übernehmen oder Anpassen » Speichern; darunter das Verwalten
-    local order = { b.apply, b.edit, b.save, b.share, b.import, b.roster, b.rename, b.delete }
+    -- „Prüfen“ nur im Klassen-Talentbaum (Vermächtnis-Bäume haben keine berechneten Verteilungen)
+    local order = { b.apply, b.edit, b.save }
+    if host.kind == "class" then order[#order + 1] = b.rate else b.rate:Hide() end
+    for _, button in ipairs({ b.share, b.import, b.roster, b.rename, b.delete }) do order[#order + 1] = button end
     function panel:LayoutButtons(width)
         return UI.LayoutButtons(self, width, order, host.kind == "class" and b.resetApply or panel.legacyReset) + 8
     end
@@ -2286,6 +2443,7 @@ local function BuildTemplatesPanel(host)
         b.rename:SetEnabled(own)
         b.delete:SetEnabled(own)
         b.save:SetEnabled(ctx.configID ~= nil)
+        b.rate:SetEnabled(ctx.configID ~= nil and ctx.kind == "class" and not ctx.inspecting)
         if ctx.kind == "class" then b.resetApply:SetEnabled(UI.ResetBlocker(host, ctx) == nil) end
         if self.legacyReset then self.legacyReset.check:SetChecked(ns.Enabled("legacyReset")) end
     end
@@ -2296,42 +2454,148 @@ end
 -- Seitenteil „Auswirkungen“
 ---------------------------------------------------------------------------
 
--- Vergleichsplan des Seitenteils „Auswirkungen“ (host.compare = { kind = "own" | "preset", key, name }), sonst nil.
+-- Anderer Baum des Seitenteils „Auswirkungen“: ohne Wahl die geladene Vorschau (Entscheidung des Nutzers vom
+-- 20.11.2026: „Die geladene Vorschau“), sonst host.compare = { kind = "own" | "preset" | "none", key, scope }.
+-- → Plan, Herkunft ("preview" | "chosen") oder nil
 function UI.ComparePlan(host, ctx)
-    local cmp = host and host.compare
-    if not (type(cmp) == "table" and ctx and ctx.scope) then return nil end
-    if cmp.scope ~= ctx.scope then host.compare = nil return nil end
-    if cmp.kind == "own" then return Plan.FromTemplate(ctx.scope, cmp.key) end
-    if cmp.kind == "preset" and ctx.kind == "class" then
+    if not (host and ctx and ctx.scope) then return nil end
+    local cmp = host.compare
+    if type(cmp) == "table" and cmp.scope ~= ctx.scope then host.compare, cmp = nil, nil end
+    if type(cmp) ~= "table" then
+        if ctx.inspecting then return nil end
+        local plan = UI.ActivePlan(host, ctx)
+        if plan then return plan, "preview" end
+        return nil
+    end
+    if cmp.kind == "own" then
+        local plan = Plan.FromTemplate(ctx.scope, cmp.key)
+        if plan then return plan, "chosen" end
+    elseif cmp.kind == "preset" and ctx.kind == "class" then
         for _, preset in ipairs(Templates.Presets()) do
-            if preset.key == cmp.key then return Plan.FromPreset(preset, ctx) end
+            if preset.key == cmp.key then return Plan.FromPreset(preset, ctx), "chosen" end
         end
     end
     return nil
 end
 
--- Abschnitt „Werte“: was die gewählten Talente laut ihrem Text an Werten bewirken, mit Vergleich zu einer Vorlage
--- (Effects.StatTotals, Effects.CompareStats). plan: der schon bestimmte Vergleichsplan (false = keiner); ohne Angabe
--- wird er hier bestimmt. → Zeilen
-function UI.StatLines(host, ctx, items, plan)
+-- Abschnitt „Charakterwerte“: jetzt (Client) » mit dem anderen Baum (Effects.CharacterRows); ohne anderen Baum, aber
+-- mit vorgemerkten Punkten: » mit dem Vorgemerkten. second (freiwillig): ein zweiter Baum daneben – Vorlagen
+-- vergleichen (Wunsch des Nutzers vom 20.11.2026: „und das auswirken mit den stats gerne auch um vorlagen zu
+-- vergleichen“): plan ist dann die Vorschau, second die über „Anderen Baum wählen“ gewählte Vorlage. → Zeilen
+function UI.CharacterLines(ctx, items, plan, how, second)
     local lines = {}
-    local now, recognised, general = Effects.StatTotals(items)
-    if plan == nil then plan = UI.ComparePlan(host, ctx) end
-    plan = plan or nil
-    local other = plan and Effects.StatTotals(Effects.PlanItems(ctx.configID, ctx.treeID, plan)) or nil
-    local rows = Effects.CompareStats(now, other)
-    lines[#lines + 1] = { text = L.EFFECTS_STATS, font = "GameFontNormal" }
+    -- Die Werte des Clients gelten dem eigenen Charakter in der aktiven Spezialisierung: beim Betrachten eines anderen
+    -- Spielers und am Baum der inaktiven Spezialisierung passen sie nicht zu den Talenten darunter (Review 20.11.2026)
+    if ctx.inspecting or ctx.inactive or ctx.kind ~= "class" then
+        lines[#lines + 1] = { text = L.CHAR_TITLE, font = "GameFontNormal" }
+        lines[#lines + 1] = { text = ns.Tone("hint", L.CHAR_OWN_ONLY), indent = 6, gap = 8 }
+        return lines
+    end
+    local stats = ns.Measure and ns.Measure.Stats() or {}
+    local before = Effects.StatTotals(Effects.CommittedItems(items))
+    local after, label, head
     if plan then
-        lines[#lines + 1] = { text = ns.Tone("gold", L.EFFECTS_COMPARE_WITH:format(plan.name or "?")), indent = 6, gap = 2 }
+        after = Effects.StatTotals(Effects.PlanItems(ctx.configID, ctx.treeID, plan))
+        label = (how == "preview" and L.CHAR_WITH_PREVIEW or L.CHAR_WITH_CHOSEN):format(plan.name or "?")
+        head = { L.CHAR_COL_NOW, how == "preview" and L.CHAR_COL_PREVIEW or L.CHAR_COL_CHOSEN }
+    else
+        local new, removed, changed = Effects.Changes(items)
+        if new + removed + changed > 0 then
+            after = Effects.StatTotals(items)
+            label = L.CHAR_WITH_PENDING
+            head = { L.CHAR_COL_NOW, L.CHAR_COL_PENDING }
+        end
+    end
+    local rows = Effects.CharacterRows(stats, before, after)
+    local otherRow = {}
+    if plan and second then
+        -- beide Bäume vollständig, dann jede Zeile, die jetzt nicht 0 ist oder sich in einem der beiden ändert (Review)
+        local after2 = Effects.StatTotals(Effects.PlanItems(ctx.configID, ctx.treeID, second))
+        for _, row in ipairs(Effects.CharacterRows(stats, before, after2, true)) do otherRow[row.key] = row end
+        local kept = {}
+        for _, row in ipairs(Effects.CharacterRows(stats, before, after, true)) do
+            local two = otherRow[row.key]
+            if row.now ~= 0 or (row.diff or 0) ~= 0 or (two and (two.diff or 0) ~= 0) then kept[#kept + 1] = row end
+        end
+        rows = kept
+        label = L.CHAR_WITH_BOTH:format(plan.name or "?", second.name or "?")
+        head = { L.CHAR_COL_NOW, L.CHAR_COL_PREVIEW, L.CHAR_COL_CHOSEN }
+    end
+    -- Tabelle (Spielbefund 20.11.2026, Bild: „sollte erneut besser formatiert werden“): Überschrift mit den Spalten,
+    -- darunter welche Bäume die Spalten zeigen; je Wert eine Zeile, gleiche Werte grau, Unterschiede farbig daneben
+    lines[#lines + 1] = { text = L.CHAR_TITLE, font = "GameFontNormal", cols = head or { L.CHAR_COL_NOW }, colFont = "GameFontNormalSmall" }
+    lines[#lines + 1] = { text = ns.Tone("hint", label or L.CHAR_NOW_ONLY), indent = 6, gap = 2 }
+    local function With(row)
+        if not (row and row.with) then return ns.Tone("hint", "–") end
+        local value = Effects.CharacterValue(row.with, row.kind)
+        if row.diff == 0 then return ns.Tone("hint", value) end
+        return { value, ns.Tone(row.diff > 0 and "good" or "bad", "(" .. Effects.CharacterValue(row.diff, row.kind, true) .. ")") }
     end
     for _, row in ipairs(rows) do
-        local text = (L["STAT_" .. row.key] or row.key) .. "  " .. Effects.StatValue(row.now, row.percent)
-        if row.diff then
-            local tone = row.diff > 0 and "good" or (row.diff < 0 and "bad" or "hint")
-            text = text .. "  " .. ns.Tone("hint", L.EFFECTS_COMPARE_VALUE:format(Effects.StatValue(row.other, row.percent)))
-                .. " " .. ns.Tone(tone, "(" .. (row.diff == 0 and L.EFFECTS_COMPARE_SAME or Effects.StatValue(row.diff, row.percent)) .. ")")
+        local cols = { Effects.CharacterValue(row.now, row.kind) }
+        if row.with then
+            cols[2] = With(row)
+            if second then cols[3] = With(otherRow[row.key]) end
         end
-        lines[#lines + 1] = { text = text, indent = 6, font = "GameFontHighlight" }
+        lines[#lines + 1] = { text = L["CHAR_" .. row.key] or row.key, cols = cols, colFont = "GameFontHighlightSmall",
+            indent = 6, font = "GameFontHighlight" }
+    end
+    if #rows == 0 then lines[#lines + 1] = { text = ns.Tone("hint", L.CHAR_NONE), indent = 6 } end
+    -- Quelle (Leitlinie 11): jetzt aus dem Client, „mit“ dazu die Talenttexte; Folgewerte nicht eingerechnet
+    lines[#lines + 1] = { text = ns.Tone("hint", after and L.CHAR_SOURCE_WITH or L.CHAR_SOURCE), indent = 6, gap = 8 }
+    return lines
+end
+
+-- Vorlagen vergleichen: die geladene Vorschau neben einer gewählten Vorlage (nil, wenn keine gewählt oder es dieselbe
+-- ist – außer die Vorschau ist ungespeichert geändert, dann zählt der Vergleich).
+function UI.ComparePreview(host, ctx, plan, how)
+    local preview = how == "chosen" and not ctx.inspecting and UI.ActivePlan(host, ctx) or nil
+    if preview and plan and preview.kind == plan.kind and preview.key ~= nil and preview.key == plan.key
+        and not preview.edited then preview = nil end
+    return preview
+end
+
+-- Zeile im Kopf von „Auswirkungen“: was die Spalten zeigen und wie man vergleicht – immer sichtbar, auch wenn die
+-- Überschrift der Charakterwerte weggescrollt ist (Spielbefund 20.11.2026: Knopf zum Vergleichen nicht gefunden).
+function UI.CompareHead(host, ctx, plan, how)
+    if ctx.inspecting or ctx.inactive or ctx.kind ~= "class" then return nil end
+    local preview = UI.ComparePreview(host, ctx, plan, how)
+    if preview then return L.EFFECTS_HEAD_BOTH:format(preview.name or "?", plan.name or "?") end
+    if how == "chosen" then return L.EFFECTS_HEAD_CHOSEN:format(plan.name or "?") end
+    if type(host.compare) == "table" and host.compare.kind == "none" then return L.EFFECTS_HEAD_OFF end
+    if plan then return L.EFFECTS_HEAD_PREVIEW:format(plan.name or "?") end
+    return L.EFFECTS_HEAD_NONE
+end
+
+-- Abschnitt „Werte“: zuerst die Charakterwerte (UI.CharacterLines), dann was die gewählten Talente laut ihrem Text an
+-- Werten bewirken, mit dem anderen Baum (Effects.StatTotals, Effects.CompareStats). plan, how: der schon bestimmte
+-- andere Baum (false = keiner) und seine Herkunft; ohne Angabe wird er hier bestimmt. → Zeilen
+function UI.StatLines(host, ctx, items, plan, how)
+    local lines = {}
+    local now, recognised, general = Effects.StatTotals(items)
+    if plan == nil then plan, how = UI.ComparePlan(host, ctx) end
+    plan = plan or nil
+    -- Vorlagen vergleichen: ist eine andere Vorlage gewählt und eine Vorschau geladen, stehen beide nebeneinander
+    local preview = UI.ComparePreview(host, ctx, plan, how)
+    local charLines = preview and UI.CharacterLines(ctx, items, preview, "preview", plan) or UI.CharacterLines(ctx, items, plan, how)
+    for _, line in ipairs(charLines) do lines[#lines + 1] = line end
+    local other = plan and Effects.StatTotals(Effects.PlanItems(ctx.configID, ctx.treeID, plan)) or nil
+    local rows = Effects.CompareStats(now, other)
+    -- als Tabelle wie die Charakterwerte: jetzt | mit dem anderen Baum (Spielbefund 20.11.2026)
+    lines[#lines + 1] = { text = L.EFFECTS_STATS, font = "GameFontNormal", colFont = "GameFontNormalSmall",
+        cols = plan and { L.CHAR_COL_NOW, how == "preview" and L.CHAR_COL_PREVIEW or L.CHAR_COL_CHOSEN } or { L.CHAR_COL_NOW } }
+    if plan then
+        lines[#lines + 1] = { text = ns.Tone("hint", L.EFFECTS_COMPARE_WITH:format(plan.name or "?")), indent = 6, gap = 2 }
+    end
+    for _, row in ipairs(rows) do
+        local cols = { Effects.StatValue(row.now, row.percent) }
+        if row.diff then
+            local value = Effects.StatValue(row.other, row.percent)
+            cols[2] = row.diff == 0 and ns.Tone("hint", value)
+                or { value, ns.Tone(row.diff > 0 and "good" or "bad", "(" .. Effects.StatValue(row.diff, row.percent) .. ")") }
+        end
+        lines[#lines + 1] = { text = L["STAT_" .. row.key] or row.key, cols = cols, colFont = "GameFontHighlightSmall",
+            indent = 6, font = "GameFontHighlight" }
     end
     if #rows == 0 then lines[#lines + 1] = { text = ns.Tone("hint", L.EFFECTS_STATS_NONE), indent = 6 } end
     -- Quelle (Leitlinie 11): aus den Texten des Clients, wie viele Talente ohne Zauberbezug erkannt wurden
@@ -2340,16 +2604,16 @@ function UI.StatLines(host, ctx, items, plan)
 end
 
 -- plan: wie bei UI.StatLines (panel:Render bestimmt ihn einmal und gibt ihn weiter)
-function UI.EffectLines(ctx, host, plan)
+function UI.EffectLines(ctx, host, plan, how)
     local lines = {}
     local items = Effects.Collect(ctx.configID, ctx.treeID)
     local new, removed, changed = Effects.Changes(items)
     if new + removed + changed > 0 then
         lines[#lines + 1] = { text = L.EFFECTS_PREVIEW:format(new, changed, removed), font = "GameFontNormalSmall", gap = 6 }
     end
-    if #items > 0 or (host and host.compare) then
-        for _, line in ipairs(UI.StatLines(host, ctx, items, plan)) do lines[#lines + 1] = line end
-    end
+    if plan == nil then plan, how = UI.ComparePlan(host, ctx) end
+    -- Charakterwerte immer (auch ohne Talente: die Werte jetzt), Talentwerte mit Talenten oder anderem Baum
+    for _, line in ipairs(UI.StatLines(host, ctx, items, plan or false, how)) do lines[#lines + 1] = line end
     for _, group in ipairs(Effects.Grouped(items)) do
         lines[#lines + 1] = { text = group.title, font = "GameFontNormal" }
         for _, item in ipairs(group.items) do
@@ -2375,20 +2639,28 @@ function UI.EffectLines(ctx, host, plan)
     return lines
 end
 
--- Menü „Vergleichen mit“: nichts, eigene Vorlagen dieses Baums, (am Talentfenster) die Vorauswahl der Klasse.
+-- Menü „Anderen Baum wählen“: die geladene Vorschau (Standard), keiner, eigene Vorlagen dieses Baums, (am
+-- Talentfenster) die Vorauswahl der Klasse.
 function UI.CompareMenu(host, root)
     local ctx = UI.Context(host)
     if not ctx then return end
-    local function Get() local c = host.compare return c and (c.kind .. ":" .. tostring(c.key)) or "none" end
+    local function Get()
+        local c = host.compare
+        if type(c) ~= "table" then return "preview" end
+        return c.kind == "none" and "none" or (c.kind .. ":" .. tostring(c.key))
+    end
     local function Set(value)
-        if value == "none" then
+        if value == "preview" then
             host.compare = nil
+        elseif value == "none" then
+            host.compare = { kind = "none", scope = ctx.scope }
         else
             local kind, key = value:match("^(%a+):(.+)$")
             host.compare = { kind = kind, key = key, scope = ctx.scope }
         end
         UI.Refresh()
     end
+    Core.Menu.Radio(root, L.EFFECTS_COMPARE_PREVIEW, Get, Set, "preview")
     Core.Menu.Radio(root, L.EFFECTS_COMPARE_NONE, Get, Set, "none")
     local names = Templates.Names(ctx.scope)
     if #names > 0 then
@@ -2408,6 +2680,7 @@ end
 
 local function BuildEffectsPanel(host)
     local panel = NewPanel(host, L.EFFECTS_TITLE)
+    panel.wish = UI.WIDE_WIDTH            -- Tabelle mit bis zu drei Wertspalten: breiter, wo rechts Platz ist
     -- Sichtbarer Knopf für den Vergleich (Leitlinie 3): öffnet die Auswahl der Vorlage
     panel.buttons = {
         compare = Button(panel, L.BTN_COMPARE, L.BTN_COMPARE_TIP, function(self)
@@ -2421,10 +2694,335 @@ local function BuildEffectsPanel(host)
     function panel:Render()
         local ctx = UI.Context(host)
         if not ctx then return end
+        local plan, how = UI.ComparePlan(host, ctx)
+        local head = UI.CompareHead(host, ctx, plan, how)
+        SetHead(self, UI.HeadText(ctx) .. (head and ("\n" .. ns.Tone("gold", head)) or ""))
+        self.buttons.compare:SetText(how == "chosen" and L.BTN_COMPARE_ON:format(plan.name or "?") or L.BTN_COMPARE)
+        UI.Fill(self.scroll, UI.EffectLines(ctx, host, plan or false, how))
+    end
+    return panel
+end
+
+---------------------------------------------------------------------------
+-- Seitenteil „Empfehlung“ (Spieltest 20.11.2026; Entscheidung des Nutzers „Neuer Reiter „Empfehlung““): Fragebogen
+-- „Wie willst du spielen?“, die passende Verteilung mit Begründung und „Bewerten“ – dein Baum gegen das Beste des
+-- Modells mit genau deinen Punkten (ns.Advice, ns.Optimize; Entwurf docs/talent-empfehlung.md, Abschnitt 3).
+---------------------------------------------------------------------------
+
+-- Nur der eigene Klassen-Talentbaum (berechnete Verteilungen gelten für deine Klasse). → ctx oder nil, Grund
+function UI.AdviceContext(host)
+    local ctx = UI.Context(host)
+    if not (ctx and ctx.configID and ctx.treeID and ctx.scope) then return nil, L.APPLY_FAIL_noconfig end
+    if ctx.kind ~= "class" or ctx.inspecting then return nil, L.RATE_BLOCKED end
+    return ctx
+end
+
+-- Einen Plan als Vorschau laden wie ein Klick in „Vorlagen“ (ungespeicherte Änderungen nur nach Rückfrage).
+function UI.LoadPlan(host, plan)
+    local ctx = UI.Context(host)
+    if not (ctx and ctx.scope and type(plan) == "table") then return end
+    LeavePlan(host, function() Pick(host, ctx, nil, plan) end)
+end
+
+-- Bezug fürs Bewerten: die erste Empfehlung, wenn sie berechnet ist (sonst wählt Advice.Rate selbst).
+function UI.AdvicePrefer(ctx)
+    local cand = Advice.Recommend(ctx, Core.PlayerClass())[1]
+    return cand and Templates.IsComputed(cand.preset) and cand.preset.key or nil
+end
+
+-- Empfehlung Nummer i als Vorschau laden. Standard die volle Verteilung; mit dem Haken „Auf meine Punkte rechnen“
+-- (Entscheidung des Nutzers vom 20.11.2026) das Beste mit deinen Punkten – nur bei berechneten (sie haben Werte je Talent).
+-- i: Nummer in der Empfehlung, alt: Nummer unter den Alternativen anderer Spielweisen (Advice.Recommend).
+function UI.LoadAdvice(host, i, alt)
+    local ctx, why = UI.AdviceContext(host)
+    if not ctx then ns.Print(why) return end
+    local list = Advice.Recommend(ctx, Core.PlayerClass())
+    local cand
+    if alt then cand = list.alternatives and list.alternatives[alt] else cand = list[i or 1] end
+    if not cand then ns.Print(L.ADVICE_RESULT_NONE) return end
+    if Advice.Answers().ownPoints then
+        local plan, why = Advice.BestPlan(ctx, cand.preset, Advice.OwnPoints(ctx))
+        if plan then UI.LoadPlan(host, plan) return end
+        -- volle Verteilung, mit dem Grund: recherchiert (keine Werte), keine Punkte, noch nichts mit Wert
+        local name = Templates.PresetName(cand.preset)
+        if not Templates.IsComputed(cand.preset) then ns.Print(L.ADVICE_OWN_NONE:format(name))
+        else ns.Print(L["ADVICE_OWN_FAIL_" .. (why or "none")]:format(name)) end
+    end
+    UI.SelectPreset(host, cand.preset)
+end
+
+-- Das Beste des Bezugs mit den Punkten deines Baums als Vorschau (Bewerten): Blizzards Baum zeigt dann an jedem
+-- Talent den Zielrang – gold, was fehlt, rot, was zu viel ist.
+function UI.LoadBest(host)
+    local ctx, why = UI.AdviceContext(host)
+    if not ctx then ns.Print(why) return end
+    local rating = Advice.Rate(ctx, nil, UI.AdvicePrefer(ctx))
+    local plan, why = nil, "points"
+    if rating then plan, why = Advice.BestPlan(ctx, rating.ref.preset, rating.points) end
+    if plan then UI.LoadPlan(host, plan) return end
+    ns.Print(why == "flat" and L.ADVICE_RATE_FLAT or (why == "points" and L.RATE_EMPTY or L.RATE_NONE))
+end
+
+function UI.ResetAdvice(host)
+    Advice.Reset()
+    UI.Refresh()
+end
+
+-- Menü einer Frage (Klick auf ihre Zeile): offen lassen oder eine Antwort. Wechselt die Rolle und passt die gewählte
+-- Spielweise nicht mehr, wird sie wieder offen.
+function UI.AdviceMenu(host, owner, key)
+    local ctx = UI.AdviceContext(host)
+    if not ctx then return end
+    local class = Core.PlayerClass()
+    local function Get()
+        local v = Advice.Answers()[key]
+        if v == nil then return "open" end
+        return v
+    end
+    local function Set(value)
+        Advice.Set(key, value ~= "open" and value or nil)
+        if key == "role" then
+            local tree, fits = Advice.Answers().tree, false
+            for _, o in ipairs(Advice.Options("tree", ctx, class, Advice.Answers())) do
+                if o.value == tree then fits = true end
+            end
+            if tree ~= nil and not fits then Advice.Set("tree", nil) end
+        end
+        UI.Refresh()
+    end
+    local ok = Core.Menu.Open(owner, function(root)
+        Core.Menu.Radio(root, L.ADVICE_OPEN, Get, Set, "open")
+        for _, o in ipairs(Advice.Options(key, ctx, class, Advice.Answers())) do
+            local entry = Core.Menu.Radio(root, o.text, Get, Set, o.value)
+            if o.tip and Core.Menu.Tip then Core.Menu.Tip(entry, o.text, o.tip) end      -- style.label (Review 20.11.2026)
+        end
+    end)
+    if not ok then ns.Print(L.BTN_COMPARE_NOMENU) end
+end
+
+-- Hinweis unter der Bewertung, wenn „Wofür“ PvP ist, es zum Hauptbaum des Bezugs aber keine PvP-Verteilung gibt
+-- (Kampf-Schurke, 20.11.2026: „ist mein talentbaum nicht für pvp gut?“ – sonst liest man „82 %“ als PvP-Urteil).
+-- Seit Rechenmodell 3 (PR 580) hat jede Schadens- und Heiler-Spezialisierung eine PvP-Verteilung; fehlt sie dort
+-- (Tierherrschaft, Wiederherstellung), gleicht sie laut Rechenmodell der Grundverteilung – dann gilt die Bewertung
+-- auch für PvP. Tanks haben keine. → Text, Ton oder nil
+function UI.PvPNote(ctx, preset, class)
+    local function ForPvP(p)
+        for _, purpose in ipairs(type(p.purpose) == "table" and p.purpose or {}) do if purpose == "pvp" then return true end end
+        return false
+    end
+    if type(preset) ~= "table" or ForPvP(preset) then return nil end
+    local tree = tonumber(preset.tree)
+    for _, p in ipairs(Templates.Presets(class)) do
+        if ForPvP(p) and tonumber(p.tree) == tree then return nil end
+    end
+    local label, name = Advice.StyleLabel(ctx, preset), Templates.PresetName(preset)
+    if Advice.Role(preset) == "tank" then return L.ADVICE_RATE_NOT_FOR:format(label, name), "orange" end
+    return L.ADVICE_RATE_PVP_SAME:format(label, name), "hint"
+end
+
+-- Name eines Talents in einer Bewertung: der Verteilung bzw. des Clients.
+function UI.RateTalentName(row)
+    if row.preset then return Templates.TalentName(row.preset) end
+    return Core.SpellName(row.spell) or tostring(row.spell)
+end
+
+-- Ampel als Punkt aus Blizzards Texturen (Schrift-Zeichen wie „●“ kennt Blizzards Schrift nicht sicher).
+UI.ADVICE_LIGHT = { good = "Interface\\Common\\Indicator-Green", gold = "Interface\\Common\\Indicator-Yellow",
+    bad = "Interface\\Common\\Indicator-Red", hint = "Interface\\Common\\Indicator-Gray" }
+function UI.AdviceLight(tone)
+    return (Core.Menu.IconMarkup(UI.ADVICE_LIGHT[tone] or UI.ADVICE_LIGHT.hint, 12))    -- ezCores Bild-Markup (Welle 27)
+end
+
+-- Tooltip einer Empfehlung: Begründung, Zweck, Grundlage (Leitlinie 11), was ein Klick lädt.
+function UI.AdviceTip(cand, answers)
+    local p = cand.preset
+    local lines = {}
+    if #cand.reasons > 0 then lines[#lines + 1] = L.ADVICE_TIP_WHY:format(table.concat(cand.reasons, ", ")) end
+    local why = UI.PresetWhy(p)
+    if why and why ~= "" then lines[#lines + 1] = why end
+    for _, line in ipairs(UI.ComputedLines(p)) do lines[#lines + 1] = line end
+    if not Templates.IsComputed(p) then lines[#lines + 1] = UI.GradeText(p) end
+    local own = answers.ownPoints and Templates.IsComputed(p)
+    if cand.facts then lines[#lines + 1] = UI.StyleText("gray", L.ADVICE_TIP_SOURCE) end   -- Quelle (Leitlinie 11)
+    lines[#lines + 1] = ns.Tone("gold", own and L.ADVICE_TIP_LOAD_OWN or L.ADVICE_TIP_LOAD)
+    return table.concat(lines, "\n")
+end
+
+-- Einzelheiten einer Bewertung: alle Unterschiede zum Bezug, dann die anderen Verteilungen.
+local function AdviceDetails(host, rating, Add)
+    local r = rating.ref
+    for _, list in ipairs({ r.more, r.less }) do
+        for _, row in ipairs(list) do
+            local gain = row.theirs > row.mine
+            Add({ text = UI.RateTalentName(row) .. ns.Tone("hint", "  " .. L.ADVICE_CHANGE:format(row.mine, row.theirs,
+                (gain and "+" or "-") .. Core.Decimal(row.delta, 1))), indent = 18, font = "GameFontHighlightSmall" })
+        end
+    end
+    if #rating.results > 1 then
+        Add({ text = L.ADVICE_OTHERS, indent = 12, font = "GameFontNormalSmall", before = 4 })
+        for _, other in ipairs(rating.results) do
+            if other ~= r then
+                local pct = math.min(100, math.floor(other.pct + 0.5))
+                Add({ text = UI.AdviceLight(Advice.Tone(other.pct)) .. " " .. Templates.PresetName(other.preset) .. "  "
+                    .. ns.Tone("hint", Core.Percent(pct)), indent = 18, font = "GameFontHighlightSmall" })
+            end
+        end
+    end
+    Add({ text = ns.Tone("gold", L.ADVICE_AS_TEXT), indent = 12, onClick = function() UI.Rate(host) end,
+        tipTitle = L.ADVICE_AS_TEXT, tip = L.BTN_RATE_TIP })
+end
+
+-- Abschnitt „Bewerten“. → nichts (fügt über Add an)
+local function AdviceRating(host, ctx, Add)
+    Add({ text = L.ADVICE_RATE, font = "GameFontNormal", before = 8 })
+    -- die anderen Bäume nur mit aufgeklappten Einzelheiten (jede Suche kostet; Advice.Rate)
+    local rating, why = Advice.Rate(ctx, nil, UI.AdvicePrefer(ctx), nil, host.adviceDetails == true)
+    host.adviceRating = rating
+    if not rating then
+        Add({ text = ns.Tone("hint", why == "empty" and L.RATE_EMPTY or L.RATE_NONE), indent = 6 })
+        return
+    end
+    local r = rating.ref
+    local pct = math.min(100, math.floor(r.pct + 0.5))
+    local tone = r.flat and "hint" or Advice.Tone(r.pct)
+    Add({ text = UI.AdviceLight(tone) .. " " .. ns.Tone(tone, L.ADVICE_RATE_LINE:format(Core.Percent(pct), rating.points)),
+        sub = L.ADVICE_RATE_REF:format(Templates.PresetName(r.preset)), indent = 6, font = "GameFontHighlight",
+        tipTitle = L.ADVICE_RATE, tip = L.ADVICE_RATE_TIP })
+    if r.flat then Add({ text = ns.Tone("hint", L.ADVICE_RATE_FLAT), indent = 12 }) end
+    -- PvP gewählt: sagen, wofür die Bewertung gilt, wenn es zum Hauptbaum keine PvP-Verteilung gibt (UI.PvPNote)
+    if Advice.Answers().content == "pvp" then
+        local text, tone = UI.PvPNote(ctx, r.preset, Core.PlayerClass())
+        if text then Add({ text = ns.Tone(tone, text), indent = 12 }) end
+    end
+    -- die geladene Vorschau gegen denselben Bezug
+    local plan = UI.ActivePlan(host, ctx)
+    local previewRating = plan and Advice.Rate(ctx, plan, r.preset.key)
+    if previewRating then
+        local p = previewRating.ref
+        Add({ text = UI.AdviceLight(p.flat and "hint" or Advice.Tone(p.pct)) .. " " .. L.ADVICE_RATE_PREVIEW:format(plan.name or "?",
+            Core.Percent(math.min(100, math.floor(p.pct + 0.5))), previewRating.points), indent = 6, font = "GameFontHighlightSmall" })
+    end
+    if #rating.changes > 0 then
+        Add({ text = L.ADVICE_CHANGES, indent = 6, font = "GameFontNormalSmall", before = 4 })
+        for _, row in ipairs(rating.changes) do
+            Add({ text = ns.Tone(row.gain and "good" or "bad", row.gain and "+ " or "- ") .. UI.RateTalentName(row)
+                .. ns.Tone("hint", "  " .. L.ADVICE_CHANGE:format(row.mine, row.theirs,
+                    (row.gain and "+" or "-") .. Core.Decimal(row.delta, 1))),
+                indent = 12, font = "GameFontHighlight", onClick = function() UI.LoadBest(host) end,
+                tipTitle = UI.RateTalentName(row), tip = L.ADVICE_CHANGE_TIP })
+        end
+    elseif not r.flat then
+        Add({ text = ns.Tone("good", L.ADVICE_NO_CHANGES), indent = 6 })
+    end
+    if not r.flat then
+        Add({ text = ns.Tone("gold", L.ADVICE_LOAD_BEST:format(rating.points)), indent = 6, onClick = function() UI.LoadBest(host) end,
+            tipTitle = L.BTN_ADVICE_BEST, tip = L.BTN_ADVICE_BEST_TIP })
+    end
+    Add({ text = ns.Tone("gold", host.adviceDetails and L.ADVICE_DETAILS_OFF or L.ADVICE_DETAILS_ON), indent = 6,
+        onClick = function() host.adviceDetails = not host.adviceDetails UI.Refresh() end })
+    if host.adviceDetails then AdviceDetails(host, rating, Add) end
+    -- Grundlage (Leitlinie 11): Modell und Annahmen der Verteilung im Tooltip
+    local c = r.preset.computed or {}
+    Add({ text = ns.Tone("hint", (c.provisional and L.ADVICE_BASIS_PROVISIONAL or L.ADVICE_BASIS):format(tostring(c.model or "?"))),
+        indent = 6, gap = 8, tipTitle = Templates.PresetName(r.preset), tip = table.concat(UI.ComputedLines(r.preset), "\n"),
+        tipWide = true })
+end
+
+-- Zeilen des Seitenteils „Empfehlung“.
+function UI.AdviceLines(host, ctx)
+    local lines = {}
+    local function Add(line) lines[#lines + 1] = line end
+    local class = Core.PlayerClass()
+    local answers = Advice.Answers()
+    Add({ text = L.ADVICE_QUESTIONS, font = "GameFontNormal" })
+    for _, q in ipairs(Advice.QUESTIONS) do
+        local text = Advice.AnswerText(q.key, answers[q.key], ctx, class)
+        -- Frage oben, Antwort darunter (Spielbefund 20.11.2026: „Spielweis…“ abgeschnitten, als beides in einer Zeile stand)
+        Add({ text = L["ADVICE_Q_" .. q.key] .. " »", sub = text and ns.Tone("gold", text) or ns.Tone("hint", L.ADVICE_OPEN),
+            indent = 6, font = "GameFontHighlight", tipTitle = L["ADVICE_Q_" .. q.key], tip = L["ADVICE_Q_" .. q.key .. "_TIP"],
+            onClick = function(row) UI.AdviceMenu(host, row, q.key) end })
+    end
+    Add({ text = L.ADVICE_RESULT, font = "GameFontNormal", before = 8 })
+    local list = Advice.Recommend(ctx, class, answers)
+    if #list == 0 then
+        Add({ text = ns.Tone("hint", Advice.Answered(answers) and L.RATE_NONE or L.ADVICE_RESULT_NONE), indent = 6 })
+    else
+        -- Für den Zweck gibt es in der gewählten Spielweise nichts: sagen, statt still eine andere zu nehmen
+        if list.missing then
+            local what = list.missing.content and (L["ADVICE_content_" .. list.missing.content] or list.missing.content) or ""
+            local first = Templates.PresetName(list[1].preset)
+            local m = list.missing
+            local text
+            if m.styleNone then text = L.ADVICE_STYLE_NONE:format(m.style, first)
+            elseif m.style then text = L.ADVICE_MISSING:format(m.style, what, first)
+            elseif m.role then text = L.ADVICE_MISSING_ROLE:format(what, first)
+            else text = L.ADVICE_MISSING_ANY:format(what, first) end
+            Add({ text = ns.Tone("orange", text), indent = 6 })
+        end
+        for i = 1, math.min(3, #list) do
+            local cand = list[i]
+            local p = cand.preset
+            local split = type(p.split) == "string" and p.split or ""
+            Add({ text = (i == 1 and (ns.Tone("good", L.ADVICE_FIRST) .. " ") or "") .. Templates.PresetName(p)
+                    .. (split ~= "" and ns.Tone("hint", " · " .. split) or ""),
+                sub = #cand.reasons > 0 and table.concat(cand.reasons, " · ") or L.ADVICE_WHY_NONE,
+                indent = 6, font = i == 1 and "GameFontHighlight" or "GameFontHighlightSmall", selected = i == 1,
+                onClick = function() UI.LoadAdvice(host, i) end, tipTitle = Templates.PresetName(p),
+                tip = UI.AdviceTip(cand, answers), tipWide = true })
+        end
+        -- andere Spielweisen, die für den Zweck gedacht sind: nur darunter, als Alternative
+        for j = 1, math.min(2, #(list.alternatives or {})) do
+            local cand = list.alternatives[j]
+            local p = cand.preset
+            Add({ text = ns.Tone("hint", L.ADVICE_ALTERNATIVE) .. " " .. Templates.PresetName(p)
+                    .. (type(p.split) == "string" and ns.Tone("hint", " · " .. p.split) or ""),
+                sub = L.ADVICE_ALTERNATIVE_WHY:format(Advice.StyleLabel(ctx, p)), indent = 6, font = "GameFontHighlightSmall",
+                before = j == 1 and 4 or nil, onClick = function() UI.LoadAdvice(host, nil, j) end,
+                tipTitle = Templates.PresetName(p), tip = UI.AdviceTip(cand, answers), tipWide = true })
+        end
+        if answers.ownPoints then
+            local points = Advice.OwnPoints(ctx)
+            Add({ text = ns.Tone("hint", L.ADVICE_OWN_LINE:format(points or 0)), indent = 6 })
+        end
+    end
+    AdviceRating(host, ctx, Add)
+    return lines
+end
+
+local function BuildAdvicePanel(host)
+    local panel = NewPanel(host, L.ADVICE_TITLE)
+    local w = 92
+    panel.buttons = {
+        load = Button(panel, L.BTN_ADVICE_LOAD, L.BTN_ADVICE_LOAD_TIP, function() UI.LoadAdvice(host, 1) end, w, true),
+        best = Button(panel, L.BTN_ADVICE_BEST, L.BTN_ADVICE_BEST_TIP, function() UI.LoadBest(host) end, w, true),
+        reset = Button(panel, L.BTN_ADVICE_RESET, L.BTN_ADVICE_RESET_TIP, function() UI.ResetAdvice(host) end, w, true),
+    }
+    local b = panel.buttons
+    b.load.whyDisabled, b.best.whyDisabled, b.reset.whyDisabled = L.ADVICE_RESULT_NONE, L.RATE_EMPTY, L.ADVICE_RESULT_NONE
+    -- Haken „Auf meine Punkte rechnen“ (Entscheidung des Nutzers vom 20.11.2026), je Charakter gemerkt
+    panel.ownPoints = UI.CheckRow(panel, L.ADVICE_OWN_POINTS, L.ADVICE_OWN_POINTS_TIP,
+        function() return Advice.Answers().ownPoints == true end,
+        function(on) Advice.Set("ownPoints", on or nil) UI.Refresh() end)
+    function panel:LayoutButtons(width)
+        return UI.LayoutButtons(self, width, { b.load, b.best, b.reset }, self.ownPoints) + 8
+    end
+    panel:Layout(panel.width or UI.PANEL_WIDTH)
+    function panel:Render()
+        local ctx, why = UI.AdviceContext(host)
+        if not ctx then
+            SetHead(self, why or "")
+            UI.Fill(self.scroll, {})
+            for _, button in pairs(b) do button:SetEnabled(false) end
+            return
+        end
         SetHead(self, UI.HeadText(ctx))
-        local plan = UI.ComparePlan(host, ctx)
-        self.buttons.compare:SetText(plan and L.BTN_COMPARE_ON:format(plan.name or "?") or L.BTN_COMPARE)
-        UI.Fill(self.scroll, UI.EffectLines(ctx, host, plan or false))
+        UI.Fill(self.scroll, UI.AdviceLines(host, ctx))
+        local answered = Advice.Answered(Advice.Answers())
+        b.load:SetEnabled(answered and #Advice.Recommend(ctx, Core.PlayerClass()) > 0)
+        b.reset:SetEnabled(answered)
+        -- eben in UI.AdviceLines bewertet; ohne Wert im Modell wäre „das Beste“ leer
+        b.best:SetEnabled(host.adviceRating ~= nil and not host.adviceRating.ref.flat)
+        self.ownPoints.check:SetChecked(Advice.Answers().ownPoints == true)
     end
     return panel
 end
@@ -2483,6 +3081,7 @@ end
 -- nur auf Klick; bis dahin Schalter templatesTab bzw. legacyTab).
 local function TabEnabled(host, key)
     if key == "effects" then return ns.Enabled("effectsTab") end
+    if key == "advice" then return ns.Enabled("adviceTab") end
     if key == "roster" then return ns.Enabled("rosterTab") end
     return true
 end
@@ -2578,7 +3177,7 @@ function UI.RestoreOpen(host)
 end
 
 local TAB_ICONS = { templates = "Interface\\Icons\\INV_Misc_Book_09", effects = "Interface\\Icons\\INV_Misc_Book_11",
-    roster = "Interface\\Icons\\INV_Misc_GroupNeedMore" }
+    roster = "Interface\\Icons\\INV_Misc_GroupNeedMore", advice = "Interface\\Icons\\INV_Misc_QuestionMark" }
 
 local function BuildTab(host, key, order, title, tip)
     local tab = Core.CreateSideTab(host.parent, { key = "ezTalent." .. key, order = order, anchor = host.anchor,
@@ -2667,6 +3266,10 @@ function UI.Attach(kind, parent, anchor, source, opts)
     host.tabs.templates = BuildTab(host, "templates", 10, L.TEMPLATES_TITLE,
         kind == "class" and L.TAB_TEMPLATES_TIP or L.TAB_LEGACY_TIP)
     host.tabs.effects = BuildTab(host, "effects", 20, L.EFFECTS_TITLE, L.TAB_EFFECTS_TIP)
+    if kind == "class" then   -- Empfehlung nur am Talentfenster (Spieltest 20.11.2026), Reiter-Zahl 15: nach Vorlagen
+        host.panels.advice = BuildAdvicePanel(host)
+        host.tabs.advice = BuildTab(host, "advice", 15, L.ADVICE_TITLE, L.TAB_ADVICE_TIP)
+    end
     if kind == "class" then   -- Twinks nur am Talentfenster (TL-12), Reiter-Zahl 30
         host.panels.roster = BuildRosterPanel(host)
         host.tabs.roster = BuildTab(host, "roster", 30, L.ROSTER_PANEL_TITLE, L.TAB_ROSTER_TIP)

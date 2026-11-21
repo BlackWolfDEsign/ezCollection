@@ -2,14 +2,20 @@ local _, ns = ...
 local T = ns.RotationData.T
 
 -- Krieger (WARRIOR): Rotationen je Talentbaum und Spielweise für WoW Forever.
--- Quellen, abgerufen am 13.11.2026 – nur Fakten (Rangfolge, Bedingungen), alle Texte in eigenen Worten:
+-- Quellen, abgerufen am 13.11.2026, nachgeprüft am 20.11.2026 (Paket ezcombat/rotation-recherche, im Browser gelesen) –
+-- nur Fakten (Rangfolge, Bedingungen), alle Texte in eigenen Worten:
 --   Waffen:  https://www.icy-veins.com/wow-forever/arms-warrior-melee-dps-pve-rotation-cooldowns-abilities  (Stand 04.11.2026)
+--            (nachgeprüft 20.11.2026: Rangfolge unverändert; „Reckless Swings“ wie bei Furor, wenn Wut fehlt)
 --            https://www.icy-veins.com/wow-forever/arms-warrior-leveling
 --            https://www.wowhead.com/forever/guide/classes/warrior/arms/rotation-cooldowns-pve-dps          (Stand 04.11.2026)
---   Furor:   https://www.icy-veins.com/wow-forever/fury-warrior-melee-dps-pve-rotation-cooldowns-abilities
---            https://www.icy-veins.com/wow-forever/fury-warrior-leveling
+--   Furor:   https://www.icy-veins.com/wow-forever/fury-warrior-melee-dps-pve-rotation-cooldowns-abilities  (Stand 16.11.2026:
+--            „Reckless Swings“ nach Wirbelwind, Blutdurst und Hinrichten; Heldenhafter Stoß ab 65 Wut; Abfangen und
+--            Spöttischer Schlag als Werkzeug)
+--            https://www.icy-veins.com/wow-forever/fury-warrior-leveling  (Stand 16.11.2026, nachgeprüft 20.11.2026:
+--            Verwunden und Überwältigen nur bis Wirbelwind, ab Stufe 34 „Reckless Swings“, nicht zugleich mit Blutrausch)
 --            https://www.wowhead.com/forever/guide/classes/warrior/fury/rotation-cooldowns-pve-dps          (Stand 29.10.2026)
---   Schutz:  https://www.icy-veins.com/wow-forever/protection-warrior-tank-pve-rotation-cooldowns-abilities
+--   Schutz:  https://www.icy-veins.com/wow-forever/protection-warrior-tank-pve-rotation-cooldowns-abilities  (Stand 04.11.2026;
+--            Erschütternder Schlag und Spöttischer Schlag nur als Werkzeug, nicht in der Rangfolge)
 --            https://www.icy-veins.com/wow-forever/protection-warrior-leveling
 --            https://www.wowhead.com/forever/guide/classes/warrior/protection/rotation-cooldowns-pve-tank   (Stand 29.10.2026)
 -- Hauptquelle ist Icy Veins; wo Wowhead abweicht, steht es im Feld note. Nichts stammt aus einem Addon.
@@ -31,7 +37,16 @@ local T = ns.RotationData.T
 --   * Rüstungs-Stapel zählen von jedem Krieger (mine = false).
 -- [V] = Annahme oder ID nicht im Spiel bestätigt (/ez test meldet unbekannte IDs).
 -- Bedarf:
---   * Zauber-ID des Forever-Talents „Wut gegen Leben“ (englisch Reckless Swings) ist nicht ermittelt – kein Schritt.
+--   * „Tollkühne Schwünge“ (Reckless Swings, Forever-Talent; Furor, Waffen, Furor Leveln): 1329555 ist Talent und aktive Fähigkeit laut
+--     Client-Tabellen (wowf 1.60.1.70938: SpellCooldowns 15 s und globale Abklingzeit – StartRecoveryTime 1000, darum
+--     kein Schritt nebenher; SpellPower 25 % Leben; SpellAuraOptions 4 Aufladungen; ezTalent/Computed.lua Reihe 4,
+--     Spalte 2). 1329554 gleichen Namens ist der ausgelöste Wut-Effekt (SpellEffect: Kraft geben, Wut, 5 je Schlag).
+--     Platz nach Wirbelwind, Blutdurst, Hinrichten und Siegesrausch (Icy Veins, Stand 16.11.2026; Siegesrausch heilt
+--     nach einem Kill, Leben ausgeben kommt danach). „Bis 70 Wut“ ist eine Annahme wie bei Blutrausch; im Kampf ist die
+--     Wut gesperrt und die Spanne aus Blizzards Nutzbarkeit belegt „höchstens 70“ meist nicht – dann steht der Schritt
+--     unter „übersprungen“, vorgeschlagen wird er, wenn ein Zauber bis 70 Wut „zu wenig Wut“ meldet. Vorher „ID nicht
+--     ermittelt“. Waffen: nach Zerschmettern und Siegesrausch (Icy Veins wie bei Furor, nachgeprüft 20.11.2026). Furor (Leveln): ab
+--     Stufe 34 hinter Blutdurst, „nicht zugleich mit Blutrausch“ (Stand 16.11.2026). Die Wut-Grenze steht als Feld guess.
 --   * Angriffskraft (Furor: Reihenfolge in der Hinrichtungsphase) ist im Kampf gesperrt – steht als Text in note;
 --     der Nutzer kann den Schritt im Reiter verschieben.
 --   * Talent „Vorhut“ (Sturmangriff aus der Verteidigungshaltung): ID nicht ermittelt; der Schritt hängt an „nutzbar“.
@@ -60,7 +75,8 @@ ns.RotationData.Add("WARRIOR", {
         { id = 100, kind = "opener", when = "ready", need = { combat = false, inrange = 100 },
           text = T("Kampf damit beginnen: bringt Wut.", "Start the fight with it: grants rage.") },    -- Sturmangriff / Charge
         -- Nebenher und Abklingzeiten
-        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },    -- Annahme: Platz für die Wut
+        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },
+          guess = T("Die Wut-Grenze ist geschätzt; die Quelle nennt keine Zahl.", "The rage limit is estimated; the source gives no number."),
           text = T("Wenn Platz für Wut ist; kostet Leben.", "When you have room for rage; costs health.") },    -- Blutrausch / Bloodrage
         { id = 1719, kind = "cooldown", burst = true, when = "ready", optional = true, need = { combat = true },
           text = T("Für Schadensphasen aufheben; braucht {2458}.", "Save for damage phases; needs {2458}.") },    -- Tollkühnheit / Recklessness
@@ -74,9 +90,11 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Halten; im Kampf nur, wenn er fehlt oder ausläuft.", "Keep it up; in combat only when missing or ending.") },    -- Schlachtruf / Battle Shout
         { id = 1310222, kind = "priority", when = "ready", need = { enemy = { type = { "giant", "dragonkin" } } },
           text = T("Gegen Riesen und Drachkin zuerst.", "Top priority against giants and dragonkin.") },    -- Aufspießender Stoß / Spearing Strike
-        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },    -- Annahme: Näherung für „stirbt gleich“
+        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },
+          guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
           text = T("Fehlt: setzen. Erst nach Ablauf erneuern.", "Missing: apply. Renew only after it ends.") },    -- Verwunden / Rend
-        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5, optional = true,    -- Annahme: 5 Sekunden vor Ablauf
+        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5, optional = true,
+          guess = T("Erneuern 5 Sek. vor Ablauf ist geschätzt.", "Refreshing 5 sec before it ends is estimated."),
           text = T("Nur wenn du zuständig bist: 5 Stapel halten.", "Only if it's your job: keep 5 stacks up.") },    -- Rüstung zerreißen / Sunder Armor
         { id = 7384, kind = "priority", when = "reactive",
           text = T("Sobald freigeschaltet, bevor das Fenster endet.", "As soon as it unlocks, before the window ends.") },    -- Überwältigen / Overpower
@@ -84,13 +102,19 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Sobald bereit; Wut dafür zurückhalten.", "Whenever ready; hold rage back for it.") },    -- Tödlicher Stoß / Mortal Strike
         { id = 5308, kind = "phase", when = "reactive",
           text = T("Ziel unter 20 %: erst nach den beiden darüber.", "Target below 20%: only after the two above.") },    -- Hinrichten / Execute
-        { id = 1240193, kind = "priority", when = "ready", need = { moving = false, rage = { min = 45 } },    -- Annahme: lässt Wut für {12294}
+        { id = 1240193, kind = "priority", when = "ready", need = { moving = false, rage = { min = 45 } },
+          guess = T("Die Wut-Schwelle ist geschätzt: Wut für {12294} soll bleiben.", "The rage threshold is estimated: rage for {12294} should remain."),
           text = T("Im Stand, wenn danach Wut für {12294} bleibt.", "Standing still, if rage for {12294} remains.") },    -- Zerschmettern / Slam
         { id = 402927, kind = "priority", when = "reactive",
           text = T("Nach einem Kill, bevor es verfällt; heilt dich.", "After a kill, before it expires; heals you.") },    -- Siegesrausch / Victory Rush
-        { id = 1310222, key = "spear:rage", kind = "priority", when = "ready", need = { rage = { min = 80 } },    -- Annahme: „kurz vor der Wutgrenze“
+        { id = 1329555, kind = "resource", when = "ready", need = { combat = true, rage = { max = 70 } },
+          guess = T("Die Wut-Grenze ist geschätzt; die Quelle nennt keine Zahl.", "The rage limit is estimated; the source gives no number."),
+          text = T("Wenn dir Wut fehlt, du Leben übrig hast und weiter zuschlägst; kostet Leben.", "When you need rage, can spare health and keep attacking; costs health.") },    -- Tollkühne Schwünge / Reckless Swings
+        { id = 1310222, key = "spear:rage", kind = "priority", when = "ready", need = { rage = { min = 80 } },
+          guess = T("„Kurz vor der Wutgrenze“ ist als Zahl geschätzt.", "“Close to the rage cap” is estimated as a number."),
           text = T("Sonst nur, bevor die Wut überläuft.", "Otherwise only before rage overflows.") },    -- Aufspießender Stoß / Spearing Strike
-        { id = 1715, kind = "filler", when = "rage", min = 60,    -- Annahme: die Quelle nennt nur „Restwut“
+        { id = 1715, kind = "filler", when = "rage", min = 60,
+          guess = T("Die Wut-Schwelle ist geschätzt; die Quelle sagt nur „übrige Wut“.", "The rage threshold is estimated; the source only says “spare rage”."),
           text = T("Restwut; löst Treffer-Effekte aus.", "Leftover rage; fishes for on-hit effects.") },    -- Kniesehne / Hamstring
         { id = 78, kind = "filler", when = "rage", min = 40, side = true, need = { queued = false, unusable = 5308 },
           text = T("Nur Überschuss; nicht in der Hinrichtungsphase.", "Surplus rage only; not during the kill phase.") },    -- Heldenhafter Stoß / Heroic Strike
@@ -116,8 +140,8 @@ ns.RotationData.Add("WARRIOR", {
       pick = { leveling = false },
       how = T("Zwei Waffen. Der Pull läuft über {2457} und {100}, danach wechselst du in {2458}. Dort geht {1680} allem vor, auch in der Hinrichtungsphase; dann {23881} – halte Wut für beide zurück. {5308} steht dazwischen und meldet sich nur bei einem fast toten Ziel. {7384} lohnt den Haltungswechsel nur bei wenig Wut. Überschuss geht in {1715} und {78}.",
               "Dual wield. Pull through {2457} and {100}, then switch to {2458}. There {1680} beats everything, even in the kill phase; then {23881} – hold rage back for both. {5308} sits between them and only shows on a nearly dead target. {7384} is worth the stance swap only at low rage. Surplus goes into {1715} and {78}."),
-      note = T("Wowhead ordnet {5308}, {23881}, {1680}. Icy Veins: mit sehr hoher Angriffskraft {23881} vor {5308} – die ist im Kampf nicht lesbar; verschiebe den Schritt selbst. {7384} ist in {2458} nicht zu sehen.",
-               "Wowhead orders {5308}, {23881}, {1680}. Icy Veins: with very high attack power {23881} before {5308} – it can't be read in combat; move the step yourself. {7384} can't be seen in {2458}."),
+      note = T("Wowhead ordnet {5308}, {23881}, {1680}. Icy Veins: mit sehr hoher Angriffskraft {23881} vor {5308} – die ist im Kampf nicht lesbar; verschiebe den Schritt selbst. {7384} ist in {2458} nicht zu sehen. {1329555} kostet Leben, das ezCombat im Kampf nicht sieht – schalte den Schritt aus, wenn dich niemand heilt.",
+               "Wowhead orders {5308}, {23881}, {1680}. Icy Veins: with very high attack power {23881} before {5308} – it can't be read in combat; move the step yourself. {7384} can't be seen in {2458}. {1329555} costs health, which ezCombat can't see in combat – turn the step off if nobody heals you."),
       steps = {
         -- Vor dem Kampf
         { id = 2457, kind = "prepare", when = "form", need = { known = 71 },
@@ -128,7 +152,8 @@ ns.RotationData.Add("WARRIOR", {
         { id = 100, kind = "opener", when = "ready", need = { combat = false, inrange = 100 },
           text = T("Kampf damit beginnen: bringt Wut.", "Start the fight with it: grants rage.") },    -- Sturmangriff / Charge
         -- Nebenher und Abklingzeiten
-        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },    -- Annahme: Platz für die Wut
+        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },
+          guess = T("Die Wut-Grenze ist geschätzt; die Quelle nennt keine Zahl.", "The rage limit is estimated; the source gives no number."),
           text = T("Wenn Platz für Wut ist; kostet Leben.", "When you have room for rage; costs health.") },    -- Blutrausch / Bloodrage
         { id = 12328, kind = "cooldown", burst = true, when = "ready", need = { combat = true },
           text = T("Wenn du fast die ganze Dauer am Ziel bleibst.", "When you can stay on target for most of it.") },    -- Todeswunsch / Death Wish
@@ -137,13 +162,15 @@ ns.RotationData.Add("WARRIOR", {
         -- Im Kampf (Reihenfolge = Rang)
         { id = 6673, kind = "maintain", when = "buff",
           text = T("Halten; im Kampf nur, wenn er fehlt oder ausläuft.", "Keep it up; in combat only when missing or ending.") },    -- Schlachtruf / Battle Shout
-        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5, optional = true,    -- Annahme: 5 Sekunden vor Ablauf
+        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5, optional = true,
+          guess = T("Erneuern 5 Sek. vor Ablauf ist geschätzt.", "Refreshing 5 sec before it ends is estimated."),
           text = T("Nur wenn zuständig: gleich zu Beginn 5 Stapel.", "Only if it's your job: 5 stacks right away.") },    -- Rüstung zerreißen / Sunder Armor
         { id = 7384, kind = "priority", when = "reactive", need = { rage = { max = 25 } },
           text = T("Nur bei wenig Wut den Haltungswechsel wert.", "Worth the stance swap only at low rage.") },    -- Überwältigen / Overpower
         { id = 1310222, kind = "priority", when = "ready", need = { enemy = { type = { "giant", "dragonkin" } } },
           text = T("Gegen Riesen und Drachkin, solange du in {2457} bist.", "Vs giants and dragonkin while still in {2457}.") },    -- Aufspießender Stoß / Spearing Strike
-        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },    -- Annahme: Näherung für „stirbt gleich“
+        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },
+          guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
           text = T("Solange du in {2457} bist; auslaufen lassen.", "While you are in {2457}; let it run out.") },    -- Verwunden / Rend
         { id = 2458, kind = "priority", when = "form", need = { combat = true },
           text = T("Im Kampf deine Haltung; Wechsel kostet Wut.", "Your stance in combat; swapping costs rage.") },    -- Berserkerhaltung / Berserker Stance
@@ -155,6 +182,9 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Sobald bereit; verzögere {1680} nicht.", "Whenever ready; don't delay {1680}.") },    -- Blutdurst / Bloodthirst
         { id = 402927, kind = "priority", when = "reactive",
           text = T("Nach einem Kill, bevor es verfällt; heilt dich.", "After a kill, before it expires; heals you.") },    -- Siegesrausch / Victory Rush
+        { id = 1329555, kind = "resource", when = "ready", need = { combat = true, rage = { max = 70 } },
+          guess = T("Die Wut-Grenze ist geschätzt; die Quelle nennt keine Zahl.", "The rage limit is estimated; the source gives no number."),
+          text = T("Wenn dir Wut fehlt, du Leben übrig hast und weiter zuschlägst; kostet Leben.", "When you need rage, can spare health and keep attacking; costs health.") },    -- Tollkühne Schwünge / Reckless Swings
         { id = 1715, kind = "filler", when = "rage", min = 85,
           text = T("Ab 85 Wut; löst Treffer-Effekte aus.", "From 85 rage; fishes for on-hit effects.") },    -- Kniesehne / Hamstring
         { id = 78, kind = "filler", when = "rage", min = 65, side = true, need = { queued = false },
@@ -171,6 +201,10 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Für Furcht-Effekte aufheben.", "Save it for fear effects.") },    -- Berserkerwut / Berserker Rage
         { id = 6552, kind = "situational", when = "manual",
           text = T("Unterbricht einen Zauber.", "Interrupts a cast.") },    -- Zuschlagen / Pummel
+        { id = 20252, kind = "situational", when = "manual",
+          text = T("Im Kampf zum Gegner und kurz betäuben; braucht {2458}, kostet Wut.", "Reach an enemy in combat and stun it briefly; needs {2458}, costs rage.") },    -- Abfangen / Intercept
+        { id = 694, kind = "situational", when = "manual",
+          text = T("Zwingt einen Gegner kurz auf dich; braucht {2457}.", "Forces an enemy onto you briefly; needs {2457}.") },    -- Spöttischer Schlag / Mocking Blow
       } },
 
     -----------------------------------------------------------------------------------------------------------------
@@ -198,7 +232,8 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Nach dem ersten Angriff sofort zurück in diese Haltung.", "Right after your first attack, back into this stance.") },    -- Verteidigungshaltung / Defensive Stance
         { id = 2565, kind = "priority", when = "ready", side = true, need = { combat = true, usable = 2565 },
           text = T("Nebenher, solange Nahkämpfer auf dich einschlagen.", "Alongside your other attacks, as long as melee attackers are on you.") },    -- Schildblock / Shield Block
-        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },    -- Annahme: Platz für die Wut
+        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },
+          guess = T("Die Wut-Grenze ist geschätzt; die Quelle nennt keine Zahl.", "The rage limit is estimated; the source gives no number."),
           text = T("Zum Angriff und wenn Platz für Wut ist.", "To start the fight and when you have room for rage.") },    -- Blutrausch / Bloodrage
         -- Mehrere Gegner (Flächenmodus)
         { id = 6343, kind = "aoe", when = "ready",
@@ -210,7 +245,8 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Falls geskillt: dein Hauptangriff neben {23922}.", "If talented: your main strike next to {23922}.") },    -- Blutdurst / Bloodthirst
         { id = 6572, kind = "priority", when = "reactive",
           text = T("Sobald Blocken oder Ausweichen sie freischaltet.", "As soon as a block or dodge unlocks it.") },    -- Rache / Revenge
-        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,    -- Annahme: 5 Sekunden vor Ablauf
+        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,
+          guess = T("Erneuern 5 Sek. vor Ablauf ist geschätzt.", "Refreshing 5 sec before it ends is estimated."),
           text = T("Zügig 5 Stapel aufbauen, vor Ablauf erneuern.", "Build 5 stacks quickly, renew before they end.") },    -- Rüstung zerreißen / Sunder Armor
         { id = 6343, kind = "priority", when = "ready",
           text = T("Sobald bereit: Schaden und langsamere Angriffe.", "Whenever ready: damage and slower attacks.") },    -- Donnerknall / Thunder Clap
@@ -218,7 +254,8 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Halten; im Kampf nur, wenn er fehlt oder ausläuft.", "Keep it up; in combat only when missing or ending.") },    -- Schlachtruf / Battle Shout
         { id = 1160, kind = "maintain", when = "dot", mine = false, refresh = "missing", optional = true,
           text = T("Nach Lage: wenn er zählt und kein anderer ihn setzt.", "As needed: when it counts and no one else applies it.") },    -- Demoralisierender Ruf / Demoralizing Shout
-        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },    -- Annahme: Näherung für „stirbt gleich“
+        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },
+          guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
           text = T("Nur wenn die Blutung fehlt; auslaufen lassen.", "Only when the bleed is missing; let it run out.") },    -- Verwunden / Rend
         { id = 7386, key = "filler:sunder", kind = "filler", when = "filler",
           text = T("Lückenfüller zwischen den Hauptangriffen: Bedrohung.", "Gap filler between your main strikes: threat.") },    -- Rüstung zerreißen / Sunder Armor
@@ -239,6 +276,10 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Holt einen Gegner zurück; ezCombat sieht das nicht.", "Pulls an enemy back; ezCombat can't see that.") },    -- Spott / Taunt
         { id = 72, kind = "situational", when = "manual",
           text = T("Unterbricht einen Zauber.", "Interrupts a cast.") },    -- Schildhieb / Shield Bash
+        { id = 12809, kind = "situational", when = "manual",
+          text = T("Betäubt einen gefährlichen Gegner oder stoppt einen Zauber, wenn {72} nicht bereit ist.", "Stuns a dangerous enemy or stops a cast when {72} isn't ready.") },    -- Erschütternder Schlag / Concussion Blow
+        { id = 694, kind = "situational", when = "manual",
+          text = T("Wenn {355} nicht bereit ist; braucht {2457} und hält nur kurz.", "When {355} isn't ready; needs {2457} and only lasts briefly.") },    -- Spöttischer Schlag / Mocking Blow
       } },
 
     -----------------------------------------------------------------------------------------------------------------
@@ -262,7 +303,8 @@ ns.RotationData.Add("WARRIOR", {
         { id = 100, kind = "opener", when = "ready", need = { combat = false, inrange = 100 },
           text = T("Kampf damit beginnen: bringt Wut.", "Start the fight with it: grants rage.") },    -- Sturmangriff / Charge
         -- Nebenher
-        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },    -- Annahme: Platz für die Wut
+        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },
+          guess = T("Die Wut-Grenze ist geschätzt; die Quelle nennt keine Zahl.", "The rage limit is estimated; the source gives no number."),
           text = T("Nach Bedarf, auch zwischen Kämpfen; kostet Leben.", "As needed, also between fights; costs health.") },    -- Blutrausch / Bloodrage
         -- Mehrere Gegner (Flächenmodus)
         { id = 12292, kind = "aoe", when = "ready",
@@ -276,10 +318,12 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Halten; im Kampf nur, wenn er fehlt oder ausläuft.", "Keep it up; in combat only when missing or ending.") },    -- Schlachtruf / Battle Shout
         { id = 1310222, kind = "priority", when = "ready", need = { enemy = { type = { "giant", "dragonkin" } } },
           text = T("Gegen Riesen und Drachkin zuerst.", "Top priority against giants and dragonkin.") },    -- Aufspießender Stoß / Spearing Strike
-        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },    -- Annahme: Näherung für „stirbt gleich“
+        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },
+          guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
           text = T("Früh setzen; erst nach Ablauf erneuern.", "Apply early; renew only after it ends.") },    -- Verwunden / Rend
-        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,    -- Annahme: 5 Sekunden vor Ablauf
+        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,
           need = { enemy = { rank = ELITE } },
+          guess = T("Erneuern 5 Sek. vor Ablauf ist geschätzt.", "Refreshing 5 sec before it ends is estimated."),
           text = T("Nur gegen Elite und Bosse: 5 Stapel.", "Against elites and bosses only: 5 stacks.") },    -- Rüstung zerreißen / Sunder Armor
         { id = 7384, kind = "priority", when = "reactive",
           text = T("Sobald freigeschaltet, bevor das Fenster endet.", "As soon as it unlocks, before the window ends.") },    -- Überwältigen / Overpower
@@ -291,7 +335,8 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Nur gegen starke Gegner; sonst Wut sparen.", "Strong enemies only; otherwise save the rage.") },    -- Hinrichten / Execute
         { id = 1240193, kind = "priority", when = "ready", need = { moving = false },
           text = T("Füllt, wenn du stehen bleiben kannst.", "Fills when you can stand still.") },    -- Zerschmettern / Slam
-        { id = 1310222, key = "spear:rage", kind = "priority", when = "ready", need = { rage = { min = 80 } },    -- Annahme: „kurz vor der Wutgrenze“
+        { id = 1310222, key = "spear:rage", kind = "priority", when = "ready", need = { rage = { min = 80 } },
+          guess = T("„Kurz vor der Wutgrenze“ ist als Zahl geschätzt.", "“Close to the rage cap” is estimated as a number."),
           text = T("Sonst nur, bevor die Wut überläuft.", "Otherwise only before rage overflows.") },    -- Aufspießender Stoß / Spearing Strike
         { id = 78, kind = "filler", when = "rage", min = 40, need = { queued = false },
           text = T("Nur mit überschüssiger Wut.", "With surplus rage only.") },    -- Heldenhafter Stoß / Heroic Strike
@@ -327,7 +372,8 @@ ns.RotationData.Add("WARRIOR", {
         { id = 100, kind = "opener", when = "ready", need = { combat = false, inrange = 100 },
           text = T("Kampf damit beginnen: bringt Wut.", "Start the fight with it: grants rage.") },    -- Sturmangriff / Charge
         -- Nebenher und Abklingzeiten
-        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },    -- Annahme: Platz für die Wut
+        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 70 } },
+          guess = T("Die Wut-Grenze ist geschätzt; die Quelle nennt keine Zahl.", "The rage limit is estimated; the source gives no number."),
           text = T("Nach Bedarf, auch zwischen Kämpfen; kostet Leben.", "As needed, also between fights; costs health.") },    -- Blutrausch / Bloodrage
         { id = 12328, kind = "cooldown", burst = true, when = "ready", need = { combat = true },
           text = T("Beim Leveln regelmäßig nutzen, nicht aufheben.", "Use it regularly while levelling, don't save it.") },    -- Todeswunsch / Death Wish
@@ -339,10 +385,11 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Halten; im Kampf nur, wenn er fehlt oder ausläuft.", "Keep it up; in combat only when missing or ending.") },    -- Schlachtruf / Battle Shout
         { id = 7384, key = "overpower:early", kind = "priority", when = "reactive", need = { unknown = 2458 },
           text = T("Nach einem Ausweichen des Ziels sofort.", "Right after the target dodges.") },    -- Überwältigen / Overpower
-        { id = 7384, kind = "priority", when = "reactive", need = { known = 2458, rage = { max = 25 } },
-          text = T("Später nur bei wenig Wut den Wechsel wert.", "Later worth the swap only at low rage.") },    -- Überwältigen / Overpower
-        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },    -- Annahme: Näherung für „stirbt gleich“
-          text = T("Solange du in {2457} bist; auslaufen lassen.", "While you are in {2457}; let it run out.") },    -- Verwunden / Rend
+        { id = 7384, kind = "priority", when = "reactive", need = { known = 2458, unknown = 1680, rage = { max = 25 } },
+          text = T("Bis {1680} nur bei wenig Wut den Wechsel wert.", "Until {1680} worth the swap only at low rage.") },    -- Überwältigen / Overpower
+        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308, unknown = 1680 },
+          guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
+          text = T("Bis {1680} da ist, in {2457}; auslaufen lassen.", "Until you have {1680}, in {2457}; let it run out.") },    -- Verwunden / Rend
         { id = 402927, kind = "priority", when = "reactive",
           text = T("Nach einem Kill, bevor es verfällt; heilt dich.", "After a kill, before it expires; heals you.") },    -- Siegesrausch / Victory Rush
         { id = 2458, kind = "priority", when = "form", need = { combat = true },
@@ -353,6 +400,9 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Nur gegen starke Gegner; sonst Wut sparen.", "Strong enemies only; otherwise save the rage.") },    -- Hinrichten / Execute
         { id = 23881, kind = "priority", when = "ready",
           text = T("Sobald bereit; verzögere {1680} nicht.", "Whenever ready; don't delay {1680}.") },    -- Blutdurst / Bloodthirst
+        { id = 1329555, kind = "resource", when = "ready", need = { combat = true, rage = { max = 70 } },
+          guess = T("Die Wut-Grenze ist geschätzt; die Quelle nennt keine Zahl.", "The rage limit is estimated; the source gives no number."),
+          text = T("Wenn Wut fehlt; nicht zugleich mit {2687}.", "When rage is short; not together with {2687}.") },    -- Tollkühne Schwünge / Reckless Swings
         { id = 78, kind = "filler", when = "rage", min = 65, need = { queued = false },
           text = T("Fast nie: nur bei viel überschüssiger Wut.", "Hardly ever: only with lots of surplus rage.") },    -- Heldenhafter Stoß / Heroic Strike
         { id = 845, kind = "aoe", when = "rage", min = 65, side = true, need = { queued = false },
@@ -391,21 +441,25 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Nach dem ersten Angriff sofort zurück in diese Haltung.", "Right after your first attack, back into this stance.") },    -- Verteidigungshaltung / Defensive Stance
         { id = 2565, kind = "priority", when = "ready", side = true, need = { combat = true, usable = 2565 },
           text = T("Nebenher, solange Nahkämpfer auf dich einschlagen.", "Alongside your other attacks, as long as melee attackers are on you.") },    -- Schildblock / Shield Block
-        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 80 } },    -- Annahme: so gut wie immer
+        { id = 2687, kind = "resource", when = "ready", side = true, need = { rage = { max = 80 } },
+          guess = T("Die Wut-Grenze ist geschätzt („so gut wie immer“).", "The rage limit is estimated (“almost always”)."),
           text = T("Beim Leveln, wann immer er bereit ist.", "While levelling whenever it is ready.") },    -- Blutrausch / Bloodrage
         -- Im Kampf (Reihenfolge = Rang)
         { id = 6673, kind = "maintain", when = "buff",
           text = T("Halten; im Kampf nur, wenn er fehlt oder ausläuft.", "Keep it up; in combat only when missing or ending.") },    -- Schlachtruf / Battle Shout
-        { id = 23922, key = "shieldslam:rage", kind = "priority", when = "ready", need = { rage = { min = 40 } },    -- Annahme: „genug Wut“
+        { id = 23922, key = "shieldslam:rage", kind = "priority", when = "ready", need = { rage = { min = 40 } },
+          guess = T("„Genug Wut“ ist als Zahl geschätzt.", "“Enough rage” is estimated as a number."),
           text = T("Sobald gelernt dein Hauptangriff, solange die Wut reicht.", "Once learned your main attack while rage allows.") },    -- Schildschlag / Shield Slam
         { id = 6572, kind = "priority", when = "reactive",
           text = T("Dein Hauptangriff: sobald freigeschaltet.", "Your main attack: as soon as it unlocks.") },    -- Rache / Revenge
         { id = 23922, kind = "priority", when = "ready",
           text = T("Bei wenig Wut erst nach {6572}.", "At low rage only after {6572}.") },    -- Schildschlag / Shield Slam
-        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },    -- Annahme: Näherung für „stirbt gleich“
+        { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },
+          guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
           text = T("Früh setzen; erst nach Ablauf erneuern.", "Apply early; renew only after it ends.") },    -- Verwunden / Rend
-        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,    -- Annahme: 5 Sekunden vor Ablauf
+        { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,
           need = { grouped = true },
+          guess = T("Erneuern 5 Sek. vor Ablauf ist geschätzt.", "Refreshing 5 sec before it ends is estimated."),
           text = T("In der Gruppe: 5 Stapel aufbauen und halten.", "In a group: build 5 stacks and keep them.") },    -- Rüstung zerreißen / Sunder Armor
         { id = 7386, key = "sunder:elite", kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,
           need = { solo = true, enemy = { rank = ELITE } },

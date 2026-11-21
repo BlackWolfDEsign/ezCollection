@@ -10,9 +10,11 @@ local Core = ezCore
     1. Knopf „Klick-Zauber“ im Makro-Browser (unter „Anpassen“): legt das gewählte Makro über ezCores Dienst
        Core.ClickBindings auf eine Maustaste mit Umschalttaste – Blizzards Klick-Zaubern, wirkt auf Gruppen- und
        Raidrahmen. Ablauf: Taste im Menü wählen (je Taste steht dabei, was heute dort liegt) → Rückfrage (Core.Confirm)
-       → fehlt das Makro in Blizzards Makroverwaltung, legt ezMacro es zuerst an → CB.Assign(CB.Macro(name, taste,
-       umschalttasten), { owner = "ezMacro" }). Nur außerhalb des Kampfes; ezCore sichert die alte Belegung
-       (Core.ClickBindings.Restore) und lässt „Ziel“ und „Menü“ auf ihren Tasten.
+       → fehlt das Makro in Blizzards Makroverwaltung, legt ezMacro es zuerst an → ClickCast.Assign. Geschrieben wird
+       seit dem Paket ezmacro/klickzauber-besitzer von EINEM Besitzer: Läuft ezHeal, über ezCore.API("ezHeal").AssignMacro
+       (ezHeal ist die Klick-Schicht, seine Merkliste und „Zurück“ bleiben stimmig); nur ohne ezHeal wie bisher
+       CB.Assign(CB.Macro(name, taste, umschalttasten), { owner = "ezMacro" }). Nur außerhalb des Kampfes; ezCore
+       sichert die alte Belegung (Core.ClickBindings.Restore) und lässt „Ziel“ und „Menü“ auf ihren Tasten.
 
     2. Gruppe „Heilen und Buffen per Klick“ im Reiter „Makros“ (eigene Auswahl): Maus-über-Makros für Heilen,
        Bannen, Wiederbeleben und Buffs auf Mitspieler.
@@ -73,6 +75,16 @@ function ClickCast.KeyText(button, modifiers)
     return Core.ClickBindings.KeyText(button, modifiers)
 end
 
+-- Roter Faden (Spieltest 20.11.2026, wörtlich „Klick-Zauber muss auch klar erklärt werden, wann wo(rahmen, makro,
+-- fähigkeit) welche tasten(kombi) wie verwendet wird, sonst fehlt der rote faden und verständnis“): Leiste, Rahmen und
+-- Fähigkeit in drei Zeilen, dazu die Tasten aus ClickCast.KEYS (eine Quelle für Menü und Text). → Text
+function ClickCast.Guide()
+    local keys = {}
+    for _, key in ipairs(ClickCast.KEYS) do keys[#keys + 1] = ClickCast.KeyText(key[1], key[2]) end
+    return table.concat({ L.CLICK_GUIDE_HEAD, L.CLICK_GUIDE_BAR, L.CLICK_GUIDE_FRAME, L.CLICK_GUIDE_SPELL,
+        L.CLICK_GUIDE_KEYS:format(table.concat(keys, ", ")) }, "\n")
+end
+
 -- Was liegt heute auf einer Taste? → Text (Zaubername samt Rang aus ezMacros Zauberwissen, wenn es ihn kennt)
 function ClickCast.Describe(entry)
     local spellName = type(entry) == "table" and entry.kind == "spell" and entry.id ~= nil and ns.SpellName(entry.id) or nil
@@ -112,11 +124,30 @@ end
 -- Belegen
 ---------------------------------------------------------------------------
 
+-- Ein Besitzer der Klick-Belegung (Paket ezmacro/klickzauber-besitzer; Entscheidung des Nutzers vom 13.11.2026:
+-- „ezHeal bleibt die Klick-Schicht“): Läuft ezHeal, schreibt ezHeal (ezCore.API("ezHeal").AssignMacro) – seine
+-- Merkliste und sein „Zurück“ wissen dann, dass auf der Taste jetzt ein Makro liegt. Nur ohne ezHeal schreibt ezMacro
+-- wie bisher selbst über ezCore (dann gibt es keinen zweiten Schreiber). → Schnittstelle von ezHeal | nil
+function ClickCast.Owner()
+    local api = Core.API and Core.API("ezHeal")
+    if type(api) == "table" and type(api.AssignMacro) == "function" then return api end
+    return nil
+end
+
 -- Makro (Name) auf die Taste legen. → true | false, grund ("combat" heißt: kommt nach dem Kampf)
 function ClickCast.Assign(name, button, modifiers)
     local cb = CB()
     if not (cb and cb.Writable()) then return false, "missing" end
     if ns.InCombat() then return false, "combat" end
+    local owner = ClickCast.Owner()
+    if owner then
+        -- ein Fehler in ezHeal landet in ezCores Fehlerliste unter ezHeal (Core.Try), die Taste bleibt, wie sie war
+        local ok, done, reason = Core.Try("ezHeal", "AssignMacro (ezMacro)", owner.AssignMacro, name, button, modifiers,
+            { via = "ezMacro" })
+        if not ok then return false, "ownerError" end
+        if done ~= true then return false, reason or "ownerError" end
+        return true, reason
+    end
     local entry, why = cb.Macro(name, button, modifiers)
     if not entry then return false, why or "invalid" end
     return cb.Assign(entry, { owner = "ezMacro" })
@@ -186,12 +217,15 @@ function ClickCast.Menu(owner, entry, name, body, perChar)
         return false
     end
     local list = Current()
+    local clean = ns.Import.CleanName(name)
     Menu.Open(owner, function(root)
-        Menu.Title(root, L.CLICK_MENU_TITLE:format(ns.Import.CleanName(name)))
+        Menu.Title(root, L.CLICK_MENU_TITLE:format(clean))
         for _, key in ipairs(ClickCast.KeysFor(entry)) do
-            local label = ClickCast.KeyText(key[1], key[2]) .. " – " .. ClickCast.CurrentOn(key[1], key[2], list)
+            local keyText, now = ClickCast.KeyText(key[1], key[2]), ClickCast.CurrentOn(key[1], key[2], list)
+            local label = keyText .. " – " .. now
             if key.suggested then label = label .. " " .. L.CLICK_SUGGESTED end
-            Menu.Button(root, label, function() ClickCast.Ask(entry, name, body, perChar, key[1], key[2]) end)
+            local item = Menu.Button(root, label, function() ClickCast.Ask(entry, name, body, perChar, key[1], key[2]) end)
+            if item then Menu.Tip(item, keyText, L.CLICK_MENU_KEY_TIP:format(keyText, clean, now)) end
         end
     end)
     return true
@@ -211,12 +245,14 @@ function ClickCast.IsClickMacro(body)
     return body:find("@mouseover,help", 1, true) ~= nil or body:find("@mouseover,exists", 1, true) ~= nil
 end
 
--- Mitglied unter der Maus zuerst, nie auf das Ziel durchrutschen (ns.GroupFirst, Spieltest 15.11.2026)
+-- Mitglied unter der Maus zuerst, nie auf das Ziel durchrutschen (ns.GroupFirst, Spieltest 15.11.2026). Die Kette baut
+-- ezCores Makro-Logik (Spells.MacroCondition; Paket ezmacro/ssot-doppelungen – vorher fester Text hier):
+-- Heilen „Maus, sonst Ziel, sonst du“, Wiederbeleben „tote Maus, sonst totes Ziel, sonst ohne Bedingung“.
+local HEAL_CHAIN, RES_CHAIN = { "mouseover", "target", "player" }, { "mouseover", "target", "any" }
 local function HealBody(slot, spellID)
-    if RES_SLOTS[slot] then
-        return ns.GroupFirst(("#showtooltip\n/cast [@mouseover,help,dead][help,dead][] {s:%d}"):format(spellID))
-    end
-    return ns.GroupFirst(("#showtooltip\n/cast [@mouseover,help,nodead][help,nodead][@player] {s:%d}"):format(spellID))
+    local Cond = Core.Spells.MacroCondition
+    local cond = RES_SLOTS[slot] and Cond(nil, "dead", RES_CHAIN) or Cond(nil, "help", HEAL_CHAIN)
+    return ns.GroupFirst(("#showtooltip\n/cast %s {s:%d}"):format(cond, spellID))
 end
 
 -- Aus ezHeals Vorlagen → Liste | nil (ezHeal nicht geladen oder ohne Vorlage für diese Klasse)
@@ -270,4 +306,36 @@ function ClickCast.Entries()
     local list = FromHeal()
     if list then return list, "ezHeal" end
     return FromClass(), "class"
+end
+
+---------------------------------------------------------------------------
+-- „Durchbuffen“ aus ezBuff im Reiter „Ein-Klick“ (Paket ezmacro/klickzauber-besitzer; Frage des Nutzers vom 20.11.2026:
+-- „Zum Rahmen klick - ezheal und ezbuff - sind diese sinnvoll mit ezMacro nutzbar? --> so dass ich z.b. schnell alle
+-- durchbuffen kann?“). Den Text liefert ezBuff (ezCore.API("ezBuff").GroupMacro: „#showtooltip <Buff>“ und
+-- „/click ezBuffGroupNext“) – ezMacro baut nichts nach. Jeder Druck drückt ezBuffs sicheren Knopf: ein Buff je Druck
+-- auf das nächste Mitglied, dem einer fehlt, nur außerhalb des Kampfes (ezBuff, Group.lua). Dieselbe Funktion liegt
+-- auch auf einer eigenen Taste (Blizzards Tastaturbelegung „ezBuff: Durchbuffen“, ezCore.Keys „buffNext“).
+---------------------------------------------------------------------------
+
+-- Name des sicheren Knopfs aus ezCores Tastenliste (eine Stelle mit ezBuff und Core.MacroBadge)
+local function GroupButton()
+    local keys = Core.Keys
+    local entry = keys and type(keys.Get) == "function" and keys.Get("buffNext") or nil
+    return type(entry) == "table" and entry.button or nil
+end
+
+-- Text | nil, Grund ("noBuff": ezBuff läuft nicht, "no_groupBuff": deine Klasse hat keinen Buff auf andere)
+function ClickCast.GroupBuffLines()
+    local api = Core.API and Core.API("ezBuff")
+    if type(api) ~= "table" or type(api.GroupMacro) ~= "function" then return nil, "noBuff" end
+    local ok, text = Core.Try("ezMacro", "ClickCast.GroupBuffLines", api.GroupMacro)
+    text = ok and Plain(text) or nil
+    if type(text) ~= "string" or text == "" then return nil, "no_groupBuff" end
+    return text
+end
+
+ns.Dynamic.Register("buffNext", ClickCast.GroupBuffLines)
+do
+    local button = GroupButton()
+    if button then ns.OneClick.SHAPES.buffNext = "^#showtooltip[^\n]*\n/click " .. button:gsub("%W", "%%%0") .. "$" end
 end

@@ -18,6 +18,8 @@ local Core = ezCore
                                              allgemeine, nil: das erste. GetMacroIndexByName nennt nur den ersten Treffer
                                              (allgemeine kommen zuerst) – dann wird der andere Bereich einzeln gefragt.
       Core.Macro.NameLength(name)          » Länge in Zeichen (UTF-8), so misst Write die Grenze MAX_NAME
+      Core.Macro.WeaponItem(itemID, platz) » „/use item:<id>“ und „/use <platz>“: Gegenstand auf die Waffe des Platzes
+                                             (16 Waffenhand, 17 Schildhand; Form Core.Macro.WEAPON_ITEM)
       Core.Macro.Write(name, symbol, text, perChar, index)
                                            » Index | nil, Grund ("combat" | "api" | "long" | "name" | "full" | "failed").
                                              Mit index wird dieses Makro geändert (symbol nil: es behält seins), sonst
@@ -86,6 +88,16 @@ function Macro.Find(name, perChar)
         if n == name then return i, body end
     end
     return nil
+end
+
+-- Gegenstand auf eine Waffe auftragen (Gift, Wetzstein, Öl): „/use item:<id>“ nimmt den Gegenstand, die zweite Zeile
+-- „/use <platz>“ wählt die Waffe dieses Platzes als Ziel – wie Blizzards eigene Makros; ein Tastendruck, eine Aktion.
+-- Eine Form für ezBuff (Weapon.Macro) und ezMacro (Vorlagen „Gift Waffenhand“/„Gift Schildhand“). → Text | nil
+Macro.WEAPON_ITEM = "/use item:%d\n/use %d"
+function Macro.WeaponItem(itemID, slot)
+    itemID, slot = Core.Num(itemID), Core.Num(slot)
+    if not (itemID and slot) then return nil end
+    return Macro.WEAPON_ITEM:format(itemID, slot)
 end
 
 -- Länge eines Makronamens in Zeichen (UTF-8): Blizzards Makrofenster nimmt 16 Zeichen, „Großer Segen der“ hat

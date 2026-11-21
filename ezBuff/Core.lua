@@ -54,6 +54,14 @@ ns.DEFAULTS = {
     -- die eine Stelle (Einstellungs-Prüfung 19.11.2026, Nr. 76)
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+ns.AGREE = {
+    campfire = "on", longRighteousFury = "choice",
+}
+
 -- Grenzen der Regler und Werte der Auswahlfelder – eine Stelle für die Einstellungsseite (Options.lua) und die
 -- Prüfung der Profile (Profiles.lua, Welle 23).
 ns.LIMITS = { minLeft = { 0, 10 }, groupMin = { 1, 10 } }   -- groupMin 1 = Gruppenfassung aus
@@ -84,6 +92,11 @@ Core.NewModule(ADDON, ns, {
         "Menu.PlayerMenus", "Debug.AddLine",
         -- A3 gemeinsamer Leser der Waffenverzauberung, A4 Waffenzauber des Schamanen
         "WeaponEnchantInfo", "Spells.WeaponImbues", "Spells.BestImbueRank",
+        -- Paket ezmacro/gifte-waffenzauber (ohne neue Nummer): Regel „bester Gegenstand“, Makro „Gegenstand auf die
+        -- Waffe“ und Reihenfolge der Waffenzauber aus ezCore (eine Quelle mit ezMacro)
+        "BestItems.Score", "BestItems.Usable", "Macro.WeaponItem", "Spells.IMBUE_ORDER", "Spells.OrderedImbues", "Spells.ChooseImbue", "WeaponEnchantable",
+        -- Paket ezcore/klinge-wucht (ohne neue Nummer): je Hand nur, was die Waffe annimmt (Client-Tabelle SpellEquippedItems)
+        "BestItems.PickWeaponEnchant",
         -- A2 Profil-Gerüst (vergisst Charaktere selbst) und Übernehmen eines Werts
         "NewProfiles", "ApplySetting",
         -- Welle 26 (ezCore-Paket kern/ezcore-reste-24, ohne neue Nummer): „Was fehlt für diesen Zauber?“ aus ezCore
@@ -119,6 +132,9 @@ Core.NewModule(ADDON, ns, {
 -- Nachricht an andere Module ins Verzeichnis von ezCore (Core.MESSAGES; UE-15): Der Name trägt das Modul.
 Core.RegisterMessage("EZBUFF_TASKS", "ezBuff",
     "Nach jeder Prüfung von ezBuff: die Liste fehlender Buffs ist neu (lesen über ezCore.API(\"ezBuff\").Missing). Zuhörer: ezCombat, ezBuff/Panel.lua.")
+Core.RegisterMessage("EZBUFF_PREFER_CHANGED", "ezBuff",
+    "Die gemerkte Wahl einer Wahlgruppe hat sich geändert (Auswahl, Rechtsklick-Menü oder selbst gewirkt; lesen über ezCore.API(\"ezBuff\").Preferred). Zuhörer: ezMacro (Vorlage „Waffenzauber“).",
+    "gruppe")
 
 -- Klasse vor allen übrigen OnReady-Aufgaben (vorher im eigenen PLAYER_LOGIN); ns.charKey setzt das Gerüst.
 ns.OnReady(function() ns.playerClass = Core.PlayerClass() end)
@@ -392,6 +408,13 @@ ns.API = {
     Watches = function(value) return ns.Check ~= nil and ns.Check.Watches(value) == true end,
     -- Neu prüfen (z. B. nach eigenem Bufffen); wirkt nur außerhalb des Kampfes.
     Refresh = function() if ns.Check then ns.Check.Request() end end,
+    -- Makro „Durchbuffen“ (Macro.lua: „#showtooltip <Buff>“ und „/click ezBuffGroupNext“) für ezMacros Reiter „Ein-Klick“
+    -- (Paket ezmacro/klickzauber-besitzer) → Text, Name | nil, "unsupported" (Klasse ohne Buff auf andere)
+    GroupMacro = function()
+        if not (ns.Macro and ns.Group) then return nil, "unsupported" end
+        if not ns.Macro.Supported(ns.playerClass) then return nil, "unsupported" end
+        return ns.Macro.Body(ns.playerClass), ns.Macro.Name()
+    end,
     -- Gemerkte Wahl einer Wahlgruppe („blessing“, „armor“, „shield“, „imbue“) → Buff-Schlüssel oder nil (keine Wahl:
     -- dann gilt ezCore.Spells.ChooseBuff ohne prefer). Gilt auch, wenn ein Buff der Gruppe schon liegt oder
     -- „Eigene Klassen-Buffs“ aus ist – so zeigen ezBuff und ezCombat denselben Buff („Gemerkte Wahl gewinnt“).

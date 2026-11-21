@@ -18,18 +18,25 @@ local HEALTHSTONES = CONJURED and CONJURED.healthstone and CONJURED.healthstone.
 -- Gesamtreview 18.11.2026, T14-NH6). Feuersbrunst steht mit der Grund-ID 1293817 (Rang 1, Talent; vorher 17962,
 -- Rang 3 ab Stufe 40 – der Schlüssel des Schritts bleibt für gemerkte Anpassungen).
 --   Gebrechen:    https://www.icy-veins.com/wow-forever/affliction-warlock-ranged-dps-pve-rotation-cooldowns-abilities
+--                 (Stand 16.11.2026, „Wrack“-Änderung, nachgeprüft 20.11.2026: Fluch, Verderbnis, Pein samt Fluch
+--                 verstärken, Schattenblitz bei Nachtfall, Lebensentzug, Aderlass, Zermürben; Feuerbrand und Verdammnis
+--                 nennt die Seite für Gebrechen nicht mehr – beide nur noch zum Einschalten)
 --                 https://www.icy-veins.com/wow-forever/affliction-warlock-leveling
 --                 https://www.icy-veins.com/wow-forever/affliction-warlock-ranged-dps-pve-guide
 --   Dämonologie:  https://www.icy-veins.com/wow-forever/demonology-warlock-ranged-dps-pve-rotation-cooldowns-abilities
+--                 (nachgeprüft 20.11.2026: Decimation 440870 stärkt Schattenblitz und Sengender Schmerz unter 35 % –
+--                  kein Seelenfeuer-Schritt)
 --                 https://www.icy-veins.com/wow-forever/demonology-warlock-leveling
 --                 https://www.icy-veins.com/wow-forever/demonology-warlock-ranged-dps-pve-guide
 --   Zerstörung:   https://www.icy-veins.com/wow-forever/destruction-warlock-ranged-dps-pve-rotation-cooldowns-abilities
+--                 (Stand 04.11.2026, nachgeprüft 20.11.2026: ein neuer Bann ersetzt den alten – Gruppe "bane" belegt;
+--                 Seelenfeuer 6353 nennt die Seite nicht)
 --                 https://www.icy-veins.com/wow-forever/destruction-warlock-leveling
 --                 https://www.icy-veins.com/wow-forever/destruction-warlock-ranged-dps-pve-guide
 --
 -- Der Client ist die Quelle für Name, Symbol, Ränge, gelernt, Lernstufe, Kosten, Zauberzeit, Abklingzeit und Dauer.
 -- Hier stehen nur Zauber-ID (Rang 1) und Logik. Zahlen sind Schwellen der Logik; wo keine Quelle eine Zahl nennt,
--- steht „Annahme“. [V] am Namens-Kommentar: ID oder Annahme nicht im Spiel bestätigt (/ez test meldet unbekannte IDs).
+-- sagt es das Feld guess (Tooltip „Annahme: …“). [V] am Namens-Kommentar: ID oder Annahme nicht im Spiel bestätigt (/ez test meldet unbekannte IDs).
 --
 -- Sechs Rotationen: je Baum eine für die Höchststufe bzw. den fertigen Aufbau (Schlüssel wie bisher) und eine fürs
 -- Leveln. „Nach Talentbaum“ wählt über pick: Gebrechen und Dämonologie nach Stufe (unter der Höchststufe die
@@ -56,10 +63,10 @@ ns.RotationData.Add("WARLOCK", {
       sources = { "https://www.icy-veins.com/wow-forever/affliction-warlock-ranged-dps-pve-guide",
                   "https://www.icy-veins.com/wow-forever/affliction-warlock-leveling" },
       pick = { leveling = false },
-      how = T("Vor dem Kampf stehen Rüstung, Dämon und Waffenstein. Im Kampf hältst du ein Omen und deine DoTs auf dem Ziel und erneuerst sie erst, wenn sie abgelaufen sind – {348} so, dass er beim Ablauf landet. {17941} macht den nächsten {686} sofort wirkbar: gleich nutzen. Dazwischen füllt {1316697}; der Kanal darf für einen fälligen DoT abbrechen. Mana holst du mit {1454}, am besten im Laufen.",
-              "Before combat: armor, demon and weapon stone. In combat keep one bane and your DoTs on the target and renew them only once they have ended – cast {348} so it lands as the old one ends. {17941} makes your next {686} instant: use it at once. {1316697} fills the gaps; you may clip the channel for a DoT that is due. Get mana back with {1454}, ideally while moving."),
-      note = T("Lebenszeit des Ziels und Gegnerzahl sieht ezCombat nicht: {603} nur gegen Elite und Bosse, Fläche und DoTs auf einem zweiten Ziel nur als Liste. Die Quelle nennt {1316697} und {686} beide als Füller, je nach Aufbau.",
-               "ezCombat can't see time to live or enemy count: {603} on elites and bosses only, AoE and DoTs on a second target are list only. The source names both {1316697} and {686} as filler, depending on the build."),
+      how = T("Vor dem Kampf stehen Rüstung, Dämon und Waffenstein. Im Kampf hältst du ein Omen und deine DoTs auf dem Ziel und erneuerst sie erst, wenn sie abgelaufen sind. {17941} macht den nächsten {686} sofort wirkbar: gleich nutzen. Dazwischen füllt {1316697}; der Kanal darf für einen fälligen DoT abbrechen. Mana holst du mit {1454}, am besten im Laufen.",
+              "Before combat: armor, demon and weapon stone. In combat keep one bane and your DoTs on the target and renew them only once they have ended. {17941} makes your next {686} instant: use it at once. {1316697} fills the gaps; you may clip the channel for a DoT that is due. Get mana back with {1454}, ideally while moving."),
+      note = T("{603} und {348} nennt die Quelle seit dem 16.11.2026 für Gebrechen nicht mehr – beide sind zum Einschalten. Lebenszeit des Ziels und Gegnerzahl sieht ezCombat nicht: {603} nur gegen Elite und Bosse, Fläche und DoTs auf einem zweiten Ziel nur als Liste. Die Quelle nennt {1316697} und {686} beide als Füller, je nach Aufbau.",
+               "Since 16 Nov 2026 the source no longer lists {603} and {348} for Affliction – both are opt-in. ezCombat can't see time to live or enemy count: {603} on elites and bosses only, AoE and DoTs on a second target are list only. The source names both {1316697} and {686} as filler, depending on the build."),
       steps = {
         -- Vor dem Kampf (eigene Auswertung, im Kampf nie) ----------------------------------------------------------
         { id = 706, kind = "longbuff", buff = "armor", when = "buff",
@@ -76,29 +83,31 @@ ns.RotationData.Add("WARLOCK", {
         { id = 693, kind = "prepare", when = "manual",
           text = T("In der Gruppe: auf den abgesprochenen Spieler legen.", "In a group: put it on the agreed player.") },    -- Seelenstein herstellen / Create Soulstone [V]
         -- Eröffnung -------------------------------------------------------------------------------------------------
-        { id = 348, key = "opener:348", kind = "opener", when = "dot", refresh = "missing", need = { combat = false },
+        { id = 348, key = "opener:348", kind = "opener", when = "dot", refresh = "missing", optional = true, need = { combat = false },
           text = T("Aus der Ferne vorzaubern, danach die sofortigen Dauerschaden-Zauber.", "Pre-cast from range, then your instant damage-over-time spells.") },    -- Feuerbrand / Immolate
         -- Im Kampf (Reihenfolge = Rang) -----------------------------------------------------------------------------
-        { id = 603, kind = "maintain", when = "dot", group = "bane", refresh = "missing",
+        { id = 440892, kind = "maintain", when = "dot", group = "curse", refresh = "missing", optional = true,
+          text = T("Dein zugeteilter Fluch (ohne Absprache: dieser).", "Your assigned curse (without a call: this one).") },    -- Fluch der Elemente / Curse of the Elements [V]
+        { id = 172, kind = "maintain", when = "dot", refresh = "cast",
+          text = T("Fehlt: setzen. Nicht vorzeitig erneuern.", "Missing: apply. Don't renew early.") },    -- Verderbnis / Corruption
+        { id = 603, kind = "maintain", when = "dot", group = "bane", refresh = "missing", optional = true,
           need = { enemy = { rank = { "elite", "rareelite", "worldboss" } } },
           text = T("Nur in langen Kämpfen (Elite, Boss); nie überschreiben.", "Long fights only (elite, boss); never overwrite it.") },    -- Omen der Verdammnis / Bane of Doom [V]
         { id = 18288, kind = "priority", when = "ready", need = { noaura = { id = "bane", unit = "target" } },
           text = T("Direkt vor einem neuen {980}; nie vor {603}.", "Right before a new {980}; never before {603}.") },    -- Fluch verstärken / Amplify Curse
         { id = 980, kind = "maintain", when = "dot", group = "bane", refresh = "missing",
           text = T("Kein Omen auf dem Ziel: setzen. Erst nach Ablauf erneuern.", "No bane on the target: apply. Renew only after it ends.") },    -- Omen der Pein / Bane of Agony
-        { id = 440892, kind = "maintain", when = "dot", group = "curse", refresh = "missing", optional = true,
-          text = T("Dein zugeteilter Fluch (ohne Absprache: dieser).", "Your assigned curse (without a call: this one).") },    -- Fluch der Elemente / Curse of the Elements [V]
-        { id = 172, kind = "maintain", when = "dot", refresh = "cast",
-          text = T("Fehlt: setzen. Nicht vorzeitig erneuern.", "Missing: apply. Don't renew early.") },    -- Verderbnis / Corruption
-        { id = 18265, kind = "maintain", when = "dot", refresh = "missing",
-          text = T("Fehlt: setzen. Erst nach Ablauf erneuern.", "Missing: apply. Renew only after it ends.") },    -- Lebensentzug / Siphon Life
-        { id = 348, kind = "maintain", when = "dot", refresh = "cast",
-          text = T("So wirken, dass er beim Ablauf des alten landet.", "Cast so it lands as the old one ends.") },    -- Feuerbrand / Immolate
         { id = 686, key = "proc:686", kind = "priority", when = "proc", aura = 17941,
           text = T("Bei {17941}: sofort.", "On {17941}: at once.") },    -- Schattenblitz / Shadow Bolt
-        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },    -- Annahme: die Quelle bevorzugt das Laufen, nennt aber keine Zahl
+        { id = 18265, kind = "maintain", when = "dot", refresh = "missing",
+          text = T("Fehlt: setzen. Erst nach Ablauf erneuern.", "Missing: apply. Renew only after it ends.") },    -- Lebensentzug / Siphon Life
+        { id = 348, kind = "maintain", when = "dot", refresh = "cast", optional = true,
+          text = T("So wirken, dass er beim Ablauf des alten landet.", "Cast so it lands as the old one ends.") },    -- Feuerbrand / Immolate
+        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },
+          guess = T("Die Mana-Grenze im Laufen ist geschätzt; die Quelle nennt keine Zahl.", "The mana limit while moving is estimated; the source gives no number."),
           text = T("Im Laufen schon früher auffüllen; achte auf dein Leben.", "While moving, top up earlier; mind your health.") },    -- Aderlass / Life Tap
-        { id = 1454, kind = "resource", when = "lowmana", max = 30,    -- Annahme: keine Quelle nennt eine Zahl
+        { id = 1454, kind = "resource", when = "lowmana", max = 30,
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Bei wenig Mana, bevor es ganz leer ist; achte auf dein Leben.", "On low mana, before it runs dry; mind your health.") },    -- Aderlass / Life Tap
         { id = 1316697, kind = "filler", when = "filler",
           text = T("Lückenfüller, solange aller Dauerschaden läuft; Abbrechen ist erlaubt.", "Gap filler while all damage over time runs; you may cut it short.") },    -- Zermürben / Wrack
@@ -168,9 +177,11 @@ ns.RotationData.Add("WARLOCK", {
           text = T("Hat hier Zauberzeit: so wirken, dass sie beim Ablauf landet.", "Has a cast time here: cast so it lands as the old one ends.") },    -- Verderbnis / Corruption
         { id = 686, key = "proc:686", kind = "priority", when = "proc", aura = 17941,
           text = T("Bei {17941}: sofort.", "On {17941}: at once.") },    -- Schattenblitz / Shadow Bolt
-        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },    -- Annahme: die Quelle bevorzugt das Laufen, nennt aber keine Zahl
+        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },
+          guess = T("Die Mana-Grenze im Laufen ist geschätzt; die Quelle nennt keine Zahl.", "The mana limit while moving is estimated; the source gives no number."),
           text = T("Im Laufen schon früher auffüllen; achte auf dein Leben.", "While moving, top up earlier; mind your health.") },    -- Aderlass / Life Tap
-        { id = 1454, kind = "resource", when = "lowmana", max = 30,    -- Annahme: keine Quelle nennt eine Zahl
+        { id = 1454, kind = "resource", when = "lowmana", max = 30,
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Bei wenig Mana; dein Leben muss einen Treffer aushalten.", "On low mana; your health must survive a hit.") },    -- Aderlass / Life Tap
         { id = 686, kind = "filler", when = "filler",
           text = T("Lückenfüller, wenn nichts Höheres ansteht.", "Gap filler when nothing higher is due.") },    -- Schattenblitz / Shadow Bolt
@@ -235,9 +246,11 @@ ns.RotationData.Add("WARLOCK", {
         { id = 17877, kind = "priority", when = "buff", aura = 426316, refresh = 3,    -- 3: Schwelle aus der Quelle (Rest des Bonus)
           need = { known = 412758, item = { id = 6265, min = 1 } },
           text = T("Nur wenn sein Feuer-Bonus fehlt oder gleich endet.", "Only when its fire bonus is missing or about to end.") },    -- Schattenbrand / Shadowburn [V Aura-ID, Gegenstands-ID]
-        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },    -- Annahme: die Quelle bevorzugt das Laufen, nennt aber keine Zahl
+        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },
+          guess = T("Die Mana-Grenze im Laufen ist geschätzt; die Quelle nennt keine Zahl.", "The mana limit while moving is estimated; the source gives no number."),
           text = T("Im Laufen schon früher auffüllen; achte auf dein Leben.", "While moving, top up earlier; mind your health.") },    -- Aderlass / Life Tap
-        { id = 1454, kind = "resource", when = "lowmana", max = 30,    -- Annahme: keine Quelle nennt eine Zahl
+        { id = 1454, kind = "resource", when = "lowmana", max = 30,
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Bevor das Mana leer ist – nie so tief, dass ein Treffer tötet.", "Before you run dry – never so low that one hit kills you.") },    -- Aderlass / Life Tap
         { id = 412758, kind = "filler", when = "filler",
           text = T("Lückenfüller, wenn nichts Höheres ansteht.", "Gap filler when nothing higher is due.") },    -- Verbrennen / Incinerate
@@ -303,9 +316,11 @@ ns.RotationData.Add("WARLOCK", {
           text = T("Auf jedem Ziel nach den Sofort-DoTs; erneuern, wenn der alte endet.", "On every target after your instant DoTs; renew as the old one ends.") },    -- Feuerbrand / Immolate
         { id = 686, key = "proc:686", kind = "priority", when = "proc", aura = 17941,
           text = T("Bei {17941}: sofort.", "On {17941}: at once.") },    -- Schattenblitz / Shadow Bolt
-        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },    -- Annahme: die Quelle bevorzugt das Laufen, nennt aber keine Zahl
+        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },
+          guess = T("Die Mana-Grenze im Laufen ist geschätzt; die Quelle nennt keine Zahl.", "The mana limit while moving is estimated; the source gives no number."),
           text = T("Im Laufen schon früher auffüllen; achte auf dein Leben.", "While moving, top up earlier; mind your health.") },    -- Aderlass / Life Tap
-        { id = 1454, kind = "resource", when = "lowmana", max = 30,    -- Annahme: keine Quelle nennt eine Zahl
+        { id = 1454, kind = "resource", when = "lowmana", max = 30,
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Bei wenig Mana, bevor es ganz leer ist; achte auf dein Leben.", "On low mana, before it runs dry; mind your health.") },    -- Aderlass / Life Tap
         { id = 1316697, kind = "filler", when = "filler",
           text = T("Lückenfüller, sobald gelernt; für Dauerschaden darfst du abbrechen.", "Gap filler once learned; you may cut it short for damage over time.") },    -- Zermürben / Wrack
@@ -375,9 +390,11 @@ ns.RotationData.Add("WARLOCK", {
           text = T("Auf jedem Ziel nach den Sofort-DoTs; erneuern, wenn der alte endet.", "On every target after your instant DoTs; renew as the old one ends.") },    -- Feuerbrand / Immolate
         { id = 686, key = "proc:686", kind = "priority", when = "proc", aura = 17941,
           text = T("Bei {17941}: sofort.", "On {17941}: at once.") },    -- Schattenblitz / Shadow Bolt
-        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },    -- Annahme: die Quelle bevorzugt das Laufen, nennt aber keine Zahl
+        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },
+          guess = T("Die Mana-Grenze im Laufen ist geschätzt; die Quelle nennt keine Zahl.", "The mana limit while moving is estimated; the source gives no number."),
           text = T("Im Laufen schon früher auffüllen; achte auf dein Leben.", "While moving, top up earlier; mind your health.") },    -- Aderlass / Life Tap
-        { id = 1454, kind = "resource", when = "lowmana", max = 30,    -- Annahme: keine Quelle nennt eine Zahl
+        { id = 1454, kind = "resource", when = "lowmana", max = 30,
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Bei wenig Mana; dein Leben muss einen Treffer aushalten.", "On low mana; your health must survive a hit.") },    -- Aderlass / Life Tap
         { id = 5019, kind = "filler", when = "autorepeat",
           text = T("Lückenfüller beim Leveln: spart Mana, bis der Gegner fällt.", "Levelling gap filler: saves mana until the enemy dies.") },    -- Schießen / Shoot [V]
@@ -433,9 +450,11 @@ ns.RotationData.Add("WARLOCK", {
           text = T("So wirken, dass er beim Ablauf des alten landet.", "Cast so it lands as the old one ends.") },    -- Feuerbrand / Immolate
         { id = 172, kind = "maintain", when = "dot", refresh = "cast",
           text = T("Nur auf Gegner, die lange genug leben; nie vorzeitig.", "Only on enemies that live long enough; never early.") },    -- Verderbnis / Corruption
-        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },    -- Annahme: die Quelle bevorzugt das Laufen, nennt aber keine Zahl
+        { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },
+          guess = T("Die Mana-Grenze im Laufen ist geschätzt; die Quelle nennt keine Zahl.", "The mana limit while moving is estimated; the source gives no number."),
           text = T("Im Laufen schon früher auffüllen; achte auf dein Leben.", "While moving, top up earlier; mind your health.") },    -- Aderlass / Life Tap
-        { id = 1454, kind = "resource", when = "lowmana", max = 30,    -- Annahme: keine Quelle nennt eine Zahl
+        { id = 1454, kind = "resource", when = "lowmana", max = 30,
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Bevor das Mana leer ist – nie so tief, dass ein Treffer tötet.", "Before you run dry – never so low that one hit kills you.") },    -- Aderlass / Life Tap
         { id = 686, kind = "filler", when = "filler",
           text = T("Lückenfüller, bis du den Lückenfüller des Baums gelernt hast.", "Gap filler until you learn the gap filler of this tree.") },    -- Schattenblitz / Shadow Bolt

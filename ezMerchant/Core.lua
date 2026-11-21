@@ -63,6 +63,15 @@ ns.DEFAULTS = {
     petTrain = true,        -- Tierausbilder: sicherer Knopf „Wildtierausbildung“ (öffnet Blizzards Fenster)
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+ns.AGREE = {
+    filterUsable = "choice", filterKnown = "choice", filterAffordable = "choice", filterMissing = "choice",
+    filterUpgrade = "choice",
+}
+
 ns.LIMITS = { columns = { 2, 5 }, rows = { 5, 7 } }
 
 ---------------------------------------------------------------------------

@@ -35,7 +35,8 @@ local function Register()
     page:Checkbox("macroKinds")
 
     page:Header(L.OPT_HEADER_AUTO)
-    -- Grau, solange der Client die Heilvorhersage sperrt und der Schalter aus ist (T14-6, AutoEmote.lua)
+    -- Grau, solange der Client die Heilvorhersage sperrt und der Schalter aus ist (T14-6, AutoEmote.lua); dasselbe
+    -- Prädikat liest ezCores Einführung (ns.SWITCHABLE, Core.Intro.CanSwitchOn)
     local _, thankRow = page:Checkbox("autoThank")
     if type(thankRow) == "table" and thankRow.AddModifyPredicate and ns.Auto and ns.Auto.ThankSwitchable then
         thankRow:AddModifyPredicate(function() return ns.Auto.ThankSwitchable() end)

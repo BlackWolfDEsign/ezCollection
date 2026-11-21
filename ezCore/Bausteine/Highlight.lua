@@ -54,11 +54,15 @@ local Core = ezCore
 -- ASCII, damit jede Schrift es hat. Weiß (Zauberbuch) bleibt ohne Zeichen.
 Core.GLOW_COLORS = {
     white  = { r = 1,   g = 1,    b = 1,    order = 1 },
-    gold   = { r = 1,   g = 0.82, b = 0,    order = 2, natural = true, mark = "*" },
+    gold   = { r = 1,   g = 0.82, b = 0,    order = 2, natural = true, mark = ">" },
     green  = { r = 0.2, g = 1,    b = 0.2,  order = 3, mark = "+" },
-    orange = { r = 1,   g = 0.4,  b = 0,    order = 4, mark = "o" },
+    orange = { r = 1,   g = 0.4,  b = 0,    order = 4, mark = "?" },
     red    = { r = 1,   g = 0.1,  b = 0.1,  order = 5, mark = "!" },
 }
+-- Zeichen je Farbe (Farbenblind-Hilfe, V-043/EC-47): seit dem 21.11.2026 verständlich ohne Legende – Entscheidung des
+-- Nutzers („nochmal zum 2x "o" das versteht doch keiner“, gewählt: „? > + !“, „nur optional anschaltbar,
+-- standardmäßig aus“): Orange „?“ fehlt/erneuern (vorher „o“), Gold „>“ jetzt nutzen (vorher „*“), Grün „+“ bereit,
+-- Rot „!“ sofort. Nur ASCII – die Schrift des Spiels zeichnet ✓ oder ↻ nicht.
 
 -- Zeichen einer Art (über ihre Farbe) oder nil.
 function Core.GlowMark(kind)

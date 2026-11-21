@@ -387,6 +387,11 @@ function Auto.ThankSwitchable()
     if prediction.state == "secret" or prediction.lockedSeen then return false end
     return not PredictionSecret()
 end
+-- Gemeldet an ezCores Einführung (Core.Intro.CanSwitchOn): „Allem zustimmen“ lässt den Schalter dann aus, ihr Kästchen
+-- ist grau – dieselbe Funktion wie das Kästchen in Options.lua (Spieltest 20.11.2026: sonst kam gleich nach dem
+-- Zustimmen die Chatzeile AUTO_LOCKED)
+ns.SWITCHABLE = ns.SWITCHABLE or {}
+ns.SWITCHABLE.autoThank = Auto.ThankSwitchable
 
 -- Heiler-Erkennung: Heilvorhersage, oder – gesperrt – nichts (W-03: ehrlich sagen).
 local function HealMode()

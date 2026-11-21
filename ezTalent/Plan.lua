@@ -408,6 +408,25 @@ function Plan.EntryOf(plan, node)
     return tonumber(type(choices) == "table" and (choices[node.id] or choices[tostring(node.id)]) or nil) or node.entry
 end
 
+-- Ränge je Zauber-ID und Punkte je Baum eines Plans bzw. einer Momentaufnahme ({ tpl = { nodes, choices } }) im
+-- geöffneten Baum – für „Prüfen“ (Templates.Rate, Spieltest 20.11.2026). Eintrag je Knoten wie die Vorschau
+-- (Plan.EntryOf), Schlüssel als Zahl oder Text. → { [Zauber-ID] = Rang }, { Punkte je Baum } (Plan.Split)
+function Plan.SpellRanks(plan, ctx)
+    local ranks = {}
+    local split = Plan.Split(plan, ctx)
+    local nodes = type(plan) == "table" and type(plan.tpl) == "table" and plan.tpl.nodes
+    if type(nodes) ~= "table" or not (type(ctx) == "table" and ctx.configID) then return ranks, split end
+    for _, node in ipairs(Traits.Nodes(ctx.configID, ctx.treeID)) do
+        local rank = tonumber(nodes[node.id] or nodes[tostring(node.id)]) or 0
+        if rank > 0 then
+            local entry = Plan.EntryOf(plan, node)
+            local spell = entry and Traits.EntrySpell(ctx.configID, entry)
+            if spell then ranks[spell] = (ranks[spell] or 0) + rank end
+        end
+    end
+    return ranks, split
+end
+
 -- Was „Übernehmen“ als Erstes setzt (Spieltest 15.11.2026: „ich dachte, das wählt automatisch die richtigen aus“ –
 -- der Kopf sagt es in einem Satz). Dieselbe Regel wie Traits.Apply: mit Reihenfolge zuerst ihr Ausgang
 -- (Traits.BaseRanks) von oben nach unten, dann der erste fehlende Schritt; geht er nicht und reichen die freien Punkte
@@ -561,19 +580,7 @@ ns.API.NextPointChecksFree = true
 ---------------------------------------------------------------------------
 
 local function Store(create)
-    local key = ns.charKey or Core.charKey
-    if not (ns.db and key and type(ns.db.chars) == "table") then return nil end
-    local c = ns.db.chars[key]
-    if type(c) ~= "table" then
-        if not create then return nil end
-        c = {}
-        ns.db.chars[key] = c
-    end
-    if type(c.plan) ~= "table" then
-        if not create then return nil end
-        c.plan = {}
-    end
-    return c.plan
+    return ns.CharData("plan", create)      -- ezTalentDB.chars[<Charakter>].plan (Core.lua, eine Quelle)
 end
 
 -- plan = nil: vergessen („Aktuelle Verteilung“ gewählt). Ein geänderter Plan wird samt seinen Rängen gemerkt – die

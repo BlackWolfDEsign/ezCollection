@@ -42,6 +42,14 @@ ns.DEFAULTS = {
     statusLog = false,
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+ns.AGREE = {
+    lastRecipient = "on", autoAHWon = "choice", attachYield = "choice", moneyOnly = "choice", statusLog = "choice",
+}
+
 -- Höchstwert von „Taschenplätze frei lassen“ – derselbe für den Regler der Einstellungsseite und das Menü am Knopf
 -- „Alle öffnen“ (Einstellungs-Prüfung vom 19.11.2026: vorher Regler bis 20, Menü bis 10)
 ns.KEEP_FREE_MAX = 20

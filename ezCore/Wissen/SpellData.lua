@@ -231,6 +231,9 @@ Spells.FALLBACK = {
     [9005] = { "Anspringen", "Pounce" },
     [17116] = { "Schnelligkeit der Natur", "Nature's Swiftness" },
     [20484] = { "Wiedergeburt", "Rebirth" },
+    -- Spieltest 20.11.2026: englischer Name laut Client-Tabellen (wago.tools, wowf 1.60.1.70938); der deutsche ist der
+    -- Ersatz, bis der Client ihn nennt (im Spiel prüfen)
+    [437138] = { "Wiederbeleben", "Revive" },
     [29166] = { "Anregen", "Innervate" },
     [5487] = { "Bärengestalt", "Bear Form" },
     [9634] = { "Terrorbärengestalt", "Dire Bear Form" },
@@ -595,9 +598,11 @@ local function FormNumber(name, fallback)
     if type(value) == "number" then return value end
     return fallback
 end
+-- Nummer der Bärengestalt (Bär und Terrorbär) – einmal, auch für Spells.MacroFallbackForms (Paket ezmacro/ssot-doppelungen)
+Spells.BEAR_FORM = FormNumber("DRUID_BEAR_FORM", 8)
 Spells.FORM_IDS = {
     [768] = FormNumber("DRUID_CAT_FORM", 1),
-    [5487] = FormNumber("DRUID_BEAR_FORM", 8), [9634] = FormNumber("DRUID_BEAR_FORM", 8),
+    [5487] = Spells.BEAR_FORM, [9634] = Spells.BEAR_FORM,
     [783] = FormNumber("DRUID_TRAVEL_FORM", 3), [1066] = FormNumber("DRUID_ACQUATIC_FORM", 4),
     [24858] = FormNumber("DRUID_MOONKIN_FORM_1", 31),
     [2645] = FormNumber("SHAMAN_GHOST_WOLF_FORM", 16),
@@ -621,6 +626,10 @@ Spells.WEAPON_IMBUES = {
         { key = "windfury", spells = { 8232, 8235, 10486, 16362 }, levels = { 30, 40, 50, 60 } },
     },
 }
+-- Vorschlag ohne eigene Wahl (Spells.OrderedImbues, Spells.ChooseImbue): der zuletzt lernbare zuerst (Windzorn ab 30,
+-- Flammenzunge ab 10, Frostbrand ab 20, Felsbeißer ab 1). Empfehlung aus Welle 23 (docs/roadmap/ezBuff.md), vorher als
+-- Weapon.IMBUE_ORDER in ezBuff – seit dem Paket ezmacro/gifte-waffenzauber hier (SSOT: ezBuff und ezMacro lesen sie).
+Spells.IMBUE_ORDER = { "windfury", "flametongue", "frostbrand", "rockbiter" }
 
 -- Schwellen (eine Stelle): ab so vielen Minuten gilt ein Buff als Dauer-Buff („vor dem Kampf“); so viele Sekunden
 -- Rest gelten als „läuft bald aus“ (Spells.BuffState), solange der Aufrufer nichts anderes nennt.

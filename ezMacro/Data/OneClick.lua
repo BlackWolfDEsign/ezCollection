@@ -181,3 +181,108 @@ ns.AddMacros("oneclick", nil, {
         glyph = { "Ability_Hunter_BeastCall", "INV_Misc_QuestionMark" },
     },
 })
+
+-- Gift und Waffenzauber je Hand (Paket ezmacro/gifte-waffenzauber; Wunsch des Nutzers vom 20.11.2026: „Können wir auch
+-- ermöglichen z.b. Waffen ebenso mit Giften zu belegen (schurke) und co? … Blizzard konform?“). Den Text baut
+-- Weapon.lua: Gift aus ezCores Regel „bester Gegenstand“ (Core.BestItems.WeaponEnchant, wie ezBuffs Buff-Knopf),
+-- Waffenzauber nach ezBuffs Wahl bzw. ezCores Vorschlag. Ein Tastendruck ist eine Aktion; neu geschrieben wird nur
+-- außerhalb des Kampfes.
+ns.AddMacros("oneclick", nil, {
+    {
+        id = "weapon_poison_main",
+        name = { "Gift Waffenhand", "Poison Main Hand" },
+        class = "ROGUE",
+        desc = { "Trägt das beste Gift aus deinen Taschen auf die Waffe in deiner Waffenhand auf – dasselbe, das ezBuff am Buff-Knopf nimmt. Kommt ein besseres in die Tasche, schreibt ezMacro das Makro außerhalb des Kampfes neu.",
+                 "Applies the best poison in your bags to the weapon in your main hand – the same one ezBuff uses at the buff button. When a better one arrives, ezMacro rewrites the macro out of combat." },
+        why = { "Gift auf die Waffenhand mit einem Tastendruck – ohne Taschensuche und ohne Klick auf die Waffe.",
+                "Poison on your main hand with one key press – no searching your bags, no click on the weapon." },
+        body = "{i:poisonMain}",
+        need = false,
+        needs = "poisonMain",
+        glyph = { "Ability_Poisons", "INV_Misc_QuestionMark" },
+    },
+    {
+        id = "weapon_poison_off",
+        name = { "Gift Schildhand", "Poison Off Hand" },
+        class = "ROGUE",
+        desc = { "Trägt das beste Gift aus deinen Taschen auf die Waffe in deiner Schildhand auf. Hältst du dort keine Waffe, ist der Eintrag grau. Neu geschrieben wird nur außerhalb des Kampfes.",
+                 "Applies the best poison in your bags to the weapon in your off hand. Without a weapon there the entry is grey. It is only rewritten out of combat." },
+        why = { "Die zweite Waffe vergiften, ohne das Gift erst anzuklicken.",
+                "Poison your second weapon without clicking the poison first." },
+        body = "{i:poisonOff}",
+        need = false,
+        needs = "poisonOff",
+        glyph = { "Ability_Poisons", "INV_Misc_QuestionMark" },
+    },
+    -- Für jede Klasse (Entscheidung des Nutzers vom 20.11.2026: „ja definitv“, „auch für magieöl und co, vollständig“):
+    -- Wetzstein, Gewichtsstein, Zauberöl, Manaöl – dieselbe Wahl wie ezBuffs Buff-Knopf
+    {
+        id = "weapon_enhance_main",
+        name = { "Stein/Öl WH", "Stone/Oil Main" },
+        desc = { "Trägt den besten Wetzstein, Gewichtsstein, das beste Zauber- oder Manaöl, das du bei dir trägst, auf die Waffe in deiner Waffenhand (WH) auf – dasselbe, das ezBuff am Buff-Knopf nimmt (beim Schurken zählen auch Gifte). Genommen wird nur, was zur Waffe passt: Wetzstein auf Klingen, Gewichtsstein auf Streitkolben, Stab und Faustwaffe, Öl auf jede Nahkampfwaffe. Kommt Besseres in die Tasche, schreibt ezMacro das Makro außerhalb des Kampfes neu.",
+                 "Applies the best sharpening stone, weightstone, wizard or mana oil you carry to the weapon in your main hand – the same one ezBuff uses at the buff button (for rogues poisons count too). Only what fits the weapon is used: sharpening stones on blades, weightstones on maces, staves and fist weapons, oil on any melee weapon. When something better arrives, ezMacro rewrites the macro out of combat." },
+        why = { "Stein oder Öl auf die Waffe mit einem Tastendruck – ohne Taschensuche und ohne Klick auf die Waffe.",
+                "Stone or oil on your weapon with one key press – no searching your bags, no click on the weapon." },
+        body = "{i:enhanceMain}",
+        need = false,
+        needs = "enhanceMain",
+        glyph = { "INV_Stone_SharpeningStone_01", "INV_Misc_QuestionMark" },
+    },
+    {
+        id = "weapon_enhance_off",
+        name = { "Stein/Öl SH", "Stone/Oil Off" },
+        desc = { "Trägt den besten Wetzstein, Gewichtsstein, das beste Zauber- oder Manaöl, das du bei dir trägst und das zur Waffe passt, auf die Waffe in deiner Schildhand (SH) auf (beim Schurken zählen auch Gifte). Hältst du dort keine Waffe, ist der Eintrag grau. Neu geschrieben wird nur außerhalb des Kampfes.",
+                 "Applies the best sharpening stone, weightstone, wizard or mana oil you carry that fits the weapon in your off hand to it (for rogues poisons count too). Without a weapon there the entry is grey. It is only rewritten out of combat." },
+        why = { "Auch die zweite Waffe bekommt Stein oder Öl auf eigener Taste.",
+                "Your second weapon gets its stone or oil on a key of its own too." },
+        body = "{i:enhanceOff}",
+        need = false,
+        needs = "enhanceOff",
+        glyph = { "INV_Stone_SharpeningStone_01", "INV_Misc_QuestionMark" },
+    },
+    {
+        id = "weapon_imbue_main",
+        name = { "Waffenzauber WH", "Imbue Main Hand" },
+        class = "SHAMAN",
+        desc = { "Wirkt deinen Waffenzauber auf die Waffe in deiner Waffenhand (WH) – den, den du in ezBuff gewählt oder zuletzt selbst gewirkt hast, sonst den Vorschlag (der zuletzt lernbare zuerst). Wechselst du ihn, schreibt ezMacro das Makro außerhalb des Kampfes neu.",
+                 "Casts your weapon imbue on the weapon in your main hand – the one you chose in ezBuff or last cast yourself, otherwise the suggestion (the one you learn last comes first). When you switch, ezMacro rewrites the macro out of combat." },
+        why = { "Der Waffenzauber deiner Wahl auf einer Taste – im höchsten Rang, den du gelernt hast.",
+                "The weapon imbue of your choice on one key – at the highest rank you know." },
+        body = "{i:imbueMain}",
+        need = false,
+        needs = "imbueMain",
+        glyph = { "Spell_Nature_RockBiter", "INV_Misc_QuestionMark" },
+    },
+    {
+        id = "weapon_imbue_off",
+        name = { "Waffenzauber SH", "Imbue Off Hand" },
+        class = "SHAMAN",
+        desc = { "Für zwei Waffen: wirkt deinen Waffenzauber und wählt die Waffe in deiner Schildhand (SH) als Ziel. Hältst du dort keine Waffe, ist der Eintrag grau. Noch nicht im Spiel geprüft: Landet der Zauber auf der Waffenhand statt auf der Schildhand, melde es bitte.",
+                 "For two weapons: casts your weapon imbue and picks the weapon in your off hand as the target. Without a weapon there the entry is grey. Not yet tested in the game: if the imbue lands on your main hand instead of your off hand, please report it." },
+        why = { "Auch die zweite Waffe bekommt ihren Waffenzauber auf eigener Taste.",
+                "Your second weapon gets its imbue on a key of its own too." },
+        body = "{i:imbueOff}",
+        need = false,
+        needs = "imbueOff",
+        glyph = { "Spell_Nature_RockBiter", "INV_Misc_QuestionMark" },
+    },
+})
+
+-- Durchbuffen aus ezBuff (Paket ezmacro/klickzauber-besitzer; Frage des Nutzers vom 20.11.2026: „Zum Rahmen klick -
+-- ezheal und ezbuff - sind diese sinnvoll mit ezMacro nutzbar? --> so dass ich z.b. schnell alle durchbuffen kann?“).
+-- Den Text liefert ezBuff (ClickCast.lua, ezCore.API("ezBuff").GroupMacro) – ohne ezBuff ist der Eintrag grau. Der
+-- Name ist derselbe wie bei ezBuffs eigenem Makro (ezBuff L.MACRO_NAME): ein Makro, nicht zwei mit gleichem Inhalt.
+ns.AddMacros("oneclick", nil, {
+    {
+        id = "buff_group_next",
+        name = { "Durchbuffen", "Buff group" },
+        desc = { "Drückt ezBuffs Knopf „Durchbuffen“: Jeder Druck gibt dem nächsten Gruppenmitglied, dem ein Buff deiner Klasse fehlt, genau einen Buff – im Rang, den es annehmen darf, ab mehreren fehlenden die Gruppenfassung. Nur außerhalb des Kampfes. Dieselbe Funktion gibt es auf eigener Taste (Tastaturbelegung „ezBuff: Durchbuffen“).",
+                 "Presses ezBuff's \"buff the group\" button: each press gives the next group member who lacks a buff of your class exactly one buff – at the rank they can take, the group version when several lack it. Only out of combat. The same function is available on a key of its own (key binding \"ezBuff: buff the group\")." },
+        why = { "Die ganze Gruppe durchbuffen, Druck für Druck auf einer Taste – ohne jeden Rahmen anzuklicken.",
+                "Buff the whole group press by press on one key – without clicking every frame." },
+        body = "{i:buffNext}",
+        need = false,
+        needs = "buffNext",
+        glyph = { "Spell_Holy_WordFortitude", "INV_Misc_QuestionMark" },
+    },
+})

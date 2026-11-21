@@ -49,13 +49,19 @@ local Core = ezCore
       Platz ab, statt eigene Anker zu setzen. Lage je Rahmenart in GF.SLOTS (eine Stelle, Abschnitt unten). Jeder
       Platz liegt IM Rahmen (Spielbefund des Nutzers vom 18.11.2026: „buffs und co nicht in einem popup sondern über
       und an dem rahmen, den abstand zu den rahmen untereinander beibehalten“) – nie in der Lücke zum nächsten
-      Rahmen, nie darunter, nie daneben; Blizzards Rahmen rücken nicht:
-        "topLines"  zwei Linien à 1 px an der Oberkante, ohne Hintergrund (klassisch: zwei Linien auf Blizzards
-                    Manabalken, ohne Hintergrund; Dicke vom Modul bis line) – ezCombat
+      Rahmen; Ausnahmen seit dem Spieltest vom 20.11.2026: klassisch hängen die Balken (topLines) wieder an der
+      Unterkante von Blizzards Rahmenbild („wieder am rahmen unten“), die Zahlen stehen rechts daneben ("beside");
+      Blizzards Rahmen rücken nicht:
+        "topLines"  zwei Linien à 1 px an der Oberkante, ohne Hintergrund (klassisch: Balken direkt unter Blizzards
+                    Rahmenbild, je halb so hoch wie der Manabalken, mit Hintergrund; Dicke vom Modul bis line) – ezCombat
         "midLeft"   Mitte links, nach rechts wachsend (klassisch: oben links auf dem Porträt) – ezBuff
         "midRight"  Mitte rechts, nach links wachsend (klassisch: rechts auf dem Lebensbalken) – ezHeal
         "center"    Mitte zwischen midLeft und midRight, nur außerhalb des Kampfes und ab 30 px Höhe
-                    (klassisch: auf dem Lebensbalken links neben den HoTs) – ezCombats Zahl und Marken
+                    (klassisch: auf dem Lebensbalken links neben den HoTs) – ezCombats Zahl und Marken im Raidstil
+        "beside"    klassisch: rechts neben den Balken (after topLines), mittig auf ihrer Höhe (Spieltest des
+                    Nutzers vom 20.11.2026: „warum sind die zahlen nicht rechts vom balken?“); der Abstand der Rahmen
+                    untereinander bleibt. Raidstil: aus (die Rahmen stoßen aneinander) – ezCombats Zahlen und Marken
+                    am klassischen Gruppen- und Spielerrahmen
       Core.GroupFrames.Reserve(owner, platz, schlüssel, { size = { b, h }, order }) → true | false, grund
           beim Laden des Moduls: Platz vormerken; mehrere Teile teilen einen Platz in der Reihenfolge order
       Core.GroupFrames.Slot(owner, rahmen, platz, schlüssel, opts) → kind | nil, grund   wie Attach, Lage vom Platz
@@ -73,6 +79,8 @@ local Core = ezCore
       Core.GroupFrames.SlotKind(rahmen) → art   .SlotOrganization(rahmen) → "legacy" | "buffsTop" | "buffsRight"
           (je Rahmen gemerkt; neu gelesen nach Relayout, DefaultCompactUnitFrameSetup oder .DropCache(rahmen))
       Core.GroupFrames.SlotSpec(art, platz, anordnung) → Kopie   .SlotInCombat(art, platz)
+      Core.GroupFrames.SlotShift(rahmen, platz) → px   wie weit ein Platz mit point nach außen rückt, weil Blizzard
+          dort ein Kind zeigt (shift: beside weicht dem Symbol „nicht da“); ändert es sich, setzt das Modul neu
       Core.GroupFrames.SlotClear(rahmen, platz) → px   wie weit ein Streifen unter dem Rahmen (below) ab der
           sichtbaren Unterkante von Blizzards Rahmenbild (art) tiefer rückt, weil Blizzard dort etwas zeigt (clear:
           Kind wie der Begleiter-Rahmen; clearBelow: Rahmen wie die Klassenleiste, gemessen); ändert es sich, setzt
@@ -718,6 +726,15 @@ end
 --                              Lebensbalkens). Ohne combat = false hält sie die ganze Vormerkung daneben frei
 --                              (im Kampf wird nicht neu gesetzt; Gegenprüfung vom 18.11.2026)
 --   width, height              feste Größe (Text außen am klassischen Rahmen)
+--   after = platz              point/relPoint, x, y gelten am eigenen Teil desselben owners an diesem Platz statt an
+--                              Blizzards Rahmen (beside hinter den Balken an topLines; wandert mit). Fehlt das Teil
+--                              noch, an Blizzards Rahmen – das Modul setzt neu, sobald es da ist. Gemeint ist das
+--                              erste Teil des owners an diesem Platz: after taugt nur, wo er dort genau eines hat
+--   classic = true             (nur in der Vorlage der Prüfungen) das Modul baut seine alte Zeile mit Symbol und Zahl
+--                              am Zeilenende (ezCombat, MF.Classic) – bis zum 18.11.2026 die Lage unter dem Rahmen
+--   shift = { [schlüssel] = px }  ist Blizzards Kind frame[schlüssel] zu sehen, rückt ein Platz mit point px in seine
+--                              Richtung nach außen (nach rechts; GF.SlotShift) – beside weicht Blizzards Symbol
+--                              „nicht da“; ändert es sich, setzt das Modul sein Teil außerhalb des Kampfes neu
 --   minHeight, minWidth        darunter bleibt der Platz leer (GF.Slot blendet das Kind aus)
 --   off = true                 in dieser Anordnung kein Platz (GF.SlotFits → false)
 --   combat = false             Inhalte nur außerhalb des Kampfes (fragt das Modul über GF.SlotInCombat)
@@ -727,8 +744,9 @@ end
 --                              „Buffs oben“), gelten sie statt x
 ---------------------------------------------------------------------------
 
-GF.SLOT_NAMES = { "topLines", "midLeft", "midRight", "center" }
+GF.SLOT_NAMES = { "topLines", "midLeft", "midRight", "center", "beside" }
 GF.SLOT_GAP = 1
+GF.SIDE_GAP = 5                                     -- px vom Ende der Linien bis zu den Zahlen neben dem Rahmen (beside)
 GF.SLOT_BELOW_GAP = 3                               -- freie px unter einem Streifen (below) bis zum nächsten Rahmen
 GF.ROLE_ICON = 17                                   -- Blizzards Rollensymbol im Raidstil (CompactUnitFrame.xml)
 -- Mittelband im Raidstil (Quellen im Kopf des Abschnitts)
@@ -747,7 +765,7 @@ GF.BUFFS_TOP_SPOTS = { "upper", "bottom", "top" }   -- Reihenfolge der Stellen, 
 -- Reihenfolge der Plätze beim Neusetzen (GF.Relayout): zuerst die Seite mit Vorrang (midRight – ezHeals HoT-Reihe
 -- steht auch im Kampf), dann die Seite, die ihr weicht (midLeft – ezBuff fragt GF.SlotRoom). So sieht der Rückruf
 -- (onPlaced) eines Teils in midLeft schon, ob die Reihe gegenüber nach dem Neusetzen zu sehen ist.
-GF.RELAYOUT_ORDER = { "topLines", "midRight", "midLeft", "center" }
+GF.RELAYOUT_ORDER = { "topLines", "midRight", "midLeft", "center", "beside" }
 GF.SLOTS = {
     raid = {
         -- 2 px an der Oberkante: Rollensymbol und bannbare Debuffs beginnen 2 px, Name und Buff-Reihe 3 px darunter
@@ -756,11 +774,21 @@ GF.SLOTS = {
         midLeft = { point = "LEFT", relPoint = "LEFT", x = 21, y = 0, grow = "RIGHT", size = GF.SLOT_HEIGHT, facing = "midRight", band = true },
         midRight = { point = "RIGHT", relPoint = "RIGHT", x = -3, y = 0, grow = "LEFT", size = GF.SLOT_HEIGHT, facing = "midLeft", band = true },
         center = { between = { "midLeft", "midRight" }, y = 0, height = GF.SLOT_HEIGHT, minHeight = 30, minWidth = 20, combat = false, band = true },
+        -- die Rahmen stoßen aneinander: kein Platz daneben (die Zahl bleibt in der Mitte)
+        beside = { point = "LEFT", relPoint = "RIGHT", x = 0, y = 0, off = true },
     },
-    -- Klassisch: alles im sichtbaren Rahmenbild (Absatz „Am Rahmen“ im Kopf, Spielbefund vom 18.11.2026)
+    -- Klassisch: im sichtbaren Rahmenbild (Absatz „Am Rahmen“ im Kopf, Spielbefund vom 18.11.2026) – außer den Balken
+    -- der Kampfanzeige: seit dem Spieltest vom 20.11.2026 wieder direkt an der Unterkante von Blizzards Rahmenbild
+    -- („der balken ist kaum sichtbar ... halb so hoch wie die mana, lebensbalken reicht, und dann bitte wieder am rahmen
+    -- unten“), je Balken halb so hoch wie Blizzards Manabalken, mit Hintergrund; die Zahlen rechts daneben (beside)
     party = {
-        -- zwei Linien auf dem Manabalken (41/−30, 74 × 7), so breit wie der Lebensbalken (45 bis 115)
-        topLines = { span = true, left = 45, right = 5, top = 30, size = 7, height = 7, line = 3, gap = 1, plain = true },
+        -- unter dem Rahmenbild (endet 14 px über der Unterkante des Rechtecks, bei −39), so breit wie der Lebensbalken
+        -- (45 bis 115); ein Balken 4 px (Manabalken 7 px, halb aufgerundet), zwei mit 1 px Abstand; unter Blizzards
+        -- Aurensymbolen (level 1); Begleiter-Rahmen und Abstand zum nächsten Rahmen wie bis zum 18.11.2026 (Absatz
+        -- topLines im Kopf: clear, next)
+        topLines = { span = true, below = true, art = 14, left = 45, right = 5, top = 0, height = 4, size = 9, line = 4,
+            gap = 1, level = 1, clear = { PetFrame = 27 },
+            next = { inset = 2, icons = { "PartyMemberOverlay.LeaderIcon", "PartyMemberOverlay.GuideIcon" } } },
         -- oben links auf dem Porträt (7/−6, 37 px): Symbol 14 px, Zeichen daneben bis x 44 (Name ab 46)
         midLeft = { point = "TOPLEFT", relPoint = "TOPLEFT", x = 6, y = -6, grow = "RIGHT", size = 14 },
         -- rechts auf dem Lebensbalken (45/−19, 70 × 10), nach links wachsend
@@ -768,10 +796,22 @@ GF.SLOTS = {
         -- auf dem Lebensbalken ab seinem Anfang (x 46) bis an den Platz der HoTs (auch im Kampf zu sehen: die ganze
         -- Vormerkung bleibt frei, bei vier HoTs rund 25 px); Mitte des Balkens 2,5 px über der Rahmenmitte
         center = { between = { 46, "midRight" }, y = 2.5, height = 10, minWidth = 20 },
+        -- rechts neben den Balken (Spieltest 20.11.2026: „warum sind die zahlen nicht rechts vom balken?“, „keine
+        -- lücke bitte, bzw nur minimal“): GF.SIDE_GAP px hinter dem Ende des eigenen Teils am Platz topLines, mittig
+        -- auf seiner Höhe (after – wandert mit, wenn der Begleiter-Rahmen die Balken tiefer rückt). Zwei Zeilen
+        -- Schrift à 12 px. Blizzards Symbol „nicht da“ (NotPresentIcon, LEFT an RIGHT +2/−2: andere Phase, andere
+        -- Gruppe) reicht bis in diese Höhe – ist es zu sehen, rücken die Zahlen dahinter (shift, GF.SlotShift; 29 px =
+        -- 2 px Abstand + Symbol 25 px + 2 px, Größe im Spiel prüfen)
+        beside = { after = "topLines", point = "LEFT", relPoint = "RIGHT", x = GF.SIDE_GAP, y = 0, width = 160,
+            height = 24, shift = { NotPresentIcon = 29 } },
     },
     player = {
-        -- zwei Linien auf dem Manabalken (85/−61, 124 × 10)
-        topLines = { span = true, left = 85, right = 23, top = 61, size = 7, height = 7, line = 3, gap = 1, plain = true },
+        -- unter dem Rahmenbild (endet 25 px über der Unterkante des Rechtecks, bei −75), so breit wie Lebens- und
+        -- Manabalken (85 bis 209); ein Balken 5 px (Manabalken 10 px, halb), zwei mit 1 px Abstand; zweite
+        -- Kraftleiste und Klassenleiste rücken ihn tiefer (clear, clearBelow – Absatz topLines im Kopf)
+        topLines = { span = true, below = true, art = 25, left = 85, right = 23, top = 0, height = 5, size = 11, line = 5,
+            gap = 1, level = 1, clear = { ["PlayerFrameContainer.AlternatePowerFrameTexture"] = 10 },
+            clearBelow = { { get = "GetPlayerBottomManagedFrameContainer", name = "PlayerBottomManagedFrameContainer" } } },
         -- oben links am Porträt (24/−19, 60 px), ab x 20 auf dessen Ring: Zeichen enden bei x 58 vor Blizzards
         -- Ruhe-Bild (RestTexture 30 × 30 mittig in PlayerRestLoop 64/−6, 20 × 20: ab x 59; Gegenprüfung 18.11.2026)
         midLeft = { point = "TOPLEFT", relPoint = "TOPLEFT", x = 20, y = -19, grow = "RIGHT", size = 14 },
@@ -779,6 +819,9 @@ GF.SLOTS = {
         midRight = { point = "RIGHT", relPoint = "TOPRIGHT", x = -23, y = -50, grow = "LEFT", size = 12 },
         -- auf dem Lebensbalken ab x 86 bis an den Platz der HoTs (ganze Vormerkung); seine Mitte ist die Rahmenmitte
         center = { between = { 86, "midRight" }, y = 0, height = 10, minWidth = 20 },
+        -- rechts neben den Balken (wie party): hinter ihrem Ende (x 209), nicht am Rechteck – das reicht 23 px weiter
+        -- als Blizzards Rahmenbild (Spieltest 20.11.2026, Bildschirmfoto „Platz 1 · 33,1 DPS“ mit rund 25 px Lücke)
+        beside = { after = "topLines", point = "LEFT", relPoint = "RIGHT", x = GF.SIDE_GAP, y = 0, width = 160, height = 24 },
     },
 }
 -- Abweichungen im Raidstil je Anordnung der Auren (Bearbeitungsmodus, Enum.RaidAuraOrganizationType; ganze Plätze,
@@ -1273,6 +1316,20 @@ function GF.SlotClear(frame, name)
     return extra
 end
 
+-- Wie weit rückt ein Platz mit point nach außen, weil Blizzard dort ein Kind zeigt (shift)? Nur lesen (rawget,
+-- IsShown per pcall; geheim zählt als „nicht zu sehen“). → px (0, wenn nichts im Weg ist)
+function GF.SlotShift(frame, name)
+    if type(frame) ~= "table" or not SlotName(name) then return 0 end
+    local spec = FrameSpec(frame, name)
+    if not (spec and type(spec.shift) == "table") or Forbidden(frame) then return 0 end
+    local extra = 0
+    for path, px in pairs(spec.shift) do
+        local child = Child(frame, path)
+        if child and type(px) == "number" and px > extra and Shown(child) then extra = px end
+    end
+    return extra
+end
+
 -- Wie hoch darf ein Streifen unter dem Rahmen (below) höchstens sein, damit unter ihm GF.SLOT_BELOW_GAP px bis zum
 -- nächsten Gruppenrahmen derselben Art frei bleiben? Gemessen am nächsten sichtbaren Rahmen darunter, der den
 -- Streifen waagerecht überlappt: sein Rahmenbild beginnt next.inset px unter seiner Oberkante, sichtbare Kinder aus
@@ -1312,6 +1369,15 @@ function GF.SlotDepth(frame, name)
     return math.max(0, math.floor(nearest - GF.SLOT_BELOW_GAP + 0.01))
 end
 
+-- Eigenes Teil eines owners an einem Platz (für after): das Kind aus GF.Slot mit diesem Platz. → Teil | nil
+local function OwnPart(frame, owner, name)
+    local byOwner = store[frame] and store[frame][owner]
+    for _, slot in pairs(byOwner and byOwner.parts or {}) do
+        if slot.child and slot.opts and slot.opts.slotName == name then return slot.child end
+    end
+    return nil
+end
+
 -- Ein eigenes Teil (region) an seinen Platz in Blizzards Rahmen setzen – nur außerhalb des Kampfes rufen (die
 -- Dienste SecureButton, AuraRow und Attach tun das über die Anker-Funktion aus GF.SlotAnchor). → true | false
 function GF.Place(region, frame, name, owner, key)
@@ -1343,13 +1409,14 @@ function GF.Place(region, frame, name, owner, key)
         local offset = Offset(spec, kind, name, owner, key)
         local dx = spec.grow == "LEFT" and -offset or offset
         -- freie Stelle mit eigenen Rändern („Buffs oben“): ihr Rand statt x des Platzes
-        local x = spec.x
+        local x = spec.x + GF.SlotShift(frame, name)
         if band and spec.grow == "RIGHT" and band.left then
             x = band.left
         elseif band and spec.grow == "LEFT" and band.right then
             x = -band.right
         end
-        region:SetPoint(spec.point, frame, spec.relPoint, x + dx, SlotY(spec, band))
+        local anchor = spec.after and OwnPart(frame, owner, spec.after) or frame
+        region:SetPoint(spec.point, anchor, spec.relPoint, x + dx, SlotY(spec, band))
         if spec.width and spec.height then region:SetSize(spec.width, spec.height) end
         if spec.grow then GF.Track(region, frame, name, owner, key) end
     end

@@ -297,6 +297,68 @@ function Core.QuestLogXP()
     return out
 end
 
+--[[
+    Farbe einer Queststufe aus Sicht einer Spielerstufe (Spieltest vom 20.11.2026: die Leveling-Route soll nach dem
+    Stufenabstand ordnen; Leitlinie 2: ein Helfer für alle Module). Quelle: der Client (Leitlinie 11) – Blizzards
+    Forever-Quelle, Blizzard_FrameXMLUtil/Mainline/DifficultyUtil.lua, DifficultyUtil.GetRelativeDifficultyColor(
+    unitLevel, challengeLevel) gibt einen Eintrag aus QuestDifficultyColors zurück; dessen Schlüssel ist die Antwort.
+      Core.QuestDifficulty(questLevel, playerLevel) → "impossible" (rot) | "verydifficult" (orange) | "difficult" (gelb)
+          | "standard" (grün) | "trivial" (grau), Quelle "client" | "estimate" – oder nil ohne Stufen. playerLevel
+          fehlt: Core.PlayerLevel(). Ohne Antwort des Clients dieselben Grenzen wie dort (≥ 5 Stufen über dir rot,
+          ≥ 3 orange, ≥ −4 gelb, bis UnitQuestTrivialLevelRange unter dir grün, sonst grau; ohne diese Grenze 5
+          Stufen – Vermutung), Quelle "estimate".
+]]
+Core.QUEST_DIFFICULTIES = { "impossible", "verydifficult", "difficult", "standard", "trivial" }
+Core.QUEST_TRIVIAL_FALLBACK = 5     -- Stufen unter dir, ab denen grau gilt, wenn der Client es nicht sagt (Vermutung)
+
+function Core.QuestDifficulty(questLevel, playerLevel)
+    questLevel, playerLevel = Num(questLevel), Num(playerLevel) or Core.PlayerLevel()
+    if not (questLevel and questLevel > 0 and playerLevel and playerLevel > 0) then return nil end
+    local colors = rawget(_G, "QuestDifficultyColors")
+    local util = rawget(_G, "DifficultyUtil")
+    local fn = type(util) == "table" and not Core.IsSecret(util) and rawget(util, "GetRelativeDifficultyColor")
+        or rawget(_G, "GetRelativeDifficultyColor")
+    if type(colors) == "table" and not Core.IsSecret(colors) then
+        local color = Core.Call(fn, playerLevel, questLevel)
+        if type(color) == "table" and not Core.IsSecret(color) then
+            for _, key in ipairs(Core.QUEST_DIFFICULTIES) do
+                if rawequal(rawget(colors, key), color) then return key, "client" end
+            end
+        end
+    end
+    local diff = questLevel - playerLevel
+    if diff >= 5 then return "impossible", "estimate" end
+    if diff >= 3 then return "verydifficult", "estimate" end
+    if diff >= -4 then return "difficult", "estimate" end
+    local range = Num(Core.Call(rawget(_G, "UnitQuestTrivialLevelRange"), "player"))
+    if not range or range < 0 then range = Core.QUEST_TRIVIAL_FALLBACK end
+    if -diff <= range then return "standard", "estimate" end
+    return "trivial", "estimate"
+end
+
+-- Farbe dazu (Paket ezsocial/levelfarbe; Leitlinie 2: eine Stelle für Stufenfarben – ezSocial rechnete eigene Grenzen):
+--   Core.QuestDifficultyRGB(questLevel, playerLevel) → r, g, b, schlüssel, quelle – oder nil ohne Stufen.
+-- Die Farbe kommt aus Blizzards QuestDifficultyColors[schlüssel]; fehlt die Tabelle, dieselben Werte von Hand
+-- (Core.QUEST_DIFFICULTY_RGB, Quelle: Gethe/wow-ui-source, Zweig forever,
+-- Interface/AddOns/Blizzard_FrameXMLBase/Constants.lua, QuestDifficultyColors; nachgesehen am 20.11.2026).
+Core.QUEST_DIFFICULTY_RGB = {
+    impossible = { 1, 0.1, 0.1 }, verydifficult = { 1, 0.5, 0.25 }, difficult = { 1, 0.82, 0 },
+    standard = { 0.25, 0.75, 0.25 }, trivial = { 0.5, 0.5, 0.5 },
+}
+
+function Core.QuestDifficultyRGB(questLevel, playerLevel)
+    local key, source = Core.QuestDifficulty(questLevel, playerLevel)
+    if not key then return nil end
+    local colors = rawget(_G, "QuestDifficultyColors")
+    local color = type(colors) == "table" and not Core.IsSecret(colors) and rawget(colors, key) or nil
+    if type(color) == "table" and not Core.IsSecret(color) then
+        local r, g, b = Num(rawget(color, "r")), Num(rawget(color, "g")), Num(rawget(color, "b"))
+        if r and g and b then return r, g, b, key, source end
+    end
+    local rgb = Core.QUEST_DIFFICULTY_RGB[key]
+    return rgb[1], rgb[2], rgb[3], key, source
+end
+
 -- Titel für die Zuordnung Buch » Quest: unbekannte Quests beim Client anfordern
 local function QuestTitle(questID)
     return Core.QuestTitle(questID, true)

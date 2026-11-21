@@ -35,7 +35,9 @@ local Spells = Core.Spells
                    Spells.IsBuff(schlüssel) → true/false, Spells.BuffField(schlüssel, feld) → Wert,
                    Spells.BuffKeys(klasse, andere) → Schlüssel in fester Reihenfolge (Welle 27)
       Waffenzauber Spells.WEAPON_IMBUES (Schamane), Spells.WeaponImbues(klasse) → Liste,
-                   Spells.BestImbueRank(schlüssel) → höchster gelernter Rang (Welle 23)
+                   Spells.BestImbueRank(schlüssel) → höchster gelernter Rang (Welle 23),
+                   Spells.IMBUE_ORDER, Spells.OrderedImbues(klasse) → Liste im Vorschlag,
+                   Spells.ChooseImbue(wahl, klasse) → Schlüssel, Zauber-ID (Paket ezmacro/gifte-waffenzauber)
       Abfragen     Spells.CastTime(zauber), Spells.Usable(zauber) → nutzbar, nurKraftFehlt, unbekannt (gesperrt oder
                    Abfrage gescheitert)
                    Spells.OnCooldown(zauber) → true/false (zweiter Wert "secret": aus isActive/isOnGCD bzw.
@@ -44,6 +46,11 @@ local Spells = Core.Spells
                    Abklingzeit), Spells.DurationObject(zauber, ohneGCD) → Blizzards Dauer-Objekt oder nil
                    Spells.CooldownKind(info, start, dauer) → "none" | "gcd" | "real" | nil, Spells.GCD_MAX (1,55 s)
                    Spells.GCDActive() → läuft die globale Abklingzeit? true/false/nil
+                   Spells.ReadCooldown(zauber) → Art, Start, Dauer, gesperrt, Antwort (die eine Stelle für
+                   C_Spell.GetSpellCooldown), Spells.UsableState(zauber) → "ok" | "power" | "unusable" | nil
+                   Spells.PowerCost(zauber, kraftart) → Kosten jetzt, Spells.PowerBounds(kraftart, zauber?) → mindestens,
+                   weniger als, belegt durch (Spanne der gesperrten Kraft aus Blizzards Nutzbarkeit),
+                   Spells.PowerInRange(lo, hi, min, max) → true/false/nil (Paket ezcombat/rotation-recherche, 20.11.2026)
                    Spells.BaseCooldown(zauber) → Sekunden (0 = keine eigene), Quelle ("client" | "tables") oder nil
                    (Grund-Abklingzeit ohne Talente; Welle 27, Paket modul/ezcombat-abklingzeit)
                    Blizzards Regeln (Prüfung 17.11.2026, Risiko 13): Die Abfragen für Abklingzeit und Nutzbarkeit lesen
@@ -250,6 +257,7 @@ local function Ensure()
         known.pet, known.petByName = ReadPetBook()
         known.byName, known.byID, known.future = ReadSpellBook()
         known.dirty = false
+        known.powerCandidates = nil
         auraIDs = {}
     end
     return known
@@ -984,18 +992,182 @@ end
 -- Läuft eine echte Abklingzeit (länger als die globale)? true/false. Zweiter Wert "secret", wenn Start und Dauer
 -- gesperrt waren – dann entscheiden isActive und isOnGCD (nie gesperrt), und fehlt isOnGCD bei isActive = true,
 -- Spells.LockedKind (Welle 23, A1); verraten auch die nichts: nil, "secret".
+-- Seit dem Paket ezcombat/rotation-recherche (20.11.2026) liest Spells.ReadCooldown die Antwort – dieselbe Regel wie vorher
+-- hier; ein gesperrter Zauber als Argument wird nicht mehr weitergereicht (Leitlinie 6), sondern heißt „unbekannt“.
 function Spells.OnCooldown(spell)
-    if not (C_Spell and C_Spell.GetSpellCooldown) then return nil end
-    local ok, info = pcall(C_Spell.GetSpellCooldown, spell)
-    if not ok then return nil end
-    if Core.IsSecret(info) then return nil, "secret" end
-    if type(info) ~= "table" then return nil end
-    local locked = not (Core.Num(info.startTime) and Core.Num(info.duration))
-    local kind = Spells.CooldownKind(info)
-    if kind == nil and locked and Core.Plain(info.isActive) == true then kind = Spells.LockedKind(spell) end
+    local kind, _, _, locked, info = Spells.ReadCooldown(spell)
+    if info == nil and not locked then return nil end
     if kind == nil then return nil, "secret" end
     if locked then return kind == "real", "secret" end
     return kind == "real"
+end
+
+-- Die eine Stelle, die C_Spell.GetSpellCooldown für einen Zauber liest (SSOT, Paket ezcombat/rotation-recherche vom
+-- 20.11.2026; vorher je eine Kopie in Spells.OnCooldown, ezCombat Readiness.Cooldown und ezCombat ns.CooldownTimes).
+-- → kind ("none" | "gcd" | "real" | nil = unbekannt), start, duration (nur beide offen, sonst nil, nil),
+--   locked (true: Start und Dauer oder die ganze Antwort gesperrt), info (die Antwort, wenn sie selbst offen ist)
+-- Ohne Abfrage, ohne Zauber, bei gesperrtem Zauber als Argument oder bei einem Fehler im Aufruf: nichts (alles nil).
+-- Gesperrt entscheiden die nie gesperrten Felder isActive und isOnGCD (Spells.CooldownKind), fehlt isOnGCD bei
+-- isActive = true, Spells.LockedKind. Gesperrte Felder werden nur über Core.Peek/Core.Num gelesen, nie verglichen.
+function Spells.ReadCooldown(spell)
+    local api = C_Spell and C_Spell.GetSpellCooldown
+    if type(api) ~= "function" or Core.IsSecret(spell) or spell == nil then return nil end
+    local ok, info = pcall(api, spell)
+    if not ok then return nil end
+    if Core.IsSecret(info) then return nil, nil, nil, true, nil end
+    if type(info) ~= "table" then return nil end
+    local start, duration = Core.Num(Core.Peek(info, "startTime")), Core.Num(Core.Peek(info, "duration"))
+    if start and duration then
+        return Spells.CooldownKind(nil, start, duration), start, duration, false, info
+    end
+    local kind = Spells.CooldownKind(info)
+    if kind == nil and Core.Plain(Core.Peek(info, "isActive")) == true then kind = Spells.LockedKind(spell) end
+    return kind, nil, nil, true, info
+end
+
+-- Nutzbarkeit als ein Wort (SSOT, Paket ezcombat/rotation-recherche vom 20.11.2026; vorher in ezCombat
+-- Readiness.Usable): "ok" (nutzbar), "power" (nur die Kraft fehlt – Mana, Wut, Energie), "unusable" (aus anderem Grund
+-- nicht nutzbar: Haltung, Waffe, Ziel, Proc fehlt …) oder nil (unbekannt: keine Abfrage im Client, kein Zauber,
+-- gesperrter Zauber als Argument, gesperrte Antwort oder Fehler im Aufruf – Spells.Usable, dritter Wert).
+function Spells.UsableState(spell)
+    local api = (C_Spell and C_Spell.IsSpellUsable) or rawget(_G, "IsUsableSpell")
+    if type(api) ~= "function" or Core.IsSecret(spell) or spell == nil then return nil end
+    local usable, noPower, locked = Spells.Usable(spell)
+    if locked then return nil end
+    if usable then return "ok" end
+    if noPower then return "power" end
+    return "unusable"
+end
+
+---------------------------------------------------------------------------
+-- Kraft ohne Zahl (Paket ezcombat/rotation-recherche, 20.11.2026)
+---------------------------------------------------------------------------
+-- Auftrag des Nutzers vom 20.11.2026, wörtlich: „der rotations-modul berücksichtigt nicht logisch energie, combopunkte,
+-- mana, wut, bedrohung und co oder? da muss eine saubere und vollständige logik her“. Im Kampf sperrt Forever Mana, Wut
+-- und Energie des Spielers (UnitPower; Daten-Probe vom 15.11.2026), C_Spell.IsSpellUsable bleibt offen. Daraus folgt
+-- ohne Raten eine Spanne: Ist ein gelernter Zauber mit k Kosten dieser Kraftart nutzbar, hat der Spieler mindestens k;
+-- meldet das Spiel bei ihm „zu wenig Kraft“, hat er weniger als k. Gelesen werden nur die Kosten, die das Spiel gerade
+-- offen nennt (C_Spell.GetSpellPowerCost, mit Talenten und Procs wie Freizauber), nie zwischengespeicherte.
+
+-- Kosten eines Zaubers in einer Kraftart (Enum.PowerType), wie das Spiel sie jetzt nennt: Zahl > 0 oder nil (keine
+-- Abfrage, gesperrt, keine Kosten dieser Art, mehrere Kosten zugleich – zwei Kraftarten oder zwei Einträge derselben
+-- Art; dann sagt „zu wenig Kraft“ nicht, welche Grenze gilt); zweiter Wert true, wenn die Antwort gesperrt war.
+-- Einträge, die an eine Aura gebunden sind (requiredAuraID, etwa eine Gestalt), zählen nur, wenn die Aura liegt
+-- (hasRequiredAura offen wahr). Kosten mit Spanne (minCost unter cost, etwa Hinrichten oder Wilder Biss): Nutzbar ist
+-- der Zauber schon ab minCost – es gilt minCost (Review vor dem Merge, 20.11.2026: sonst belegte „nutzbar“ zu viel).
+-- Dritter Wert (nur ohne Sperre): true, wenn die Kostenliste überhaupt einen Eintrag dieser Kraftart hat (auch mit
+-- Kosten 0 nach einem Proc oder an eine Gestalt gebunden, die gerade nicht liegt) – für die Liste der Kandidaten.
+function Spells.PowerCost(spell, powerType)
+    local api = C_Spell and C_Spell.GetSpellPowerCost
+    if type(api) ~= "function" or Core.IsSecret(spell) or spell == nil or type(powerType) ~= "number" then return nil end
+    local ok, list = pcall(api, spell)
+    if not ok then return nil end
+    if Core.IsSecret(list) then return nil, true end
+    if type(list) ~= "table" then return nil end
+    local found, mixed, listed = nil, false, false
+    for _, entry in ipairs(list) do
+        if Core.IsSecret(entry) then return nil, true end
+        if type(entry) ~= "table" then return nil end
+        local required, has = Core.Peek(entry, "requiredAuraID"), Core.Peek(entry, "hasRequiredAura")
+        local kind, cost, minCost = Core.Peek(entry, "type"), Core.Peek(entry, "cost"), Core.Peek(entry, "minCost")
+        if Core.IsSecret(required) or Core.IsSecret(has) or Core.IsSecret(kind) or Core.IsSecret(cost)
+            or Core.IsSecret(minCost) then
+            return nil, true
+        end
+        kind = Core.Num(kind)
+        if kind == powerType then listed = true end
+        if (Core.Num(required) or 0) == 0 or has == true then
+            cost, minCost = Core.Num(cost) or 0, Core.Num(minCost)
+            if minCost and minCost < cost then cost = minCost end
+            if kind == nil then
+                mixed = true
+            elseif cost > 0 then
+                if kind ~= powerType or found then mixed = true end
+                found = cost
+            end
+        end
+    end
+    if mixed then return nil, nil, listed end
+    return found, nil, listed
+end
+
+-- Gelernte Zauber, deren Kostenliste die Kraftart führt (höchster Rang; aus dem Zauberbuch, verworfen mit ihm in Ensure):
+-- unabhängig vom Augenblick (Proc ohne Kosten, andere Gestalt) – ob sie jetzt etwas belegen, prüft PowerBounds. Zauber,
+-- deren Kosten beim Aufbau gesperrt waren, stehen unter pending und werden beim nächsten Aufruf einzeln nachgefragt –
+-- so läuft im Kampf nie bei jeder Bewertung das ganze Zauberbuch durch (Review vor dem Merge, 20.11.2026).
+local function PowerCandidates(powerType)
+    local k = Ensure()
+    k.powerCandidates = k.powerCandidates or {}
+    local cache = k.powerCandidates[powerType]
+    if not cache then
+        cache = { list = {}, pending = {} }
+        local names = {}
+        for name in pairs(k.byName) do names[#names + 1] = name end
+        table.sort(names)
+        for _, name in ipairs(names) do
+            local entry = k.byName[name]
+            if entry.maxID then cache.pending[#cache.pending + 1] = { id = entry.maxID, name = name } end
+        end
+        k.powerCandidates[powerType] = cache
+    end
+    if #cache.pending > 0 then
+        local still = {}
+        for _, one in ipairs(cache.pending) do
+            local _, secret, listed = Spells.PowerCost(one.id, powerType)
+            if secret then
+                still[#still + 1] = one
+            elseif listed then
+                cache.list[#cache.list + 1] = one
+            end
+        end
+        cache.pending = still
+    end
+    return cache.list
+end
+
+-- Spanne der Kraft aus Blizzards Nutzbarkeit: lo (mindestens so viel; 0, wenn nichts bekannt), hi (weniger als so viel;
+-- nil, wenn nichts bekannt), dazu die Namen der Zauber, die die Grenzen belegen (für Tooltips: Quelle nennen).
+-- spells (optional): eigene Liste { Name oder ID … } statt der gelernten Zauber mit Kosten dieser Art. Kosten und
+-- Nutzbarkeit werden über dieselbe Kennung gefragt (Name bzw. ID des höchsten Rangs), damit beide zum selben Rang passen.
+function Spells.PowerBounds(powerType, spells)
+    local lo, hi, loBy, hiBy = 0, nil, nil, nil
+    if type(powerType) ~= "number" then return lo, hi end
+    local list = spells
+    if type(list) ~= "table" then list = PowerCandidates(powerType) end
+    for _, one in ipairs(list) do
+        local ref, name = one, one
+        if type(one) == "table" then ref, name = one.id, one.name end
+        local cost = Spells.PowerCost(ref, powerType)
+        if cost then
+            local state = Spells.UsableState(ref)
+            if state == "ok" and cost > lo then
+                lo, loBy = cost, name
+            elseif state == "power" and (hi == nil or cost < hi) then
+                hi, hiBy = cost, name
+            end
+        end
+    end
+    return lo, hi, loBy, hiBy
+end
+
+-- Liegt die Kraft im Bereich [min, max]? true / false / nil (aus der Spanne nicht zu entscheiden). lo, hi wie
+-- Spells.PowerBounds (Kraft ist ganzzahlig: „weniger als hi“ heißt „höchstens hi − 1“).
+function Spells.PowerInRange(lo, hi, min, max)
+    local result = true
+    if min then
+        if lo and lo >= min then
+            -- erfüllt
+        elseif hi and hi <= min then
+            return false
+        else
+            result = nil
+        end
+    end
+    if max then
+        if lo and lo > max then return false end
+        if not (hi and hi - 1 <= max) then result = nil end
+    end
+    return result
 end
 
 -- Grund-Abklingzeit eines Zaubers in Sekunden (Welle 27, Paket modul/ezcombat-abklingzeit): Rechengrundlage, wenn ein
@@ -1191,6 +1363,50 @@ function Spells.BestImbueRank(key)
                 return best
             end
         end
+    end
+    return nil
+end
+
+-- Waffenzauber einer Klasse in der Reihenfolge des Vorschlags (Spells.IMBUE_ORDER, unbekannte Schlüssel dahinter in
+-- ihrer Reihenfolge aus WEAPON_IMBUES) – Kopien wie Spells.WeaponImbues. Vorher sortierte ezBuff selbst
+-- (Weapon.ImbueGroup); seit dem Paket ezmacro/gifte-waffenzauber eine Regel für ezBuff und ezMacro.
+function Spells.OrderedImbues(class)
+    if Core.IsSecret(class) then return {} end
+    local list, byKey = Spells.WeaponImbues(class), {}
+    for _, entry in ipairs(list) do
+        if type(entry) == "table" and type(entry.key) == "string" then byKey[entry.key] = entry end
+    end
+    local out = {}
+    for _, key in ipairs(Spells.IMBUE_ORDER or {}) do
+        if byKey[key] then
+            out[#out + 1] = byKey[key]
+            byKey[key] = nil
+        end
+    end
+    for _, entry in ipairs(list) do
+        if type(entry) == "table" and byKey[entry.key] then out[#out + 1] = entry end
+    end
+    return out
+end
+
+-- Gewählter Waffenzauber: prefer (Schlüssel, z. B. ezBuffs gemerkte Wahl über ezCore.API("ezBuff").Preferred("imbue")),
+-- wenn ein Rang davon gelernt ist, sonst der erste gelernte in der Reihenfolge des Vorschlags (Spells.OrderedImbues).
+-- → Schlüssel, Zauber-ID des höchsten gelernten Rangs | nil (keiner gelernt, Klasse ohne Waffenzauber).
+function Spells.ChooseImbue(prefer, class)
+    if Core.IsSecret(class) then return nil end
+    local ordered = Spells.OrderedImbues(class)
+    if #ordered == 0 then return nil end
+    if not Core.IsSecret(prefer) and type(prefer) == "string" then
+        for _, entry in ipairs(ordered) do
+            if entry.key == prefer then
+                local spell = Spells.BestImbueRank(prefer)
+                if spell then return prefer, spell end
+            end
+        end
+    end
+    for _, entry in ipairs(ordered) do
+        local spell = Spells.BestImbueRank(entry.key)
+        if spell then return entry.key, spell end
     end
     return nil
 end

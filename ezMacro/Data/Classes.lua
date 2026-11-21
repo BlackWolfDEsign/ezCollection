@@ -381,6 +381,16 @@ ns.AddMacros("class", "PALADIN", {
         body = Logic("PALADIN", "hammer"),
     },
     {
+        id = "paladin_res",
+        name = { "Erlösung (MO)", "Redemption (MO)" },
+        desc = { "Erlösung auf den toten Spieler unter der Maus, sonst aufs Ziel.",
+                 "Redemption on the dead player under your mouse, otherwise your target." },
+        why = { "Erlösung auf den toten Spieler unter der Maus – kein Anklicken der Leiche nötig.",
+                "Redemption on the dead player under your mouse – no need to click the body first." },
+        logic = "res",
+        body = Logic("PALADIN", "res"),
+    },
+    {
         id = "paladin_layonhands",
         name = { "Handauflegung", "Lay on Hands" },
         desc = { "Handauflegung auf den Spieler unter der Maus, sonst aufs freundliche Ziel, sonst auf dich.",
@@ -638,6 +648,11 @@ ns.AddMacros("class", "ROGUE", {
                  "First press: Stealth. Then Sap on the enemy under your mouse, otherwise your target." },
         why = { "Ein Knopf für Verstohlenheit und danach Kopfnuss – auch auf einen Gegner unter der Maus.",
                 "One key for Stealth and then Sap – also on an enemy under your mouse, no targeting needed." },
+        -- empfohlen seit dem Spieltest 20.11.2026 (wörtlich „wieso fehlt davon auf einmal die hälfte? z.b. kopfnuss und
+        -- taschendiebstahl“): Kontrolle vor dem Kampf, wie Verwandlung (F) beim Magier – steht damit ab Werk in der Liste
+        without = { "Gegner anklicken, Verstohlenheit drücken, dann Kopfnuss – und zurück zu deinem Ziel.",
+                    "Click the enemy, press Stealth, then Sap – and switch back to your target." },
+        rec = true,
         logic = "sap",
         body = Logic("ROGUE", "sap", { tip = 6770 }),
     },
@@ -982,6 +997,16 @@ ns.AddMacros("class", "SHAMAN", {
         why = { "Vier Totems nacheinander auf einer Taste – du drückst trotzdem viermal, sparst nur Plätze.",
                 "Four totems in a row on one key – you still press four times, it only saves bar slots." },
         body = "#showtooltip\n/castsequence reset=combat/30 {s:8075}, {s:5394}, {s:3599}, {s:8512}",
+    },
+    {
+        id = "shaman_res",
+        name = { "Ahnengeist (MO)", "Anc. Spirit (MO)" },
+        desc = { "Geist der Ahnen auf den toten Spieler unter der Maus, sonst aufs Ziel.",
+                 "Ancestral Spirit on the dead player under your mouse, otherwise your target." },
+        why = { "Geist der Ahnen auf den toten Spieler unter der Maus – kein Anklicken der Leiche nötig.",
+                "Ancestral Spirit on the dead player under your mouse – no need to click the body first." },
+        logic = "res",
+        body = Logic("SHAMAN", "res"),
     },
     {
         id = "shaman_wolf",
@@ -1405,6 +1430,16 @@ ns.AddMacros("class", "DRUID", {
         body = Logic("DRUID", "rebirth"),
     },
     {
+        id = "druid_revive",
+        name = { "Wiederbel. (MO)", "Revive (MO)" },
+        desc = { "Wiederbeleben auf den toten Spieler unter der Maus, sonst aufs Ziel – außerhalb des Kampfes.",
+                 "Revive on the dead player under your mouse, otherwise your target – out of combat." },
+        why = { "Wiederbeleben auf den toten Spieler unter der Maus – kein Anklicken der Leiche nötig.",
+                "Revive on the dead player under your mouse – no need to click the body first." },
+        logic = "revive",
+        body = Logic("DRUID", "revive"),
+    },
+    {
         id = "druid_cure",
         name = { "Fluch/Gift (MO)", "Curse/Poison MO" },
         desc = { "Fluch aufheben beim Spieler unter der Maus, sonst beim freundlichen Ziel, sonst bei dir. Shift: Vergiftung aufheben.",
@@ -1566,15 +1601,16 @@ ns.NO_TEMPLATE = {
 -- dass eine Maus- oder Fokus-Fassung nicht wirkt (Finishing-Moves: die Combopunkte liegen auf dem Ziel), nichts bringt
 -- (Nahkampf aufs Ziel vor dir, nur nach einer Parade) oder von einer Vorlage abgedeckt wird. Die übrigen Ausnahmen
 -- (Schwarzer Pfeil, Dämon unterwerfen, Wilde Attacke …) bietet die Gruppe an.
+-- Was ezCores Spells.CLASS als reactive, finisher oder nextSwing führt (Gegenangriff 19306, Zerfetzen 1079), filtert
+-- SpellMacros.lua schon über SM.CLASS_SKIP – es steht hier nicht noch einmal (SSOT; Paket ezmacro/rangtausch-ezheal,
+-- Tests/rangtausch2011.lua hält das fest).
 ns.NO_GENERATE = {
     [12809] = true,   -- Erschütternder Schlag
-    [19306] = true,   -- Gegenangriff
     [408] = true,     -- Nierenhieb
     [703] = true,     -- Erdrosseln
     [1943] = true,    -- Blutung
     [28270] = true,   -- Verwandlung: Kuh (Vorlage „Verwandlung (F)“)
     [5211] = true,    -- Hieb
-    [1079] = true,    -- Zerfetzen
     [1822] = true,    -- Krallenhieb
     [1328617] = true, -- Aufschlitzen (Druide)
 }

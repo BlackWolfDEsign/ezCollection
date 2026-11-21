@@ -24,7 +24,11 @@ local block = ns.RegisterBlock({
     events = { "ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD" },
     colorable = true,
     defaults = {
-        enabled = true, zone = "left", order = 10, label = false,
+        -- Ab-Werk-Platz = Ziel von „Zurücksetzen“ (Spieltest 20.11.2026, Bildschirmfoto des Nutzers 23:37, wörtlich „das
+        -- ezpanel sollte nach dem zurücksetzen aber wie auf zweiten bild angeordnet sein“): links Lautstärke, XP, Gold,
+        -- Taschen, Haltbarkeit; Mitte Freunde; rechts außen Ort, dann die Uhr – hinter allen anderen rechts (auch den
+        -- LDB-Anzeigen, 900), wo Blizzards Kästchen mit Ort und Uhr stand
+        enabled = true, zone = "right", order = 960, label = false,
         showZone = true,
         showSubzone = true,
         coords = true,

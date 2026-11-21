@@ -502,6 +502,13 @@ local function AddSharedTip(tooltip, spellID, step)
 end
 Book.AddSharedTip = AddSharedTip
 
+-- Zeile „Annahme: …“ unter der Bedingung, wenn der Schritt etwas schätzt (Feld guess; Paket
+-- ezcombat/rotation-recherche-2 vom 20.11.2026, Wunsch: Annahmen wie „bis 70 Wut“ im Tooltip kennzeichnen).
+function Book.AddGuessTip(tooltip, step)
+    local guess = Rotation.StepGuess(step)
+    if guess then tooltip[#tooltip + 1] = Tip(L.ROTATION_GUESS_TIP:format(guess), "orange") end
+end
+
 -- Bearbeiten direkt auf der Seite (Entscheidung des Nutzers vom 20.11.2026, „Klick tauscht, Ziehen schiebt“): der
 -- Tooltip eines Schritts nennt Klick (Fähigkeit tauschen; eigene Rotation: auch die Bedingung), Ziehen (Reihenfolge im
 -- selben Abschnitt, mit dessen Namen – auf dem Spickzettel sind die Abschnitte sonst nicht zu sehen) und – im Kampf –
@@ -585,6 +592,7 @@ local function StepLine(rotation, section, entry, index, count, ctx, info, rank)
     local added = own and step.added == true
     local tooltip = { Tip(Rotation.StepText(step), "normal"), Tip(condition, "highlight") }
     if Rotation.StepText(step) == "" then tooltip[1] = Tip(Book.EasyText(step), "normal") end
+    Book.AddGuessTip(tooltip, step)
     if shown.known then AddSharedTip(tooltip, shown.id, step) end
     if state ~= "" then tooltip[#tooltip + 1] = Tip(state, "blue") end   -- Zustand (vorher STATE_COLOR, T9-6)
     -- Klick: Menü zum Tauschen (eigene Rotation: dazu die Bedingung), Ziehen: Reihenfolge; selbst hinzugefügte
@@ -909,6 +917,7 @@ local function EasyLine(rotation, item, number, ctx, info)
     end
     local sentence = Book.EasyText(step)
     local tooltip = { Tip(sentence, "normal"), Tip(Book.ConditionText(step), "highlight") }
+    Book.AddGuessTip(tooltip, step)
     AddSharedTip(tooltip, shown.id, step)
     if nowText then tooltip[#tooltip + 1] = Tip(nowText, "good") end
     local own = Rotation.IsOwn(rotation)

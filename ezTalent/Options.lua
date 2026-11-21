@@ -2,7 +2,7 @@ local _, ns = ...
 local L = ns.L
 
 -- Einstellungen unter Esc → Optionen → AddOns → ezCollection → ezTalent (Seite von ezCore):
--- Allgemein (Talentfenster öffnen) → Vorlagen → Vermächtnis → Auswirkungen → Charaktere →
+-- Allgemein (Talentfenster öffnen) → Vorlagen → Empfehlung → Vermächtnis → Auswirkungen → Charaktere →
 -- Erweitert (Talente erheben, Werte für die Simulation messen, gemerkte Grundwerte zeigen, Status, Erklärung erneut zeigen, Einstellungen zurücksetzen, ergänzende Addons).
 local page
 
@@ -18,6 +18,9 @@ local function Register()
     page:Header(L.OPT_HEADER_TEMPLATES)
     page:Checkbox("makeRoom")
     page:Checkbox("nextPoint")
+
+    page:Header(L.OPT_HEADER_ADVICE)
+    page:Checkbox("adviceTab")
 
     page:Header(L.OPT_HEADER_LEGACY)
     page:Button(L.OPT_OPEN_LEGACY, L.OPT_OPEN_LEGACY_BUTTON, function() ns.OpenLegacy() end, L.OPT_OPEN_LEGACY_TIP)

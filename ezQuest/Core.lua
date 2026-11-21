@@ -64,7 +64,8 @@ ns.DEFAULTS = {
     routeDetour = 60,       -- Grenze eines Abstechers in Yards (Antwort 6, Schieber 0–200)
     routeHard = true,       -- Elite-, Dungeon- und Quests über drei Stufen einplanen (Antwort 9; aus beim Leveln allein)
     routeLine = true,       -- Linie der Route auf der Weltkarte über ezMap (Antwort 3)
-    routeMiniArrow = true,  -- kleiner Pfeil auf der Minikarte zum nächsten Schritt über ezMap (Spieltest 19.11.2026)
+    routeMiniArrow = true,  -- Pfeil auf der Minikarte zum nächsten Schritt über ezMap (Spieltest 19.11.2026)
+    routeMiniArrowSize = 24, -- seine Größe in Bildpunkten (Spieltest 20.11.2026: 16 war zu klein; Schieber 12–48)
     -- ohne Klick an Blizzards Zuständen: ab Werk aus, mit Hinweis im Menü (Grundsatz des Nutzers vom 17.11.2026, wörtlich
     -- „user muss auf sowas hingewiesen werden, er kann es nutzen muss es aber einschalten“). Den Pfeil beim
     -- Weiterrücken (routeArrow) gibt es seit Nr. 94 der Einstellungs-Prüfung vom 19.11.2026 nur über ezMaps wayTrack.
@@ -76,6 +77,15 @@ ns.DEFAULTS = {
     -- automatisch teilen“): sendet ohne Klick an die Mitspieler, darum ab Werk aus, mit Hinweis an der Questverfolgung
     -- (Grundsatz des Nutzers vom 17.11.2026, Entscheidung 2 vom 18.11.2026)
     autoShare = false,
+}
+
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+-- risk hier: Wiederholbare verbrauchen Gegenstände, die Belohnung wird ohne Klick gewählt
+ns.AGREE = {
+    autoRepeatable = "risk", autoReward = "risk", autoTrivial = "choice",
 }
 
 -- Schalter für /ezq <befehl> (deutsches Wort, englisches im Feld en – T10-1: „/ezq sort“ im englischen Client –,
@@ -155,6 +165,8 @@ Core.NewModule(ADDON, ns, {
         "Menu.Icon", "Menu.IconRoot", "Menu.ProfessionIcon",
         -- Gesamtreview 18.11.2026, Feature I1 (ezCore ohne neue Versionsnummer): Quest-Erfahrung und Stufe danach
         "QuestXP", "QuestReady", "QuestLogXP", "LevelAfterXP", "XPBlocked",
+        -- Leveling-Route nach Stufenabstand (Zweig ezquest/route-stufe; ezCore ohne neue Versionsnummer)
+        "QuestDifficulty",
         -- Gegenprüfung I1: ein Filter fürs Questlog, Stufengrenze eines Probe-Kontos, Ausschnitt eines Atlas
         "QuestLogEntries", "XPLevelCap", "AtlasTexCoord",
         -- Quests teilen (Share.lua, 18.11.2026; ezCore ohne neue Versionsnummer)

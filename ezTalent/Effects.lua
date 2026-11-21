@@ -254,6 +254,8 @@ Effects.STATS = {
     { key = "dodge", de = { { "ausweich" } }, en = { { "dodge" } } },
     { key = "parry", de = { { "parier" } }, en = { { "parry" } } },
     { key = "block", de = { { "block" } }, en = { { "block" } } },
+    -- Distanz vor Nahkampf: „Distanzangriffskraft“ enthält „angriffskraft“ (Charakterwerte, 20.11.2026)
+    { key = "rangedAttackPower", de = { { "distanzangriffskraft" }, { "fernkampfangriffskraft" } }, en = { { "ranged attack power" } } },
     { key = "attackPower", de = { { "angriffskraft" } }, en = { { "attack power" } } },
     { key = "spellDamage", de = { { "zauberschaden" }, { "schaden", "zauber" } }, en = { { "spell damage" }, { "damage", "spell" } } },
     { key = "healing", de = { { "heilung" }, { "heilzauber" } }, en = { { "healing" } } },
@@ -285,7 +287,13 @@ Effects.STAT_SKIP = {
 }
 -- Treffen mehrere Werte im selben Satz zusammen, gilt nur der gemeinte: „kritische Trefferchance“ ist Krit., nicht
 -- Treffer; Zauber-Krit. ersetzt Krit. (Schlüssel: verdrängter Wert, Liste: Werte, die ihn verdrängen).
+-- Verdrängt nur, wo das kurze Wort ausschließlich im längeren steht (Effects.StatsFromText).
+Effects.STAT_ALONE = {
+    attackPower = { de = { word = "angriffskraft", longer = { "distanzangriffskraft", "fernkampfangriffskraft" } },
+        en = { word = "attack power", longer = { "ranged attack power" } } },
+}
 Effects.STAT_COVERED = {
+    attackPower = { "rangedAttackPower" },
     crit = { "spellCrit" },
     hit = { "spellHit", "crit", "spellCrit" },
     spellHit = { "crit", "spellCrit" },
@@ -349,6 +357,22 @@ function Effects.StatsFromText(text, lang)
                 local covered = false
                 for _, by in ipairs(Effects.STAT_COVERED[key] or {}) do
                     if hit[by] then covered = true break end
+                end
+                -- „attack power and ranged attack power“: steht das kurze Wort öfter da als im längeren, zählt es auch
+                -- selbst (Review 20.11.2026)
+                local alone = Effects.STAT_ALONE[key] and Effects.STAT_ALONE[key][lang]
+                if covered and alone then
+                    local function Count(word)
+                        local n, at = 0, 1
+                        while true do
+                            local i = low:find(word, at, true)
+                            if not i then return n end
+                            n, at = n + 1, i + #word
+                        end
+                    end
+                    local inside = 0
+                    for _, longer in ipairs(alone.longer) do inside = inside + Count(longer) end
+                    if Count(alone.word) > inside then covered = false end
                 end
                 if not covered then keys[#keys + 1] = key end
             end
@@ -443,6 +467,116 @@ function Effects.StatValue(value, percent, signed)
     if Core.IsGerman() then text = text:gsub("%.", ",") end
     if signed ~= false and value > 0 then text = "+" .. text end
     if percent then text = text .. (Core.IsGerman() and " %" or "%") end
+    return text
+end
+
+---------------------------------------------------------------------------
+-- Charakterwerte: jetzt » mit Vorschau (Spieltest 20.11.2026, Nutzer wörtlich „bei auswirkungen fehlt irgendetwas,
+-- character stats und co?“; Entwurf docs/talent-empfehlung.md, Abschnitt 4)
+---------------------------------------------------------------------------
+
+--[[
+    „Jetzt“ sind die Werte des Charakters aus dem Client (Measure.Stats – wie Blizzards Charakterfenster, mit Ausrüstung
+    und Stärkungszaubern; geheime Werte fehlen, Leitlinie 6). „Mit“ ist jetzt plus der Unterschied der Talentwirkungen
+    laut Text zwischen dem anderen Baum und dem bestätigten (Effects.StatTotals). Art der Rechnung je Wert:
+      chance – Krit., Treffer, Ausweichen …: Prozentpunkte zählen dazu (feste Zahlen gibt es dafür nicht)
+      base   – Grundwerte, Leben, Mana, Rüstung, Angriffskraft: Prozent wirken als Faktor auf den Wert ohne den
+               Prozent-Anteil der Talente, feste Zahlen zählen dazu
+      flat   – Zaubermacht, Heilung: nur feste Zahlen (Prozent auf Zauberschaden ist kein Wert des Charakters)
+    Nicht eingerechnet: Folgewerte (Leben aus Ausdauer, Krit. aus Beweglichkeit …).
+]]
+Effects.CHARACTER = {
+    { key = "hp", talent = "health", kind = "base" },
+    { key = "mana", talent = "mana", kind = "base" },
+    { key = "str", talent = "strength", kind = "base" },
+    { key = "agi", talent = "agility", kind = "base" },
+    { key = "sta", talent = "stamina", kind = "base" },
+    { key = "int", talent = "intellect", kind = "base" },
+    { key = "spi", talent = "spirit", kind = "base" },
+    { key = "ap", talent = "attackPower", kind = "base" },
+    { key = "rap", talent = "rangedAttackPower", kind = "base" },
+    { key = "meleeCrit", talent = "crit", kind = "chance" },
+    { key = "rangedCrit", talent = "crit", kind = "chance" },
+    { key = "hit", talent = "hit", kind = "chance" },
+    { key = "spellPower", talent = "spellDamage", kind = "flat" },
+    { key = "healing", talent = "healing", kind = "flat" },
+    { key = "spellCrit", talent = "spellCrit", kind = "chance" },
+    { key = "spellHit", talent = "spellHit", kind = "chance" },
+    { key = "dodge", talent = "dodge", kind = "chance" },
+    { key = "parry", talent = "parry", kind = "chance" },
+    { key = "block", talent = "block", kind = "chance" },
+    { key = "armor", talent = "armor", kind = "base" },
+}
+
+-- Werte der bestätigten Talente (ohne Vorschau): Rang und Text vor den vorgemerkten Punkten (Effects.Collect).
+-- → Liste wie Effects.Collect, nur mit dem bestätigten Stand
+function Effects.CommittedItems(items)
+    local out = {}
+    for _, item in ipairs(items or {}) do
+        if item.state == "same" or item.state == "removed" then
+            out[#out + 1] = { rank = item.before or item.rank, text = item.text, target = item.target, state = "same" }
+        elseif item.state == "changed" then
+            out[#out + 1] = { rank = item.before, text = item.textBefore or "", target = item.target, state = "same" }
+        end
+    end
+    return out
+end
+
+-- Summe eines Talentwerts aus Effects.StatTotals (percent: der Prozent-Anteil). → Zahl (0 ohne Eintrag)
+function Effects.TotalOf(totals, key, percent)
+    local t = totals and totals[key .. (percent and "%" or "")]
+    return t and t.value or 0
+end
+
+-- stats: Measure.Stats(); before: Effects.StatTotals des bestätigten Baums; after: des anderen Baums (nil = keiner).
+-- → { { key, kind, now, with, diff } } in der Reihenfolge von Effects.CHARACTER – nur Werte, die der Client nennt und
+-- die nicht 0 sind oder sich ändern
+-- all = true: auch Werte, die 0 sind und sich nicht ändern (für den Vergleich zweier Bäume, UI.CharacterLines).
+function Effects.CharacterRows(stats, before, after, all)
+    local Total, rows = Effects.TotalOf, {}
+    for _, def in ipairs(Effects.CHARACTER) do
+        local now = type(stats) == "table" and tonumber(stats[def.key]) or nil
+        if now then
+            local with
+            if after then
+                if def.kind == "chance" then
+                    with = now + Total(after, def.talent, true) - Total(before, def.talent, true)
+                elseif def.kind == "flat" then
+                    with = now + Total(after, def.talent, false) - Total(before, def.talent, false)
+                else
+                    local base = now / (1 + Total(before, def.talent, true) / 100) - Total(before, def.talent, false)
+                    with = (base + Total(after, def.talent, false)) * (1 + Total(after, def.talent, true) / 100)
+                end
+            end
+            local row = { key = def.key, kind = def.kind, now = now, with = with }
+            if with then
+                -- Unterschied der angezeigten (gerundeten) Zahlen, damit „jetzt“, „mit“ und „(±)“ zusammenpassen
+                local diff
+                if def.kind == "chance" then
+                    diff = math.floor(with * 100 + 0.5) / 100 - math.floor(now * 100 + 0.5) / 100
+                    diff = math.floor(diff * 100 + 0.5) / 100
+                else
+                    diff = math.floor(with + 0.5) - math.floor(now + 0.5)
+                end
+                if math.abs(diff) < 0.005 then diff = 0 end
+                row.diff = diff
+            end
+            if all or now ~= 0 or (row.diff or 0) ~= 0 then rows[#rows + 1] = row end
+        end
+    end
+    return rows
+end
+
+-- Zahl eines Charakterwerts: Chancen mit zwei Stellen und „%“, sonst ganz. signed: mit Vorzeichen (Unterschied).
+function Effects.CharacterValue(value, kind, signed)
+    value = tonumber(value) or 0
+    local text
+    if kind == "chance" then
+        text = Core.Percent(value, (value % 1 == 0) and 0 or 2)
+    else
+        text = Core.Decimal(math.floor(value + 0.5), 0)
+    end
+    if signed and value > 0 then text = "+" .. text end
     return text
 end
 

@@ -17,7 +17,10 @@ local L = Core.L
       * ezMacros sichere Knöpfe der Helfer „Eine Taste“ (Welle 23a, A52): „Öffnen und Entzaubern“
         (ezMacroOneKeyOpen) und „Begleiter füttern“ (ezMacroOneKeyFeed) – CLICK über je einen Stellvertreter (unten,
         T9-NB1), der den Knopf drückt; die übrigen Helfer
-        sind Blizzard-Makros und liegen auf Blizzards Aktionsleisten, „Angeln“ belegt seine Taste selbst
+        sind Blizzard-Makros und liegen auf Blizzards Aktionsleisten
+      * ezMacros „Angeln mit einer Taste“ (Spieltest 20.11.2026, Entscheidung „Eigene Taste“): CLICK über einen
+        Stellvertreter auf ezMacroFishing (auswerfen); während des Angelns legt ezMacro dieselbe Taste auf
+        INTERACTTARGET (einholen). Ohne eigene Taste nimmt ezMacro wie bisher die Taste von „Mit Ziel interagieren“
     Weitere Fenster: je eine Zeile hier und in Bindings.xml; ein Modul kann die Ausführung über
     Keys.Register(id, fn, owner) selbst liefern.
 
@@ -91,6 +94,8 @@ Keys.LIST = {
     { id = "oneKeyFeed", binding = "CLICK ezMacroOneKeyFeedKey:LeftButton", text = "KEY_ONEKEY_FEED", module = "ezMacro",
         secure = true, button = "ezMacroOneKeyFeed", proxy = "ezMacroOneKeyFeedKey",
         old = "CLICK ezMacroOneKeyFeed:LeftButton" },
+    { id = "fishing", binding = "CLICK ezMacroFishingKey:LeftButton", text = "KEY_FISHING", module = "ezMacro",
+        secure = true, button = "ezMacroFishing", proxy = "ezMacroFishingKey" },
 }
 
 local byId, byOld, custom = {}, {}, {}

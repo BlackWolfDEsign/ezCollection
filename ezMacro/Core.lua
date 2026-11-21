@@ -46,6 +46,16 @@ ns.DEFAULTS = {
     macroFromSpells = true,    -- Gruppe „Aus deinen Fähigkeiten“ im Reiter „Makros“ (SpellMacros.lua, Welle 27)
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+-- risk hier: „Animation + Text“ sendet beim automatischen Spucken (autoSpit) ein zweites Emote ohne Klick
+ns.AGREE = {
+    spitAnimation = "risk", announce = "on", fishingKey = "choice", hideUnknown = "choice", profileBindings = "choice",
+    profileClearEmpty = "choice",
+}
+
 -- Kategorien der Einträge (Feld category; gemerkte Anpassungen und Auswahl hängen daran).
 -- „custom“: eigene Vorlagen (Custom.lua), „tools“: Werkzeuge wie Sichern und Leisten-Profile (Tools.lua),
 -- „announce“: Ansagen für Anführer (Data\Announce.lua, Announce.lua) mit den Gruppen Dungeon, Raid und PvP.
@@ -154,7 +164,17 @@ ns.CORE_NEEDS = { "scaffold", "unitEvents", "tourOwner", "AfterCombat", "OpenPan
         -- Gesamtreview 18.11.2026 (P19a, kern/ssot-helfer; ohne neue Nummer): hergestellte Gegenstände aus ezCore
         "Spells.CONJURED", "Spells.SOUL_SHARD",
     -- Gesamtreview 18.11.2026 (P19a, kern/ssot-helfer; ohne neue Nummer): gemeinsame Helfer statt Kopien
-    "QualityName", "CopyList", "PlaySound" }
+    "QualityName", "CopyList", "PlaySound",
+    -- Paket ezmacro/gifte-waffenzauber (ohne neue Nummer): bestes Gift aus ezCore, Makro „Gegenstand auf die Waffe“,
+    -- Plätze der Hände, gewählter Waffenzauber
+    "BestItems.WeaponEnchant", "Macro.WeaponItem", "HAND_SLOTS", "Spells.ChooseImbue", "WeaponEnchantable",
+    -- Paket ezcore/klinge-wucht (ohne neue Nummer): WeaponEnchant mit Hand – nur, was die Waffe dieser Hand annimmt
+    "BestItems.PickWeaponEnchant",
+    -- Paket ezmacro/ssot-doppelungen (ohne neue Nummer): Rückfall-Haltungen; MacroFallbackForms steht zugleich für das
+    -- leere Kettenglied „any“ in Spells.MacroCondition (kam im selben Paket, lässt sich nicht einzeln abfragen)
+    "Spells.MacroFallbackForms", "Spells.BEAR_FORM",
+    -- Paket ezmacro/ssot-doppelungen: Regel „bestes Essen, Getränk, Verband, Heiltrank“ aus ezCore
+    "BestItems.Consumable", "BestItems.CONSUMABLE_KINDS" }
 Core.NewModule(ADDON, ns, {
     core = ns.CORE_VERSION, needs = ns.CORE_NEEDS,
     db = "ezMacroDB",

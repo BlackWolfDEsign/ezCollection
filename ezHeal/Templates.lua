@@ -726,9 +726,112 @@ function T.Apply(kind, opts)
         if reason ~= "same" then store.previous, store.foreign = store.slots, nil end
         store.slots = slots
         store.kind, store.class, store.count, store.time = kind, opts.class or PlayerClass(), count, Core.Now()
+        store.lastMacro, store.lastRanks = nil, nil
     end
     -- Blizzards offenes Fenster lädt ezCore nach dem Schreiben selbst neu (Core.ClickBindings.Reload, T4-NG2)
     if reason == "same" then return true, "same" end
+    return true, count
+end
+
+-- Ein Makro auf eine Taste legen (Paket ezmacro/klickzauber-besitzer): ezHeal ist der eine Besitzer der Klick-Belegung
+-- (Entscheidung des Nutzers vom 13.11.2026: „ezHeal bleibt die Klick-Schicht“); ezMacros Knopf „Klick-Zauber“ ruft
+-- das über ezCore.API("ezHeal").AssignMacro, statt selbst zu schreiben. Wie T.Apply: nur außerhalb des Kampfes, ezCore
+-- sichert die alte Belegung, und die Merkliste geht mit – lag auf der Taste eine Heilung, die ezHeal geschrieben hat,
+-- gehört die Taste jetzt dem Makro (sie fällt aus der Merkliste), und „Zurück“ tauscht die Merkliste wie nach einem
+-- Übernehmen. Einen fremden Eintrag auf der Taste ersetzt das Makro, wie Blizzard es tut (der Aufrufer fragt vorher).
+-- opts.via: Name des rufenden Moduls – die Rückfrage zu „Zurück“ nennt danach Makro, Taste und Modul
+-- (store.lastMacro, gelöscht von T.Apply, T.Restore und T.ProfileLoaded). Umschalttasten nur als SHIFT/CTRL/ALT
+-- (wie die Plätze der Vorlagen), sonst "invalid". → true | true, "same" | false, grund
+function T.AssignMacro(name, button, modifiers, opts)
+    opts = type(opts) == "table" and opts or {}
+    local cb = CB()
+    if not (cb and cb.Writable()) then return false, "missing" end
+    if Core.InCombat() then return false, "combat" end
+    if Core.IsSecret(name) or Core.IsSecret(button) or Core.IsSecret(modifiers) then return false, "invalid" end
+    local wanted = T.NormalizeModifiers(modifiers)
+    if wanted == nil then return false, "invalid" end
+    local entry, why = cb.Macro(name, button, modifiers)
+    if not entry then return false, why or "invalid" end
+    local store = AppliedStore(false)
+    local before = store and type(store.slots) == "table" and store.slots or nil
+    local ok, reason = cb.Assign(entry, { owner = ADDON, quiet = opts.quiet })
+    if not ok then return false, reason end
+    -- Merkliste: die Taste gehört jetzt dem Makro (auch bei "same": lag das Makro schon da, ist ein alter Eintrag
+    -- veraltet; previous bleibt dann, weil ezCore keine neue Sicherung angelegt hat)
+    local slots, key = {}, cb.ButtonKey and cb.ButtonKey(button) or button
+    for slot, record in pairs(before or {}) do
+        local same = type(record) == "table" and ((cb.ButtonKey and cb.ButtonKey(record[1])) or record[1]) == key
+        if not (same and T.NormalizeModifiers(record[2]) == wanted) then slots[slot] = record end
+    end
+    if reason == "same" then
+        if store and before then store.slots = slots end
+        return true, "same"
+    end
+    store = store or AppliedStore(true)
+    if store then
+        store.previous, store.foreign, store.slots, store.lastRanks = before, nil, before and slots or nil, nil
+        store.lastMacro = { name = entry.name or name, key = T.KeyText(button, modifiers),
+            via = type(opts.via) == "string" and opts.via or nil }
+    end
+    return true, reason
+end
+
+-- Ränge tauschen (Paket ezmacro/rangtausch-ezheal; Folgepunkt aus PR 570): ezMacros „Ränge aktualisieren“ tauscht in
+-- Blizzards Klick-Belegung nur Zauber-IDs (alter Rang → höchster Rang). Auch das schreibt der eine Besitzer ezHeal
+-- (Entscheidung des Nutzers vom 13.11.2026: „ezHeal bleibt die Klick-Schicht“), damit Merkliste und „Zurück“ den Tausch
+-- kennen. Wie T.Apply: nur außerhalb des Kampfes, ezCore sichert die alte Belegung, Blizzards Standard wird nicht ergänzt
+-- (keepDefaults = false), alles andere bleibt. Getauscht wird nur, wo auf der Taste noch genau der alte Rang liegt.
+-- changes: { { button, modifiers, id = alte ID, newID } } (Taste und Umschalttasten wie in ezCores CB.List).
+-- Die Merkliste behält ihre Tasten und bekommt die neue ID; opts.via nennt das Modul für die Rückfrage zu „Zurück“
+-- (store.lastRanks, gelöscht wie store.lastMacro). → true, anzahl | true, "same" | false, grund
+function T.ReplaceSpells(changes, opts)
+    opts = type(opts) == "table" and opts or {}
+    local cb = CB()
+    if not (cb and cb.Writable()) then return false, "missing" end
+    if Core.InCombat() then return false, "combat" end
+    if type(changes) ~= "table" then return false, "invalid" end
+    local list, complete = cb.List()
+    if not list then return false, complete or "error" end
+    if complete == false then return false, "unreadable" end
+    local swapped, count = {}, 0
+    for _, change in ipairs(changes) do
+        local valid = type(change) == "table" and not Core.IsSecret(change)
+        local id, newID = valid and change.id, valid and change.newID
+        if type(id) == "number" and type(newID) == "number" and not Core.IsSecret(id) and not Core.IsSecret(newID)
+            and not Core.IsSecret(change.button) and not Core.IsSecret(change.modifiers) and id ~= newID then
+            local entry = cb.Find(list, change.button, change.modifiers)
+            if entry and entry.kind == "spell" and entry.id == id and not swapped[entry] then
+                entry.id = newID
+                swapped[entry] = id
+                count = count + 1
+            end
+        end
+    end
+    if count == 0 then return true, "same" end
+    local ok, reason = cb.Set(list, { owner = ADDON, keepDefaults = false, quiet = opts.quiet })
+    if not ok then return false, reason end
+    -- Merkliste: eigene Tasten mit dem getauschten Zauber bekommen die neue ID (neue Tabellen – previous teilt die alten)
+    local store = AppliedStore(false)
+    local before = store and type(store.slots) == "table" and store.slots or nil
+    if before then
+        local slots = {}
+        for slot, record in pairs(before) do
+            local entry = type(record) == "table" and cb.Find(list, record[1], record[2]) or nil
+            if entry and swapped[entry] and T.SameSpell(record[3], swapped[entry]) then
+                slots[slot] = { record[1], record[2], entry.id }
+            else
+                slots[slot] = record
+            end
+        end
+        store.slots = slots
+    end
+    if reason == "same" then return true, "same" end
+    store = store or AppliedStore(true)
+    if store then
+        -- die Sicherung „last“ stammt jetzt von ezHeal: „Zurück“ tauscht die Merkliste mit (HL-06)
+        store.previous, store.foreign, store.lastMacro = before, nil, nil
+        store.lastRanks = { count = count, via = type(opts.via) == "string" and opts.via or nil }
+    end
     return true, count
 end
 
@@ -771,6 +874,7 @@ function T.Restore(which)
     -- ihn wiederbringt). Ob eine gemerkte Belegung noch liegt, prüft T.Removals ohnehin vor jedem Entfernen.
     local store = AppliedStore(false)
     if store and reason ~= "same" then
+        store.lastMacro, store.lastRanks = nil, nil
         if which == "first" then
             store.previous, store.slots, store.foreign = store.slots, nil, nil
         elseif writer == "own" then
@@ -786,7 +890,9 @@ end
 -- die Merkliste wird „davor“, damit „Zurück“ (Sicherung von ezHeal) sie wiederbringt.
 function T.ProfileLoaded()
     local store = AppliedStore(false)
-    if store then store.previous, store.slots, store.foreign = store.slots, nil, nil end
+    if store then
+        store.previous, store.slots, store.foreign, store.lastMacro, store.lastRanks = store.slots, nil, nil, nil, nil
+    end
 end
 T.ReopenBlizzard = ReopenBlizzard
 
@@ -864,6 +970,17 @@ function T.RestorePrompt(which)
     local writer, name = T.LastWriter()
     if writer == "other" then return L.ASK_RESTORE .. "\n\n" .. L.RESTORE_OTHER:format(tostring(name)) end
     if writer == "unknown" then return L.ASK_RESTORE .. "\n\n" .. L.RESTORE_UNKNOWN end
+    -- zuletzt ein Makro auf eine Taste gelegt (T.AssignMacro, z. B. über ezMacros Knopf „Klick-Zauber“)
+    local store = AppliedStore(false)
+    local last = store and store.lastMacro
+    if type(last) == "table" and type(last.name) == "string" then
+        return L.ASK_RESTORE .. "\n\n" .. L.RESTORE_MACRO:format(last.name, tostring(last.key or "?"), last.via or ADDON)
+    end
+    -- zuletzt Ränge getauscht (T.ReplaceSpells, ezMacros „Ränge aktualisieren“)
+    local ranks = store and store.lastRanks
+    if type(ranks) == "table" and type(ranks.count) == "number" then
+        return L.ASK_RESTORE .. "\n\n" .. L.RESTORE_RANKS:format(ranks.count, ranks.via or ADDON)
+    end
     return L.ASK_RESTORE
 end
 
@@ -909,6 +1026,12 @@ ns.API = {
     -- Anwenden ohne Rückfrage (der Aufrufer fragt selbst) → wie ezHeal: true, anzahl | true, "same" | false, grund
     -- (mit den eigenen Tasten; bei einer Doppelbelegung false, "conflict")
     Apply = function(kind, opts) return T.Apply(kind, opts) end,
+    -- Makro (Name) auf eine Taste legen, ohne Rückfrage (der Aufrufer fragt selbst; ezMacros Knopf „Klick-Zauber“) →
+    -- true | true, "same" | false, grund. ezHeal ist der eine Schreiber der Klick-Belegung (Paket ezmacro/klickzauber-besitzer).
+    AssignMacro = function(name, button, modifiers, opts) return T.AssignMacro(name, button, modifiers, opts) end,
+    -- Ränge tauschen, ohne Rückfrage (ezMacros „Ränge aktualisieren“): { { button, modifiers, id, newID } } →
+    -- true, anzahl | true, "same" | false, grund. Nur, wo noch der alte Rang liegt; die Merkliste geht mit.
+    ReplaceSpells = function(changes, opts) return T.ReplaceSpells(changes, opts) end,
     -- Belegung vor dem letzten Schreiben wiederherstellen ("last", Standard) oder vor dem ersten ("first")
     Restore = function(which) return T.Restore(which) end,
     -- Tasten der Vorlagen, wie sie gelten (eigene Wahl des Charakters, sonst Vorschlag):

@@ -14,4 +14,7 @@
 	     „Aktion bei Tastendruck“ folgt (Gesamtreview 18.11.2026, T9-NB1; Keys.LIST: button, proxy, old) -->
 	<Binding name="CLICK ezMacroOneKeyOpenKey:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK ezMacroOneKeyFeedKey:LeftButton" category="ADDONS"/>
+	<!-- Spieltest 20.11.2026: ezMacros „Angeln mit einer Taste“ mit eigener Taste (auswerfen; während des Angelns holt
+	     dieselbe Taste ein – ezMacro legt sie dann auf INTERACTTARGET) -->
+	<Binding name="CLICK ezMacroFishingKey:LeftButton" category="ADDONS"/>
 </Bindings>

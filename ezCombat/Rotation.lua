@@ -291,6 +291,14 @@ function Rotation.StepText(step)
     return Rotation.Expand(Localized(step and step.text)) or ""
 end
 
+-- Annahme eines Schritts (Feld guess, Leitlinie 11: jede Angabe nennt ihre Quelle – eine geschätzte Schwelle sagt, dass
+-- sie geschätzt ist): der Satz in der Sprache des Clients oder nil.
+function Rotation.StepGuess(step)
+    local text = Rotation.Expand(Localized(step and step.guess))
+    if type(text) ~= "string" or text == "" then return nil end
+    return text
+end
+
 function Rotation.PlayerRace()
     local _, race = UnitRace("player")
     race = ns.Plain(race)
@@ -489,6 +497,89 @@ local function ManaPercent()
     return value / maximum * 100
 end
 Rotation.ManaPercent = ManaPercent
+
+-- Kraft ohne Zahl (Paket ezcombat/rotation-recherche, 20.11.2026; Auftrag des Nutzers, wörtlich: „der rotations-modul
+-- berücksichtigt nicht logisch energie, combopunkte, mana, wut, bedrohung und co oder? da muss eine saubere und
+-- vollständige logik her“). Ist die Zahl gesperrt (im Kampf auf Forever Mana, Wut und Energie), entscheidet die Spanne
+-- aus Blizzards Nutzbarkeit der gelernten Zauber (ezCores Spells.PowerBounds: nutzbar mit k Kosten → mindestens k;
+-- „zu wenig Kraft“ bei k → weniger als k). Was die Spanne nicht entscheidet, bleibt unbekannt (überspringen und
+-- nennen, nie raten). Je Bewertung einmal je Kraftart gelesen (ctx.powerBounds). Zuletzt so entschieden:
+-- Rotation.lastPowerProbe = { power, by, when } für /ezk status (Quelle nennen, Leitlinie 11).
+local function Bounds(name, ctx)
+    local id = PowerID(name)
+    if id == nil then return nil end
+    local memo = ctx and ctx.powerBounds
+    if ctx and not memo then
+        memo = {}
+        ctx.powerBounds = memo
+    end
+    local read = memo and memo[id]
+    if not read then
+        local lo, hi, loBy, hiBy = Spells.PowerBounds(id)
+        read = { lo = lo, hi = hi, loBy = loBy, hiBy = hiBy }
+        if memo then memo[id] = read end
+    end
+    return read
+end
+
+-- Bereich { min, max } (absolut) für die Kraftart name über die Spanne; scale: Faktor für Prozent (Mana).
+local function BoundsRange(name, range, ctx, scale)
+    if type(range) ~= "table" or not (range.min or range.max) then return nil end
+    local read = Bounds(name, ctx)
+    if not read then return nil end
+    scale = scale or 1
+    local min = range.min and range.min * scale or nil
+    local max = range.max and range.max * scale or nil
+    if min and min <= 0 then min = nil end          -- „ab 0“ ist immer erfüllt, belegt nichts
+    if not (min or max) then return true end
+    local result = Spells.PowerInRange(read.lo, read.hi, min, max)
+    if result ~= nil then
+        -- Beleg: welcher Zauber die entscheidende Grenze lieferte (bei wahr mit beiden Grenzen beide)
+        local by
+        if result == false then
+            if min and read.hi and read.hi <= min then by = read.hiBy else by = read.loBy end
+        elseif min and max then
+            by = read.loBy and read.hiBy and (read.loBy .. ", " .. read.hiBy) or read.loBy or read.hiBy
+        elseif min then
+            by = read.loBy
+        else
+            by = read.hiBy
+        end
+        if by then Rotation.lastPowerProbe = { power = name, by = by, when = GetTime() } end
+    end
+    return result
+end
+
+-- Kraft im Bereich { min, max }? Zuerst die Zahl (außerhalb des Kampfes offen), sonst die Spanne. true/false/nil.
+function Rotation.PowerRange(name, range, ctx)
+    local value = Power(name)
+    if value ~= nil then
+        if type(range) ~= "table" then return true end
+        if range.min and value < range.min then return false end
+        if range.max and value > range.max then return false end
+        return true
+    end
+    return BoundsRange(name, range, ctx)
+end
+
+-- Mana in Prozent im Bereich { min, max }? Zuerst die Zahl, sonst die Spanne – das Maximum ist beim Spieler offen
+-- (Forever-Quelle: UnitPowerMax gesperrt nur, wenn die Einheit nicht spielergesteuert ist); gesperrt: unbekannt.
+function Rotation.ManaRange(range, ctx)
+    local percent = ManaPercent()
+    if percent ~= nil then
+        if type(range) ~= "table" then return true end
+        if range.min and percent < range.min then return false end
+        if range.max and percent > range.max then return false end
+        return true
+    end
+    local maximum = UnitPowerMax and UnitPowerMax("player", PowerID("Mana"))
+    if ns.IsSecret(maximum) then return nil end
+    maximum = ns.Num(maximum)
+    if not maximum or maximum <= 0 then return nil end
+    if type(range) == "table" and range.max and range.max >= 100 and not range.min then return true end  -- nie über 100 %
+    if type(range) == "table" and range.max and range.max >= 100 then range = { min = range.min } end
+    return BoundsRange("Mana", range, ctx, maximum / 100)
+end
 
 -- Ist das Mana gesperrt (im Kampf oft)? Nur dann gilt der Weg ohne Zahl (Rotation.OnlyManaMissing).
 local function ManaLocked()
@@ -919,28 +1010,22 @@ function CONDITIONS.finisher(step)
     return points >= (step.cp or 5)
 end
 
-function CONDITIONS.rage(step)
-    local rage = Power("Rage")
-    if rage == nil then return nil end
-    return rage >= (step.min or 0)
+-- Wut, Energie, Mana ab bzw. bis zu einer Schwelle: die Zahl, wenn offen, sonst die Spanne aus Blizzards Nutzbarkeit
+-- (Rotation.PowerRange, Rotation.ManaRange – Paket ezcombat/rotation-recherche, 20.11.2026).
+function CONDITIONS.rage(step, _, ctx)
+    return Rotation.PowerRange("Rage", { min = step.min or 0 }, ctx)
 end
 
-function CONDITIONS.energy(step)
-    local energy = Power("Energy")
-    if energy == nil then return nil end
-    return energy >= (step.min or 0)
+function CONDITIONS.energy(step, _, ctx)
+    return Rotation.PowerRange("Energy", { min = step.min or 0 }, ctx)
 end
 
-function CONDITIONS.mana(step)
-    local percent = ManaPercent()
-    if percent == nil then return nil end
-    return percent >= (step.min or 0)
+function CONDITIONS.mana(step, _, ctx)
+    return Rotation.ManaRange({ min = step.min or 0 }, ctx)
 end
 
-function CONDITIONS.lowmana(step)
-    local percent = ManaPercent()
-    if percent == nil then return nil end
-    return percent <= (step.max or 100)
+function CONDITIONS.lowmana(step, _, ctx)
+    return Rotation.ManaRange({ max = step.max or 100 }, ctx)
 end
 
 -- Totem dieses Namens steht nicht (Rang am Ende zählt nicht: „Totem der Verbrennung III“).
@@ -1048,8 +1133,12 @@ local function LegacyDue(step, ctx)
     if not Enabled(step, ctx) then return false, "off" end
     local name = ns.SpellName(step.id)
     if not name or not Known(step, name) then return false, "unknown-spell" end
-    local usable, noPower = ns.SpellUsable(name)
-    if step.when == "reactive" then
+    -- Nutzbarkeit gesperrt: unbekannt, nicht „nicht nutzbar“ – die übrigen Prüfungen laufen weiter, denn ein „falsch“
+    -- schlägt jedes „unbekannt“ (Review vor dem Merge, 20.11.2026); die Tore der Nutzbarkeit entfallen dann.
+    local usable, noPower, usableLocked = ns.SpellUsable(name)
+    if usableLocked then
+        -- weiter unten: unbekannt, wenn nichts falsch ist
+    elseif step.when == "reactive" then
         if not usable then return false end
     elseif not (usable or noPower) then
         return false
@@ -1065,6 +1154,7 @@ local function LegacyDue(step, ctx)
     local result = condition(step, name, ctx, usable)
     if result == false then return false end
     if cdUnknown then return nil, "secret:cooldown" end
+    if usableLocked then return nil, "secret" end
     if result == nil then
         if WaitsOnLockedMana(step, result, true, nil, 0, usable) then return nil, "secret:mana" end
         return nil, "secret"
@@ -1087,8 +1177,12 @@ function Rotation.StepDue(step, ctx)
     local spellID, name, known = Rotation.StepSpell(step)
     if not name or not known then return false, "unknown-spell" end
     if step.once and State.Done(Rotation.StepKey(step)) then return false, "done" end
-    local usable, noPower = ns.SpellUsable(name)
-    if when == "reactive" then
+    -- Nutzbarkeit gesperrt: unbekannt statt „nicht nutzbar“; die übrigen Prüfungen laufen weiter (ein „falsch“ schlägt
+    -- jedes „unbekannt“), die Tore der Nutzbarkeit entfallen (Review vor dem Merge, 20.11.2026).
+    local usable, noPower, usableLocked = ns.SpellUsable(name)
+    if usableLocked then
+        -- weiter unten: unbekannt, wenn nichts falsch ist
+    elseif when == "reactive" then
         if not usable then return false end
     elseif NEEDS_POWER[step.kind] or when == "buff" then
         if not usable then return false, "nopower" end
@@ -1107,6 +1201,7 @@ function Rotation.StepDue(step, ctx)
     if result == false then return false end
     if needed == false then return false, "need:" .. tostring(needKey) end
     if cdUnknown then return nil, "secret:cooldown" end
+    if usableLocked then return nil, "secret" end
     if result == nil or needed == nil then
         if WaitsOnLockedMana(step, result, needed, needKey, unknowns, usable) then return nil, "secret:mana" end
         return nil, "secret"
@@ -1580,7 +1675,8 @@ local function ShowNext(name, icon, counted, always, spell, soon)
         -- Text unter dem Symbol (S-1811-Symboltext): ausführlich wie bisher, sonst nur der Name bzw. gar keiner. Nicht
         -- auf der Leiste steht in jeder Auswahl eine kurze Zeile – auf einem Knopf, den es nicht gibt, leuchtet
         -- nichts, und das zeigt kein Symbol.
-        local texts = { name = name, always = offBar and L.SYMBOL_OFFBAR_SHORT:format(name) or nil }
+        local texts = { name = name, always = offBar and L.SYMBOL_OFFBAR_SHORT:format(name) or nil,
+            left = soon and soon.lead and soon.left or nil, glow = always or nil }
         Symbol.Set("next", icon, text, Rotation.Kind(), nil, spell, texts)
         symbolShown.next = true
     elseif symbolShown.next then
@@ -1588,7 +1684,12 @@ local function ShowNext(name, icon, counted, always, spell, soon)
         Symbol.Clear("next")
     end
     Rotation.nextOffBar = offBar or nil
-    if name and ns.ShowAt("next", "glow") then
+    -- Der Knopf leuchtet nur, wenn der Zauber bereit oder fast bereit ist (Spieltest 20.11.2026, Readiness.Ready – mit
+    -- der gezählten Restzeit der Vorwarnung vorn, falls die Abklingzeit gesperrt ist); die Vorschau leuchtet immer. Das
+    -- Symbol in der Mitte bekommt dieselbe Grundlage (texts.left, texts.glow), damit beide gleich antworten.
+    local left = soon and soon.lead and soon.left or nil
+    local ready = always or ns.Readiness.Ready(spell, nil, left) ~= false
+    if name and ready and ns.ShowAt("next", "glow") then
         Core.Glow.Set(OWNER, "next", { kind = "next", names = { [name] = true }, nameOf = ns.SpellName,
             tip = counted and L.GLOW_TIP_next_counted or L.GLOW_TIP_next })
     else
@@ -1916,6 +2017,14 @@ ns.AddStatusLine(function()
     local last = Rotation.lastSkipped
     if not (ns.Enabled("rotation") and last and #last.names > 0) then return nil end
     return L.STATUS_ROTATION_SKIPPED:format(table.concat(last.names, ", "), Ago(last.when))
+end)
+-- Woher die Rotation im Kampf ihre Kraft kannte (Leitlinie 11: Quelle nennen): Blizzards Nutzbarkeit eines Zaubers.
+ns.AddStatusLine(function()
+    local probe = Rotation.lastPowerProbe
+    if not (ns.Enabled("rotation") and probe and probe.by) then return nil end
+    local power = rawget(_G, probe.power:upper())      -- Blizzards Texte MANA, RAGE, ENERGY
+    if type(power) ~= "string" or ns.IsSecret(power) then power = probe.power end
+    return L.STATUS_ROTATION_POWER:format(power, probe.by, Ago(probe.when))
 end)
 -- Vor dem Kampf: was fehlt bzw. dass die Auren nicht lesbar waren.
 ns.AddStatusLine(function()

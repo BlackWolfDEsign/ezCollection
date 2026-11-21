@@ -100,7 +100,10 @@ ns.DEFAULTS = {
     meterReportLines = 5,
     meterFramesDamage = true,  -- Schaden an Blizzards Gruppen- und Raidrahmen (MeterFrames.lua)
     meterFramesHealing = true, -- Heilung an Blizzards Gruppen- und Raidrahmen
-    meterFramesHeight = 2,     -- Dicke einer Linie auf dem Manabalken der klassischen Rahmen in px (Spielbefund 18.11.2026)
+    meterFramesNumbers = true, -- Zahlen neben dem klassischen Rahmen bzw. in der Mitte (aus: nur die Linien; 20.11.2026)
+    meterFramesOwnRole = true, -- nur die Art der eigenen Rolle (Heiler: Heilung, sonst Schaden; Spieltest 20.11.2026)
+    meterFramesHeight = 5,     -- Höhe eines Balkens unter dem klassischen Rahmen in px, höchstens halbe Manabalken-Höhe
+                               -- (Spieltest 20.11.2026; 18. bis 20.11.2026: 2 px auf dem Manabalken)
     meterFramesSession = "current", -- Abschnitt der Balken: "current" | "overall" | "combat" (früherer Kampf; welcher:
                                     -- ezCombatDB.meterFramesSessionID, 0 = der neueste)
     -- Top-3-Ansicht und weitere Arten (Antwort des Nutzers vom 16.11.2026: „Ja, beides“; MeterTop.lua). Ab Werk wie
@@ -113,13 +116,22 @@ ns.DEFAULTS = {
     meterSummary = false,      -- eine Chat-Zeile nach dem Kampf (MeterSummary.lua), Entscheidung: ab Werk aus
 }
 
+-- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
+-- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
+-- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
+-- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
+ns.AGREE = {
+    meterFramesInterrupts = "on", meterFramesDispels = "on", meterFramesDeaths = "on", meterFramesThreat = "on",
+    meterSummary = "on", rotationAoe = "choice",
+}
+
 -- Grenzen der Regler { min, max, Schritt } und Werte der Auswahlfelder: EINE Stelle für die Einstellungsseite
 -- (Options.lua) und die Prüfung importierter Profile (Profiles.lua, CB-44).
 ns.LIMITS = {
     sizeNext = { 24, 96, 1 }, sizeExpiring = { 20, 64, 2 }, sizeReady = { 20, 64, 2 }, symbolHold = { 1, 5, 1 },
     readyMin = { 2, 60, 1 }, dotWarn = { 1, 10, 1 }, bigAuraSize = { 21, 34, 1 }, buffWarn = { 5, 60, 5 },
     comboScale = { 100, 200, 10 }, totemWarn = { 2, 15, 1 }, enchantWarn = { 30, 600, 30 },
-    meterReportLines = { 3, 10, 1 }, meterFramesHeight = { 1, 3, 1 }, rotationWarn = { 0, 5, 1 },
+    meterReportLines = { 3, 10, 1 }, meterFramesHeight = { 1, 5, 1 }, rotationWarn = { 0, 5, 1 },
 }
 
 ---------------------------------------------------------------------------
@@ -492,6 +504,8 @@ function ns.OnLoad(db)
     -- den Speicher – jeder bisherige Nutzer hätte also 5 gespeichert (gekappt 3 px, der ganze Manabalken verdeckt).
     -- Einmal übernehmen (Gegenprüfung vom 18.11.2026): Wer genau den alten Standard 5 hat, bekommt den neuen – in den
     -- Einstellungen und in jedem gesicherten Profil; jeder andere, eigene Wert bleibt (und wird wie bisher gekappt).
+    -- Seit dem 20.11.2026 ist der Standard wieder 5 – der Schritt schreibt dann nur noch 5 über 5 und setzt die Marke;
+    -- das Zurück auf 5 für alle mit 2 macht der folgende Schritt (meterHeight20).
     if not db.meterHeight18 then
         local OLD = 5
         if db.settings.meterFramesHeight == OLD then db.settings.meterFramesHeight = ns.DEFAULTS.meterFramesHeight end
@@ -502,6 +516,21 @@ function ns.OnLoad(db)
             end
         end
         db.meterHeight18 = true
+    end
+    -- Spieltest vom 20.11.2026 („der balken ist kaum sichtbar ... halb so hoch wie die mana ... wieder am rahmen unten“):
+    -- Balken wieder unter dem Rahmen, ab Werk 5 px (gekappt auf halbe Manabalken-Höhe). Wer genau den Standard 2 der
+    -- Fassung vom 18.11.2026 gespeichert hat (ezCore schreibt Standardwerte in den Speicher), bekommt einmal den neuen –
+    -- in den Einstellungen und in jedem gesicherten Profil; jeder andere Wert bleibt.
+    if not db.meterHeight20 then
+        local OLD = 2
+        if db.settings.meterFramesHeight == OLD then db.settings.meterFramesHeight = ns.DEFAULTS.meterFramesHeight end
+        for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            local settings = type(profile) == "table" and profile.settings
+            if type(settings) == "table" and settings.meterFramesHeight == OLD then
+                settings.meterFramesHeight = ns.DEFAULTS.meterFramesHeight
+            end
+        end
+        db.meterHeight20 = true
     end
     -- Entscheidung des Nutzers, 14.11.2026 („Funktion entfernen“): „Spielerfenster durchscheinend“ gibt es nicht
     -- mehr (auf Forever blendete es nie aus, weil das Leben immer gesperrt ist). Gespeicherte Schalter von früher

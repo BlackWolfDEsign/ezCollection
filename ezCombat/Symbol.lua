@@ -610,6 +610,7 @@ local function ApplyWait(content, entry, force)
         parts[#parts + 1] = L.SYMBOL_WAIT_RANGE
     end
     Tint(content, tint, force)
+    content.ready = state and ns.Readiness.Ready(spell, state, entry.left)
     local extra = #parts > 0 and L.SYMBOL_WAIT:format(table.concat(parts, " · ")) or nil
     WaitLabel(content, extra, force)
     wait.text, wait.tint = extra, tint
@@ -617,10 +618,24 @@ local function ApplyWait(content, entry, force)
     content.waitState = (wait.cooldown or wait.power or wait.unusable or wait.range or wait.spiral) and wait or nil
 end
 
+-- Leuchten des Symbols „Als Nächstes“ (gated) nur, solange der Zauber bereit oder fast bereit ist (Readiness.Ready,
+-- Spieltest 20.11.2026: „der goldene rahmen … taskleiste und symbol mitte“; ohne Zauber, bei unbekannter Antwort und
+-- in der Vorschau wie bisher). Die anderen Plätze leuchten immer. restart: neuer Eintrag – in seiner Art neu zeigen.
+local function SyncGlow(content, entry, restart, gated)
+    local on = not gated or entry.glowAlways == true or content.ready ~= false
+    if on and (restart or content.glowOn ~= true) then
+        Glow.Show(content, false, entry.kind)
+    elseif not on and content.glowOn ~= false then
+        Glow.Hide(content)
+    end
+    content.glowOn = on
+end
+Symbol.SyncGlow = SyncGlow
+
 local function ClearWait(content)
     ClearSpiral(content)
     Tint(content, "ready")
-    content.waitText, content.waitState = nil, nil
+    content.waitText, content.waitState, content.ready = nil, nil, nil
 end
 
 -- „Noch nicht bereit“ eines Platzes (Tests, Erklärblasen): { cooldown, seconds, locked, shared, power, unusable,
@@ -671,6 +686,7 @@ function Symbol.UpdateWait(force)
         local entry = slot.shownKey and entries[slot.shownKey]
         if entry and slot.content:IsShown() then
             ApplyWait(slot.content, entry, force == true)
+            SyncGlow(slot.content, entry, false, slot.shownKey == "next")
             if entry.spell ~= nil then any = true end
         end
     end
@@ -725,6 +741,7 @@ local function RefreshSlot(slot, now, groupShown)
     if not key then
         content:Hide()
         Glow.Hide(content)
+        content.glowOn = nil
         ClearWait(content)
         slot.shownKey, slot.shownVersion = nil, nil
         return slot.name == "left" and secretInfo ~= nil
@@ -737,10 +754,10 @@ local function RefreshSlot(slot, now, groupShown)
         SetIcon(content, entry.icon)
         content.baseLabel, content.baseKind = BaseLabel(slot.name, key, entry), entry.kind
         SetTimer(content, entry.timer)
-        Glow.Show(content, false, entry.kind)
     end
     -- Noch nicht bereit? Bei neuem Eintrag alles neu (Text, Tönung, Spirale), sonst nur, was sich geändert hat.
     ApplyWait(content, entry, changed or fresh)
+    SyncGlow(content, entry, changed or fresh, key == "next")
     if fresh or (changed and entry.untilTime) then
         content.anim:Stop()
         content.appear:Stop()
@@ -788,17 +805,29 @@ local function Texts(texts)
 end
 
 -- spell: Zauber des Eintrags (ID oder Name, offen) für „noch nicht bereit“; gesperrt gilt er als nicht genannt.
+-- texts.left (gezählte Restzeit der Abklingzeit, Rotation) und texts.glow (immer leuchten: Vorschau) für SyncGlow;
+-- sie ändern den Eintrag nicht (kein Neuzeichnen, nur nachgeführt).
+local function GlowHints(texts)
+    if Core.IsSecret(texts) or type(texts) ~= "table" then return nil, nil end
+    local left = texts.left
+    if Core.IsSecret(left) or type(left) ~= "number" then left = nil end
+    return left, texts.glow == true or nil
+end
+
 local function Store(key, icon, label, kind, untilTime, timer, spell, texts)
     if Core.IsSecret(spell) then spell = nil end
     local name, always = Texts(texts)
+    local left, glowAlways = GlowHints(texts)
     local entry = entries[key]
     if entry and entry.icon == icon and entry.label == label and entry.kind == kind and not untilTime
         and not entry.untilTime and SameTimer(entry.timer, timer) and entry.spell == spell
         and entry.name == name and entry.always == always then
+        entry.left, entry.glowAlways = left, glowAlways
         return false        -- unverändert (dauerhafte Einträge werden in jedem Takt erneut gemeldet)
     end
     entries[key] = { icon = icon, label = label, kind = kind, untilTime = untilTime, timer = timer, spell = spell,
-        name = name, always = always, version = ((entry and entry.version) or 0) + 1 }
+        name = name, always = always, left = left, glowAlways = glowAlways,
+        version = ((entry and entry.version) or 0) + 1 }
     return true
 end
 

@@ -3,7 +3,7 @@
 ## Notes: Info bar in the original WoW Forever style with blocks like those known from Titan Panel - built from scratch, takes over Titan's settings. Part of ezCollection.
 ## Notes-deDE: Info-Leiste im Originalstil von WoW Forever mit Bausteinen, wie man sie von Titan Panel kennt - neu gebaut, übernimmt Titans Einstellungen. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.11.0
+## Version: 1.12.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Misc_PocketWatch_01
 ## SavedVariables: ezPanelDB

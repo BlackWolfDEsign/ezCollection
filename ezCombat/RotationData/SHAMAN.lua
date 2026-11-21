@@ -11,7 +11,10 @@ local T = ns.RotationData.T
 --                  https://www.wowhead.com/forever/guide/classes/shaman/elemental/rotation-cooldowns-pve-dps
 --                  https://www.wowhead.com/forever/guide/classes/shaman/elemental/dps-leveling-tips
 --   Verstärkung    https://www.icy-veins.com/wow-forever/enhancement-shaman-melee-dps-pve-rotation-cooldowns-abilities  (Stand 04.11.2026)
+--                  (nachgeprüft 20.11.2026 gegen den Stand vom 13.11.2026: Rangfolge unverändert, Waffe des
+--                   Windzorns bleibt)
 --                  https://www.icy-veins.com/wow-forever/enhancement-shaman-leveling
+--                  (nachgeprüft 20.11.2026 (Stand 13.11.2026, Regler je Stufe): Rangfolge unverändert)
 --                  https://www.wowhead.com/forever/guide/classes/shaman/enhancement/rotation-cooldowns-pve-dps
 --   Wiederherst.   https://www.icy-veins.com/wow-forever/restoration-shaman-healer-pve-rotation-cooldowns-abilities  (Stand 04.11.2026)
 --                  https://www.icy-veins.com/wow-forever/restoration-shaman-leveling
@@ -109,7 +112,8 @@ ns.RotationData.Add("SHAMAN", {
           need = { noaura = { id = 16166 } },
           text = T("Mit {16246} – aber nie während {16166}.", "With {16246} – but never during {16166}.") },    -- Kettenblitzschlag / Chain Lightning
         { id = 421, kind = "priority", when = "ready",
-          need = { noaura = { id = 16166 }, mana = { min = 50 } },    -- Annahme: „solange das Mana reicht“ ohne Zahl in der Quelle
+          need = { noaura = { id = 16166 }, mana = { min = 50 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Außerhalb von {16166}, solange das Mana reicht.", "Outside {16166} while your mana lasts.") },    -- Kettenblitzschlag / Chain Lightning
         { id = 403, kind = "filler", when = "filler",
           text = T("Füllt jeden freien Zauberplatz.", "Fills every free cast.") },    -- Blitzschlag / Lightning Bolt
@@ -159,10 +163,12 @@ ns.RotationData.Add("SHAMAN", {
         { id = 8042, kind = "priority", when = "ready",
           text = T("Dein Schock beim Leveln, sobald er bereit ist.", "Your levelling shock whenever it is ready.") },    -- Erdschock / Earth Shock
         { id = 3599, kind = "maintain", when = "totemslot", slot = 1, optional = true,
-          need = { mana = { min = 50 } },    -- Annahme: „Mana sparen“ ohne Zahl in der Quelle
+          need = { mana = { min = 50 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Mit Mana übrig: ein Feuer-Totem für längere Kämpfe.", "With mana to spare: a fire totem for longer fights.") },    -- Totem der Verbrennung / Searing Totem
         { id = 408341, kind = "filler", when = "ready",
-          need = { totem = { slot = 1 }, mana = { min = 60 } },    -- Annahme: „nur mit Mana übrig“ ohne Zahl in der Quelle
+          need = { totem = { slot = 1 }, mana = { min = 60 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Nur mit Feuer-Totem und viel Mana übrig.", "Only with a fire totem and plenty of mana.") },    -- Feuernova / Fire Nova
         -- Situativ ---------------------------------------------------------------------------------------------------
         { id = 403, kind = "situational", when = "manual",
@@ -211,10 +217,12 @@ ns.RotationData.Add("SHAMAN", {
           text = T("Gegen mehrere Gegner gleich nach dem Totem, immer wenn bereit.", "Against several enemies right after the totem, whenever ready.") },    -- Feuernova / Fire Nova
         -- Im Kampf (Reihenfolge = Rang) ---------------------------------------------------------------------------
         { id = 8190, kind = "maintain", when = "totemslot", slot = 1,
-          need = { mana = { min = 30 } },    -- Annahme: „bei knappem Mana das sparsamere Totem“ ohne Zahl in der Quelle
+          need = { mana = { min = 30 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Kein Feuer-Totem aktiv: setzen.", "No fire totem active: drop it.") },    -- Totem der glühenden Magma / Magma Totem
         { id = 3599, key = "maintain:3599:lowmana", kind = "maintain", when = "totemslot", slot = 1,
-          need = { known = 8190, mana = { max = 30 } },    -- Annahme: wie oben
+          need = { known = 8190, mana = { max = 30 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Bei knappem Mana der sparsame Ersatz für {8190}.", "The cheap stand-in for {8190} when mana is short.") },    -- Totem der Verbrennung / Searing Totem
         { id = 3599, kind = "maintain", when = "totemslot", slot = 1, need = { unknown = 8190 },
           text = T("Kein Feuer-Totem aktiv: setzen, solange {8190} fehlt.", "No fire totem active: drop it until you learn {8190}.") },    -- Totem der Verbrennung / Searing Totem
@@ -234,7 +242,8 @@ ns.RotationData.Add("SHAMAN", {
           need = { totem = { slot = 1 } },
           text = T("Am besten mit {16246} verbrauchen.", "Best spent on {16246}.") },    -- Feuernova / Fire Nova
         { id = 408341, kind = "filler", when = "ready",
-          need = { totem = { slot = 1 }, mana = { min = 40 } },    -- Annahme: „mit Mana übrig“ ohne Zahl in der Quelle
+          need = { totem = { slot = 1 }, mana = { min = 40 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Lückenfüller mit Feuer-Totem und Mana übrig.", "Gap filler with a fire totem and mana to spare.") },    -- Feuernova / Fire Nova
         -- Situativ ---------------------------------------------------------------------------------------------------
         { id = 8056, kind = "situational", when = "manual",
@@ -282,7 +291,8 @@ ns.RotationData.Add("SHAMAN", {
         { id = 16190, kind = "resource", when = "lowmana", max = 80, need = { combat = true },
           text = T("Früh setzen, sobald rund ein Fünftel Mana fehlt.", "Drop it early, once about a fifth of your mana is gone.") },    -- Totem der Manaflut / Mana Tide Totem
         { id = 403, kind = "filler", when = "filler",
-          need = { mana = { min = 50 } },    -- Annahme: „wenn das Mana reicht“ ohne Zahl in der Quelle
+          need = { mana = { min = 50 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Schaden nebenher: nur ohne Heilbedarf und mit Mana.", "Damage on the side: only with nobody to heal and mana.") },    -- Blitzschlag / Lightning Bolt
         -- Mehrere Gegner (nur Liste) ---------------------------------------------------------------------------------
         { id = 408341, kind = "aoe", when = "aoe",

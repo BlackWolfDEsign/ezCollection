@@ -1331,6 +1331,15 @@ P.G8 = function(run)
     Many(run, "G8", { { "C_Secrets.ShouldUnitSpellCastingBeSecret", "target" }, { "UnitCastingInfo", "target" },
         { "UnitChannelInfo", "target" }, { "UnitThreatSituation", "player", "target" },
         { "UnitDetailedThreatSituation", "player", "target" } })
+    -- Spieltest 20.11.2026 (Aggro-Warnung, Entscheidung „Erst messen, dann bauen“): Bedrohung ohne Gegner (Gesamtstand
+    -- des Spielers) und die eines Gruppenmitglieds am Ziel – offen, gesperrt oder leer? Davon hängt ab, ob ezCombat
+    -- Tanks („Aggro verloren“) und andere („du ziehst Aggro“) warnen kann.
+    Many(run, "G8", { { "UnitThreatSituation", "player" }, { "UnitGroupRolesAssigned", "player" },
+        { "UnitThreatPercentageOfLead", "player", "target" } })
+    if run:Call("IsInGroup"):True() then
+        Many(run, "G8", { { "UnitThreatSituation", "party1", "target" }, { "UnitDetailedThreatSituation", "party1", "target" },
+            { "UnitThreatSituation", "party1" } })
+    end
 end
 
 P.G9 = function(run)

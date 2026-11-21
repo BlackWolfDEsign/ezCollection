@@ -35,6 +35,14 @@ local Core = ezCore
 --     (der Regler macht sie nicht dicker – darunter beginnen Rollensymbol, Name und bannbare Debuffs); die Zahl am
 --     Platz "center" (Mitte zwischen ezBuff und ezHeal, nur außerhalb des Kampfes und ab 30 px Rahmenhöhe) in der
 --     kurzen Schreibweise.
+--   • Seit dem Spieltest des Nutzers vom 20.11.2026 in einer Gruppe („wer soll die balken verstehen, warum sind die
+--     zahlen nicht rechts vom balken?“; auf dem Bildschirmfoto stand „1 - 4…“ abgeschnitten im Lebensbalken des
+--     Spielerrahmens, „2. - 1/s“ im Gruppenrahmen): klassisch stehen die Zahlen RECHTS NEBEN dem Rahmen auf Höhe der
+--     Linien (Platz "beside" in Core.GroupFrames.SLOTS; der Abstand der Rahmen untereinander bleibt), ausgeschrieben
+--     in Blizzards Schrift (MF.SIDE_FONT): nach dem Kampf „Platz 2 · 1,4 DPS“ bzw. „… HPS“, im Kampf die Summe mit
+--     dem Namen der Art („12.345 Schaden“). Je Art eine Zeile, nie abgeschnitten (ein Anker, keine feste Breite).
+--     Beim Überfahren erklärt ein Tooltip Linien und Zahlen samt Quelle (MF.ShowSideTooltip). Schalter
+--     meterFramesNumbers („Zahlen an den Gruppenrahmen“): aus = nur die Linien. Raidstil: unverändert in der Mitte.
 -- Erklärung (Leitlinie 11): Beim Überfahren eines Gruppenrahmens Zeilen in Blizzards Einheiten-Tooltip (über
 -- Core.Tooltip.AddUnitSection, nur lesen) mit Platz, Wert pro Sekunde und Summe sowie der Quelle („laut Blizzards
 -- Schadensanzeige, Abschnitt: …“); fest an, solange eine Art an den Rahmen an ist (Einstellungs-Prüfung 19.11.2026,
@@ -81,16 +89,21 @@ MF.LINES_SLOT, MF.TEXT_SLOT = "topLines", "center"   -- Plätze in Core.GroupFra
 MF.TICK = 1                       -- Sekunden: Takt im Kampf und solange die Werte nach dem Kampf gesperrt sind
 MF.PREVIEW_SECONDS = 5
 MF.HEIGHT_KEY = "meterFramesHeight"     -- Regler „Höhe der Balken“ (Grenzen in ns.LIMITS, Core.lua)
--- Dicke einer Linie ab Werk: zwei Linien à 2 px mit 1 px Abstand liegen auf Blizzards Manabalken des Gruppenrahmens
--- (7 px, PartyFrameTemplates.xml) ab seiner Oberkante und lassen unten 2 px von ihm frei; der Regler geht bis 3 px (7 px zusammen, Platz
--- topLines: line, size). Spielbefund vom 18.11.2026 – vorher 5 px unter dem Rahmen.
-MF.BAR_HEIGHT, MF.GAP = 2, 1
-MF.LINES_HEIGHT = 2 * MF.BAR_HEIGHT + MF.GAP   -- zwei Zeilen übereinander ab Werk (Vormerkung; MF.LinesHeight)
+-- Dicke eines Balkens ab Werk (vom 18. bis 20.11.2026: zwei 2-px-Linien auf Blizzards Manabalken, Regler bis 3 px).
+-- Seit dem Spieltest vom 20.11.2026 wieder unter dem Rahmen: ab Werk 5 px, gekappt auf halbe Manabalken-Höhe (Platz
+-- topLines: line – Gruppe 4 px, Spieler 5 px); mit „Nur, was deine Rolle betrifft“ ein Balken.
+MF.BAR_HEIGHT, MF.GAP = 5, 1
+MF.LINES_HEIGHT = MF.BAR_HEIGHT                -- ein Balken ab Werk (Vormerkung beim Laden; danach MF.LinesHeight)
 MF.TEXT_HEIGHT = 10
 MF.LEVEL = 3                      -- Ebene der Halter über Blizzards Rahmen, wo der Platz keine nennt (Raidstil)
 MF.STAR_SIZE = 10
 MF.ICON_MIN = 4                   -- kleiner wird das Symbol der Art nicht gezeigt (engster Platz, Review Welle 27)
 MF.TOOLTIP_ORDER = 54             -- im Einheiten-Tooltip vor ezHeals Klick-Legende (55)
+MF.SIDE_SLOT = "beside"           -- Platz rechts neben dem klassischen Rahmen (Spieltest 20.11.2026)
+MF.SIDE_FONT = "GameFontNormalSmall"   -- Blizzards Schrift der Namen an Blizzards Gruppenrahmen
+MF.SIDE_LINE = 12                 -- Zeilenhöhe der Zahlen neben dem Rahmen (zwei Zeilen im 24 px hohen Platz)
+MF.SIDE_GAP = 6                   -- Abstand der Marken hinter den Zahlen neben dem Rahmen
+MF.NUMBERS_KEY = "meterFramesNumbers"  -- Schalter „Zahlen an den Gruppenrahmen“ (aus: nur die Linien)
 MF.BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 -- Stern für den Ersten je Art: Blizzards Favoriten-Stern (Auktionshaus bzw. Begleiter-Liste), sonst Blizzards
 -- Ruf-Stern. Keine Zielmarkierung – Totenkopf und Stern der Zielmarkierungen stehen für markierte Gegner (die Deutung
@@ -153,7 +166,29 @@ function MF.ViewLabel(value) return L["OPT_meterFramesView_" .. tostring(value)]
 
 local GF = Core.GroupFrames
 
--- Dicke einer Linie nach dem Regler (in den Grenzen aus ns.LIMITS; ein früher gespeicherter Wert über 3 px gilt als 3).
+-- Stehen die Zahlen an dieser Rahmenart neben dem Rahmen (Platz "beside": klassischer Gruppen- und Spielerrahmen)
+-- oder in der Mitte (Raidstil: dort ist "beside" aus, die Rahmen stoßen aneinander)?
+function MF.Side(kind)
+    local spec = GF and GF.SlotSpec and GF.SlotSpec(kind or "raid", MF.SIDE_SLOT) or nil
+    return spec ~= nil and not spec.off
+end
+function MF.TextSlot(kind) return MF.Side(kind) and MF.SIDE_SLOT or MF.TEXT_SLOT end
+-- Breite einer Schrift neben dem Rahmen (Maus-Fläche MF.SideHover, Anfang der Marken MeterTop.Start – eine Fassung):
+-- gemessen, sonst MF.CHAR_WIDTH je Zeichen; ein gesperrter Text (Summe im Kampf) wird nie gelesen oder gezählt – er
+-- gilt als MF.SECRET_CHARS Zeichen lang (Leitlinie 6). → px
+MF.CHAR_WIDTH, MF.SECRET_CHARS = 6, 8
+function MF.TextWidth(fontString)
+    local width = Core.Num(fontString:GetStringWidth())
+    if width and width > 0 then return width end
+    local text = fontString:GetText()
+    if Core.IsSecret(text) then return MF.SECRET_CHARS * MF.CHAR_WIDTH end
+    return (type(text) == "string" and #text or 0) * MF.CHAR_WIDTH
+end
+-- Zahlen an? (ab Werk an; nur ein ausdrückliches false schaltet sie ab)
+function MF.NumbersOn() return not (ns.S ~= nil and ns.S[MF.NUMBERS_KEY] == false) end
+
+-- Dicke eines Balkens nach dem Regler (in den Grenzen aus ns.LIMITS, 1–5 px; ein früher gespeicherter Wert darüber gilt
+-- als 5).
 function MF.BarHeight()
     local value = Core.Num(ns.S and ns.S[MF.HEIGHT_KEY]) or MF.BAR_HEIGHT
     local limit = ns.LIMITS and ns.LIMITS[MF.HEIGHT_KEY]
@@ -161,8 +196,15 @@ function MF.BarHeight()
     return math.floor(value + 0.5)
 end
 
--- Höhe des Streifens: zwei Zeilen mit Abstand (der Platz verkleinert sie im Raidstil auf seine 2 px).
-function MF.LinesHeight() return 2 * MF.BarHeight() + MF.GAP end
+-- Höhe des Streifens: so viele Zeilen, wie Arten an sind (mit „Nur, was deine Rolle betrifft“ eine), mit Abstand (der
+-- Platz verkleinert sie im Raidstil auf seine 2 px, klassisch auf halbe Manabalken-Höhe).
+function MF.LinesHeight()
+    return MF.RowsHeight(MF.RowCount(), MF.BarHeight(), MF.GAP)
+end
+-- Höhe von rows Balken à line px mit gap px Abstand (eine Formel für Vormerkung, Dünnerwerden und Halter)
+function MF.RowsHeight(rows, line, gap) return rows * line + (rows - 1) * gap end
+-- Zahl der Balken je Rahmen: eingeschaltete Arten, mindestens 1
+function MF.RowCount(types) return math.max(1, #(types or MF.ActiveTypes())) end
 
 -- Plätze vormerken (beim Laden ab Werk; MF.ApplyHeight merkt die Höhe nach dem Regler neu vor).
 if GF and GF.Reserve then
@@ -172,6 +214,7 @@ end
 local guids = {}                  -- Einheit → zuletzt offen gelesene GUID
 local guidsTrusted = true         -- false: Gruppe änderte sich im Kampf, GUIDs gesperrt – gemerkte gelten nicht
 local dirty, livePending = true, false
+local rowKeys = nil               -- Arten der Zeilen beim letzten Vormerken der Höhe (MF.Update), z. B. "damage,healing"
 local previewUntil = 0
 local lastMode = nil              -- "live" | "after" | "secret" | "none" (für /ezk status)
 
@@ -215,11 +258,42 @@ end
 
 MF.MeterType, MF.Color = MeterType, Color
 
--- Eingeschaltete Arten, für die der Client eine Art im Schadensmesser kennt (Zeilen: Schaden und Heilung).
+-- Nur, was den Spieler betrifft (Spieltest 20.11.2026: „heal etc muss es mir nicht anzeigen wenn ich selbst kein healer
+-- bin ... angezeigt wird am rahmen nur, was den spieler betrifft“; Schalter meterFramesOwnRole, ab Werk an): als Heiler
+-- Heilung, als Schaden oder Tank Schaden. Rolle aus ezCore (Core.PlayerRole: Gruppe, gesperrt die zuletzt offen
+-- gelesene, sonst Spezialisierung). Unbekannt: wer nicht heilen kann (Core.PlayerCanHeal, Klasse), sieht Schaden; eine
+-- Klasse, die heilen kann, sieht beides – der Tooltip neben dem Rahmen sagt es (Review 20.11.2026: nicht stumm raten).
+-- Im Kampf gelten die Arten vom Kampfbeginn (frozen): ein Wechsel – auch eine im Kampf gesperrte Rolle – legte die
+-- Balken sonst um, ohne dass sie neu gesetzt werden dürfen.
+MF.ROLE_KEY = "meterFramesOwnRole"
+function MF.OwnRoleOnly() return not (ns.S ~= nil and ns.S[MF.ROLE_KEY] == false) end
+-- Art der Rolle: "healing" | "damage" | nil (unbekannt, beides)
+function MF.RoleType(role)
+    if role == nil and Core.PlayerRole then role = Core.PlayerRole() end
+    if role == "HEALER" then return "healing" end
+    if role ~= nil then return "damage" end
+    local canHeal = Core.PlayerCanHeal and Core.PlayerCanHeal()
+    if canHeal == false then return "damage" end
+    return nil
+end
+local frozen = nil                -- { key = … } beim Kampfbeginn (MF.OwnType), nil außerhalb des Kampfes
+function MF.OwnType()
+    if frozen and ns.InCombat() then return frozen.key end
+    return MF.RoleType()
+end
+function MF.FreezeRole(on) frozen = on and { key = MF.RoleType() } or nil end
+-- Rolle unbekannt und darum beide Arten (Hinweis im Tooltip)?
+function MF.RoleUnknown() return MF.OwnRoleOnly() and MF.OwnType() == nil end
+
+-- Eingeschaltete Arten, für die der Client eine Art im Schadensmesser kennt (Zeilen: Schaden und Heilung) – mit
+-- „Nur, was deine Rolle betrifft“ nur die der eigenen Rolle.
 function MF.ActiveTypes()
     local list = {}
+    local only = MF.OwnRoleOnly() and MF.OwnType() or nil
     for _, entry in ipairs(MF.TYPES) do
-        if MF.Enabled(entry) and MeterType(entry) ~= nil then list[#list + 1] = entry end
+        if MF.Enabled(entry) and MeterType(entry) ~= nil and (only == nil or entry.key == only) then
+            list[#list + 1] = entry
+        end
     end
     return list
 end
@@ -518,34 +592,39 @@ end
 -- Maße der Zeilen an einer Rahmenart: Höhe einer Zeile, Abstand, mit Hintergrund? Die Höhe kommt vom Regler
 -- (MF.BarHeight); nennt der Platz eine Höchsthöhe (Core.GroupFrames.SLOTS: line, gap, plain), gilt sie – im Raidstil
 -- zwei Linien à 1 px ohne Abstand und ohne Hintergrund, damit der Streifen weder Rollensymbol, Name und bannbare
--- Debuffs noch den Lebensbalken verdeckt. Klassische Rahmen (seit dem 18.11.2026 auf Blizzards Manabalken): Dicke
--- nach dem Regler bis 3 px, 1 px Abstand, ohne Hintergrund. Mit Hintergrund nur ein Platz ohne plain.
+-- Debuffs noch den Lebensbalken verdeckt. Klassische Rahmen (seit dem 20.11.2026 wieder unter dem Rahmenbild): je
+-- Balken höchstens halb so hoch wie Blizzards Manabalken, 1 px Abstand, mit Hintergrund (Platz ohne plain).
 -- depth (optional, GF.SlotDepth des Rahmens): so hoch darf der Streifen höchstens sein, damit unter ihm Abstand zum
--- nächsten Gruppenrahmen bleibt (Befund vom 16.11.2026) – dann werden beide Zeilen dünner (mindestens 1 px).
--- Reicht der Platz selbst dafür nicht (unter 3 px: Begleiter-Rahmen und Leiter-Symbol am nächsten Rahmen), liegen
--- beide Linien à 1 px ohne Abstand aneinander (2 px) – sie reichen dann bis zu 2 px in den freien Abstand
--- GF.SLOT_BELOW_GAP; in Blizzards engstem Fall (3 px bis zur Krone) bleibt 1 px frei (Gegenprüfung Welle 27).
-function MF.LineStyle(kind, depth)
+-- nächsten Gruppenrahmen bleibt (Befund vom 16.11.2026) – dann werden die Balken dünner (mindestens 1 px). rows: Zahl
+-- der Balken (ohne Angabe die eingeschalteten Arten; mit „Nur, was deine Rolle betrifft“ einer – der wird nur so weit
+-- dünner, wie er allein muss, Review 20.11.2026). Reicht der Platz selbst dafür nicht (unter 3 px: Begleiter-Rahmen
+-- und Leiter-Symbol am nächsten Rahmen), liegen die Balken à 1 px ohne Abstand aneinander – sie reichen dann bis zu
+-- 2 px in den freien Abstand GF.SLOT_BELOW_GAP; in Blizzards engstem Fall (3 px bis zur Krone) bleibt 1 px frei
+-- (Gegenprüfung Welle 27).
+function MF.LineStyle(kind, depth, rows)
+    rows = rows or MF.RowCount()
     local spec = GF and GF.SlotSpec and GF.SlotSpec(kind or "raid", MF.LINES_SLOT) or nil
     local want = MF.BarHeight()
     local line = spec and spec.line and math.min(spec.line, want) or want
     local gap = spec and spec.gap or MF.GAP
-    if type(depth) == "number" and 2 * line + gap > depth then
-        line = math.max(1, math.floor((depth - gap) / 2))
-        if 2 * line + gap > depth then gap = 0 end
+    if type(depth) == "number" and MF.RowsHeight(rows, line, gap) > depth then
+        line = math.max(1, math.floor((depth - (rows - 1) * gap) / rows))
+        if MF.RowsHeight(rows, line, gap) > depth then gap = 0 end
     end
     return line, gap, not (spec and spec.plain)
 end
 
--- Klassische Anordnung (Zeile mit Symbol, Balken, Zahl unter dem Rahmen)? Der Platz sagt es (below).
+-- Alte Anordnung (Zeile mit Symbol, Balken, Zahl am Zeilenende unter dem Rahmen, bis zum 18.11.2026)? Der Platz sagt
+-- es (classic – seit dem 20.11.2026 liegen die Balken wieder unter dem Rahmen, die Zahl aber steht am Platz beside;
+-- classic nennt nur noch die Vorlage der Prüfungen).
 function MF.Classic(kind)
     local spec = GF and GF.SlotSpec and GF.SlotSpec(kind or "raid", MF.LINES_SLOT) or nil
-    return spec ~= nil and spec.below == true
+    return spec ~= nil and spec.classic == true
 end
 
--- Ebene des Halters über Blizzards Rahmen: vom Platz, wenn er eine nennt (Vorlage „unter dem Rahmen“: Rahmen + 1,
--- unter Blizzards Aurensymbolen bzw. seiner Klassenleiste – kein Platz nennt seit dem 18.11.2026 level), sonst die
--- eigene MF.LEVEL (Raidstil und klassisch).
+-- Ebene des Halters über Blizzards Rahmen: vom Platz, wenn er eine nennt (klassisch unter dem Rahmenbild seit dem
+-- 20.11.2026: Rahmen + 1, unter Blizzards Aurensymbolen bzw. seiner Klassenleiste), sonst die eigene MF.LEVEL
+-- (Raidstil).
 function MF.Level(kind)
     local spec = GF and GF.SlotSpec and GF.SlotSpec(kind or "raid", MF.LINES_SLOT) or nil
     return spec and type(spec.level) == "number" and spec.level or MF.LEVEL
@@ -588,11 +667,37 @@ MF.SetIcon = SetIcon
 -- des Halters (vom Platz: am Gruppenrahmen unter Blizzards Aurensymbolen, die von der Schadenszeile nur den Rand
 -- decken). Ist der Platz bis zum nächsten Gruppenrahmen knapp (holder.depth), werden beide Zeilen dünner.
 -- Raidstil: Zahl im Halter der Mitte (Heilung links, Schaden rechts, je bis zur Mitte).
+-- Neben dem Rahmen (holder.side): je Art eine Zeile ab dem linken Rand des Halters, übereinander (MF.Stack).
+local function SideY(index, count) return ((count + 1) / 2 - index) * MF.SIDE_LINE end
+
+-- Zahlen neben dem Rahmen übereinander: die sichtbaren Zeilen in der Reihenfolge der Arten, zusammen mittig auf
+-- Höhe der Linien (eine Zeile mittig, zwei je eine halbe Zeile darüber und darunter). Nach jedem Füllen.
+local function Stack(holder)
+    if not (holder and holder.side and holder.rows) then return end
+    local shown = {}
+    for _, entry in ipairs(MF.TYPES) do
+        local row = holder.rows[entry.key]
+        if row and row.text:IsShown() then shown[#shown + 1] = row end
+    end
+    for index, row in ipairs(shown) do
+        row.text:ClearAllPoints()
+        row.text:SetPoint("LEFT", row.textHolder, "LEFT", 0, SideY(index, #shown))
+    end
+end
+MF.Stack = Stack
+
 local function Restyle(holder)
     local line, gap = MF.LineStyle(holder.kind, holder.depth)
     local level = holder.GetFrameLevel and holder:GetFrameLevel()
+    local order, count = {}, 0
+    for position, entry in ipairs(MF.ActiveTypes()) do order[entry.key], count = position, position end
+    -- Streifen genau so hoch wie die Balken (die Vormerkung gilt für alle Rahmenarten, die Balken sind je Art
+    -- gekappt – Gruppe 4 px, Spieler 5 px): so stehen die Zahlen daneben (beside, after) mittig auf ihrer Höhe.
+    -- ezCore setzt beim Neusetzen (GF.Relayout) die Höhe des Platzes – darum läuft Restyle auch danach (MF.Holder).
+    if not holder.classic then holder:SetHeight(MF.RowsHeight(math.max(1, count), line, gap)) end
     for _, row in pairs(holder.rows) do
-        local y = -(row.index - 1) * (line + gap)
+        -- Reihenfolge der eingeschalteten Arten (mit nur einer Art steht sie oben, ohne Lücke darüber)
+        local y = -((order[row.key] or row.index) - 1) * (line + gap)
         row.bar:ClearAllPoints()
         row.bar:SetHeight(line)
         row.bar:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, y)
@@ -618,6 +723,10 @@ local function Restyle(holder)
             row.star:SetSize(MF.STAR_SIZE, MF.STAR_SIZE)
             row.star:ClearAllPoints()
             row.star:SetPoint("LEFT", row.text, "RIGHT", 2, 0)
+        elseif holder.side then
+            -- ein Anker, keine Breite: die Zeile ist so lang wie ihr Text, nichts wird abgeschnitten
+            row.text:SetPoint("LEFT", row.textHolder, "LEFT", 0, SideY(row.index, #MF.TYPES))
+            row.text:SetJustifyH("LEFT")
         else
             local textHolder, outer = row.textHolder, row.justify
             row.text:SetPoint(outer, textHolder, outer, 0, 0)
@@ -625,6 +734,7 @@ local function Restyle(holder)
             row.text:SetJustifyH(outer)
         end
     end
+    Stack(holder)   -- neben dem Rahmen: gleich die Lage der sichtbaren Zeilen (eine mittig, zwei übereinander)
 end
 MF.Restyle = Restyle
 
@@ -635,6 +745,9 @@ local function Build(holder, textHolder, kind)
     holder.kind = kind
     holder.classic = MF.Classic(kind)
     textHolder = (not holder.classic and textHolder) or holder
+    holder.side = textHolder.side == true
+    if holder.side then textHolder.linesHolder = holder end
+    local font = holder.side and MF.SIDE_FONT or "NumberFontNormalSmall"
     local _, _, withBack = MF.LineStyle(kind)
     for index, entry in ipairs(MF.TYPES) do
         local r, g, b = Color(entry)
@@ -649,11 +762,20 @@ local function Build(holder, textHolder, kind)
             back:SetAllPoints(bar)
             back:SetColorTexture(0, 0, 0, 0.5)
         end
-        local text = textHolder:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
+        local text = textHolder:CreateFontString(nil, "OVERLAY", font)
         text:SetTextColor(r, g, b)
         NoWrap(text)
         local row = { bar = bar, text = text, back = back, state = nil, index = index, key = entry.key,
             justify = entry.justify, textHolder = textHolder }
+        if holder.side then
+            -- Name der Art hinter der Summe im Kampf („12.345 Schaden“) – eigene Schrift, weil die Summe gesperrt
+            -- sein kann (sie geht nur an SetText, wird nie mit Text verkettet)
+            row.suffix = textHolder:CreateFontString(nil, "OVERLAY", font)
+            row.suffix:SetTextColor(r, g, b)
+            NoWrap(row.suffix)
+            row.suffix:SetPoint("LEFT", text, "RIGHT", 0, 0)
+            row.suffix:Hide()
+        end
         if holder.classic then
             row.icon = holder:CreateTexture(nil, "ARTWORK")
             row.hasIcon = SetIcon(row.icon, entry.icon)
@@ -670,21 +792,39 @@ local function Build(holder, textHolder, kind)
 end
 
 -- Halter eines Rahmens; außerhalb des Kampfs legt ezCore ihn an, im Kampf wartet er (nil). Die Lage kommt vom Platz
--- (Core.GroupFrames.Slot). Den Halter der Zahlen in der Mitte (Platz center) gibt es im Raidstil und seit dem
--- 18.11.2026 auch klassisch; nur in der Vorlage „unter dem Rahmen“ (ein Platz nennt below, MF.Classic) steht die
--- Zahl am Ende ihrer Zeile – das tut seitdem kein Platz.
+-- (Core.GroupFrames.Slot). Den Halter der Zahlen gibt es überall: im Raidstil in der Mitte (center), klassisch neben
+-- dem Rahmen (beside, hinter den Balken). Nur in der Vorlage der Prüfungen (Platz mit classic, MF.Classic) steht die
+-- Zahl am Ende ihrer Zeile – das tut kein Platz im Spiel.
+-- Halter der Zahlen und Marken (einer je Rahmen, für Zeilen und Marken): klassisch neben dem Rahmen (Platz
+-- "beside", nimmt die Maus für den Tooltip), im Raidstil in der Mitte (mausdurchlässig – dort erklärt Blizzards
+-- Einheiten-Tooltip). Außerhalb des Kampfes legt ezCore ihn an, im Kampf nur den vorhandenen.
+function MF.TextHolder(frame, kind)
+    if not GF then return nil end
+    local holder = GF.Part(ADDON, frame, MF.TEXT_PART)
+    if holder or ns.InCombat() then return holder end
+    kind = kind or GF.SlotKind(frame)
+    local side = MF.Side(kind)
+    return GF.Slot(ADDON, frame, MF.TextSlot(kind), MF.TEXT_PART, { level = MF.LEVEL,
+        onCreate = side and function(own, blizzard) MF.SetupSide(own, blizzard) end or nil })
+end
+
 function MF.Holder(frame, kind)
     if not GF then return nil end
     local holder = GF.Part(ADDON, frame, MF.PART)
     if holder or ns.InCombat() then return holder end
     kind = kind or GF.SlotKind(frame)
     local textHolder
-    if not MF.Classic(kind) then
-        textHolder = GF.Slot(ADDON, frame, MF.TEXT_SLOT, MF.TEXT_PART, { level = MF.LEVEL })
-    end
+    if not MF.Classic(kind) then textHolder = MF.TextHolder(frame, kind) end
     holder = GF.Slot(ADDON, frame, MF.LINES_SLOT, MF.PART, { level = MF.Level(kind),
         onCreate = function(own) Build(own, textHolder, kind) end })
+    -- Zahlen hinter den Balken (beside, after): erst jetzt gibt es die Balken, an denen sie hängen
+    if holder and textHolder and textHolder.side then GF.Slot(ADDON, frame, MF.SIDE_SLOT, MF.TEXT_PART, { level = MF.LEVEL }) end
     if holder then
+        -- nach jedem Setzen durch ezCore (auch GF.Relayout) Höhe und Lage der Balken neu (Review 20.11.2026)
+        local place = GF.SlotAnchor and GF.SlotAnchor(ADDON, frame, MF.LINES_SLOT, MF.PART, function(region)
+            if region.rows and not ns.InCombat() then Restyle(region) end
+        end)
+        if place then place(holder) end
         if GF.SlotClear then holder.clear = GF.SlotClear(frame, MF.LINES_SLOT) end
         if GF.SlotDepth then holder.depth = GF.SlotDepth(frame, MF.LINES_SLOT) end
         if holder.depth and holder.rows then Restyle(holder) end
@@ -735,10 +875,11 @@ local function CheckClear(frame, kind)
     if GF.SlotClear(frame, MF.LINES_SLOT) ~= (holder.clear or 0) or depth ~= holder.depth then Replace(frame, kind) end
 end
 
--- Darf die Zahl an dieser Rahmenart gerade zu sehen sein? (Raidstil: nur außerhalb des Kampfes)
+-- Darf die Zahl an dieser Rahmenart gerade zu sehen sein? (Raidstil: nur außerhalb des Kampfes; neben dem Rahmen
+-- immer)
 function MF.TextAllowed(kind)
     if not ns.InCombat() then return true end
-    return not (GF and GF.SlotInCombat) or GF.SlotInCombat(kind or "raid", MF.TEXT_SLOT)
+    return not (GF and GF.SlotInCombat) or GF.SlotInCombat(kind or "raid", MF.TextSlot(kind))
 end
 
 -- Zustand der Zeilen eines Rahmens (für /ezk status und die Prüfungen): { [art] = { mode, text, rank } }
@@ -754,8 +895,20 @@ local function HideRow(row)
     row.state = nil
     row.bar:Hide()
     row.text:Hide()
+    if row.suffix then row.suffix:Hide() end
     if row.icon then row.icon:Hide() end
     if row.star then row.star:Hide() end
+end
+
+-- Name der Art hinter der Zahl neben dem Rahmen (im Kampf: „12.345 Schaden“); label nil oder Zahl verborgen: ohne.
+local function SetSuffix(row, label)
+    if not row.suffix then return end
+    if label and row.text:IsShown() then
+        row.suffix:SetText(" " .. label)
+        row.suffix:Show()
+    else
+        row.suffix:Hide()
+    end
 end
 
 -- Zeile zeigen: Balken (mit Hintergrund) und Symbol der Art; der Stern nur für den Ersten aus offenen Werten.
@@ -775,6 +928,7 @@ local function ShowPlain(row, value, max, text, mode, rank)
     ShowRow(row, first)
     row.text:SetText(text)
     row.text:Show()
+    if row.suffix then row.suffix:Hide() end    -- das Wort hinter der Summe gehört nur zum Kampf
     row.state = { mode = mode, text = text, rank = rank, first = first or nil }
 end
 
@@ -827,11 +981,30 @@ end
 local function AfterText(entry, classic)
     local rate = Core.Num(entry.rate)
     if rate and rate > 0 then
-        return (classic and L.METER_FRAMES_PLACE_RATE or L.METER_FRAMES_RANK_RATE):format(entry.rank, Core.ShortNumber(rate))
+        return (classic and L.METER_FRAMES_PLACE_RATE or L.METER_FRAMES_RANK_RATE):format(entry.rank, MF.RateText(rate, true))
     end
     return (classic and L.METER_FRAMES_PLACE or L.METER_FRAMES_RANK):format(entry.rank)
 end
 MF.AfterText = AfterText
+
+-- Wert pro Sekunde neben dem Rahmen: unter 100 mit einer Nachkommastelle („1,4“; Spieltest 20.11.2026: „1/s“ sagte
+-- nichts), darüber kurz („1.234“, „12,3k“) – beides im Zahlformat der Spielsprache (Core.Decimal, Core.ShortNumber).
+-- compact (kurze Zahl in der schmalen Mitte des Raidstils, Review 20.11.2026): die Nachkommastelle nur unter 10
+-- („1,4/s“ statt „1/s“), darüber ganze Zahlen – sonst passte die Zahl dort kaum je (MF.TextFits).
+function MF.RateText(rate, compact)
+    rate = Core.Num(rate)
+    if not rate then return "?" end
+    if rate < (compact and 10 or 100) then return Core.Decimal(rate, 1) end
+    return Core.ShortNumber(rate)
+end
+
+-- Ausgeschrieben neben dem Rahmen: „Platz 2 · 1,4 DPS“ bzw. „Platz 1 · 3,0 HPS“; ohne Wert pro Sekunde „Platz 2“.
+function MF.SideText(key, entry)
+    local rate = Core.Num(entry.rate)
+    local format = L["METER_FRAMES_SIDE_" .. tostring(key)]
+    if rate and rate > 0 and format then return format:format(entry.rank, MF.RateText(rate)) end
+    return L.METER_FRAMES_PLACE:format(entry.rank)
+end
 
 -- Passt der Text in seine Hälfte des Halters der Zahlen? Jede Zahl reicht vom Rand bis zur Mitte des Halters
 -- (Restyle). Klassisch neben vier HoTs ist der Halter nur rund 25 px breit (Gegenprüfung 18.11.2026) – dann steht
@@ -849,7 +1022,8 @@ MF.TextFits = TextFits
 
 local function Fill(holder, unit, plan, kind)
     if not holder.rows then return end
-    local allowText = MF.TextAllowed(kind)
+    local numbers = MF.NumbersOn()
+    local allowText = MF.TextAllowed(kind) and numbers
     for _, entry in ipairs(MF.TYPES) do
         local row, want = holder.rows[entry.key], plan[entry.key]
         if not want then
@@ -859,11 +1033,16 @@ local function Fill(holder, unit, plan, kind)
             local found = guid and want.ranking.byGUID[guid] or nil
             if not found and unit == "player" then found = want.ranking.mine end
             if found then
-                ShowPlain(row, found.total, want.ranking.max, AfterText(found, holder.classic), "after", found.rank)
-                if not holder.classic and row.state and not TextFits(row) then
+                local text = holder.side and MF.SideText(entry.key, found) or AfterText(found, holder.classic)
+                ShowPlain(row, found.total, want.ranking.max, text, "after", found.rank)
+                if not holder.classic and not holder.side and row.state and not TextFits(row) then
                     local short = L.METER_FRAMES_RANK:format(found.rank)
                     row.text:SetText(short)
                     row.state.text, row.state.short = short, true
+                end
+                if not numbers and row.state then
+                    row.text:Hide()
+                    row.state.hidden = true
                 end
             else
                 HideRow(row)
@@ -871,10 +1050,43 @@ local function Fill(holder, unit, plan, kind)
         elseif want.mode == "live" then
             local guid = MF.GUID(unit)
             ShowLive(row, guid and MF.LiveAmount(want.meterType, guid, want.sel) or nil, want.max, allowText)
+            SetSuffix(row, holder.side and L["METER_FRAMES_SIDE_LIVE_" .. entry.key] or nil)
         else
             HideRow(row)
         end
     end
+    Stack(holder)
+end
+
+-- Neben dem Rahmen nimmt der Halter die Maus (nur das Überfahren, Klicks gehen durch) nur, solange er etwas zeigt,
+-- und nur so breit wie das Gezeigte – leer bleibt die Stelle neben dem Rahmen für die Spielwelt frei. Eigener
+-- Rahmen, nicht geschützt: auch im Kampf erlaubt. → zeigt etwas?
+-- Ohne verfolgten Rahmen (onRemove: Gruppe verlassen, Raidstil statt klassischer Rahmen – Blizzards Spielerrahmen
+-- bleibt dann zu sehen) nimmt der Halter keine Maus mehr (Review 20.11.2026).
+function MF.SideHover(textHolder)
+    if not (textHolder and textHolder.side) then return false end
+    local any, width = false, 0
+    local tracked = GF and textHolder.blizzard and GF.Unit(textHolder.blizzard) ~= nil
+    local lines = tracked and textHolder.linesHolder
+    for _, row in pairs(lines and lines.rows or {}) do
+        if row.text:IsShown() then
+            any = true
+            local w = MF.TextWidth(row.text)
+            if row.suffix and row.suffix:IsShown() then w = w + MF.TextWidth(row.suffix) end
+            if w > width then width = w end
+        end
+    end
+    if tracked and textHolder.badgeState and #textHolder.badgeState > 0 then
+        any = true
+        width = math.max(width, (textHolder.badgeStart or 0) + (Core.Num(textHolder.badgeUsed) or 0))
+    end
+    pcall(textHolder.SetMouseMotionEnabled, textHolder, any)
+    local full = Core.Num(textHolder:GetWidth())
+    local cut = (any and full and width > 0 and width < full) and (full - width) or 0
+    pcall(textHolder.SetHitRectInsets, textHolder, 0, cut, 0, 0)
+    textHolder.hover, textHolder.hoverCut = any, cut
+    if not any and GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(textHolder) then GameTooltip:Hide() end
+    return any
 end
 
 local function HideAll()
@@ -885,6 +1097,7 @@ local function HideAll()
             for _, row in pairs(holder.rows) do HideRow(row) end
         end
         if MF.Top then MF.Top.Hide(item.frame) end
+        MF.SideHover(GF.Part(ADDON, item.frame, MF.TEXT_PART))
     end
 end
 
@@ -921,7 +1134,17 @@ function MF.Update()
     dirty = false
     if GetTime() < previewUntil then return end
     local available = MF.Available()
-    local types = MF.ShowRows() and MF.ActiveTypes() or {}
+    local active = MF.ActiveTypes()
+    local types = MF.ShowRows() and active or {}
+    -- Arten der Zeilen geändert (Rolle, Spezialisierung, Schalter – auch Schaden → Heilung bei gleicher Zahl): Höhe neu
+    -- vormerken, Zeilen neu legen
+    local keys = {}
+    for _, entry in ipairs(active) do keys[#keys + 1] = entry.key end
+    keys = table.concat(keys, ",")
+    if keys ~= rowKeys then
+        rowKeys = keys
+        MF.ApplyHeight()
+    end
     local top = MF.Top and MF.Top.Plan(available) or nil
     if not GF or ((#types == 0 or not available) and not (top and top.any)) then
         livePending, lastMode = false, available and "none" or "unavailable"
@@ -940,6 +1163,8 @@ function MF.Update()
             Fill(holder, item.unit, plan, item.kind)
         end
         if top then MF.Top.Fill(item, top, holder) end
+        MF.SideShift(item.frame)
+        MF.SideHover(GF.Part(ADDON, item.frame, MF.TEXT_PART))
     end
 end
 
@@ -959,20 +1184,27 @@ function MF.Preview()
     if #list == 0 then return false end
     previewUntil = GetTime() + MF.PREVIEW_SECONDS
     local showRows = MF.ShowRows()        -- „Nur die ersten 3“: die Vorschau zeigt wie MF.Update keine Zeilen
+    -- nur die Arten, die auch im Kampf stünden (Schalter, eigene Rolle; Review 20.11.2026)
+    local shown = {}
+    for _, entry in ipairs(MF.ActiveTypes()) do shown[entry.key] = true end
     for index, item in ipairs(list) do
         local holder = MF.Holder(item.frame, item.kind)
         if holder and holder.rows then
             for _, entry in ipairs(MF.TYPES) do
                 local row = holder.rows[entry.key]
-                if showRows then
+                if showRows and shown[entry.key] then
                     local sample = { rank = index, rate = 1000 * (#list - index + 1) }
-                    ShowPlain(row, #list - index + 1, #list, AfterText(sample, holder.classic), "preview", index)
+                    local text = holder.side and MF.SideText(entry.key, sample) or AfterText(sample, holder.classic)
+                    ShowPlain(row, #list - index + 1, #list, text, "preview", index)
+                    if not MF.NumbersOn() then row.text:Hide() end
                 else
                     HideRow(row)
                 end
             end
+            Stack(holder)
         end
         if MF.Top then MF.Top.Preview(item, index, holder) end
+        MF.SideHover(GF.Part(ADDON, item.frame, MF.TEXT_PART))
     end
     C_Timer.After(MF.PREVIEW_SECONDS, function()
         previewUntil = 0
@@ -1042,7 +1274,7 @@ function MF.TooltipLines(unit)
             elseif found then
                 local rate = Core.Num(found.rate)
                 if rate and rate > 0 then
-                    text = L.METER_FRAMES_TIP_RANK_RATE:format(label, found.rank, ranking.count, Core.ShortNumber(rate),
+                    text = L.METER_FRAMES_TIP_RANK_RATE:format(label, found.rank, ranking.count, MF.RateText(rate),
                         Core.ShortNumber(found.total))
                 else
                     text = L.METER_FRAMES_TIP_RANK:format(label, found.rank, ranking.count, Core.ShortNumber(found.total))
@@ -1072,20 +1304,83 @@ function MF.TooltipLines(unit)
     return lines
 end
 
+-- Alle Zeilen einer Einheit: Schadensanzeige (MF.TooltipLines), dann Aggro (MeterTop.lua: eigene Quelle, eigene
+-- Zeilen) – eine Fassung für den Einheiten-Tooltip und den Tooltip neben dem Rahmen.
+function MF.UnitLines(unit)
+    local lines = MF.TooltipLines(unit)
+    if MF.Top then
+        for _, line in ipairs(MF.Top.ThreatLines(unit)) do lines[#lines + 1] = line end
+    end
+    return lines
+end
+
 -- Abschnitt im Einheiten-Tooltip (Core.Tooltip.AddUnitSection): nur am Gruppen- bzw. Raidrahmen; Zeilen nur für die
 -- eingeschalteten Arten (MF.ActiveKinds) – ohne Art bleibt der Abschnitt leer.
 function MF.AddTooltip(tooltip)
     local unit = MF.FrameUnit(tooltip)
     if not unit then return 0 end
-    local lines = MF.TooltipLines(unit)
-    -- Aggro (MeterTop.lua): eigene Quelle, eigene Zeilen
-    if MF.Top then
-        for _, line in ipairs(MF.Top.ThreatLines(unit)) do lines[#lines + 1] = line end
-    end
+    local lines = MF.UnitLines(unit)
     -- ezCores einer Trenner (S-1811-Tooltipabstand, Spielbefund 18.11.2026): Leerzeile davor, nie zwei
     if #lines > 0 and Core.Tooltip and Core.Tooltip.Gap then Core.Tooltip.Gap(tooltip) end
     for _, line in ipairs(lines) do tooltip:AddLine(line.text, line.r, line.g, line.b, true) end
     return #lines
+end
+
+-- Tooltip beim Überfahren der Zahlen neben dem Rahmen (Spieltest 20.11.2026: „wer soll die balken verstehen“):
+-- was Linien und Zahlen bedeuten, die Werte des Mitglieds mit ihrer Quelle (Leitlinie 11) und wo man sie abschaltet.
+-- Blizzards Symbol „nicht da“ kam oder ging (GF.SlotShift anders als beim Setzen): Halter neben dem Rahmen außerhalb
+-- des Kampfes neu setzen (im Kampf beim nächsten Update danach). → true, wenn neu gesetzt
+function MF.SideShift(frame)
+    local textHolder = GF and GF.Part(ADDON, frame, MF.TEXT_PART)
+    if not (textHolder and textHolder.side and GF.SlotShift) or ns.InCombat() then return false end
+    local shift = GF.SlotShift(frame, MF.SIDE_SLOT)
+    if shift == (textHolder.shift or 0) then return false end
+    GF.Slot(ADDON, frame, MF.SIDE_SLOT, MF.TEXT_PART, { level = MF.LEVEL })
+    textHolder.shift = shift
+    return true
+end
+
+function MF.ShowSideTooltip(self)
+    local unit = GF and self and self.blizzard and GF.Unit(self.blizzard) or nil
+    if type(unit) ~= "string" then return false end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L.METER_FRAMES_HOVER_TITLE)
+    Core.TipLine(GameTooltip, L.METER_FRAMES_HOVER_EXPLAIN, "highlight", true)
+    if MF.RoleUnknown() then Core.TipLine(GameTooltip, L.METER_FRAMES_ROLE_UNKNOWN, "hint", true) end
+    local lines = MF.UnitLines(unit)
+    if #lines > 0 and Core.Tooltip and Core.Tooltip.Gap then Core.Tooltip.Gap(GameTooltip) end
+    for _, line in ipairs(lines) do GameTooltip:AddLine(line.text, line.r, line.g, line.b, true) end
+    Core.TipLine(GameTooltip, MF.HoverOptions(), "hint", true)
+    GameTooltip:Show()
+    return true
+end
+
+-- Aufbau des Halters neben dem Rahmen (einmal, außerhalb des Kampfes; ezCore legt ihn mausdurchlässig an): nur das
+-- Überfahren nimmt er an – Klicks gehen weiter an die Spielwelt (SetMouseClickEnabled false); die Maus nimmt er erst,
+-- wenn er etwas zeigt (MF.SideHover).
+-- Wo man die Anzeige abschaltet: Weg zur Einstellung über ezCores Weg-Text (eine Quelle für Abschnitt und Schalter).
+function MF.HoverOptions()
+    return L.METER_FRAMES_HOVER_OPTIONS:format(ns.PathText("OPT_HEADER_METER", "OPT_" .. MF.NUMBERS_KEY))
+end
+
+function MF.SetupSide(own, blizzard)
+    own.side, own.blizzard = true, blizzard
+    own.shift = GF.SlotShift and GF.SlotShift(blizzard, MF.SIDE_SLOT) or 0
+    -- Kommt oder geht Blizzards Symbol „nicht da“, beim nächsten Takt neu setzen (nur zuhören: HookScript, Leitlinie 5)
+    local spec = GF.SlotSpec and GF.SlotSpec(GF.SlotKind(blizzard), MF.SIDE_SLOT)
+    for path in pairs(spec and type(spec.shift) == "table" and spec.shift or {}) do
+        local child = rawget(blizzard, path)
+        if type(child) == "table" and type(child.HookScript) == "function" then
+            pcall(child.HookScript, child, "OnShow", function() MF.MarkDirty() end)
+            pcall(child.HookScript, child, "OnHide", function() MF.MarkDirty() end)
+        end
+    end
+    pcall(own.SetMouseClickEnabled, own, false)
+    pcall(own.SetMouseMotionEnabled, own, false)
+    own:SetScript("OnEnter", MF.ShowSideTooltip)
+    own:SetScript("OnLeave", function(self)
+        if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
 end
 
 if Core.Tooltip and Core.Tooltip.AddUnitSection then
@@ -1139,6 +1434,7 @@ local function Watch()
                 for _, row in pairs(holder.rows) do HideRow(row) end
             end
             if MF.Top then MF.Top.Hide(frame) end
+            MF.SideHover(GF.Part(ADDON, frame, MF.TEXT_PART))   -- leer: keine Maus neben dem Rahmen
         end,
     })
 end
@@ -1168,6 +1464,8 @@ ns.OnUnit("UNIT_PET", { "party1", "party2", "party3", "party4" }, function() dir
 ns.On("CVAR_UPDATE", function(_, name) if name == "showPartyPets" then dirty = true end end)
 -- Leiter wechselt: Blizzards Leiter-Symbol über dem nächsten Gruppenrahmen kommt oder geht (GF.SlotDepth)
 ns.On("PARTY_LEADER_CHANGED", function() dirty = true end)
+-- Rolle in der Gruppe ändert sich (Schalter „Nur, was deine Rolle betrifft“): Zeilen neu
+ns.On("PLAYER_ROLES_ASSIGNED", function() dirty = true end)
 -- Gestalt, Spezialisierung oder Kraftart des Spielers wechselt: Blizzard zeigt oder verbirgt dann seine Klassenleiste
 -- (Combo-Punkte, Runen …) bzw. die zweite Kraftleiste unter dem Spielerrahmen (GF.SlotClear: clearBelow, clear)
 ns.On("UPDATE_SHAPESHIFT_FORM", function() dirty = true end)
@@ -1175,12 +1473,14 @@ ns.On("PLAYER_SPECIALIZATION_CHANGED", function() dirty = true end)
 ns.OnUnit("UNIT_DISPLAYPOWER", "player", function() dirty = true end)
 ns.On("PLAYER_REGEN_DISABLED", function()
     -- neuer Kampf: Rang und Werte pro Sekunde des vorigen gelten nicht mehr; ein früherer Kampf weicht der vorigen Wahl
+    MF.FreezeRole(true)               -- Arten vom Kampfbeginn (MF.OwnType)
     MF.LeaveCombatChoice()
     HideAll()
     dirty = true
 end)
 ns.On("PLAYER_REGEN_ENABLED", function()
     guidsTrusted = true
+    MF.FreezeRole(false)
     if MF.HeightPending() then MF.ApplyHeight() end   -- ezCores Warteschlange läuft evtl. erst nach diesem Zuhörer
     Refresh()
 end)
@@ -1192,7 +1492,7 @@ ns.OnSettingChanged(function(key)
         Refresh()
     end
     if key == "meterFramesDamage" or key == "meterFramesHealing" or key == "meterFramesSession"
-        or key == MF.VIEW_KEY then
+        or key == MF.VIEW_KEY or key == MF.NUMBERS_KEY or key == MF.ROLE_KEY then
         Refresh()
     end
     for _, more in ipairs(MF.MORE_KEYS) do

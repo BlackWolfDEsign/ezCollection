@@ -243,7 +243,10 @@ local function BuildList()
     for _, entry in ipairs(others) do list[#list + 1] = entry end
     if #fromSpells > 0 then
         list[#list + 1] = ns.SpellMacros.HEADER
-        for _, entry in ipairs(fromSpells) do list[#list + 1] = entry end
+        -- eingeklappt (Seite der Kopfzeile, Spieltest 20.11.2026): nur die Kopfzeile; die Suche zeigt immer alles
+        if not ns.SpellMacros.Collapsed() or query ~= "" then
+            for _, entry in ipairs(fromSpells) do list[#list + 1] = entry end
+        end
     end
     for _, entry in ipairs(extra) do list[#list + 1] = entry end
 end
@@ -575,27 +578,26 @@ local function EntryImportArgs(entry)
     return name, body, perChar
 end
 
--- Symbol der Kopfzeile „Aus deinen Fähigkeiten“: ein Buch wie Blizzards Zauberbuch (das erste, das der Client kennt)
-local HEADER_ICON = { "INV_Misc_Book_09", "INV_Misc_Book_11" }
 
 local function UpdateRows()
     local selectedId = current and current.id
     for index, row in ipairs(rows) do
         local entry = list[index]
         if entry and entry.header then
-            -- Kopfzeile einer Gruppe (Welle 27: „Aus deinen Fähigkeiten“) – nicht wählbar
+            -- Kopfzeile einer Gruppe (Welle 27: „Aus deinen Fähigkeiten“) – Klick zeigt ihre Seite (SM.Page)
             row.entry = entry
-            row.icon:SetTexture(ns.IconPath(HEADER_ICON))
+            row.icon:SetTexture(ns.IconPath(ns.SpellMacros.ICON))
             row.icon:SetDesaturated(false)
             row.disabledBG:Hide()
             row.name:SetText(L.SPELLMACRO_GROUP)
             SetFontColor(row.name, "NORMAL_FONT_COLOR")
             row.tag:SetText("")
             if row.star then row.star:Hide() end
-            row.desc:SetText(L.SPELLMACRO_GROUP_DESC)
+            row.desc:SetText(ns.SpellMacros.Collapsed() and L.SPELLMACRO_GROUP_COLLAPSED:format(#ns.SpellMacros.Entries())
+                or L.SPELLMACRO_GROUP_DESC)
             SetFontColor(row.desc, "GRAY_FONT_COLOR")
             row.check:Hide()
-            row.selected:Hide()
+            row.selected:SetShown(selectedId == entry.id)
             row:Show()
         elseif entry and entry.tool then
             row.entry = entry
@@ -719,10 +721,11 @@ local function RowOnLeave()
 end
 
 local function RowOnClick(self)
-    if not self.entry or self.entry.header then return end
+    if not self.entry then return end
     PlaySoundKit("IG_MAINMENU_OPTION_CHECKBOX_ON")
     ns.db.window.selected[state.category] = self.entry.id
-    ShowDetail(self.entry)
+    -- Kopfzeile „Aus deinen Fähigkeiten“: ihre Seite rechts (Spieltest 20.11.2026, „Erklärseite + Knöpfe“)
+    ShowDetail(self.entry.header and ns.SpellMacros.Page() or self.entry)
     UpdateRows()
 end
 
@@ -871,7 +874,11 @@ local function UpdateList(keepScroll)
     end
     if not pick then
         for _, entry in ipairs(list) do
-            if entry.id == wanted and not entry.header then pick = entry break end
+            if entry.id == wanted then
+                -- die Kopfzeile steht für ihre Seite (SM.Page trägt dieselbe id wie SM.HEADER)
+                pick = entry.header and ns.SpellMacros.Page() or entry
+                break
+            end
         end
     end
     if not pick then
@@ -1347,7 +1354,7 @@ local function CreateDetail()
         ns.ClickCast.Menu(self, current, ui.nameBox:GetText(), ui.textEdit:GetText(), CurrentPerChar())
     end))
     ui.clickButton:SetScript("OnEnter", function(self)
-        local tip = L.BTN_CLICKBIND_TIP
+        local tip = L.BTN_CLICKBIND_TIP .. "\n\n" .. ns.ClickCast.Guide()
         if current and type(current.click) == "table" then
             tip = tip .. "\n" .. L.CLICK_TIP_SUGGESTED:format(ns.ClickCast.KeyText(current.click[1], current.click[2]))
         end

@@ -14,7 +14,7 @@ local Core = ezCore
 
     Farbenblind-Hilfe (EC-47): Ist ezCores Schalter „Zeichen am Leuchten“ an (Core.Glow.MarksEnabled), steht neben
     jeder Marke zusätzlich zur Farbe ein Zeichen. Die Zeichen kommen aus ezCores Liste Core.GLOW_COLORS (mark der
-    Farbe green, red, gold – heute „+“, „!“, „*“), damit Rot in ezGear, ezMail und am Leuchten dasselbe Zeichen hat.
+    Farbe green, red, gold – heute „+“, „!“, „>“), damit Rot in ezGear, ezMail und am Leuchten dasselbe Zeichen hat.
     Gelesen werden Schalter und Zeichen bei jedem Zeichnen der Marke.
 ]]
 

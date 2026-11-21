@@ -7,9 +7,14 @@ local T = ns.RotationData.T
 --   Disziplin:  https://www.icy-veins.com/wow-forever/discipline-priest-healer-pve-rotation-cooldowns-abilities (04.11.2026)
 --               https://www.icy-veins.com/wow-forever/discipline-priest-leveling (10.11.2026)
 --   Heilig:     https://www.icy-veins.com/wow-forever/holy-priest-leveling (10.11.2026)
---               https://www.icy-veins.com/wow-forever/holy-priest-healer-pve-rotation-cooldowns-abilities (04.11.2026)
+--               https://www.icy-veins.com/wow-forever/holy-priest-healer-pve-rotation-cooldowns-abilities (04.11.2026;
+--               nachgeprüft am 20.11.2026 im Browser: Heil-Reihenfolge als Liste übernommen, „Prayer of Mending“
+--               401859 nennt die Seite nicht – kein Schritt)
 --   Schatten:   https://www.icy-veins.com/wow-forever/shadow-priest-ranged-dps-pve-rotation-cooldowns-abilities (04.11.2026)
+--               (nachgeprüft 20.11.2026 gegen den Stand vom 17.11.2026 (Vampirumarmung): Eröffnung und Rangfolge
+--                unverändert)
 --               https://www.icy-veins.com/wow-forever/shadow-priest-leveling (04.11.2026)
+--               (Stand 17.11.2026: Vampirumarmung löst Geistabzapfen ohne Todesstoß aus – im Text des Listeneintrags)
 -- Zauber-IDs (Rang 1) geprüft gegen nether.wowhead.com/forever. Nichts stammt aus einem Addon. Name, Symbol, Ränge,
 -- gelernt, Lernstufe, Kosten, Zauberzeit, Abklingzeit und Dauer liefert der Client zur Laufzeit.
 --
@@ -46,7 +51,8 @@ ns.RotationData.Add("PRIEST", {
         { id = 588, kind = "longbuff", buff = "innerFire", when = "buff",
           text = T("Vor dem Kampf; Treffer verbrauchen die Aufladungen.", "Before combat; hits use up its charges.") },    -- Inneres Feuer / Inner Fire
         { id = 588, key = "charges:588", kind = "prepare", when = "ready",
-          need = { aura = { id = "innerFire", min = 2, max = 5 } },    -- Annahme: „wenige“ = höchstens 5; ab 2, siehe Dateikopf [V]
+          need = { aura = { id = "innerFire", min = 2, max = 5 } },
+          guess = T("„Wenige Aufladungen“ ist als 2 bis 5 geschätzt.", "“A few charges” is estimated as 2 to 5."),
           text = T("Nur noch wenige Aufladungen: vor dem Kampf erneuern.", "Only a few charges left: renew before combat.") },    -- Inneres Feuer / Inner Fire
         { id = 14752, kind = "longbuff", buff = "spirit", when = "buff",
           text = T("Vor dem Kampf, sobald gelernt.", "Before combat once learned.") },    -- Göttlicher Willen / Divine Spirit
@@ -99,7 +105,8 @@ ns.RotationData.Add("PRIEST", {
         { id = 588, kind = "longbuff", buff = "innerFire", when = "buff",
           text = T("Vor dem Kampf; Treffer verbrauchen die Aufladungen.", "Before combat; hits use up its charges.") },    -- Inneres Feuer / Inner Fire
         { id = 588, key = "charges:588", kind = "prepare", when = "ready",
-          need = { aura = { id = "innerFire", min = 2, max = 5 } },    -- Annahme: „wenige“ = höchstens 5; ab 2, siehe Dateikopf [V]
+          need = { aura = { id = "innerFire", min = 2, max = 5 } },
+          guess = T("„Wenige Aufladungen“ ist als 2 bis 5 geschätzt.", "“A few charges” is estimated as 2 to 5."),
           text = T("Nur noch wenige Aufladungen: vor dem Kampf erneuern.", "Only a few charges left: renew before combat.") },    -- Inneres Feuer / Inner Fire
         { id = 14752, kind = "longbuff", buff = "spirit", when = "buff",
           text = T("Vor dem Kampf, sobald gelernt.", "Before combat once learned.") },    -- Göttlicher Willen / Divine Spirit
@@ -126,6 +133,18 @@ ns.RotationData.Add("PRIEST", {
         -- Situativ ---------------------------------------------------------------------------------------------------
         { id = 14751, kind = "situational", when = "manual",
           text = T("Vor einer teuren Gruppenheilung, wenn es eng wird.", "Before a costly group heal when things get tight.") },    -- Innerer Fokus / Inner Focus [V]
+        -- Heilen nach Lage (nur Liste, nie vorgeschlagen – wen du heilst, entscheidest du; Reihenfolge der Rotationsseite,
+        -- Stand 04.11.2026, nachgeprüft 20.11.2026)
+        { id = 2050, kind = "situational", when = "manual",
+          text = T("Schnell, aber klein.", "Quick but small.") },    -- Geringes Heilen / Lesser Heal
+        { id = 2054, kind = "situational", when = "manual",
+          text = T("Mittlere Heilung nach etwas Zauberzeit – dein Standard.", "A moderate heal after a few seconds of casting – your default.") },    -- Heilen / Heal
+        { id = 139, kind = "situational", when = "manual",
+          text = T("Gegen stetigen kleinen Schaden oder während du dich bewegst.", "Against steady small damage or while you move.") },    -- Erneuerung / Renew
+        { id = 2061, kind = "situational", when = "manual",
+          text = T("Nur im Notfall: schnell, aber teuer.", "Emergencies only: fast but costly.") },    -- Blitzheilung / Flash Heal
+        { id = 596, kind = "situational", when = "manual",
+          text = T("Wenn mehrere in der Gruppe schwer verletzt sind.", "When several group members are badly hurt.") },    -- Gebet der Heilung / Prayer of Healing
       } },
 
     -----------------------------------------------------------------------------------------------------------------
@@ -146,7 +165,8 @@ ns.RotationData.Add("PRIEST", {
         { id = 588, kind = "longbuff", buff = "innerFire", when = "buff",
           text = T("Vor dem Kampf; Treffer verbrauchen die Aufladungen.", "Before combat; hits use up its charges.") },    -- Inneres Feuer / Inner Fire
         { id = 588, key = "charges:588", kind = "prepare", when = "ready",
-          need = { aura = { id = "innerFire", min = 2, max = 5 } },    -- Annahme: „wenige“ = höchstens 5; ab 2, siehe Dateikopf [V]
+          need = { aura = { id = "innerFire", min = 2, max = 5 } },
+          guess = T("„Wenige Aufladungen“ ist als 2 bis 5 geschätzt.", "“A few charges” is estimated as 2 to 5."),
           text = T("Nur noch wenige Aufladungen: vor dem Kampf erneuern.", "Only a few charges left: renew before combat.") },    -- Inneres Feuer / Inner Fire
         { id = 1243, kind = "longbuff", buff = "fort", when = "buff",
           text = T("Vor dem Kampf auf dich und die Gruppe.", "Before combat on yourself and the group.") },    -- Machtwort: Seelenstärke / Power Word: Fortitude
@@ -205,7 +225,8 @@ ns.RotationData.Add("PRIEST", {
         { id = 588, kind = "longbuff", buff = "innerFire", when = "buff",
           text = T("Vor dem Kampf; Treffer verbrauchen die Aufladungen.", "Before combat; hits use up its charges.") },    -- Inneres Feuer / Inner Fire
         { id = 588, key = "charges:588", kind = "prepare", when = "ready",
-          need = { aura = { id = "innerFire", min = 2, max = 5 } },    -- Annahme: „wenige“ = höchstens 5; ab 2, siehe Dateikopf [V]
+          need = { aura = { id = "innerFire", min = 2, max = 5 } },
+          guess = T("„Wenige Aufladungen“ ist als 2 bis 5 geschätzt.", "“A few charges” is estimated as 2 to 5."),
           text = T("Nur noch wenige Aufladungen: vor dem Kampf erneuern.", "Only a few charges left: renew before combat.") },    -- Inneres Feuer / Inner Fire
         { id = 14752, kind = "longbuff", buff = "spirit", when = "buff",
           text = T("Vor dem Kampf, sobald gelernt.", "Before combat once learned.") },    -- Göttlicher Willen / Divine Spirit
@@ -224,10 +245,12 @@ ns.RotationData.Add("PRIEST", {
         { id = 589, kind = "opener", when = "dot", refresh = "missing",
           text = T("Einmal setzen.", "Apply once.") },    -- Schattenwort: Schmerz / Shadow Word: Pain
         { id = 2944, kind = "opener", when = "dot", refresh = "missing",
-          need = { level = { min = 30 }, mana = { min = 40 } },    -- Stufe: Schwelle aus dem Guide; Mana: Annahme
+          need = { level = { min = 30 }, mana = { min = 40 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Nur mit Mana übrig; früh im Leveln weglassen.", "Only with mana to spare; skip it early on.") },    -- Verschlingende Seuche / Devouring Plague
         { id = 15407, kind = "opener", when = "ready", once = "target", hold = true,
-          need = { level = { min = 30 }, mana = { min = 40 } },    -- wie oben
+          need = { level = { min = 30 }, mana = { min = 40 } },
+          guess = T("Die Mana-Schwelle ist geschätzt; die Quelle nennt keine Zahl.", "The mana threshold is estimated; the source gives no number."),
           text = T("Einmal je Gegner, mit Mana übrig; Kanalisieren nie abbrechen.", "Once per enemy with mana to spare; never cut the channel short.") },    -- Gedankenschinden / Mind Flay
         -- Im Kampf ---------------------------------------------------------------------------------------------------
         { id = 5019, kind = "filler", when = "autorepeat",
@@ -236,7 +259,7 @@ ns.RotationData.Add("PRIEST", {
         { id = 1309595, kind = "situational", when = "manual",
           text = T("Nur für starke Momente: kostet Leben, wenn das Ziel überlebt.", "Big moments only: costs health if the target survives.") },    -- Schattenwort: Tod / Shadow Word: Death
         { id = 15286, kind = "situational", when = "manual",
-          text = T("Heilt dich und die Gruppe über deinen Schattenschaden.", "Heals you and your group through your shadow damage.") },    -- Vampirumarmung / Vampiric Embrace
+          text = T("Heilt über deinen Schattenschaden; löst {15270} auch ohne Todesstoß aus.", "Heals through your shadow damage; triggers {15270} even without a killing blow.") },    -- Vampirumarmung / Vampiric Embrace
         { id = 14751, kind = "situational", when = "manual",
           text = T("Vor einem teuren Zauber oder wenn ein kritischer Treffer zählt.", "Before a costly spell or when a critical hit matters.") },    -- Innerer Fokus / Inner Focus [V]
       } },

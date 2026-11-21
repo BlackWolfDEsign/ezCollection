@@ -21,9 +21,9 @@ local Core = ezCore
     Die Erkennung bleibt in ezMacro (Auftrag: keine neue ezCore-Datei); sie nutzt nur vorhandene ezCore-Dienste.
 
     Sichtbar in Blizzards Makroverwaltung (Leitlinie 1, das Original; Blizzard_MacroUI, Zweig forever):
-      - Knopf „Art: Alle“ an der Trennleiste unter dem Symbolraster, links neben „Speichern“ (über dem Raster liegen
-        Blizzards Reiter bis 6 px an die erste Reihe – kein Platz). Linksklick: Menü „Zeigen“ (Alle, je Art mit Zahl)
-        und „Gewähltes Makro einordnen“. Leitlinie 3: jede Funktion hat diesen Knopf.
+      - Knopf „Art: Alle“ mittig auf der Trennleiste unter dem Symbolraster (seit 21.11.2026, vorher links neben
+        „Speichern“; über dem Raster liegen Blizzards Reiter bis 6 px an die erste Reihe – kein Platz). Linksklick:
+        Menü „Zeigen“ (Alle, je Art mit Zahl) und „Gewähltes Makro einordnen“. Leitlinie 3: jede Funktion hat diesen Knopf.
       - Das Raster blendet Makros anderer Art ab (blass und grau), statt sie auszublenden: ausblenden hieße Blizzards
         Datenquelle des Rasters ersetzen (Leitlinie 5). Beim Öffnen der Makroverwaltung steht der Filter auf „Alle“.
       - Tooltip am Symbol: Name, Art und woher sie kommt; Rechtsklick aufs Symbol: Art ändern (zusätzlich zum Knopf).
@@ -595,19 +595,33 @@ local function HookButton(button)
 end
 Kinds.HookButton = HookButton
 
+-- Blizzards Trennleiste unter dem Symbolraster (Blizzard_MacroUI.xml des Produkts „wowf“, Build 1.60.1.70938,
+-- FileDataID 804027 über wago.tools /api/casc): die benannte Textur MacroHorizontalBarLeft (256 × 16 bei TOPLEFT
+-- 2/−210), daran rechts ein namenloser Rest (75 × 16) – zusammen 331 breit, 16 hoch. Spielbefund vom 21.11.2026
+-- („nur noch der button verrutscht“; gewählt: „Er soll mittig auf der Leiste sitzen (senkrecht und waagerecht).“):
+-- Der Knopf sitzt mit seiner Mitte auf der Mitte der ganzen Leiste und ist so hoch wie sie.
+Kinds.BAR_WIDTH = 331
+Kinds.BUTTON_W, Kinds.BUTTON_H = 104, 16
+
 local function CreateKindButton(frame)
     local button = CreateFrame("Button", "ezMacroKindButton", frame, "UIPanelButtonTemplate")
-    button:SetSize(104, 18)
+    button:SetSize(Kinds.BUTTON_W, Kinds.BUTTON_H)
     -- Ebene: Kind des Makrofensters ohne eigene Ebene (Design-System 2.6, Rolle „parent“; bisher HIGH). Damit kein
-    -- Teil von Blizzards Fenster den Knopf verdeckt, liegt er eine Rahmenstufe über „Speichern“, neben dem er sitzt.
+    -- Teil von Blizzards Fenster den Knopf verdeckt, liegt er eine Rahmenstufe über „Speichern“.
     Core.Style.SetStrata(button, "parent")
     local save = rawget(_G, "MacroSaveButton")
-    if type(save) == "table" then
+    local bar = rawget(_G, "MacroHorizontalBarLeft")
+    if type(bar) == "table" and not ns.IsSecret(bar) then
+        button:SetPoint("CENTER", bar, "LEFT", Kinds.BAR_WIDTH / 2, 0)
+    elseif type(save) == "table" then
+        -- Rückfall ohne Leiste (anderer Client): wie bisher links neben „Speichern“
         button:SetPoint("BOTTOMRIGHT", save, "TOPLEFT", -6, 1)
-        local okLevel, level = pcall(save.GetFrameLevel, save)
-        if okLevel and not ns.IsSecret(level) and type(level) == "number" then button:SetFrameLevel(level + 1) end
     else
         button:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -96, -207)
+    end
+    if type(save) == "table" then
+        local okLevel, level = pcall(save.GetFrameLevel, save)
+        if okLevel and not ns.IsSecret(level) and type(level) == "number" then button:SetFrameLevel(level + 1) end
     end
     button:SetScript("OnClick", function(self)
         if ns.UI then ns.UI.PlaySound("IG_MAINMENU_OPTION_CHECKBOX_ON") end

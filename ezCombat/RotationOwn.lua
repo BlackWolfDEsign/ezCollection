@@ -344,6 +344,7 @@ local STEP_CHECKS = {
     kind = function(v) return Rotation.KINDS[v] ~= nil end,
     when = function(v) return Rotation.CONDITIONS[v] ~= nil end,
     text = function(v) return IsPair(v) end,
+    guess = function(v) return IsPair(v) end,
     key = function(v) return type(v) == "string" and v ~= "" and #v <= 80 end,
     buff = function(v) return type(v) == "string" and Spells.BuffGroup(v, nil) ~= nil end,
     refresh = function(v) return v == "missing" or v == "cast" or (type(v) == "number" and v > 0) end,
@@ -685,6 +686,7 @@ function Own.SetCondition(key, stepKey, condition)
     step.when, step.refresh, step.max, step.cp = choice.when, choice.refresh, choice.max, choice.cp
     step.min, step.stacks, step.aura, step.group, step.buff, step.once, step.need = nil, nil, nil, nil, nil, nil, nil
     step.unit, step.mine, step.item, step.hand, step.slot, step.text = nil, nil, nil, nil, nil, nil
+    step.guess = nil   -- die Annahme gehörte zur alten Bedingung
     step.kind = KindFor(section, choice.when)
     if step.kind ~= "cooldown" then step.burst = nil end
     Changed()

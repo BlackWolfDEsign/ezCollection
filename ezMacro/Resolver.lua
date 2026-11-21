@@ -205,7 +205,9 @@ end
 
 -- Fähigkeiten, die das Makro auf der Aktionsleiste ersetzt: alle Zauber der Vorlage außer Haltungen,
 -- in die es nur als Rückfall wechselt (z. B. „…; Kampfhaltung“; Knurren wechselt erst in die Bärengestalt).
-local STANCE_FALLBACKS = { [71] = true, [2457] = true, [2458] = true, [5487] = true, [9634] = true }
+-- Die Haltungen und Gestalten führt ezCore (Spells.MacroFallbackForms aus FAMILIES.stance und den Bärengestalten;
+-- Paket ezmacro/ssot-doppelungen) – vorher stand hier eine eigene Liste derselben fünf Zauber.
+local STANCE_FALLBACKS = Spells.MacroFallbackForms()
 function ns.ReplacedSpells(entry)
     local spells, seen = {}, {}
     for _, id in ipairs(ns.TemplateSpells(entry.body)) do

@@ -3,7 +3,7 @@
 ## Notes: Two topics. Macros: the best macros for every class and race - browse, adjust and add them to the Blizzard macro list with one click; updates spell ranks, backs up macros, bar profiles for alts. Emotes: emote macros, emote bars at the chat (drawn by ezBars) and automatic thank-you and spit emotes. Part of ezCollection.
 ## Notes-deDE: Zwei Themen. Makros: die besten Makros für jede Klasse und jedes Volk - durchsuchen, anpassen und mit einem Klick in die Blizzard-Makroverwaltung übernehmen; Ränge aktualisieren, Makros sichern, Leisten-Profile für Twinks. Emotes: Emote-Makros, Emote-Leisten am Chat (gezeichnet von ezBars) sowie automatisches Danken und Spucken. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.9.0
+## Version: 1.10.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Misc_Note_02
 ## SavedVariables: ezMacroDB
@@ -26,6 +26,7 @@ Resolver.lua
 Emote.lua
 Dynamic.lua
 OneClick.lua
+Weapon.lua
 Announce.lua
 UI.lua
 ActionHighlight.lua

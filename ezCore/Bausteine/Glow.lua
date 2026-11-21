@@ -188,6 +188,10 @@ end
 
 -- Farbenblind-Hilfe (V-043): Schalter „Zeichen am Leuchten“ (ezCoreDB.comfort.glowMarks, Standard aus).
 Core.OwnDefaults("comfort", { glowMarks = false })
+
+-- Ein gespeichertes „an“ bleibt (Entscheidung des Nutzers vom 21.11.2026 vor v1.0.0-beta2, Frage: einmalige Umstellung
+-- behalten? – „Remove it (Recommended)“): Schon in v1.0.0-beta1 war der Schalter ab Werk aus, ein „an“ ist dort immer
+-- eine eigene Wahl. Die einmalige Umstellung Glow.MigrateMarksOff vom 21.11.2026 ist darum gestrichen.
 function Glow.MarksEnabled()
     return Core.OwnSetting("comfort", "glowMarks") == true
 end
@@ -810,6 +814,53 @@ end)
 Core.ICON_MASK = { "UI-HUD-ActionBar-IconFrame-Mask" }
 Core.ICON_FRAME = { "UI-HUD-ActionBar-IconFrame" }
 
+-- Die Maske hat einen leeren Rand: Blizzard legt sie größer als das Symbol und mittig darauf (Forever-Quelle
+-- Blizzard_PerksProgram/Blizzard_PerksProgramElements.xml: Icon 32 × 32, IconMask 48 × 48; Blizzard_ActionBar/Mainline/
+-- ActionButtonTemplate.xml: IconMask mittig auf dem Symbol in eigener Größe). Über das Symbol gespannt (SetAllPoints)
+-- schnitt sie es auf etwa zwei Drittel zu – im Spieltest 20.11.2026 saß das Symbol klein im Rahmen (ezBars-Leisten).
+-- Verhältnis Maske : Knopf zuerst aus dem Client (Leitlinie 11): Blizzards Aktionsknopf ist 45 × 45 und trägt die Maske
+-- in ihrer Atlasgröße → Breite des Atlas / 45. Liefert der Client nichts Brauchbares (nicht größer als der Knopf),
+-- gilt Blizzards Verhältnis aus PerksProgram (Icon 32, IconMask 48 = 1,5) – das der Aktionsleiste ist dann unbelegt.
+Core.ICON_MASK_SCALE = 48 / 32
+local ACTION_BUTTON_SIZE = 45     -- ActionButtonTemplate.xml (Forever), Size 45 × 45
+local maskScale
+function Core.IconMaskScale()
+    if maskScale then return maskScale end
+    maskScale = Core.ICON_MASK_SCALE
+    local atlas = Core.FirstAtlas(Core.ICON_MASK)
+    if atlas and C_Texture and C_Texture.GetAtlasInfo then
+        local ok, info = pcall(C_Texture.GetAtlasInfo, atlas)
+        local w = ok and type(info) == "table" and info.width or nil
+        if type(w) == "number" and not Core.IsSecret(w) and w > ACTION_BUTTON_SIZE and w < ACTION_BUTTON_SIZE * 3 then
+            maskScale = w / ACTION_BUTTON_SIZE
+        end
+    end
+    return maskScale
+end
+
+-- Masken der Knöpfe – nicht im Rahmen gespeichert: AuraRow legt Symbole auch an Blizzards eigenen Aurenknöpfen an
+-- (Leitlinie 5: keine Werte in Blizzards Tabellen). Schwache Schlüssel: verschwindet der Knopf, verschwindet der Eintrag.
+local iconMasks = setmetatable({}, { __mode = "k" })
+
+-- Maske mittig auf dem Symbol, Core.IconMaskScale()-mal so groß wie der Knopf (das Symbol füllt ihn). Solange der Knopf
+-- noch keine Größe hat (ezCombat: Fläche erst nach dem Layout), bleibt sie über das Symbol gespannt – das Symbol ist
+-- dann kleiner, aber zu sehen. Läuft bei jeder Größenänderung (OnSizeChanged); Module rufen es nach eigenem SetSize,
+-- wo der Hook fehlt.
+local function FitIconMask(frame)
+    local entry = frame and iconMasks[frame]
+    if not (entry and frame.GetSize) then return end
+    local w, h = frame:GetSize()
+    if type(w) ~= "number" or type(h) ~= "number" or Core.IsSecret(w) or Core.IsSecret(h) or w <= 0 or h <= 0 then return end
+    local scale = Core.IconMaskScale()
+    entry.mask:ClearAllPoints()
+    entry.mask:SetPoint("CENTER", entry.icon)
+    entry.mask:SetSize(w * scale, h * scale)
+end
+Core.FitIconMask = FitIconMask
+
+-- Maske eines Knopfs aus Core.StyleIcon (Prüfungen, Diagnose). → MaskTexture oder nil
+function Core.IconMaskOf(frame) return frame and iconMasks[frame] and iconMasks[frame].mask or nil end
+
 -- Legt in frame ein Symbol mit Maske und Rahmen an (frame.icon, frame.border). → Symbol-Textur
 function Core.StyleIcon(frame)
     local icon = frame:CreateTexture(nil, "ARTWORK")
@@ -820,6 +871,10 @@ function Core.StyleIcon(frame)
         mask:SetAtlas(maskAtlas)
         mask:SetAllPoints(icon)
         icon:AddMaskTexture(mask)
+        iconMasks[frame] = { mask = mask, icon = icon }
+        FitIconMask(frame)
+        -- geschützt: an Blizzards Aurenknöpfen darf ein Hook nicht den Rest des Aufbaus abbrechen (AuraRow)
+        if frame.HookScript then pcall(frame.HookScript, frame, "OnSizeChanged", FitIconMask) end
     else
         icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     end

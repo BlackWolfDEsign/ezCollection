@@ -48,7 +48,10 @@ local Core = ezCore
       knopf:Bind(taste | { tasten }, opts)   Taste als Übersteuerung auf den Knopf (SetOverrideBindingClick).
                                       opts: priority (Standard false), mouse (Standard "LeftButton"),
                                       inCombat = false → im Kampf gilt wieder die normale Belegung, danach wieder
-                                      die eigene (gelöst wird beim Kampfbeginn, solange das noch erlaubt ist)
+                                      die eigene (gelöst wird beim Kampfbeginn, solange das noch erlaubt ist),
+                                      command = Blizzards Befehl (z. B. "INTERACTTARGET"): die Taste löst diesen
+                                      Befehl aus statt eines Klicks auf den Knopf (SetOverrideBinding; ezMacros
+                                      Angeln holt so während des Kanals mit der eigenen Taste ein)
       knopf:BindLike(befehl, opts)    alle Tasten, die heute auf einem Befehl liegen (z. B. "INTERACTTARGET" für
                                       das Angeln) → ok, grund, { tasten }. Ändert der Spieler die Belegung, ruft
                                       das Modul es erneut (bei UPDATE_BINDINGS; nicht von selbst, weil das Setzen
@@ -242,10 +245,15 @@ local function ApplyBinds(state)
         else
             -- andere Priorität als bisher: die alte Übersteuerung zuerst lösen
             if state.bound[key] and (state.bound[key].priority == true) ~= (spec.priority == true) then ClearKey(state, key) end
-            if Safe(state, "SetOverrideBindingClick", SetOverrideBindingClick, state.frame, spec.priority == true, key,
-                state.name, spec.mouse or "LeftButton") then
-                state.bound[key] = spec
+            local set
+            if spec.command then
+                set = Safe(state, "SetOverrideBinding", SetOverrideBinding, state.frame, spec.priority == true, key,
+                    spec.command)
+            else
+                set = Safe(state, "SetOverrideBindingClick", SetOverrideBindingClick, state.frame, spec.priority == true,
+                    key, state.name, spec.mouse or "LeftButton")
             end
+            if set then state.bound[key] = spec end
         end
     end
 end
@@ -387,10 +395,14 @@ local function StageBind(state, keys, opts)
     local list, reason = KeyList(keys)
     if not list then return false, reason end
     if opts ~= nil and type(opts) ~= "table" then return false, "invalid" end
+    local command = opts and opts.command
+    if command ~= nil and (Core.IsSecret(command) or type(command) ~= "string" or command == "") then
+        return false, "invalid"
+    end
     if type(SetOverrideBindingClick) ~= "function" or type(SetOverrideBinding) ~= "function" then return false, "missing" end
     for _, key in ipairs(list) do
         local spec = { priority = opts and opts.priority == true or false, mouse = opts and opts.mouse or "LeftButton",
-            inCombat = not (opts and opts.inCombat == false) }
+            inCombat = not (opts and opts.inCombat == false), command = command }
         state.keys[key] = spec
         state.pending.binds[key] = spec
     end

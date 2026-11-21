@@ -3,6 +3,81 @@
 Written by hand before every release; it describes what each module can do, not every commit. English first, German below each entry.
 Von Hand vor jeder Veröffentlichung gepflegt; beschreibt, was jedes Modul kann, nicht jeden Commit. Englisch zuerst, Deutsch darunter.
 
+## v1.0.0-beta2
+
+Second beta for WoW Forever: a compact minimap, a talent advisor with play styles, gear advice from your talents, clearer rotations and party frames. “Agree to all” in the introduction now turns on, besides the actions without a click listed there, every other feature that is off by default and allowed by Blizzard's rules – except pure looks and anything that risks Blizzard's rules or a safeguard. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).
+Zweite Beta für WoW Forever: eine kompakte Minikarte, eine Talent-Empfehlung nach Spielweise, Ausrüstungs-Empfehlung aus deinen Talenten, verständlichere Rotationen und Gruppenrahmen. „Allem zustimmen“ in der Einführung schaltet jetzt neben den dort aufgeführten Abläufen ohne Klick auch jede andere Funktion ein, die ab Werk aus ist und die Blizzards Regeln erlauben – außer reiner Optik und allem, was Blizzards Regeln oder einen Schutz riskiert. Vieles ist im Spiel noch ungetestet; Fehler bitte mit der Fehlerliste zum Kopieren melden (Esc » Optionen » AddOns » ezCollection » Erweitert).
+
+### ezCore
+
+- “Agree to all” (Introduction) switches on every feature that is off by default and allowed by Blizzard's rules, for example “Move Blizzard windows”; looks (marks, scaling, extra texts) stay your choice, and anything that risks Blizzard's rules or a safeguard (sends, picks, uses up or pays without a click, or lifts a safeguard) stays off. The confirmation names what stays off because of Blizzard's rules, the short overview also what stays your choice. The colour-blind marks on glowing buttons (off by default) use clear signs: > use now, + ready, ? missing or renew, ! right now. Icons fill their round or square frame. Shared quest colours by level for all modules, as in Blizzard's quest log.
+- „Allem zustimmen“ (Einführung) schaltet jede Funktion ein, die ab Werk aus ist und die Blizzards Regeln erlauben, etwa „Blizzard-Fenster verschieben“; Optik (Zeichen, Skalierung, zusätzliche Texte) bleibt deine Wahl, und alles, was Blizzards Regeln oder einen Schutz riskiert (sendet, wählt, verbraucht oder zahlt ohne Klick, hebt eine Sicherung auf), bleibt aus. Die Rückfrage nennt, was wegen Blizzards Regeln aus bleibt, die Kurzfassung auch, was deine Wahl bleibt. Die Farbenblind-Zeichen an leuchtenden Knöpfen (ab Werk aus) haben klare Zeichen: > jetzt nutzen, + bereit, ? fehlt oder erneuern, ! sofort. Symbole füllen ihren runden oder eckigen Rahmen. Gemeinsame Questfarben nach Stufe für alle Module, wie in Blizzards Questlog.
+
+### ezAuction
+
+- “Agree to all” also switches on “Sellable on other characters”.
+- „Allem zustimmen“ schaltet auch „Bei anderen Charakteren verkaufbar“ ein.
+
+### ezBuff
+
+- The buff button on a party frame shows a missing buff without a debuff border, and its tooltip explains symbol and sign. Stones and oils only go onto a weapon that takes them (sharpening stones on blades, weightstones on blunt weapons, oils as your class uses them). “Agree to all” also switches on “Campfire buff”.
+- Der Buff-Knopf am Gruppenrahmen zeigt einen fehlenden Buff ohne Debuff-Rand, sein Tooltip erklärt Symbol und Zeichen. Steine und Öle kommen nur auf eine Waffe, die sie annimmt (Wetzsteine auf Klingen, Gewichtssteine auf Wuchtwaffen, Öle je nach Klasse). „Allem zustimmen“ schaltet auch „Lagerfeuer-Buff“ ein.
+
+### ezChat
+
+- “Agree to all” also switches on “Save say, yell and emotes” and “Arrow keys without Alt”.
+- „Allem zustimmen“ schaltet auch „Sagen, Schreien und Emotes speichern“ und „Pfeiltasten ohne Alt“ ein.
+
+### ezCombat
+
+- Rotations checked against current Forever guides; steps that rest on an assumption show an orange “Assumption” line in their tooltip on the spellbook's Rotation page. Affliction: Corruption before Bane of Agony, Nightfall Shadow Bolt before Drain Life; Reckless Swings for Arms and Fury; Kidney Shot and Healing Touch in the lists. Resource steps work even when the game hides the exact number; buttons only glow when the ability is ready or almost ready. Party frames: bars sit below Blizzard's frame, half as high as the mana bar, with the numbers written out to the right (switches “Numbers on the group frames” and “Only what concerns your role”). “Agree to all” also switches on interrupts, dispels, deaths and threat on group frames and “Summary after combat”.
+- Rotationen gegen aktuelle Forever-Ratgeber geprüft; Schritte, die auf einer Annahme beruhen, zeigen in ihrem Tooltip auf der Zauberbuch-Seite „Rotation“ eine orange Zeile „Annahme“. Gebrechen: Verderbnis vor Omen der Pein, Nachtfall-Schattenblitz vor Lebensentzug; Tollkühne Schwünge für Waffen und Furor; Nierenhieb und Heilende Berührung in den Listen. Schritte mit Kraft funktionieren auch, wenn das Spiel die genaue Zahl verbirgt; Knöpfe leuchten nur, wenn die Fähigkeit bereit oder fast bereit ist. Gruppenrahmen: Balken unter Blizzards Rahmen, halb so hoch wie der Manabalken, die Zahlen ausgeschrieben rechts daneben (Schalter „Zahlen an den Gruppenrahmen“ und „Nur, was deine Rolle betrifft“). „Allem zustimmen“ schaltet auch Unterbrechungen, Bannungen, Tode und Aggro an Gruppenrahmen und „Zusammenfassung nach dem Kampf“ ein.
+
+### ezGear
+
+- With ezTalent running, “Automatic” weights come from ezTalent's model for your play style (the questionnaire on the “Advice” tab, otherwise your talents); hold Shift on a tooltip to see the source. The tooltip of a melee weapon says whether it fits your play style (green) or what your play style uses (orange); a shield is marked when your play style wants one. Your own choice of role or Pawn scale stays untouched.
+- Läuft ezTalent, kommen die Gewichte unter „Automatisch“ aus ezTalents Rechenmodell für deine Spielweise (Fragebogen im Reiter „Empfehlung“, sonst deine Talente); mit Umschalt nennt der Tooltip die Quelle. Der Tooltip einer Nahkampfwaffe sagt, ob sie zu deiner Spielweise passt (grün) oder was deine Spielweise nutzt (orange); ein Schild wird markiert, wenn deine Spielweise einen will. Eine eigene Wahl (Rolle, Pawn-Skala) bleibt unberührt.
+
+### ezHeal
+
+- ezHeal writes all click bindings: macros put on a key from ezMacro and rank updates go through it, so “Undo” knows them and its question names what changed last.
+- ezHeal schreibt alle Klick-Belegungen: Makros, die ezMacro auf eine Taste legt, und Rang-Aktualisierungen laufen darüber, so kennt „Zurück“ sie, und seine Rückfrage nennt, was zuletzt geändert wurde.
+
+### ezMacro
+
+- Fishing on its own key (entry in Blizzard's key bindings); the icon puts Blizzard's “Fishing” spell on an action bar. Click-casting explained in the tooltip and per key in the menu; “Buff group” in the “One-click” tab. Poison (Rogue), weapon imbue (Shaman), stone or oil (every class) per hand, only for weapons that take them. The header of “From your abilities” opens its own page. Mouse-over resurrection for Paladin, Shaman and Druid. “Type: All” sits centred on the divider. “Agree to all” also switches on “Note automatic emotes in my chat”.
+- Angeln mit eigener Taste (Eintrag in Blizzards Tastaturbelegung); das Symbol legt Blizzards Zauber „Angeln“ auf eine Aktionsleiste. Klick-Zauber im Tooltip und je Taste im Menü erklärt; „Durchbuffen“ im Reiter „Ein-Klick“. Gift (Schurke), Waffenzauber (Schamane), Stein oder Öl (jede Klasse) je Hand, nur für Waffen, die sie annehmen. Die Kopfzeile „Aus deinen Fähigkeiten“ öffnet eine eigene Seite. Wiederbeleben per Maus für Paladin, Schamane und Druide. „Art: Alle“ steht mittig auf der Trennleiste. „Allem zustimmen“ schaltet auch „Automatische Emotes in meinem Chat vermerken“ ein.
+
+### ezMail
+
+- “Agree to all” also switches on “Fill in last recipient”.
+- „Allem zustimmen“ schaltet auch „Letzten Empfänger eintragen“ ein.
+
+### ezMap
+
+- New switch “Compact minimap (box below, coordinates in it)” (off by default, on with “Agree to all”): Blizzard's coordinates between location and clock, magnifier and calendar on the ring, round buttons, the addon compartment right of the calendar; with ezPanel, location and clock move onto the bar and the minimap stops just below it. “Agree to all” also switches on “Rare enemy alert”.
+- Neuer Schalter „Kompakte Minikarte (Kästchen unten, Koordinaten darin)“ (ab Werk aus, an mit „Allem zustimmen“): Blizzards Koordinaten zwischen Ort und Uhr, Lupe und Kalender auf dem Ring, runde Knöpfe, das Addon-Fach rechts vom Kalender; mit ezPanel wandern Ort und Uhr auf die Leiste, und die Minikarte endet knapp darunter. „Allem zustimmen“ schaltet auch „Hinweis auf seltene Gegner“ ein.
+
+### ezPanel
+
+- “Reset settings” arranges the bar anew: volume, experience, gold, bags and durability on the left, friends and group messages (when switched on) in the middle, location and clock on the right. “Reserve space at the top” is off by default for new setups and comes on with “Agree to all”.
+- „Einstellungen zurücksetzen“ ordnet die Leiste neu: Lautstärke, Erfahrung, Gold, Taschen und Haltbarkeit links, Freunde und Gruppen-Nachrichten (wenn eingeschaltet) in der Mitte, Ort und Uhr rechts. „Platz oben für die Leiste“ ist bei neuen Einrichtungen ab Werk aus und kommt mit „Allem zustimmen“.
+
+### ezQuest
+
+- The levelling route weighs each quest by its level against yours and by the time it takes, and the tooltip “Why at this point:” explains the place. The route arrow on the minimap is larger, with an “Arrow size” slider. The experience bar tooltip is wider, with amounts on the right and the colours of the bar explained.
+- Die Leveling-Route gewichtet jede Quest nach ihrer Stufe im Vergleich zu deiner und nach dem Zeitaufwand, und der Tooltip „Warum an dieser Stelle:“ erklärt den Platz. Der Pfeil der Route auf der Minikarte ist größer, mit Regler „Größe des Pfeils“. Der Tooltip der Erfahrungsleiste ist breiter, mit Mengen rechts und erklärten Farben der Leiste.
+
+### ezSocial
+
+- Levels in the friends list and the Who list use Blizzard's quest colours, based on your effective level.
+- Stufen in der Freundesliste und der Wer-Liste haben Blizzards Questfarben, bezogen auf deine wirksame Stufe.
+
+### ezTalent
+
+- New “Advice” tab: a short questionnaire (“How do you want to play?”) recommends a build for your play style, including weapon, pet or form variants and PvP builds for every damage and healing spec (some equal the main build). “Rate” compares your own tree with the best build of the model at exactly your number of points; “Effects” shows your character stats as a table (now, preview, comparison). The computed builds come from a revised model for all classes.
+- Neuer Reiter „Empfehlung“: Ein kurzer Fragebogen („Wie willst du spielen?“) empfiehlt eine Verteilung für deine Spielweise, mit Varianten nach Waffe, Begleiter oder Gestalt und PvP-Verteilungen für jede Schadens- und Heiler-Spezialisierung (manche gleichen der Grundverteilung). „Bewerten“ vergleicht deinen eigenen Baum mit der besten Verteilung des Modells bei genau deiner Punktzahl; „Auswirkungen“ zeigt deine Charakterwerte als Tabelle (jetzt, Vorschau, Vergleich). Die berechneten Verteilungen stammen aus einem überarbeiteten Modell für alle Klassen.
+
 ## v1.0.0-beta1
 
 First public version for WoW Forever. Every module is its own addon and can be switched on and off separately; all of them need the included base `ezCore` (shown as “ezCollection (Base)”) and the two storage folders `ezWorld` and `ezMarket`. New here? Esc » Options » AddOns » ezCollection » Introduction (or `/ez intro`) explains every module in a few sentences. Settings: Esc » Options » AddOns » ezCollection. Many features have not been tested in the game yet – please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced). Whatever runs without your click and costs gold, sells, sends mail or changes Blizzard's displays is off by default – including ezQuest's “Make quest objects in the world sparkle” and “Icons above quest objects, herbs and ores”, which switch Blizzard's outline mode and interaction icons (Blizzard's values come back when you switch them off); ezCollection explains such a feature once at the matching Blizzard window, with an “Enable” button (Esc » Options » AddOns » ezCollection » Advanced: “Hints about actions without a click”, “Show hints again”).

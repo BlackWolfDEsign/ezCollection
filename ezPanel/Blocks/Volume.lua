@@ -17,7 +17,7 @@ local block = ns.RegisterBlock({
     fallbackIcon = "Interface\\Icons\\INV_Misc_Bell_01",
     events = { "CVAR_UPDATE" },
     defaults = {
-        enabled = true, zone = "right", order = 20,
+        enabled = true, zone = "left", order = 10,       -- ganz links (Spieltest 20.11.2026, s. Location.lua)
         showText = true,
         step = 5,
     },
@@ -222,7 +222,9 @@ local function TogglePopup(anchor)
         return true
     end
     popup:ClearAllPoints()
-    popup:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -4)
+    -- zur Mitte der Leiste hin aufklappen (ab Werk steht die Lautstärke links, Spieltest 20.11.2026; wie der Tooltip)
+    local h = (anchor.zone == "left" and "LEFT") or (anchor.zone == "center" and "") or "RIGHT"
+    popup:SetPoint("TOP" .. h, anchor, "BOTTOM" .. h, 0, -4)
     RefreshPopup()
     popup:Show()
     GameTooltip:Hide()

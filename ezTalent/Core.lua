@@ -44,6 +44,7 @@ ns.DEFAULTS = {
                             -- Kästchen im Vermächtnis-Seitenteil „Vorlagen“ (UI.LegacyResetBox)
     effectsTab = true,      -- Seitenreiter „Auswirkungen“ an beiden Fenstern
     rosterTab = true,       -- Seitenreiter „Twinks“ am Talentfenster (TL-12)
+    adviceTab = true,       -- Seitenreiter „Empfehlung“ am Talentfenster (Fragebogen und Bewerten, Spieltest 20.11.2026)
     makeRoom = true,        -- Talentfenster rücken bzw. verkleinern, wenn das Seitenteil rechts nicht passt (TL-13)
     nextPoint = true,       -- beim Stufenaufstieg „Nächster Talentpunkt“ aus der Reihenfolge der Vorlage melden (TL-01)
 }
@@ -250,6 +251,24 @@ for _, entry in ipairs(ns.COMPANIONS) do Core.AddCompanion(ADDON, entry) end
 Core.Listen("CHAR_FORGOTTEN", function(key)
     if ns.db and key and type(ns.db.chars) == "table" then ns.db.chars[key] = nil end
 end, ADDON)
+
+-- Untertabelle des eigenen Charakters: ezTalentDB.chars[<Charakter>][field] (Vorschau „plan“, Empfehlung „advice“).
+-- create = true legt fehlende Tabellen an. → Tabelle oder nil
+function ns.CharData(field, create)
+    local key = ns.charKey or Core.charKey
+    if not (ns.db and key and type(ns.db.chars) == "table") then return nil end
+    local c = ns.db.chars[key]
+    if type(c) ~= "table" then
+        if not create then return nil end
+        c = {}
+        ns.db.chars[key] = c
+    end
+    if type(c[field]) ~= "table" then
+        if not create then return nil end
+        c[field] = {}
+    end
+    return c[field]
+end
 
 ---------------------------------------------------------------------------
 -- Status

@@ -332,6 +332,102 @@ function Templates.IsComputed(preset)
     return type(preset) == "table" and preset.grade == "computed"
 end
 
+---------------------------------------------------------------------------
+-- Eigenen Baum gegen das Rechenmodell prüfen (Spieltest 20.11.2026, Wunsch des Nutzers wörtlich „Ggf die Möglichkeit
+-- bieten Talentbäume die man selbst erstellt hat anhand der Berechnungsgrundlage zu prüfen?“). Grundlage sind die Werte
+-- je Talent und Rang, die tools/talent_sim.lua in jede berechnete Verteilung schreibt (computed.weights, computed.value;
+-- docs/talent-simulation.md). Im Spiel wird nichts neu berechnet – nur zusammengezählt.
+---------------------------------------------------------------------------
+
+-- Hauptbäume einer Aufteilung { Punkte je Baum }: der mit den meisten Punkten (wie Traits.PrimaryTree) – bei
+-- Gleichstand alle gleich starken (beim Leveln etwa 10/10/0), damit keiner stumm herausfällt. → { [Baum] = true } oder nil
+local function MainTrees(split)
+    local most = 0
+    for _, n in ipairs(split or {}) do if (tonumber(n) or 0) > most then most = tonumber(n) end end
+    if most <= 0 then return nil end
+    local trees = {}
+    for i, n in ipairs(split) do if tonumber(n) == most then trees[i] = true end end
+    return trees
+end
+
+-- Wert eines Talents bis zu einem Rang (kumuliert) – eine Quelle: ns.Optimize.Worth (Optimize.lua).
+local function Worth(weights, spell, rank)
+    return ns.Optimize.Worth(weights, spell, rank)
+end
+
+-- ranks: { [Zauber-ID] = Rang } (Plan.SpellRanks), split: { Punkte je Baum }, class. → Ergebnisse { { preset, value, best,
+-- pct, more, less } } (je berechnete Verteilung mit demselben Hauptbaum, beste Übereinstimmung zuerst) oder nil, Grund
+-- ("empty" | "none"). Je Zeile { spell, preset (Talent der Verteilung), mine, theirs, delta, per }:
+--   more – das Modell setzt mehr Punkte als du (delta = was das bringt), lohnendster Punkt zuerst (per = delta je Punkt);
+--   less – du setzt mehr Punkte als das Modell (delta = was sie hier bringen; das Modell setzt sie woanders ein, wo sie
+--          mehr bringen), am wenigsten lohnender Punkt zuerst – die besten Kandidaten zum Umsetzen.
+-- Die Werte sind kumuliert und fallen nie, darum steht in less nur, wo du mehr Ränge hast. Je höchstens limit (Standard 5).
+-- opts (freiwillig, „Bewerten“ seit dem Spieltest vom 20.11.2026: „3/0/0 gegen 51 Punkte ist sinnlos“):
+--   best(preset, points) → Ergebnis von ns.Optimize.Best: verglichen wird mit dem Besten des Modells mit genau so vielen
+--                          Punkten (theirs = dessen Ränge, best = dessen Wert, Zeile .result); ohne best mit der vollen
+--                          Verteilung wie bisher;
+--   all = true           → alle berechneten Verteilungen der Klasse, nicht nur die desselben Hauptbaums;
+--   keep(preset) → true  → diese Verteilung zusätzlich (etwa die empfohlene aus einem anderen Baum).
+-- Hat das Beste mit diesen Punkten den Wert 0 (nichts im Modell erreichbar), gilt pct = 100 und flat = true.
+function Templates.Rate(ranks, split, class, limit, opts)
+    opts = opts or {}
+    local mains = MainTrees(split)
+    if not mains then return nil, "empty" end
+    local points = 0
+    for _, n in ipairs(split) do points = points + (tonumber(n) or 0) end
+    local out = {}
+    for _, preset in ipairs(Templates.Computed(class)) do
+        local c = type(preset.computed) == "table" and preset.computed or nil
+        local wanted = opts.all or mains[preset.tree] or (type(opts.keep) == "function" and opts.keep(preset))
+        if wanted and c and type(c.weights) == "table" and (c.value or 0) > 0 then
+            local value = 0
+            for spell, rank in pairs(ranks) do value = value + Worth(c.weights, spell, rank) end
+            local theirs, talents, bestValue, result = {}, {}, c.value, nil
+            for _, t in ipairs(preset.talents or {}) do
+                if t.spell then theirs[t.spell], talents[t.spell] = t[2], t end
+            end
+            if type(opts.best) == "function" then
+                result = opts.best(preset, points)
+                if result then theirs, bestValue = result.spells, result.value end
+            end
+            local more, less, seen = {}, {}, {}
+            local function Compare(spell)
+                if seen[spell] then return end
+                seen[spell] = true
+                local mine, other = ranks[spell] or 0, theirs[spell] or 0
+                if mine == other then return end
+                local delta = Worth(c.weights, spell, other) - Worth(c.weights, spell, mine)
+                if math.abs(delta) < 0.005 then return end
+                local row = { spell = spell, preset = talents[spell], mine = mine, theirs = other, delta = math.abs(delta) }
+                row.per = row.delta / math.abs(other - mine)
+                if delta > 0 then more[#more + 1] = row else less[#less + 1] = row end
+            end
+            for spell in pairs(theirs) do Compare(spell) end
+            for spell in pairs(ranks) do Compare(spell) end
+            table.sort(more, function(a, b)
+                if a.per ~= b.per then return a.per > b.per end
+                return a.spell < b.spell
+            end)
+            table.sort(less, function(a, b)
+                if a.per ~= b.per then return a.per < b.per end
+                return a.spell < b.spell
+            end)
+            for _, list in ipairs({ more, less }) do
+                for i = #list, (limit or 5) + 1, -1 do list[i] = nil end
+            end
+            local flat = bestValue <= 0.005
+            out[#out + 1] = { preset = preset, value = value, best = bestValue, pct = flat and 100 or value / bestValue * 100,
+                flat = flat or nil, more = more, less = less, result = result, points = points }
+        end
+    end
+    if #out == 0 then return nil, "none" end
+    table.sort(out, function(a, b)
+        if a.pct ~= b.pct then return a.pct > b.pct end
+        return tostring(a.preset.key) < tostring(b.preset.key)
+    end)
+    return out
+end
+
 function Templates.PresetName(preset)
     local name = type(preset) == "table" and preset.name
     if type(name) == "table" then name = (Core.IsGerman() and name.de) or name.en or name.de end

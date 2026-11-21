@@ -3,7 +3,7 @@
 ## Notes: Combat helpers that look like the original: ability ready glow, expiring DoTs/HoTs, bigger combo points, reactive abilities, swing timer extras, energy tick, five-second rule, interrupt, totem and weapon enchant timers (poisons, oils, stones). Part of ezCollection.
 ## Notes-deDE: Kampfhilfen im Originalstil: Leuchten bei bereiter Fähigkeit, auslaufende DoTs/HoTs, größere Combo-Punkte, reaktive Fähigkeiten, Schlagtimer-Extras, Energie-Tick, 5-Sekunden-Regel, Unterbrechen, Totem- und Waffen-Timer (Gifte, Öle, Steine). Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.14.0
+## Version: 1.15.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\Ability_DualWield
 ## RequiredDeps: ezCore
