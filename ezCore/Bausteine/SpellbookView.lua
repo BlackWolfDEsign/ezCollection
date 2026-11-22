@@ -414,6 +414,16 @@ function SV.Layout(lines, pageW, pageH)
         if not h then return 0 end
         return math.max(h, heights[i + 1] or 0)
     end
+    -- Höhe einer Zeile über die ganze Breite (Kopfzeile, Absatz, Zeile mit Knopf); nie höher als die Seite: der
+    -- Absatz kürzt sich, der Tooltip zeigt alles.
+    local function BlockHeight(line)
+        if line.kind == "header" then return math.min(HEADER_H, pageH) end
+        local h = tonumber(Plain(line.height))
+        if not h then
+            h = line.kind == "action" and SV.ACTION_H or SV.TextHeight(Plain(line.text) or Plain(line.left), pageW)
+        end
+        return math.min(h, pageH)
+    end
     for i, line in ipairs(lines or {}) do
         if line.kind == "spell" then
             local text, h = texts[i], heights[i]
@@ -431,16 +441,27 @@ function SV.Layout(lines, pageW, pageH)
         else
             if col == 1 then CloseRow() end
             if line.kind == "header" and y > 0 then y = y + SV.HEADER_GAP end
-            local h = tonumber(Plain(line.height))
-            if line.kind == "header" then
-                h = HEADER_H
-            elseif not h then
-                h = line.kind == "action" and SV.ACTION_H or SV.TextHeight(Plain(line.text) or Plain(line.left), pageW)
-            end
-            h = math.min(h, pageH)          -- nie höher als die Seite: der Absatz kürzt sich, der Tooltip zeigt alles
-            -- Eine Kopfzeile nie allein unten: mit ihr muss die ganze erste Reihe darunter passen (samt Zeilenabstand)
+            local h = BlockHeight(line)
+            -- Eine Kopfzeile nie allein unten (Spieltest 21.11.2026, Bild 1: „Im Kampf“ unten, die Fähigkeiten erst
+            -- auf der nächsten Seite – dazwischen stand der Einleitungssatz): mit ihr müssen die Absätze und Knopfzeilen
+            -- darunter UND die erste Reihe von Einträgen passen (samt Zeilenabständen); folgt bis zur nächsten
+            -- Kopfzeile keine Reihe, wenigstens die erste Zeile darunter. Passt das nicht, beginnt der Abschnitt
+            -- auf einer neuen Seite.
             local need = h
-            if line.kind == "header" and heights[i + 1] then need = h + Y_PAD + RowHeight(i + 1) end
+            if line.kind == "header" then
+                local j, extra = i + 1, 0
+                while lines[j] and lines[j].kind ~= "header" and lines[j].kind ~= "spell" do
+                    extra = extra + Y_PAD + BlockHeight(lines[j])
+                    j = j + 1
+                end
+                local first = lines[i + 1] and lines[i + 1].kind ~= "header"
+                    and (heights[i + 1] and RowHeight(i + 1) or BlockHeight(lines[i + 1])) or nil
+                if heights[j] then
+                    need = h + extra + Y_PAD + RowHeight(j)
+                end
+                -- passt der Anfang nicht einmal auf eine leere Seite: wenigstens die erste Zeile darunter
+                if first and (need == h or need > pageH) then need = h + Y_PAD + first end
+            end
             if y > 0 and y + need > pageH then NewPage() end
             page[#page + 1] = { line = line, x = 0, y = y, w = pageW, h = h }
             y = y + h + Y_PAD
@@ -742,7 +763,7 @@ local function TextHeightOf(fs, fallback)
 end
 
 -- style: "known" (Standard, wie ein gelernter Zauber), "trainable" (Rahmen „beim Lehrer erlernbar“),
--- "future" (grau wie „kommt später“). desaturate überschreibt das Grau des Symbols.
+-- "future" (grau wie „kommt später“). desaturate überschreibt das Grau des Symbols, readable = true das Grau des Texts.
 -- Schrift auf ihre vorab gerechneten Zeilen festlegen: Zeilengrenze und Höhe (nichts ragt über den Eintrag).
 local function FixLines(fs, lines, lineH)
     lines = math.max(1, lines)
@@ -764,6 +785,13 @@ local function FillSpell(f, line, fit)
     f.SubName:SetShown(hasSub)
     f.Detail:SetText(hasDetail and fit.detail.text or "")
     f.Detail:SetShown(hasDetail)
+    -- Die dritte Zeile hängt unter der zweiten, fehlt die zweite, direkt unter dem Namen (Spieltest 21.11.2026, Bild 3:
+    -- sonst blieb eine leere Zeile stehen, der Text ragte eine Zeile über den Eintrag – auf „Was kommt wann“ stand
+    -- „Kosten: noch nicht gesehen“ direkt über „Stufe 14“, und SV.EntryText hatte die Zeile nicht gezählt)
+    local above = hasSub and f.SubName or f.Name
+    f.Detail:ClearAllPoints()
+    f.Detail:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, -SV.LINE_GAP)
+    f.Detail:SetPoint("TOPRIGHT", above, "BOTTOMRIGHT", 0, -SV.LINE_GAP)
     SetBorder(f, future and "inactive" or "active")
     f.TrainableShadow:SetShown(trainable)
     f.TrainableBackplate:SetShown(trainable)
@@ -772,7 +800,10 @@ local function FillSpell(f, line, fit)
     f.Icon:SetDesaturated(desaturate)
     local alpha = future and UNLEARNED_ALPHA or 1
     f.Icon:SetAlpha(alpha)
-    for _, fs in ipairs({ f.Name, f.SubName, f.Detail }) do fs:SetAlpha(alpha) end
+    -- line.readable = true: der Text bleibt in voller Buchfarbe, auch wenn Symbol und Rahmen „kommt später“ zeigen
+    -- (Spieltest 21.11.2026, Bild 4: „statt grauer text der fähigkeiten text? macht mehr sinn“)
+    local textAlpha = line.readable == true and 1 or alpha
+    for _, fs in ipairs({ f.Name, f.SubName, f.Detail }) do fs:SetAlpha(textAlpha) end
     -- Text endet vor der nächsten Spalte bzw. vor der Knopfspalte
     local inset = type(line.buttons) == "table" and -(SV.BUTTON_W + 2) or -SV.TEXT_GAP
     f.TextContainer:SetPoint("RIGHT", f, "RIGHT", inset, -1)

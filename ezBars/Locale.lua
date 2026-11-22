@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Bis zu vier Zusatzleisten, Blizzard-Knöpfe\nFormen frei, von 2×2 bis 12×12\nGröße, Sichtbarkeit und Tasten je Leiste\nVerschieben im Bearbeitungsmodus",
     TITLE = "ezBars",
     -- Hilfe: Kopf und Standardbefehle (Einstellungen, status, hilfe, zuruecksetzen) sagt ezCore (Core.HelpLines),
     -- hier nur die eigenen Wörter; %s = der geltende Befehl (Gesamtreview 18.11.2026, T18-20)
@@ -169,6 +171,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Up to four extra bars, Blizzard buttons\nAny shape, from 2×2 to 12×12\nSize, visibility and keys per bar\nMove them in Edit Mode",
     TITLE = "ezBars",
     CMD_HELP_OWN = {
         "  %s keys – open Blizzard's key bindings",

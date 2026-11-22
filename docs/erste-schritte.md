@@ -11,7 +11,7 @@ ezCollection ist eine Sammlung kleiner Module für WoW Forever. Sie erweitern Bl
 Beim ersten Einloggen bietet ezCollection einmal eine kurze Einführung an – eine Erklärblase oben rechts am Addon-Fach der Minikarte mit drei Knöpfen:
 
 - **Kurz:** alles auf einer Seite – alle Module in wenigen Sätzen und die Liste aller Abläufe ohne Klick mit ihrem Stand.
-- **Einzeln:** Modul für Modul. Je Modul öffnet sich seine Einstellungsseite, daneben erklärt eine Blase, was es tut, wo sein Knopf sitzt und welcher Befehl es öffnet; „Weiter“ und „Zurück“ blättern.
+- **Einzeln:** Modul für Modul. Je Modul öffnet sich seine Einstellungsseite, daneben erklärt eine Blase in ein paar Punkten, was es kann, dann wo sein Knopf sitzt, welcher Befehl es öffnet und wozu es dein Einverständnis braucht; „Weiter“ und „Zurück“ blättern.
 - **Später:** Die Blase kommt beim nächsten Einloggen noch einmal, danach nicht mehr.
 
 Jederzeit erreichbar:

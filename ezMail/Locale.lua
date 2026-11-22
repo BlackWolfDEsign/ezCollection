@@ -4,6 +4,8 @@ local _, ns = ...
 -- "|4Einzahl:Mehrzahl;" wählt die Form passend zur Zahl davor (Blizzard-Schreibweise).
 -- Texte der Versand-Warteschlange (QUEUE_*, NEED_MAILBOX, STATUS_QUEUE*) stehen in ezCore.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Mehrere Briefe auswählen und öffnen\nPfeil an „Alle öffnen“: nach Art, gefiltert\nAdressbuch und schneller anhängen\nMehr als 12 Stapel in weiteren Briefen\nVerlauf und Ablaufwarnung aller Twinks",
     -- Leiste im Posteingang
     SELECT_ALL = "Alle",
     SELECT_ALL_TIP_TITLE = "Alle Briefe auswählen",
@@ -151,6 +153,7 @@ local de = {
     TOUR_OVERVIEW = "Die Lupe zeigt alle Briefe auf einen Blick: sortieren, suchen und auswählen.",
     TOUR_HISTORY = "Die Schriftrolle zeigt den Post-Verlauf: Gold sowie Verkäufe und Käufe im Auktionshaus, mit Summen je Zeitraum.",
     TOUR_QUICK = "Schnellanhängen: Ein Klick auf einen Reiter hängt alle Stapel dieser Art aus den Taschen an.",
+    TOUR_BOOK = "Adressbuch: Der Pfeil am Empfängerfeld listet deine Charaktere, zuletzt angeschriebene Namen, Freunde und Gilde.",
     TOUR_WIRE = "Gold überweisen: feste Beträge oder „alles über X“ an Twinks und den Bank-Charakter der Gilde.",
 
     FORGET_TITLE = "Briefkasten-Stand vergessen",
@@ -449,6 +452,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Select and open several letters\nArrow at “Open All”: by type, filtered\nAddress book and faster attaching\nMore than 12 stacks go in further letters\nHistory and expiry warning for all alts",
     SELECT_ALL = "All",
     SELECT_ALL_TIP_TITLE = "Select all letters",
     SELECT_ALL_TIP = "Selects every letter in the inbox, not just this page. Click again to clear the selection.",
@@ -583,6 +587,7 @@ local en = {
     TOUR_OVERVIEW = "The magnifier shows all letters at a glance: sort, search and select.",
     TOUR_HISTORY = "The scroll shows the mail history: gold and auction house sales and purchases, with totals per period.",
     TOUR_QUICK = "Quick attach: clicking a tab attaches all stacks of that kind from your bags.",
+    TOUR_BOOK = "Address book: the arrow on the recipient field lists your characters, recently mailed names, friends and guild.",
     TOUR_WIRE = "Send gold: fixed amounts or \"everything above X\" to your alts and your guild's bank character.",
 
     FORGET_TITLE = "Forget mailbox data",

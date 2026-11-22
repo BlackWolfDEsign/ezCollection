@@ -3,7 +3,7 @@
 ## Notes: Comfort for Blizzard's mailbox: address book, select several letters, sort and search, mail and auction history with statistics, attachment value, filtered "Open all" with gold summary, sender rules, collect on opening, send gold presets, quick attach by type, more than 12 stacks in several letters, forward, expiry warnings. Part of ezCollection.
 ## Notes-deDE: Komfort für Blizzards Postfenster: Adressbuch, mehrere Briefe auswählen, sortieren und durchsuchen, Verlauf und Statistik für Post und Auktionshaus, Wert der Anhänge, gefiltertes "Alle öffnen" mit Gold-Zusammenfassung, Absender-Regeln, Einsammeln beim Öffnen, Gold überweisen, Schnellanhängen nach Art, mehr als 12 Stapel in mehreren Briefen, Weiterleiten und Ablaufwarnung. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.8.1
+## Version: 1.9.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Letter_02
 ## SavedVariables: ezMailDB

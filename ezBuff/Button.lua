@@ -1,5 +1,10 @@
 local _, ns = ...
 local L = ns.L
+
+-- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
+-- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
+-- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
+ns.FEATURE_STEPS = { { "button", "report" }, "click", false, false, false }
 local Core = ezCore
 
 --[[

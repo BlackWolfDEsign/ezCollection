@@ -39,7 +39,8 @@ local Core = ezCore
                                               { npc, source, sourceKey, label, own, items = { { id, chance,
                                                 quest } … } } | nil
       Drops.SortedSource(items, rareFirst)    → Quest zuerst, dann Chance
-      Drops.PossibleLines(b, long, rareFirst) → Zeilen „Mögliche Beute laut <Quelle>“ (früherer Name SourceLines)
+      Drops.PossibleLines(b, long, rareFirst, opts) → Zeilen „Mögliche Beute laut <Quelle>“ (früherer Name SourceLines;
+                                              opts.head = eigener Kopf, opts.view = false ohne Weg zur Ansicht)
       Drops.SourceHint() / ActiveSources()    → Satz ohne Quelle / Namen der laufenden Quellen
       Drops.Listed(b)                         → true: die Quelle nennt Gegenstände ohne Chance (QuestieDB)
       Drops.AtlasLabel() / OpenAtlas(npc)     → AtlasLoot läuft: Name / nur sein Fenster öffnen (DG-49; AtlasLoot
@@ -101,10 +102,14 @@ function D.DbState()
     return "on"
 end
 
-function D.FromCounts(s)
+-- opts.stale = true (Inhalt von Behältern, Contents.lua): auch bei ausgeschaltetem Sammeln ("off") gilt die Zählung –
+-- dort gibt es keinen Beute-Verlauf als Rückfall, und das Gezählte bleibt wahr, es wächst nur nicht weiter.
+function D.FromCounts(s, opts)
     local d, DR = s.drops, Core.Drops
+    local state = D.DbState()
+    local stale = type(opts) == "table" and opts.stale == true and state == "off"
     if ns.IsSecret(d) or type(d) ~= "table" or ns.IsSecret(d.items) or type(d.items) ~= "table"
-        or D.DbState() ~= "on" then
+        or (state ~= "on" and not stale) then
         return false
     end
     local ok, n, what = pcall(DR.Denominator, d)
@@ -223,16 +228,19 @@ local function RoleColor(role)
     return { r, g, b }
 end
 local GOLD, GREY, WHITE = RoleColor("normal"), RoleColor("gray"), RoleColor("highlight")
-D.GREY = GREY
+D.GREY, D.GOLD, D.WHITE = GREY, GOLD, WHITE
 
 local function Line(left, right, color)
     color = color or WHITE
     return { left = left, right = right, r = color[1], g = color[2], b = color[3] }
 end
+D.Line = Line
 
 -- Kopfzeile der eigenen Beute: „Beute bei dir: n× geplündert“ (Nenner geplünderte Leichen) bzw. „n× getötet“, wenn
 -- ezCores Nenner die Tode sind (Core.Drops.Denominator).
+-- Behälter (Contents.lua, what = "opens"): „Inhalt bei dir: n× geöffnet“.
 function D.HeadText(s)
+    if s.what == "opens" then return L.CONTENTS_HEAD:format(s.loots) end
     return (s.what == "deaths" and L.DROPS_HEAD_DEATHS or L.DROPS_HEAD):format(s.loots)
 end
 
@@ -240,19 +248,23 @@ end
 -- Dropchance; mit Shift dazu die Menge („zusammen m“).
 function D.CountText(item, s, long)
     local times = math.min(item.times or 0, s.loots)
-    local text = (s.what == "deaths" and L.DROPS_COUNT_DEATHS or L.DROPS_COUNT):format(times, s.loots)
+    local fmt = s.what == "opens" and L.CONTENTS_COUNT or s.what == "deaths" and L.DROPS_COUNT_DEATHS or L.DROPS_COUNT
+    local text = fmt:format(times, s.loots)
     if long and (item.n or 0) > times then text = L.DROPS_AMOUNT:format(text, item.n) end
     return text
 end
 
-function D.Lines(s, long, rareFirst)
+-- opts (Contents.lua): short, long = Zahl der Gegenstände ohne bzw. mit Shift; rest = true: ohne Shift „… und n
+-- weitere (Umschalt)“ statt des Shift-Hinweises; shift = Text des Shift-Hinweises (Standard L.DROPS_SHIFT).
+function D.Lines(s, long, rareFirst, opts)
     local lines = {}
     if type(s) ~= "table" or (s.loots or 0) < 1 then return lines end
+    opts = type(opts) == "table" and opts or {}
     local head = D.HeadText(s)
     local avg = s.money > 0 and L.DROPS_GOLD_AVG:format(Core.CoinText(s.moneyAvg)) or nil
     lines[#lines + 1] = Line(head, not long and avg or nil, GOLD)
     local items = D.Sorted(s, rareFirst)
-    local limit = long and D.LONG_ITEMS or D.SHORT_ITEMS
+    local limit = long and (opts.long or D.LONG_ITEMS) or (opts.short or D.SHORT_ITEMS)
     for i = 1, math.min(limit, #items) do
         local item = items[i]
         lines[#lines + 1] = Line("  " .. D.TipItemText(item), D.CountText(item, s, long))
@@ -263,8 +275,10 @@ function D.Lines(s, long, rareFirst)
             lines[#lines + 1] = Line(L.DROPS_GOLD_LONG:format(Core.CoinText(s.moneyAvg), s.moneyLoots, s.loots), nil, WHITE)
         end
         lines[#lines + 1] = Line(s.counted and L.DROPS_COUNTED or L.DROPS_SOURCE, nil, GREY)
+    elseif opts.rest and #items > limit then
+        lines[#lines + 1] = Line("  " .. D.MoreText(#items - limit, false), nil, GREY)
     elseif #items > limit or s.money > 0 then
-        lines[#lines + 1] = Line(L.DROPS_SHIFT:format(Core.L.CLICK_MOD_SHIFT), nil, GREY)
+        lines[#lines + 1] = Line((opts.shift or L.DROPS_SHIFT):format(Core.L.CLICK_MOD_SHIFT), nil, GREY)
     end
     return lines
 end
@@ -520,10 +534,13 @@ function D.MoreText(count, long)
     return ezCore.More(count) .. " " .. L.DROPS_SHIFT_TAG:format(Core.L.CLICK_MOD_SHIFT)
 end
 
-function D.PossibleLines(b, long, rareFirst)
+-- opts (Contents.lua, Inhalt von Behältern laut Questie): head = eigener Kopf statt D.PossibleHead; view = false: ohne
+-- den Weg zur vollen Liste (die Ansicht „Mögliche Beute“ gilt nur für Gegner).
+function D.PossibleLines(b, long, rareFirst, opts)
     local lines = {}
     if type(b) ~= "table" then return lines end
-    lines[1] = Line(D.PossibleHead(b), nil, GOLD)
+    opts = type(opts) == "table" and opts or {}
+    lines[1] = Line(opts.head or D.PossibleHead(b), nil, GOLD)
     local items = D.SortedSource(b.items, rareFirst)
     local limit = long and D.SOURCE_LONG or D.SOURCE_SHORT
     for i = 1, math.min(limit, #items) do
@@ -536,7 +553,7 @@ function D.PossibleLines(b, long, rareFirst)
     if #items > limit then
         lines[#lines + 1] = Line("  " .. D.MoreText(#items - limit, long), nil, GREY)
     end
-    if long then lines[#lines + 1] = Line(L.DROPS_VIEW:format(ns.SlashCmd()), nil, GREY) end
+    if long and opts.view ~= false then lines[#lines + 1] = Line(L.DROPS_VIEW:format(ns.SlashCmd()), nil, GREY) end
     return lines
 end
 

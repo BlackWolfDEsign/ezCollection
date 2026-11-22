@@ -89,6 +89,8 @@ local function Clean(data)
             if value ~= nil then settings[key] = value end
         end
     end
+    -- älterer Export ohne tipAlts: den Stand der fünf Bausteine übernehmen (21.11.2026; CleanBlockConfig verwirft cfg.alts)
+    if settings.tipAlts == nil then settings.tipAlts = ns.TipAltsFrom(data.blocks) end
     return { settings = settings, blocks = blocks }
 end
 Profiles.Clean = Clean

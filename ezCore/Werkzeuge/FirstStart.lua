@@ -58,7 +58,7 @@ Core.FEATURE_OWNER = {
     spellRanks = "ezMacro", comboPoints = "ezCombat", rebuffThanks = "ezBuff",
     auctionTooltip = "ezAuction", mailTooltip = "ezMail", craftCost = "ezCraft",
     bagArrows = "ezGear", questArrows = "ezGear", upgradeTooltip = "ezGear", gearSwap = "ezGear",
-    actionBars = "ezBars", skillStages = "ezCraft",
+    actionBars = "ezBars", skillStages = "ezCraft",   -- seit dem 21.11.2026 nur Erkennung (ezCraft zeigt keine Skill-Stufen mehr)
     betaHints = "ezCore", unitTooltip = "ezCore", unitItemLevel = "ezCore", moveFrames = "ezCore", cameraZoom = "ezCore",
     trainAll = "ezMerchant", zoneLevels = "ezMap", rareAlerts = "ezMap", battlegroundTimers = "ezMap",
     groupBuffs = "ezBuff", damageMeter = "ezCombat", unitLoot = "ezLoot", petTrainerHint = "ezMerchant",
@@ -410,6 +410,8 @@ end
 
       Core.Intro.CONSENT              { { Modul, Schlüssel [, group = Gruppe in ezCoreDB] [, hint = id] } … }
       Core.Intro.ModuleText(name)     → Einführungstext des Moduls (L.INTRO_MOD_<Modul>) oder nil
+      Core.Intro.Features(name)       → Kurzüberblick des Moduls: Zeilen aus L.INTRO_FEATURES im Locale des Moduls
+                                      (eine Stelle je Modul) oder {}; Core.Intro.FeatureText(name, einrückung) → „• …“ oder nil
       Core.Intro.HasPage(name)        → true, wenn es einen gibt (dann hat die Modulseite den Knopf „Einführung“)
       Core.Intro.PageTip(name)        → Tooltip des Knopfs „Einführung“
       Core.Intro.CommandLine(name)    → „Befehl: … – alle Befehle: …“ (Core.SlashCmd)
@@ -436,6 +438,8 @@ end
       Core.Intro.Registered()         → { { module, key, kind, entry } … } aller laufenden Module und ezCore
       Core.Intro.AlsoEntries()        → Intro.ALSO und die Anmeldungen mit „on“ (wie Intro.CONSENT)
       Core.Intro.Excluded(art, auchAn) → Text „ezBag: Leichter zerstören, …“ der Anmeldungen dieser Art oder nil
+      Core.Intro.ConsentRisk(eintrag) → true bei agree = "risk" in Intro.CONSENT: „Allem zustimmen“ lässt ihn aus
+      Core.Intro.StaysOff()           → Chatzeile nach „Allem zustimmen“: was weiter aus ist (nur von Hand) oder nil
       Core.Intro.AgreeTip()           → Tooltip des Knopfs „Allem zustimmen“ (mit den Ausnahmen „risk“)
       Core.Intro.SplitAlso(zeilen)    → Zeilen aus CONSENT, Zeilen aus ALSO (row.also) – Anzahlen zählen nur die ersten
       Core.Intro.HintIds(zeilen)      → Kennungen der Hinweise „Einschalten“ dieser Zeilen (Modul.Schlüssel, hint, hints)
@@ -506,7 +510,9 @@ Intro.CONSENT = {
     { "ezCore", "repairAuto", group = "vendor", text = "vendorRepairAuto", available = RepairRuns,
         hints = { "ezMerchant.repairAuto", "ezPanel.autoRepair" } },
     { "ezMerchant", "restockAuto" },
-    { "ezChat", "mailDelivery" }, { "ezChat", "offlineQueue" }, { "ezChat", "catchChatWhispers" },
+    -- agree = "risk": „Allem zustimmen“ lässt ihn aus (kostet Porto ohne Klick; Entscheidung des Nutzers vom
+    -- 21.11.2026, Intro.ConsentRisk) – einschalten nur von Hand (Häkchen, Seite von ezChat, Hinweis am Briefkasten)
+    { "ezChat", "mailDelivery", agree = "risk" }, { "ezChat", "offlineQueue" }, { "ezChat", "catchChatWhispers" },
     -- der Hinweis ezChat.reply schaltet replyCombat und replyInstance ein (ezChat/Situation.lua, REPLY_ON), nicht
     -- replyAway – nur die Zeile seines Schalters erledigt ihn
     { "ezChat", "replyAway" }, { "ezChat", "replyCombat", hints = { "ezChat.reply" } },
@@ -653,6 +659,34 @@ function Intro.ModuleText(name)
     return Lookup(L, "INTRO_MOD_" .. name)
 end
 
+-- Kurzüberblick je Modul (Wunsch des Nutzers vom 21.11.2026: „bei der einführung neben dem einverständnis einholen auch
+-- die funktionen des jeweiligen moduls kurz und kackig erzählen“): L.INTRO_FEATURES im Locale des Moduls – eine Stelle je
+-- Modul (SSOT), deutsch und englisch, 3 bis 6 Zeilen durch einen Zeilenumbruch getrennt. Seite, Tooltip des Knopfs
+-- „Einführung“ und Kurzfassung zeigen sie als Punkte vor dem Einführungstext (INTRO_MOD_<Modul>: nur noch, wo das Modul
+-- sitzt) und vor den Häkchen. → Liste der Zeilen (leer ohne)
+Intro.FEATURES_KEY = "INTRO_FEATURES"
+function Intro.Features(name)
+    local out = {}
+    if type(name) ~= "string" or Core.IsSecret(name) or name == ADDON then return out end
+    local mL = ModuleL(name)
+    if mL == L then return out end
+    local text = Lookup(mL, Intro.FEATURES_KEY)
+    if not text then return out end
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        line = line:match("^%s*(.-)%s*$")
+        if line ~= "" then out[#out + 1] = line end
+    end
+    return out
+end
+
+-- Die Zeilen als Punkte („• …“, eine je Zeile, mit Einrückung davor). → Text oder nil
+function Intro.FeatureText(name, indent)
+    local lines = {}
+    for _, line in ipairs(Intro.Features(name)) do lines[#lines + 1] = (indent or "") .. L.INTRO_FEATURE_LINE:format(line) end
+    if #lines == 0 then return nil end
+    return table.concat(lines, "\n")
+end
+
 function Intro.HasPage(name)
     return Intro.ModuleText(name) ~= nil
 end
@@ -660,7 +694,10 @@ end
 function Intro.PageTip(name)
     local text = Intro.ModuleText(name)
     local tip = L.INTRO_PAGE_TIP:format(tostring(name))
-    if text then return text .. "\n\n" .. tip end
+    if text then tip = text .. "\n\n" .. tip end
+    -- was das Modul kann zuerst, wie auf seiner Seite (Kurzüberblick); INTRO_MOD sagt nur noch, wo es sitzt
+    local features = Intro.FeatureText(name)
+    if features then tip = features .. "\n\n" .. tip end
     return tip
 end
 
@@ -924,11 +961,30 @@ local function RowNames(rows)
     return table.concat(names, ", ")
 end
 
+-- Ablauf ohne Klick, den „Allem zustimmen“ auslässt: agree = "risk" an seinem Eintrag in Intro.CONSENT – er kostet oder
+-- riskiert etwas ohne Klick (ezChats Briefversand kostet Porto; Entscheidung des Nutzers vom 21.11.2026: „das darf in
+-- dem fall nicht passieren“). Er bleibt ein Häkchen der Einführung und wird wie die Anmeldungen „risk“ genannt.
+-- → true oder false
+local function ConsentRisk(entry)
+    return type(entry) == "table" and entry.agree == "risk"
+end
+Intro.ConsentRisk = ConsentRisk
+
 -- Anmeldungen dieser Art („risk“ oder „choice“) laufender Module, die jetzt aus sind („ezBag: Leichter zerstören,
 -- …“; mit Komma). Was der Spieler selbst schon eingeschaltet hat, nennt die Liste nicht – außer mit evenIfOn (Tooltip
 -- des Knopfs: er steht ab dem Bau der Seite fest und sagt nur, was „Allem zustimmen“ nicht einschaltet). → Text oder nil
 function Intro.Excluded(kind, evenIfOn)
     local names = {}
+    if kind == "risk" then   -- zuerst die Abläufe ohne Klick mit agree = "risk" (Intro.ConsentRisk)
+        for _, entry in ipairs(Intro.CONSENT or {}) do
+            if ConsentRisk(entry) then
+                local value = Intro.Get(entry)   -- nil: Modul läuft nicht
+                if value == false or (evenIfOn and value == true) then
+                    names[#names + 1] = L.INTRO_AGREE_LINE:format(entry[1], Intro.Label(entry))
+                end
+            end
+        end
+    end
     for _, reg in ipairs(Intro.Registered()) do
         local value = Intro.Get(reg.entry)
         if reg.kind == kind and (value == false or (evenIfOn and value ~= nil)) then
@@ -937,6 +993,48 @@ function Intro.Excluded(kind, evenIfOn)
     end
     if #names == 0 then return nil end
     return table.concat(names, ", ")
+end
+
+-- Was nach „Allem zustimmen“ weiter aus ist und nur von Hand an geht (Wunsch des Nutzers vom 21.11.2026: „allg. sollte
+-- kurz gesagt werden was nach alle annehmen weiterhin aus ist, manuell eingestellt werden musss“). Kurz (Review): mit
+-- Namen nur die ausgelassenen Abläufe ohne Klick (Intro.ConsentRisk, je Modul gruppiert – die hätte man von „Allem
+-- zustimmen“ erwartet), die übrigen riskanten und die Geschmacks-Anmeldungen als Anzahl je Modul; alle Namen stehen
+-- in der Rückfrage davor und in der Kurzfassung. → Text oder nil (nichts mehr aus)
+local function ModuleCounts(kind)
+    local counts, order = {}, {}
+    for _, reg in ipairs(Intro.Registered()) do
+        if reg.kind == kind and Intro.Get(reg.entry) == false then
+            if not counts[reg.module] then order[#order + 1] = reg.module end
+            counts[reg.module] = (counts[reg.module] or 0) + 1
+        end
+    end
+    local list = {}
+    for _, module in ipairs(order) do list[#list + 1] = L.INTRO_OFF_COUNT:format(module, counts[module]) end
+    return #list > 0 and table.concat(list, ", ") or nil
+end
+
+function Intro.StaysOff()
+    local parts = {}
+    local byModule, order = {}, {}
+    for _, entry in ipairs(Intro.CONSENT or {}) do
+        if ConsentRisk(entry) and Intro.Get(entry) == false then
+            local module = entry[1]
+            if not byModule[module] then
+                byModule[module] = {}
+                order[#order + 1] = module
+            end
+            table.insert(byModule[module], Intro.Label(entry))
+        end
+    end
+    for _, module in ipairs(order) do
+        parts[#parts + 1] = L.INTRO_AGREE_LINE:format(module, table.concat(byModule[module], ", "))
+    end
+    local risk = ModuleCounts("risk")
+    if risk then parts[#parts + 1] = L.INTRO_OFF_RISK:format(risk) end
+    local choice = ModuleCounts("choice")
+    if choice then parts[#parts + 1] = L.INTRO_OFF_CHOICE:format(choice) end
+    if #parts == 0 then return nil end
+    return L.INTRO_AGREE_STAYS_OFF:format(table.concat(parts, "; "), Core.SlashCmd(ns, L.INTRO_CMD_WORD))
 end
 
 -- Tooltip des Knopfs „Allem zustimmen“: was er tut und was er auslässt, weil es Blizzards Regeln riskiert. → Text
@@ -982,6 +1080,9 @@ function Intro.Lines()
         local text = Intro.ModuleText(name) or Core.ModuleTip(name) or ""
         if state == "loaded" then
             lines[#lines + 1] = "  " .. name
+            -- wie auf der Seite des Moduls: zuerst, was es kann, dann wo es sitzt
+            local features = Intro.FeatureText(name, "    ")
+            if features then lines[#lines + 1] = features end
             if text ~= "" then lines[#lines + 1] = "    " .. text end
             lines[#lines + 1] = "    " .. Intro.CommandLine(name)
         else
@@ -1120,7 +1221,9 @@ end
 function Intro.AgreeRows()
     local out = {}
     for _, row in ipairs(Intro.Rows(true)) do
-        if row.value == false and Intro.CanSwitchOn(row.entry) then out[#out + 1] = row end
+        if row.value == false and Intro.CanSwitchOn(row.entry) and not ConsentRisk(row.entry) then
+            out[#out + 1] = row
+        end
     end
     return out
 end
@@ -1130,7 +1233,7 @@ end
 function Intro.SkippedNames()
     local names = {}
     for _, row in ipairs(Intro.Rows(true)) do
-        if row.value == false and not Intro.CanSwitchOn(row.entry) then
+        if row.value == false and not Intro.CanSwitchOn(row.entry) and not ConsentRisk(row.entry) then
             names[#names + 1] = L.INTRO_AGREE_LINE:format(row.module, row.label)
         end
     end
@@ -1198,6 +1301,8 @@ function Intro.ApplyAll()
         ns.Print(L.INTRO_AGREE_ALSO_DONE:format(RowNames(also)))
     end
     if failed > 0 then ns.Print(L.INTRO_AGREE_FAILED:format(failed, table.concat(names, ", "))) end
+    local off = Intro.StaysOff()
+    if off then ns.Print(off) end
     return done, failed
 end
 
@@ -1214,6 +1319,8 @@ function Intro.AgreeAll(onCancel)
         local store = OfferStore()
         if store then store.done = store.done or (time and time() or 0) end
         ns.Print(skipped and L.INTRO_AGREE_NONE_SKIPPED:format(skipped) or L.INTRO_AGREE_NONE)
+        local off = Intro.StaysOff()
+        if off then ns.Print(off) end
         return false
     end
     local _, modules = Intro.AgreeList(rows)
@@ -1295,6 +1402,9 @@ function Intro.PageText(page, index, count)
     if page.module then
         head = page.module
         body = (Intro.ModuleText(page.module) or "") .. "\n\n" .. Intro.CommandLine(page.module)
+        -- zuerst, was das Modul kann (Kurzüberblick), dann wo es sitzt, der Befehl und die Häkchen
+        local features = Intro.FeatureText(page.module)
+        if features then body = features .. "\n\n" .. body end
     elseif page.key == "consent" then
         local on, all = 0, 0
         for _, row in ipairs((Intro.SplitAlso(Intro.Rows(true)))) do

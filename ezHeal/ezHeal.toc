@@ -3,7 +3,7 @@
 ## Notes: Heal, dispel, resurrect and buff party and raid members by clicking Blizzard's own frames: class templates for Blizzard's click casting with preview, backup and undo; your own HoTs as a small icon row on the frames. Part of ezCollection.
 ## Notes-deDE: Heilen, Bannen, Wiederbeleben und Buffen per Klick auf Blizzards Gruppen- und Raidrahmen: Vorlagen je Klasse für Blizzards Klick-Zaubern mit Vorschau, Sicherung und „Zurück“; eigene HoTs als kleine Symbolreihe am Rahmen. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 0.5.0
+## Version: 0.6.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\Spell_Holy_FlashHeal
 ## RequiredDeps: ezCore
@@ -24,4 +24,5 @@ Blizzard.lua
 Preview.lua
 Entries.lua
 Tour.lua
+Dock.lua
 Options.lua

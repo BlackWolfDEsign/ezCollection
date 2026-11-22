@@ -3,17 +3,25 @@ local L = ns.L
 local Core = ezCore
 
 --[[
-    Editor einer Einkaufsliste: liegt über Blizzards Ergebnisfläche im Reiter „Kaufen“ (kein eigenes Fenster,
-    kein Reiter) und schließt sich, sobald gesucht wird oder der Reiter wechselt.
+    Einkaufsliste links (seit dem zweiten Spieltest vom 21.11.2026, Entscheidung des Nutzers „Ja, Seitenteil links
+    (Empfohlen)“ auf „liste sollte links bei kaufen wie bei verkaufen aus der tasche eingezeigt werden“): die in der
+    Kategorienliste gewählte Liste (ns.Buy.Select) steht im Reiter „Kaufen“ als Seitenteil links, im selben Rahmen
+    wie „Aus der Tasche“ (ns.PanelLook, ns.PlaceLeftPanel). Vorher lag der Editor über Blizzards Ergebnisfläche und
+    öffnete sich über ein Blatt-Symbol an der Liste – Blizzards Spaltenköpfe lagen darüber. Gesucht wird mit
+    Blizzards „Suchen“ und Blizzards Filter (BuyTab.lua, Search.lua).
     Einträge: Suchbegriff tippen (in Anführungszeichen genau dieser Name), Gegenstand hineinziehen oder mit
     Shift-Klick einfügen, die aktuelle Suche übernehmen; bei Rezepten die Zutaten aus dem Item-Wissen.
-    Listen mit Quelle (Bibliotheksbücher, ezCraft) zeigt der Editor nur: ihr Inhalt kommt aus der Quelle.
+    Listen mit Quelle (Bibliotheksbücher) zeigt der Editor nur: ihr Inhalt kommt aus der Quelle. Die Listen sind seit dem
+    21.11.2026 ezCores gemeinsame Listen (Core.Lists) – dieselben wie in ezCraft, auch mit hergestellten Gegenständen.
 ]]
 
 local Editor = {}
 ns.Editor = Editor
 
-local frame, input, list, emptyText, title, hint
+local frame, input, list, emptyText, hint
+local WIDTH = ns.LEFT_PANEL_WIDTH   -- Wunschbreite wie alle Seitenteile (Core.lua; schmaler bei wenig Platz)
+local LOOK = ns.LOOK               -- Maße und Schriften der Listen wie ezTalent (ezCores Core.PANEL_LIST)
+local ADD_W = 96                   -- „Hinzufügen“ rechts neben der Eingabe
 local editControls = {}
 local lastLink, lastLinkTime
 
@@ -40,7 +48,8 @@ function Editor.Add(value)
     if not Editor.IsEditable(list) then return nil end
     local entry = Lists().AddEntry(list, value)
     if entry then
-        if input then input:SetText("") end
+        -- nur leeren, was aus dem Feld kam: ein Shift-Klick oder Hineinziehen lässt getippten Text stehen (Review)
+        if input and value == input:GetText() then input:SetText("") end
         Editor.Refresh()
     end
     return entry
@@ -66,18 +75,47 @@ function Editor.AddCurrentSearch()
     end
 end
 
--- Shift-Klick auf einen Gegenstand, solange das Eingabefeld den Fokus hat.
+-- Geht ein Shift-Klick gerade woandershin? Ein offenes Chat-Eingabefeld oder ein anderes Eingabefeld mit Fokus
+-- (Makros …) bekommt den Gegenstand wie bei Blizzard; die Liste nur, wenn sonst niemand ihn nimmt. Blizzards Suchfeld
+-- im Auktionshaus zählt nicht: Blizzard setzt den Namen dort bei jedem Shift-Klick ein, ob es den Fokus hat oder nicht.
+-- Ein Link ohne gedrückte Umschalttaste (Addons fügen Links über ChatEdit_InsertLink ein, z. B. ezCores
+-- Core.OpenChatWith) geht nie in die Liste (Befund des Reviews).
+local function LinkGoesElsewhere()
+    if input and input:HasFocus() then return false end
+    local modified = rawget(_G, "IsModifiedClick")
+    if type(modified) == "function" and not Core.Call(modified, "CHATLINK") then return true end
+    local util = rawget(_G, "ChatFrameUtil")
+    local active = Core.Call(rawget(_G, "ChatEdit_GetActiveWindow"))
+        or (type(util) == "table" and Core.Call(util.GetActiveWindow))
+    if active then return true end
+    local focus = Core.Call(rawget(_G, "GetCurrentKeyBoardFocus"))
+    local bar = AuctionHouseFrame and AuctionHouseFrame.SearchBar
+    return focus ~= nil and focus ~= input and focus ~= (bar and bar.SearchBox)
+end
+
+-- Shift-Klick auf einen Gegenstand (Tasche, Blizzards Ergebnisliste, Rezept, Link im Chat), solange eine änderbare
+-- Liste links steht: der Gegenstand kommt in die Liste – wie Blizzard ihn ins Suchfeld setzt (vierter Spieltest vom
+-- 21.11.2026: „am besten wie original blizz mit shift linke maustaste auf icon in suche einfügen --> das mit der suche
+-- einfügen fehlt der einkaufsliste-anzeige im ah“). Vorher nur, solange das Eingabefeld der Liste den Fokus hatte.
 local function OnInsertLink(link)
-    if not (input and Editor.IsShown() and input:HasFocus()) or type(link) ~= "string" then return end
+    if not (input and Editor.IsShown() and Editor.IsEditable(list)) or type(link) ~= "string" then return end
+    if LinkGoesElsewhere() then return end
     local now = GetTime()
-    if link == lastLink and lastLinkTime and now - lastLinkTime < 0.2 then return end
+    if link == lastLink and lastLinkTime and now - lastLinkTime < 0.2 then return end   -- mehrere Haken, ein Klick
     lastLink, lastLinkTime = link, now
     if Lists().ParseLink(link) then Editor.Add(link) end
 end
+Editor.OnInsertLink = OnInsertLink   -- für Prüfungen
 
 local function HookLinks()
     if ChatEdit_InsertLink then hooksecurefunc("ChatEdit_InsertLink", OnInsertLink) end
     if ChatFrameUtil and ChatFrameUtil.InsertLink then hooksecurefunc(ChatFrameUtil, "InsertLink", OnInsertLink) end
+    -- Blizzards Weg für Shift-Klicks auf Gegenstände; greift auch, wo Blizzards Auktionshaus den Link selbst nimmt
+    if HandleModifiedItemClick then
+        hooksecurefunc("HandleModifiedItemClick", function(link)
+            if IsModifiedClick and IsModifiedClick("CHATLINK") then OnInsertLink(link) end
+        end)
+    end
 end
 
 ---------------------------------------------------------------------------
@@ -192,16 +230,16 @@ end
 local function BuildRow(row)
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(Core.Style.ICON.line, Core.Style.ICON.line)   -- Symbol in einer Zeile (Design-System 2.3; bis Welle 22 18)
-    row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
-    row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    row.icon:SetPoint("LEFT", row, "LEFT", LOOK.entryIndent, 0)   -- eingerückt wie ezTalents Einträge
+    row.label = row:CreateFontString(nil, "OVERLAY", LOOK.fonts.entry)
     row.label:SetPoint("LEFT", row.icon, "RIGHT", 6, 0)
-    row.label:SetPoint("RIGHT", row, "RIGHT", -96, 0)
+    row.label:SetPoint("RIGHT", row, "RIGHT", -84, 0)   -- vier Knöpfe zu 16 mit 4 Abstand (schmales Seitenteil)
     row.label:SetJustifyH("LEFT")
     row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
 
     row.remove = CreateFrame("Button", nil, row)
     row.remove:SetSize(16, 16)
-    row.remove:SetPoint("RIGHT", row, "RIGHT", -6, 0)
+    row.remove:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     row.remove:SetNormalTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Up")
     row.remove:SetHighlightTexture("Interface\\Buttons\\UI-GroupLoot-Pass-Highlight", "ADD")
     row.remove:SetScript("OnClick", function(self)
@@ -217,16 +255,16 @@ local function BuildRow(row)
     row.filter = SmallButton(row, "Interface\\Buttons\\UI-GuildButton-OfficerNote-Up", function(self)
         if self.entry then Editor.FilterMenu(self, self.entry) end
     end, L.EDITOR_FILTER, L.EDITOR_FILTER_TIP)
-    row.filter:SetPoint("RIGHT", row.remove, "LEFT", -6, 0)
+    row.filter:SetPoint("RIGHT", row.remove, "LEFT", -4, 0)
     -- Nur diese Zeile suchen (AH-10)
     row.search = SmallButton(row, "Interface\\Common\\UI-Searchbox-Icon", function(self)
         if list and self.entry then ns.Buy.StartEntry(list, self.entry) end
     end, L.EDITOR_ROW_SEARCH, L.EDITOR_ROW_SEARCH_TIP)
-    row.search:SetPoint("RIGHT", row.filter, "LEFT", -6, 0)
+    row.search:SetPoint("RIGHT", row.filter, "LEFT", -4, 0)
 
     row.reagents = CreateFrame("Button", nil, row)
     row.reagents:SetSize(16, 16)
-    row.reagents:SetPoint("RIGHT", row.search, "LEFT", -6, 0)
+    row.reagents:SetPoint("RIGHT", row.search, "LEFT", -4, 0)
     row.reagents:SetNormalTexture("Interface\\Icons\\Trade_BlackSmithing")
     row.reagents:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     row.reagents:SetScript("OnClick", function(self)
@@ -272,13 +310,14 @@ local function InitRow(row, data)
     row.remove.index = data.index
     row.reagents.entry = entry
     row.filter.entry, row.search.entry = entry, entry
-    local icon = Core.ItemIcon(entry.itemID)
+    local icon = entry.recipe and Core.Lists.Icon(entry) or Core.ItemIcon(entry.itemID)
     row.icon:SetTexture(icon or Core.ICON_FALLBACK)
     row.label:SetText(Editor.RowText(entry))
     local editable = Editor.IsEditable(list)
     row.remove:SetShown(editable)
     -- Filter nur an Listen ohne Quelle: deren Einträge baut die Quelle bei jeder Suche neu
-    row.filter:SetShown(editable)
+    -- hergestellte Gegenstände: gesucht wird ihr Material bzw. Produkt (Core.Lists) – Filter gälten dort nicht
+    row.filter:SetShown(editable and not entry.recipe)
     row.search:SetShown(ns.Enabled("rowSearch"))
     row.reagents:SetShown(editable and entry.itemID ~= nil and Lists().ReagentsOf(entry.itemID) ~= nil)
 end
@@ -298,9 +337,10 @@ function Editor.TipBody(control, body)
     return (body and body .. "\n\n" or "") .. Core.Style.ColorText("bad", reason)
 end
 
+-- Schrift der Knöpfe nach der Breite setzt Editor.OnWidth (schmal: Blizzards kleine Schrift)
 local function Button(parent, text, width, onClick, tipTitle, tipBody)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    button:SetSize(width, 22)
+    button:SetSize(width, ns.BUTTON_H)
     button:SetText(text)
     button:SetScript("OnClick", onClick)
     if tipTitle then
@@ -312,57 +352,20 @@ local function Button(parent, text, width, onClick, tipTitle, tipBody)
 end
 
 local function Build()
-    local results = AuctionHouseFrame.BrowseResultsFrame
-    local ok, f = pcall(CreateFrame, "Frame", "ezAuctionListEditor", AuctionHouseFrame, "InsetFrameTemplate")
+    local ok, f = pcall(CreateFrame, "Frame", "ezAuctionListEditor", AuctionHouseFrame, "ButtonFrameTemplate")
     if not ok or not f then f = CreateFrame("Frame", "ezAuctionListEditor", AuctionHouseFrame) end
     frame = f
-    f:SetPoint("TOPLEFT", results, "TOPLEFT", 0, 0)
-    f:SetPoint("BOTTOMRIGHT", results, "BOTTOMRIGHT", 0, 0)
-    f:SetFrameLevel((results:GetFrameLevel() or 1) + 30)
+    f:SetWidth(WIDTH)
     f:EnableMouse(true)
     f:Hide()
-    local bg = f:CreateTexture(nil, "BACKGROUND", nil, -1)
-    bg:SetPoint("TOPLEFT", 3, -3)
-    bg:SetPoint("BOTTOMRIGHT", -3, 3)
-    bg:SetTexture("Interface\\QuestFrame\\UI-TextBackground-BackdropBackground")
+    -- Rahmen wie „Aus der Tasche“ und der Markt: Titel in Blizzards Titelleiste, ohne X (abwählen über die Liste)
+    ns.PanelLook(f, L.LISTS)
 
-    title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -12)
-    title:SetPoint("RIGHT", f, "RIGHT", -330, 0)
-    title:SetJustifyH("LEFT")
-
-    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
-    close:SetScript("OnClick", function() Editor.Close() end)
-    close:SetScript("OnEnter", function(self) Core.ShowTip(self, Core.Word("CLOSE"), L.EDITOR_CLOSE_TIP) end)
-    close:SetScript("OnLeave", GameTooltip_Hide)
-    Editor.closeButton = close
-
-    local search = Button(f, L.EDITOR_SEARCH, 90, function() if list then ns.Buy.StartList(list) end end,
-        L.EDITOR_SEARCH, L.LIST_SEARCH_TIP)
-    search:SetPoint("RIGHT", close, "LEFT", -4, 0)
-    local delete = Button(f, Core.Word("DELETE"), 90, function()
-        local current = list
-        if not current then return end
-        Core.Confirm(L.EDITOR_DELETE_CONFIRM:format(current.name), function()
-            Lists().Delete(current)
-            Editor.Close()
-        end)
-    end, Core.Word("DELETE"), L.EDITOR_DELETE_TIP)
-    delete:SetPoint("RIGHT", search, "LEFT", -4, 0)
-    local rename = Button(f, L.EDITOR_RENAME, 100, function()
-        local current = list
-        if not current then return end
-        Core.AskText(L.EDITOR_RENAME_PROMPT, current.name, function(text)
-            if not Lists().Rename(current, text) then ns.Print(L.EDITOR_NAME_TAKEN:format(text or "")) end
-            Editor.Refresh()
-        end)
-    end, L.EDITOR_RENAME, L.EDITOR_RENAME_TIP)
-    rename:SetPoint("RIGHT", delete, "LEFT", -4, 0)
-
+    -- Kopf wie ezTalent ab ns.PANEL_TOP, LOOK.headLeft vom Rand (Blizzards Eingabefeld zeichnet 4 links vor seinem
+    -- Feld): Eingabe und „Hinzufügen“; die Eingabe wächst mit der Breite des Seitenteils
     input = CreateFrame("EditBox", "ezAuctionListEditorInput", f, "InputBoxTemplate")
-    input:SetSize(240, 20)
-    input:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -44)
+    input:SetHeight(20)
+    input:SetPoint("TOPLEFT", f, "TOPLEFT", LOOK.headLeft + 4, -ns.PANEL_TOP)
     input:SetAutoFocus(false)
     input:SetMaxLetters(80)
     input:SetScript("OnEnterPressed", function(self)
@@ -374,34 +377,55 @@ local function Build()
     input:SetScript("OnEnter", function(self) Core.ShowTip(self, L.EDITOR_ADD, Editor.TipBody(self, L.EDITOR_ADD_TIP)) end)
     Core.Toolbar.ShowTipWhileDisabled(input)
     input:SetScript("OnLeave", GameTooltip_Hide)
-
-    local add = Button(f, L.EDITOR_ADD, 100, function()
+    local add = Button(f, L.EDITOR_ADD, ADD_W, function()
         if not Editor.AddCursorItem() then Editor.Add(input:GetText()) end
     end, L.EDITOR_ADD, L.EDITOR_ADD_TIP)
-    add:SetPoint("LEFT", input, "RIGHT", 8, 0)
-    local fromSearch = Button(f, L.EDITOR_FROM_SEARCH, 130, Editor.AddCurrentSearch,
+    add:SetPoint("TOPRIGHT", f, "TOPRIGHT", -ns.BUTTON_X, -ns.PANEL_TOP)
+    input:SetPoint("TOPRIGHT", add, "TOPLEFT", -ns.BUTTON_GAP, -1)   -- oben angehängt (Höhe bleibt 20)
+    -- zweite Zeile: aktuelle Suche übernehmen, umbenennen (je halbe Breite, Editor.OnWidth)
+    local fromSearch = Button(f, L.EDITOR_FROM_SEARCH, 106, Editor.AddCurrentSearch,
         L.EDITOR_FROM_SEARCH, L.EDITOR_FROM_SEARCH_TIP)
-    fromSearch:SetPoint("LEFT", add, "RIGHT", 4, 0)
+    fromSearch:SetPoint("TOPLEFT", f, "TOPLEFT", ns.BUTTON_X, -ns.PANEL_TOP - 26)
+    local rename = Button(f, L.EDITOR_RENAME, 106, function()
+        local current = list
+        if not current then return end
+        Core.AskText(L.EDITOR_RENAME_PROMPT, current.name, function(text)
+            if not Lists().Rename(current, text) then ns.Print(L.EDITOR_NAME_TAKEN:format(text or "")) end
+            Editor.Refresh()
+        end)
+    end, L.EDITOR_RENAME, L.EDITOR_RENAME_TIP)
+    rename:SetPoint("LEFT", fromSearch, "RIGHT", ns.BUTTON_GAP, 0)
     editControls = { input, add, fromSearch }
     Editor.editControls = editControls   -- für Prüfungen
+    Editor.renameButton = rename
 
     hint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    hint:SetPoint("TOPLEFT", input, "BOTTOMLEFT", -6, -6)
-    hint:SetPoint("RIGHT", f, "RIGHT", -14, 0)
+    -- beide Anker oben (der Kasten hängt an der Unterkante des Hinweises; „RIGHT“ am Seitenteil legte seine Mitte fest)
+    hint:SetPoint("TOPLEFT", fromSearch, "BOTTOMLEFT", 0, -6)
+    hint:SetPoint("TOPRIGHT", rename, "BOTTOMRIGHT", 0, -6)
     hint:SetJustifyH("LEFT")
     hint:SetText(L.EDITOR_HINT)
 
-    -- Weitergeben als Text (AUC-20): unten rechts, unter der Liste der Einträge
-    local import = Button(f, L.EDITOR_IMPORT, 100, function() Editor.Import() end, L.EDITOR_IMPORT, L.EDITOR_IMPORT_TIP)
-    import:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 8)
-    local export = Button(f, L.EDITOR_EXPORT, 100, function() Editor.Export() end, L.EDITOR_EXPORT, L.EDITOR_EXPORT_TIP)
-    export:SetPoint("RIGHT", import, "LEFT", -4, 0)
-    Editor.importButton, Editor.exportButton = import, export
+    -- unten: Weitergeben als Text (AUC-20) und Löschen, darüber der Kostenvoranschlag (AH-10)
+    -- drei gleich breite Knöpfe über die ganze Breite (wie ezTalents Knopfreihe; Editor.OnWidth)
+    local export = Button(f, L.EDITOR_EXPORT, 70, function() Editor.Export() end, L.EDITOR_EXPORT, L.EDITOR_EXPORT_TIP)
+    export:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", ns.BUTTON_X, ns.BUTTON_Y)
+    local import = Button(f, L.EDITOR_IMPORT, 70, function() Editor.Import() end, L.EDITOR_IMPORT, L.EDITOR_IMPORT_TIP)
+    import:SetPoint("LEFT", export, "RIGHT", ns.BUTTON_GAP, 0)
+    local delete = Button(f, Core.Word("DELETE"), 70, function()
+        local current = list
+        if not current then return end
+        Core.Confirm(L.EDITOR_DELETE_CONFIRM:format(current.name), function()
+            Lists().Delete(current)
+            ns.Buy.Select(nil)
+        end)
+    end, Core.Word("DELETE"), L.EDITOR_DELETE_TIP)
+    delete:SetPoint("LEFT", import, "RIGHT", ns.BUTTON_GAP, 0)
+    Editor.importButton, Editor.exportButton, Editor.deleteButton = import, export, delete
 
-    -- Kostenvoranschlag der Liste (AH-10): unten links, neben den Knöpfen zum Weitergeben
     local cost = CreateFrame("Frame", nil, f)
-    cost:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 10)
-    cost:SetPoint("RIGHT", export, "LEFT", -8, 0)
+    cost:SetPoint("BOTTOMLEFT", export, "TOPLEFT", 0, 6)
+    cost:SetPoint("BOTTOMRIGHT", delete, "TOPRIGHT", 0, 6)   -- unten angehängt, 18 hoch (darüber beginnt der Kasten)
     cost:SetHeight(18)
     cost:EnableMouse(true)
     cost.text = cost:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -412,16 +436,52 @@ local function Build()
     Editor.cost = cost
 
     list = nil
-    Editor.rows = ns.NewScrollList(f, 24, InitRow)
-    Editor.rows:SetPoints(10, -92, -10, 34)
+    -- die Liste in Blizzards innerem Kasten zwischen Kopf (bis zum Hinweis) und Kostenzeile (wie ezTalent; ohne Kasten
+    -- im Client wie vorher)
+    Editor.rows = ns.NewScrollList(f, 24, InitRow, LOOK.entryGap)
+    local bottom = ns.BUTTON_Y + ns.BUTTON_H + 6 + 18 + LOOK.buttonGap   -- über Knopfreihe und Kostenzeile
+    f.inset = ns.PanelInset(f, hint, ns.BUTTON_X, bottom)
+    Editor.inset = f.inset
+    if f.inset then Editor.rows:SetInside(f.inset) else Editor.rows:SetPoints(8, -ns.PANEL_TOP - 92, -8, 62) end
     emptyText = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    emptyText:SetPoint("TOPLEFT", f, "TOPLEFT", 20, -110)
-    emptyText:SetPoint("RIGHT", f, "RIGHT", -20, 0)
+    if f.inset then
+        emptyText:SetPoint("TOPLEFT", f.inset, "TOPLEFT", LOOK.insetLeft + LOOK.entryIndent, -(LOOK.insetTop + 6))
+        emptyText:SetPoint("TOPRIGHT", f.inset, "TOPRIGHT", -LOOK.insetLeft, -(LOOK.insetTop + 6))
+    else
+        emptyText:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -ns.PANEL_TOP - 100)
+        emptyText:SetPoint("RIGHT", f, "RIGHT", -14, 0)
+    end
+    emptyText:SetJustifyH("LEFT")
     emptyText:SetText(L.EDITOR_EMPTY)
 
     f:SetScript("OnReceiveDrag", Editor.AddCursorItem)
     f:SetScript("OnMouseUp", function() Editor.AddCursorItem() end)
+    f.OnWidth = function(_, width) Editor.OnWidth(width) end
+    Editor.OnWidth(WIDTH)
     HookLinks()
+end
+
+-- Knöpfe nach der Breite des Seitenteils (ns.PlaceLeftPanel ruft das nach dem Andocken): zweite Kopfzeile je halbe
+-- Breite, unten drei gleich breite Knöpfe; schmal (unter 300, wie ezTalents Knopfreihe) in Blizzards kleiner Schrift.
+-- → Breite eines unteren Knopfs
+function Editor.OnWidth(width)
+    if not frame then return nil end
+    width = Core.Num(width) or WIDTH
+    local inner = width - 2 * ns.BUTTON_X
+    local half = math.floor((inner - ns.BUTTON_GAP) / 2)
+    local third = math.floor((inner - 2 * ns.BUTTON_GAP) / 3)
+    local small = width < 300
+    for _, b in ipairs({ editControls[3], Editor.renameButton }) do if b then b:SetWidth(half) end end
+    for _, b in ipairs({ Editor.exportButton, Editor.importButton, Editor.deleteButton }) do if b then b:SetWidth(third) end end
+    for _, b in ipairs({ editControls[2], editControls[3], Editor.renameButton, Editor.exportButton, Editor.importButton,
+        Editor.deleteButton }) do
+        if b and b.SetNormalFontObject then
+            b:SetNormalFontObject(small and "GameFontNormalSmall" or "GameFontNormal")
+            b:SetHighlightFontObject(small and "GameFontHighlightSmall" or "GameFontHighlight")
+            b:SetDisabledFontObject(small and "GameFontDisableSmall" or "GameFontDisable")
+        end
+    end
+    return third
 end
 
 -- Die offene Liste als Text zeigen (ezCores Text-Dialog, zum Kopieren mit Strg+C). Rückgabe: der Text oder nil.
@@ -460,13 +520,14 @@ function Editor.ImportText(text)
     for _, imported in ipairs(lists) do names[#names + 1] = imported.name end
     local entries = Core.Plural(Core.Num(count) or 0, L.LIST_IMPORT_ENTRIES_ONE, L.LIST_IMPORT_ENTRIES_MANY)
     ns.Print(Core.Plural(#lists, L.LIST_IMPORT_DONE_ONE, L.LIST_IMPORT_DONE_MANY, table.concat(names, ", "), entries))
-    Editor.Open(lists[1])
+    ns.Buy.Select(lists[1])
     return true
 end
 
 function Editor.Refresh()
     if not frame or not list then return end
-    title:SetText(L.EDITOR_TITLE:format(list.name))
+    if frame.SetTitle then pcall(frame.SetTitle, frame, L.EDITOR_TITLE:format(list.name)) end
+    Editor.title = L.EDITOR_TITLE:format(list.name)   -- für Prüfungen
     -- Liste mit Quelle: Eingabe gesperrt, Hinweis woher der Inhalt kommt.
     local source = Lists().SourceOf(list)
     for _, control in ipairs(editControls) do
@@ -483,39 +544,73 @@ function Editor.Refresh()
     Editor.cost:SetShown(cost ~= nil)
 end
 
-function Editor.Open(target)
-    if not (target and ns.ahReady and ns.AuctionHouseShown()) then return false end
-    ns.ShowBrowseResults()
+-- Zeigen, solange eine Liste gewählt ist (ns.Buy.active), der Reiter „Kaufen“ offen und die Einkaufslisten an; sonst
+-- verbergen. → true, wenn zu sehen
+function Editor.Update()
+    local target = ns.Buy and ns.Buy.active
+    local want = target ~= nil and ns.ahReady and ns.AuctionHouseShown() and ns.ModeName() == "buy"
+        and ns.Enabled("shoppingLists") and Lists().IndexOf(target) ~= nil
+    if not want then
+        if frame then frame:Hide() end
+        list = nil
+        if ns.MarketPanel then ns.MarketPanel.PlaceArrow() end
+        return false
+    end
     if not frame then Build() end
     list = target
-    ns.Buy.active = target
-    Editor.Refresh()
     frame:Show()
-    ns.Buy.Refresh()
+    ns.PlaceLeftPanel(frame, WIDTH)
+    Editor.Refresh()
+    -- der Pfeil des zugeklappten Markts weicht dem Seitenteil aus, wenn es rechts steht
+    if ns.MarketPanel then ns.MarketPanel.PlaceArrow() end
     return true
 end
 
+-- Eine Liste zeigen: sie wird gewählt wie eine Kategorie (ns.Buy.Select) und steht links. → true, wenn zu sehen
+function Editor.Open(target)
+    if not (target and ns.ahReady and ns.AuctionHouseShown()) then return false end
+    if ns.Buy.active ~= target then ns.Buy.Select(target) else Editor.Update() end
+    return Editor.IsShown()
+end
+
+-- Neu andocken, falls zu sehen (der Markt hat sich auf- oder zugeklappt oder die Seite gewechselt; MarketPanel.lua).
+function Editor.Place()
+    if not (frame and frame:IsShown()) then return false end
+    ns.PlaceLeftPanel(frame, WIDTH)
+    if ns.MarketPanel then ns.MarketPanel.PlaceArrow() end
+    return true
+end
+
+-- Nur verbergen; die Wahl bleibt (ns.Buy.Select(nil) wählt ab).
 function Editor.Close()
     if frame then frame:Hide() end
 end
 
+-- Seite, an der das Seitenteil angedockt hat (ns.PlaceLeftPanel), oder nil.
+function Editor.DockedSide()
+    return frame ~= nil and frame.dockSide or nil
+end
+
+-- Breite nach dem Platz (ns.PlaceLeftPanel), sonst die Wunschbreite
+function Editor.Width()
+    return frame ~= nil and frame.fitWidth or WIDTH
+end
+
+-- Eingabefeld fokussieren (neue Liste).
+function Editor.Focus()
+    if input and Editor.IsShown() and Editor.IsEditable(list) then input:SetFocus() end
+end
+
 ns.Listen("LISTS_CHANGED", function()
     if not Editor.IsShown() then return end
-    if not Lists().IndexOf(list) then return Editor.Close() end
+    if not Lists().IndexOf(list) then return ns.Buy.Select(nil) end
     Editor.Refresh()
 end)
-ns.Listen("AH_MODE", function(mode)
-    local _, browsing = ns.ModeName()
-    if mode ~= "buy" or not browsing then Editor.Close() end
-end)
+ns.Listen("AH_MODE", function() Editor.Update() end)
 ns.Listen("AH_HIDE", Editor.Close)
 -- Neue Preise ändern den Kostenvoranschlag; Schalter blenden Knöpfe und Filter ein und aus
 ns.Listen("PRICES_UPDATED", function() if Editor.IsShown() then Editor.Refresh() end end)
 ns.OnSettingChanged(function(key)
     if (key == "rowSearch" or key == "listCost") and Editor.IsShown() then Editor.Refresh() end
-end)
-ns.OnAuctionHouse(function()
-    if AuctionHouseFrame.SendBrowseQuery then
-        hooksecurefunc(AuctionHouseFrame, "SendBrowseQuery", function() Editor.Close() end)
-    end
+    if key == "shoppingLists" or key == "sellListSide" then Editor.Update() end
 end)

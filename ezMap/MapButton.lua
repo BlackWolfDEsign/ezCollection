@@ -86,28 +86,33 @@ function MapButton.TrainerWanted(t)
 end
 
 -- Bausteine für das Kartenmenü und für Blizzards Menü „Aufspüren“ (Tracking.lua).
-function MapButton.AddTrainers(root)
-    if not ns.Tree.Any("trainers") then return end
-    local menu = Tip(Menu.Button(root, L.MENU_TRAINERS), L.MENU_TRAINERS, L.MENU_TRAINERS_TIP)
-    local list = {}
-    for _, t in ipairs(ns.Trainers.List()) do
-        if MapButton.TrainerWanted(t) then list[#list + 1] = t end
-    end
-    if #list == 0 then
-        Menu.Title(menu, L.MENU_TRAINERS_NONE)
-    else
-        local nearest = ns.Tree.Leaf("trainerClass") and ns.Trainers.Nearest("class") or nil
-        if nearest then
-            local text = L.MENU_TRAINER_NEAREST:format(nearest.name)
-            Tip(Menu.Button(menu, text, function() ns.Trainers.Go(nearest) end), text, L.MENU_TRAINER_NEAREST_TIP)
-        end
-        -- Tierausbilder braucht nur der Jäger; in der Liste darunter stehen sie für alle
-        local pet = ns.playerClass == "HUNTER" and ns.Tree.Leaf("trainerPet") and ns.Trainers.Nearest("pet") or nil
-        if pet then
-            local text = L.MENU_TRAINER_NEAREST_PET:format(pet.name)
-            Tip(Menu.Button(menu, text, function() ns.Trainers.Go(pet) end), text, L.MENU_TRAINER_NEAREST_PET_TIP)
-        end
-        if nearest or pet then Menu.Divider(menu) end
+-- Lehrer als Liste in ein Menü füllen (eigener Knopf „Lehrer“ oder – im Menü „Aufspüren“ – Blizzards Haken der
+-- passenden Art, Tracking.lua). opts: kinds = { class = true, … } (nil: alle Arten), nearest = „Nächster
+-- Klassenlehrer/Tierausbilder“ zeigen (nur, wenn die Arten dabei sind), other = Hinweis auf ein Addon, das alle Lehrer
+-- zeigt, head = Kopfzeile mit Erklärung (Leitlinie 11: an Blizzards Haken sagt sie, woher die Liste stammt),
+-- skipEmpty = ohne passende Lehrer nichts anlegen. → menu, oder nil, wenn nichts angelegt wurde (skipEmpty)
+-- Ab so vielen Lehrern stehen sie je Zone in einem Untermenü (deine Zone zuerst), sonst als Liste mit Zonentiteln
+-- (mit Questie kommen alle Lehrer des Kontinents dazu – als flache Liste zu lang)
+MapButton.TRAINERS_FLAT = 15
+
+-- Ein Lehrer als Knopf: Klick setzt die Markierung, Tooltip mit Quelle („laut Questie“ bzw. „von dir besucht“)
+local function TrainerButton(menu, t)
+    local label = ns.Trainers.Label(t)
+    return Tip(Menu.Button(menu, label, function() ns.Trainers.Go(t) end), label, L.MENU_TRAINER_ENTRY_TIP,
+        ns.Trainers.Source(t))
+end
+
+-- „Nächster …“ mit Quelle
+local function NearestButton(menu, t, format, tip)
+    local text = format:format(t.name)
+    return Tip(Menu.Button(menu, text, function() ns.Trainers.Go(t) end), text, tip, ns.Trainers.Source(t))
+end
+
+-- Einträge (Kopien aus Core.Npcs.List, nach Zone sortiert) ins Menü: unter TRAINERS_FLAT flach mit der Zone als
+-- Zwischenzeile, sonst je Zone ein Untermenü – die Zone von map bzw. deine zuerst (MapButton.ByZone). Ein Baustein für
+-- die Lehrer und Gastwirt & Co. (Entscheidung des Nutzers vom 22.11.2026: „Ja, wie Lehrer“). Button(menu, eintrag)
+function MapButton.ZoneList(menu, list, Button, map)
+    if #list < MapButton.TRAINERS_FLAT then
         local zone
         for _, t in ipairs(list) do
             local name = ns.MapName(t.map)
@@ -115,15 +120,91 @@ function MapButton.AddTrainers(root)
                 zone = name
                 Menu.Title(menu, name)
             end
-            local label = ns.Trainers.Label(t)
-            Tip(Menu.Button(menu, label, function() ns.Trainers.Go(t) end), label, L.MENU_TRAINER_ENTRY_TIP)
+            Button(menu, t)
         end
+        return
     end
-    local other = ns.TrainersElsewhere()
+    for _, group in ipairs(MapButton.ByZone(list, map)) do
+        local sub = Menu.Button(menu, group.name)
+        for _, t in ipairs(group.list) do Button(sub, t) end
+    end
+end
+
+function MapButton.FillTrainers(menu, opts)
+    opts = opts or {}
+    local kinds = opts.kinds
+    -- ohne bekannte Art zählt ein Lehrer als „weitere Lehrer“ (wie TrainerWanted)
+    local function Want(kind) return kinds == nil or kinds[kind or "other"] == true end
+    local list = {}
+    local all, pending = ns.Trainers.List(nil, { map = opts.map })
+    for _, t in ipairs(all) do
+        if Want(t.kind) and MapButton.TrainerWanted(t) then list[#list + 1] = t end
+    end
+    if #list == 0 and opts.skipEmpty and not pending then return nil end
+    if opts.head then Tip(Menu.Title(menu, opts.head), opts.head, L.MENU_TRAINERS_TIP) end
+    -- Questie liest noch (erstes Öffnen nach dem Anmelden) bzw. antwortet falsch: sagen, was los ist
+    MapButton.ListNotes(menu, #list == 0, pending, L.MENU_TRAINERS_NONE)
+    if #list > 0 then
+        local near = opts.nearest ~= false
+        -- „Nächster …“ misst ab deinem Standort (Trainers.Nearest, nur dein Kontinent): zeigt die Weltkarte einen
+        -- anderen Kontinent, aus der Liste deines Standorts rechnen, nicht aus der gezeigten (Fund des code-reviewers
+        -- vom 22.11.2026)
+        if opts.map then
+            local here = ns.PlayerPosition()
+            local mine = here and Core.Map.Parent(here, "Continent")
+            if mine ~= Core.Map.Parent(opts.map, "Continent") then all = ns.Trainers.List() end
+        end
+        local nearest = near and Want("class") and ns.Tree.Leaf("trainerClass") and ns.Trainers.Nearest("class", all) or nil
+        if nearest then NearestButton(menu, nearest, L.MENU_TRAINER_NEAREST, L.MENU_TRAINER_NEAREST_TIP) end
+        -- Tierausbilder braucht nur der Jäger; in der Liste darunter stehen sie für alle
+        local pet = near and Want("pet") and ns.playerClass == "HUNTER" and ns.Tree.Leaf("trainerPet")
+            and ns.Trainers.Nearest("pet", all) or nil
+        if pet then NearestButton(menu, pet, L.MENU_TRAINER_NEAREST_PET, L.MENU_TRAINER_NEAREST_PET_TIP) end
+        -- Waffenmeister (Nutzer am 22.11.2026: „und noch waffenmeister“) – Art „other“, Blatt „weitere Lehrer“
+        local weapon = near and Want("other") and ns.Tree.Leaf("trainerOther")
+            and ns.Trainers.Nearest("weapon", all) or nil
+        if weapon then NearestButton(menu, weapon, L.MENU_TRAINER_NEAREST_WEAPON, L.MENU_TRAINER_NEAREST_WEAPON_TIP) end
+        if nearest or pet or weapon then Menu.Divider(menu) end
+        MapButton.ZoneList(menu, list, TrainerButton, opts.map)
+    end
+    local other = opts.other ~= false and ns.TrainersElsewhere() or nil
     if other then
         Menu.Divider(menu)
         MapButton.OtherTitle(menu, L.MENU_TRAINERS_OTHER:format(other), L.MENU_TRAINERS_OTHER_TIP)
     end
+    return menu
+end
+
+-- Einträge je Zone: { { name, map, list }, … } – deine Zone (bzw. die der Karte map) zuerst, dann nach Namen; die
+-- Reihenfolge in einer Zone bleibt (Lehrer, Händler)
+function MapButton.ByZone(list, map)
+    local here = ns.Num(map) or ns.PlayerPosition()       -- map: die gezeigte Karte (ezMap-Knopf) zuerst
+    here = here and Core.Map.Parent(here, "Zone") or nil
+    local groups, byName = {}, {}
+    for _, e in ipairs(list) do
+        local name = ns.MapName(e.map) or "?"
+        local g = byName[name]
+        if not g then
+            g = { name = name, map = e.map, list = {} }
+            byName[name] = g
+            groups[#groups + 1] = g
+        end
+        g.here = g.here or (here ~= nil and Core.Map.Parent(e.map, "Zone") == here)
+        g.list[#g.list + 1] = e
+    end
+    table.sort(groups, function(a, b)
+        if (a.here == true) ~= (b.here == true) then return a.here == true end
+        return a.name < b.name
+    end)
+    return groups
+end
+
+-- Eigener Knopf „Lehrer“ mit Untermenü (Kartenmenü; im Menü „Aufspüren“ nur für Arten, deren Haken Blizzard dort
+-- nicht zeigt). opts wie FillTrainers. → der Knopf oder nil (Gruppe „Lehrer“ im Baum aus)
+function MapButton.AddTrainers(root, opts)
+    if not ns.Tree.Any("trainers") then return nil end
+    local menu = Tip(Menu.Button(root, L.MENU_TRAINERS), L.MENU_TRAINERS, L.MENU_TRAINERS_TIP)
+    return MapButton.FillTrainers(menu, opts)
 end
 
 -- Dungeoneingänge der gezeigten Karte (auf einer Kontinentkarte die ihrer Zonen): zuerst aus ezCore.Dungeons, das
@@ -189,38 +270,248 @@ function MapButton.AddDestinationFlight(root)
     return true
 end
 
--- Besuchte Händler der gezeigten Zone (ezCore merkt sie beim Ansprechen, Core.Npcs; eine Kleinkarte zählt zu ihrer
--- Zone): Klick setzt die Markierung. Händler mit Reparatur über das Blatt „repairTargets“, die übrigen über
--- „vendorTargets“ (Tree.lua). → der Eintrag oder nil (nichts bekannt, Blätter aus, Welt- oder Kontinentkarte)
-function MapButton.Vendors(mapID)
+-- Was die Flugmeister-Liste zeigt: { nearest, zones, dest } oder nil (nichts zu zeigen; Schalter aus, keine Daten)
+function MapButton.FlightData()
+    local wanted = ns.Enabled("flightNearest")
+    local nearest = wanted and ns.Flights.NearestMaster() or nil
+    local zones = wanted and ns.Flights.MastersByZone() or {}
+    local dest = ns.Enabled("flightDest") and ns.Flights.AtWaypoint() or nil
+    if not (nearest or dest or #zones > 0) then return nil end
+    return { nearest = nearest, zones = zones, dest = dest }
+end
+
+-- Flugmeister als Liste in ein Menü füllen (Menü „Aufspüren“: Blizzards Haken „Flugmeister“, Tracking.lua; ohne ihn
+-- ein eigener Knopf, MapButton.AddFlights): Kopfzeile mit Erklärung (Leitlinie 11), „Nächster Flugmeister“,
+-- „Flugmeister am Ziel“ (mit gesetzter Markierung), dann alle Flugmeister deines Kontinents je Zone als Untermenü
+-- (Flights.MastersByZone); ein Klick setzt Blizzards Markierung. Spielbefund vom 21.11.2026: „man sollte alle einzeln
+-- aus dem menü markieren können“. opts.head = Text der Kopfzeile, data = MapButton.FlightData()
+-- (sonst hier gelesen). → menu, oder nil, wenn nichts darin stünde
+function MapButton.FillFlights(menu, opts, data)
+    opts = opts or {}
+    data = data or MapButton.FlightData()
+    if not data then return nil end
+    local nearest, zones, dest = data.nearest, data.zones, data.dest
+    if opts.head then Tip(Menu.Title(menu, opts.head), opts.head, L.TRACK_FLIGHTS_TIP) end
+    if nearest then
+        local text = ns.Flights.MasterLabel(nearest)
+        Tip(Menu.Button(menu, text, function() ns.Flights.GoMaster(nearest) end), text, L.TRACK_FLIGHT_TIP)
+    end
+    if dest then MapButton.AddDestinationFlight(menu) end
+    if #zones > 0 then
+        if nearest or dest or opts.head then Menu.Divider(menu) end
+        for _, zone in ipairs(zones) do
+            local sub = Menu.Button(menu, zone.name)
+            for _, master in ipairs(zone.masters) do
+                local m = master
+                local text = m.undiscovered and L.TRACK_FLIGHT_ENTRY_NEW:format(m.name) or m.name
+                Tip(Menu.Button(sub, text, function() ns.Flights.GoMaster(m) end), text, L.TRACK_FLIGHT_ENTRY_TIP)
+            end
+        end
+    end
+    return menu
+end
+
+-- „Flugmeister hier (n)“ im ezMap-Knopf der Weltkarte (Entscheidung des Nutzers vom 22.11.2026, „ok mach das so“):
+-- die Flugmeister der gezeigten Zone, auf einer Kontinentkarte je Zone ein Untermenü; Klick setzt die Markierung.
+-- Quelle wie im Menü „Aufspüren“ (Flights.MastersByZone, Blizzards Flugkarte). → der Knopf oder nil
+function MapButton.AddFlightsHere(root, mapID)
+    if not ns.Enabled("flightNearest") then return nil end
+    mapID = ns.Num(mapID)
+    if not mapID then return nil end
+    local zones = ns.Flights.MastersByZone(mapID)
+    local info = Core.Map.Info(mapID)
+    local isContinent = type(info) == "table" and ns.Num(info.mapType) == 2
+    local shown = not isContinent and (Core.Map.Parent(mapID, "Zone") or mapID) or nil
+    local function Entry(menu, m)
+        local text = m.undiscovered and L.TRACK_FLIGHT_ENTRY_NEW:format(m.name) or m.name
+        Tip(Menu.Button(menu, text, function() ns.Flights.GoMaster(m) end), text, L.TRACK_FLIGHT_ENTRY_TIP)
+    end
+    if shown then
+        local masters
+        for _, z in ipairs(zones) do if z.map == shown then masters = z.masters end end
+        if not masters or #masters == 0 then return nil end
+        local label = L.MENU_FLIGHTS_HERE:format(#masters)
+        local menu = Tip(Menu.Button(root, label), label, L.MENU_FLIGHTS_HERE_TIP)
+        for _, m in ipairs(masters) do Entry(menu, m) end
+        return menu
+    end
+    if not isContinent or #zones == 0 then return nil end
+    local n = 0
+    for _, z in ipairs(zones) do n = n + #z.masters end
+    local label = L.MENU_FLIGHTS_HERE:format(n)
+    local menu = Tip(Menu.Button(root, label), label, L.MENU_FLIGHTS_HERE_TIP)
+    for _, z in ipairs(zones) do
+        local sub = Menu.Button(menu, z.name)
+        for _, m in ipairs(z.masters) do Entry(sub, m) end
+    end
+    return menu
+end
+
+-- Eigener Knopf „Flugmeister“ mit derselben Liste (Menü „Aufspüren“, wenn Blizzard seinen Haken nicht zeigt).
+-- → der Knopf oder nil
+function MapButton.AddFlights(root)
+    local data = MapButton.FlightData()
+    if not data then return nil end
+    local menu = Tip(Menu.Button(root, L.MENU_FLIGHTS), L.MENU_FLIGHTS, L.TRACK_FLIGHTS_TIP)
+    return MapButton.FillFlights(menu, nil, data)
+end
+
+-- Zone oder kleiner (keine Welt- oder Kontinentkarte)? Händler gibt es nur dort.
+function MapButton.IsZoneMap(mapID)
     mapID = ns.Num(mapID)
     local info = mapID and Core.Map.Info(mapID)
     local mapType = type(info) == "table" and ns.Num(info.mapType) or nil
-    if not (mapType and mapType >= 3) then return {} end
+    return mapType ~= nil and mapType >= 3
+end
+
+-- Händler der gezeigten Zone, besucht (ezCore merkt sie beim Ansprechen, Core.Npcs) und laut Questie; eine Kleinkarte
+-- zählt zu ihrer Zone. Händler mit Reparatur über das Blatt „repairTargets“, die übrigen über „vendorTargets“
+-- (Tree.lua). → Liste (leer: nichts bekannt, Blätter aus, Welt- oder Kontinentkarte), wartet (Questie liest noch)
+function MapButton.Vendors(mapID)
+    mapID = ns.Num(mapID)
+    if not MapButton.IsZoneMap(mapID) then return {}, false end
     local zone = Core.Map.Parent(mapID, "Zone") or mapID
     local wantAll, wantRepair = ns.Enabled("vendorTargets"), ns.Enabled("repairTargets")
     local out = {}
-    for _, e in ipairs(Core.Npcs.List({ kind = "vendor", located = true, fits = true })) do
+    -- dazu die Händler dieser Zone laut Questie (Entscheidung des Nutzers vom 22.11.2026; besuchte gehen vor)
+    local all, pending = Core.Npcs.List({ kind = "vendor", located = true, fits = true, questie = { zone, mapID } })
+    for _, e in ipairs(all) do
         local m = ns.Num(e.map)
         local here = m and (m == zone or m == mapID or Core.Map.Parent(m, "Zone") == zone)
         if here and ((e.repair and wantRepair) or (not e.repair and wantAll)) then out[#out + 1] = e end
     end
     table.sort(out, function(a, b) return (a.name or "") < (b.name or "") end)
-    return out
+    return out, pending == true
 end
 
+-- Ab so vielen Händlern stehen sie nach Titel („Gemischtwaren“, „Waffenschmied“ …) in Untermenüs
+MapButton.VENDORS_FLAT = 20
+
+local function VendorButton(menu, e)
+    local text = Core.Npcs.Label(e) or e.name or "?"
+    if e.repair then text = text .. " " .. L.VENDOR_REPAIR_MARK end
+    return Tip(Menu.Button(menu, text, function() ns.Way.Set(e.map, e.x, e.y, e.name, true) end), text,
+        L.MENU_VENDOR_ENTRY_TIP, Core.Npcs.SourceLabel(e))
+end
+
+-- Antwortet Questie nicht wie erwartet (QuestieDB läuft, aber falsche Form oder Fehler)? → Hinweiszeile oder nil.
+-- Ohne Questie (missing) kein Hinweis: dann gilt wie bisher nur das Besuchte.
+function MapButton.QuestieTrouble()
+    local Q = Core.Sources and Core.Sources.Questie
+    if type(Q) ~= "table" or type(Q.TownsfolkReady) ~= "function" then return nil end
+    local ok, ready, why = pcall(Q.TownsfolkReady)
+    if ok and ready then return nil end
+    if not ok or why == "shape" or why == "error" then return L.MENU_NPCS_QUESTIE_BROKEN end
+    return nil
+end
+
+-- Zeilen über einer Lehrer- bzw. Händlerliste: „wird gelesen …“, Questie antwortet falsch, „Noch keine …“
+function MapButton.ListNotes(menu, empty, pending, none)
+    if pending then Tip(Menu.Title(menu, L.MENU_NPCS_LOADING), L.MENU_NPCS_LOADING, L.MENU_NPCS_LOADING_TIP) end
+    local trouble = MapButton.QuestieTrouble()
+    if trouble then Tip(Menu.Title(menu, trouble), trouble, L.MENU_NPCS_QUESTIE_BROKEN_TIP) end
+    if empty and not pending and none then Menu.Title(menu, none) end
+end
+
+-- Händler einer Karte (Zone) in ein Menü füllen – Kartenmenü („Händler hier (n)“) und im Menü „Aufspüren“ an
+-- Blizzards Haken „Reparieren“ (Tracking.AttachVendors; Spielbefund des Nutzers vom 22.11.2026: „händler hier finde
+-- ich im menü nicht“). opts.head = Kopfzeile mit Erklärung, opts.list/opts.pending = schon gelesen (Vendors).
+-- → menu, Anzahl
+function MapButton.FillVendors(menu, mapID, opts)
+    opts = opts or {}
+    local list, pending = opts.list, opts.pending
+    if not list then list, pending = MapButton.Vendors(mapID) end
+    if opts.head then Tip(Menu.Title(menu, opts.head), opts.head, L.MENU_VENDORS_TIP) end
+    MapButton.ListNotes(menu, #list == 0, pending, L.MENU_VENDORS_NONE)
+    if #list < MapButton.VENDORS_FLAT then
+        for _, e in ipairs(list) do VendorButton(menu, e) end
+        return menu, #list
+    end
+    local groups, byTitle = {}, {}
+    for _, e in ipairs(list) do
+        local title = e.title or L.MENU_VENDORS_UNTITLED
+        local g = byTitle[title]
+        if not g then
+            g = { title = title, list = {} }
+            byTitle[title] = g
+            groups[#groups + 1] = g
+        end
+        g.list[#g.list + 1] = e
+    end
+    table.sort(groups, function(a, b) return a.title < b.title end)
+    for _, g in ipairs(groups) do
+        local sub = Menu.Button(menu, ("%s (%d)"):format(g.title, #g.list))
+        for _, e in ipairs(g.list) do VendorButton(sub, e) end
+    end
+    return menu, #list
+end
+
+-- Weitere Stadtbewohner laut Questie (Core.Npcs.ROLES: Gastwirt, Bankier, Auktionator, Stallmeister, Kampfmeister) für
+-- die Pfeile an Blizzards Haken im Menü „Aufspüren“ (Entscheidung des Nutzers vom 22.11.2026: „ok“ auf „Pfeil an jedem
+-- Haken, hinter dem eine suchbare NPC-Art mit Daten steckt“). Einmal je Öffnen gelesen: die Stadtbewohner deines
+-- Kontinents, je Rolle. Besuchte kennen diese Rollen nicht – ohne Questie bleiben die Listen leer.
+-- Je Rolle mit filter.kind gelesen (Fund des code-reviewers vom 22.11.2026): so verdrängt ein besuchter NPC ohne die
+-- Rolle (ein Gastwirt, bei dem du eingekauft hast, ist als Händler gemerkt) den Eintrag laut Questie nicht, und ezCore
+-- wandelt nur NPCs mit dieser Rolle um (Questie liest je Karte einmal, Core.Sources.Questie.Townsfolk).
+-- zone = deine Zone ohne Koordinaten (Tracking.PlayerZone, z. B. in Instanzen): dann nur ihre, wie bei den Händlern.
+-- → { [Rolle] = Liste }, wartet (true, solange Questie noch liest)
+function MapButton.RoleLists(zone)
+    local out, waiting = {}, false
+    zone = ns.Num(zone)
+    local maps = ns.Trainers.QuestieMaps() or (zone and { zone }) or nil
+    for _, role in ipairs(Core.Npcs.ROLES or {}) do
+        out[role] = {}
+        if maps then
+            local list, pending = Core.Npcs.List({ kind = role, located = true, fits = true, questie = maps })
+            out[role] = list
+            waiting = waiting or pending == true
+        end
+    end
+    return out, waiting
+end
+
+local function RoleButton(menu, e)
+    local text = Core.Npcs.Label(e) or e.name or "?"
+    return Tip(Menu.Button(menu, text, function() ns.Way.Set(e.map, e.x, e.y, e.name, true) end), text,
+        L.TRACK_ROLE_ENTRY_TIP, Core.Npcs.SourceLabel(e))
+end
+
+-- Eine Rolle in Blizzards Haken füllen: Kopfzeile, „wird gelesen …“ bzw. der Questie-Hinweis, „Nächster …“ (auf deinem
+-- Kontinent), darunter alle des Kontinents je Zone wie bei den Lehrern (MapButton.ZoneList; Spielbefund des Nutzers vom
+-- 22.11.2026 „wieso der unterschied?“, Antwort „Ja, wie Lehrer“ – vorher nur die deiner Zone).
+-- opts.list/opts.pending = schon gelesen (RoleLists), opts.zone = deine Zone (Tracking.PlayerZone; mit Position dieselbe
+-- wie die aus ns.PlayerPosition, ohne Position liest RoleLists ohnehin nur sie).
+-- → menu oder nil (nichts zu zeigen: Blizzards Haken bleibt ohne Pfeil, keine leere Liste an Blizzards Eintrag)
+function MapButton.FillRole(menu, role, opts)
+    opts = opts or {}
+    local list, pending = opts.list, opts.pending
+    if not list then
+        local lists
+        lists, pending = MapButton.RoleLists(opts.zone)
+        list = lists[role] or {}
+    end
+    if #list == 0 and not pending and not MapButton.QuestieTrouble() then return nil end
+    local head = L.TRACK_ROLE_HEAD:format(L["TRACK_ROLE_" .. role] or role)
+    Tip(Menu.Title(menu, head), head, L.TRACK_ROLE_TIP)
+    MapButton.ListNotes(menu, false, pending)
+    local nearest = ns.Trainers.NearestOf(list)
+    local format = L["TRACK_ROLE_NEAREST_" .. role]
+    if nearest and format then
+        NearestButton(menu, nearest, format, L.TRACK_ROLE_NEAREST_TIP)
+        Menu.Divider(menu)                                     -- nearest stammt aus list: darunter steht die Liste
+    end
+    MapButton.ZoneList(menu, list, RoleButton, opts.zone)      -- ab TRAINERS_FLAT: deine Zone zuerst
+    return menu
+end
+
+-- Knopf „Händler hier (n)“ mit Untermenü: auf jeder Zone (auch ohne Händler – sonst fehlt der Eintrag ohne Grund,
+-- Leitlinie 3), nicht auf Welt- und Kontinentkarten. → der Knopf oder nil
 function MapButton.AddVendors(root, mapID)
-    if not ns.Tree.Any("vendors") then return nil end
-    local list = MapButton.Vendors(mapID)
-    if #list == 0 then return nil end
+    if not ns.Tree.Any("vendors") or not MapButton.IsZoneMap(mapID) then return nil end
+    local list, pending = MapButton.Vendors(mapID)
     local label = L.MENU_VENDORS:format(#list)
     local menu = Tip(Menu.Button(root, label), label, L.MENU_VENDORS_TIP)
-    for _, e in ipairs(list) do
-        local text = Core.Npcs.Label(e) or e.name or "?"
-        if e.repair then text = text .. " " .. L.VENDOR_REPAIR_MARK end
-        Tip(Menu.Button(menu, text, function() ns.Way.Set(e.map, e.x, e.y, e.name, true) end), text,
-            L.MENU_VENDOR_ENTRY_TIP)
-    end
+    MapButton.FillVendors(menu, mapID, { list = list, pending = pending })
     return menu
 end
 
@@ -249,7 +540,7 @@ end
 MapButton.SECTIONS = {
     { id = "way", title = "MSEC_WAY", icon = "own", entries = { "enter", "here", "clear", "link", "destFlight", "recent" } },
     { id = "town", title = "OPT_tree_town", icon = "town", entries = { "trainers", "vendors" } },
-    { id = "journey", title = "OPT_tree_journey", icon = "journey", entries = { "flightNodes", "entrances", "zones", "levelRoute" } },
+    { id = "journey", title = "OPT_tree_journey", icon = "journey", entries = { "flightsHere", "flightNodes", "entrances", "zones", "levelRoute" } },
     { id = "gather", title = "OPT_tree_gather", icon = "gather", entries = { "gather" } },
     { id = "discover", title = "OPT_tree_discover", icon = "discover", entries = { "books", "rares" } },
     { id = "show", title = "MSEC_SHOW", icon = "menuTree", entries = { "tree", "entrancePins", "coords", "bookToggle" } },
@@ -269,10 +560,11 @@ MapButton.ENTRIES = {
     -- „Flugmeister am Ziel: …“ und die gelernte Flugzeit dorthin
     destFlight = { icon = "travel", build = function(root) if ns.Way.Get() then MapButton.AddDestinationFlight(root) end end },
     recent = { icon = "wayRecent", build = function(root) MapButton.AddRecent(root) end },
-    trainers = { icon = "trainers", build = function(root) MapButton.AddTrainers(root) end },
+    trainers = { icon = "trainers", build = function(root, mapID) MapButton.AddTrainers(root, { map = mapID }) end },
     -- besuchte Händler der Zone (Gruppe „Händler“ im Baum)
     vendors = { icon = "vendors", build = function(root, mapID) MapButton.AddVendors(root, mapID) end },
     -- „Flugpunkte, die dir fehlen“ samt Twinks (Welle 26, F5)
+    flightsHere = { icon = "travel", build = function(root, mapID) MapButton.AddFlightsHere(root, mapID) end },
     flightNodes = { icon = "flightMissing", build = function(root, mapID) ns.FlightNodes.AddMenu(root, mapID) end },
     entrances = { icon = "dungeons", build = function(root, mapID) MapButton.AddEntrances(root, mapID) end },
     -- „Zonenstufen: 5–12 (bei dir gesehen)“ mit Quelle (MAP-06)
@@ -330,7 +622,7 @@ function MapButton.BuildSections(root, mapID, sections, entries)
 end
 
 local function BuildMenuNow(root)
-    Menu.Title(root, L.MENU_TITLE)
+    Tip(Menu.Title(root, L.MENU_TITLE), L.MENU_TITLE, L.MENU_TITLE_TIP)
     MapButton.BuildSections(root, ShownMapID())
     Menu.Divider(root)
     MapButton.AddSettings(root)

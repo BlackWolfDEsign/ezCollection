@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Meldet fehlende Buffs außerhalb des Kampfes\nEin Klick: Buff, Fläschchen oder Essen\nSymbol je Mitglied am Gruppenrahmen\nStein und Öl nur auf passende Waffen\nDurchbuffen der Gruppe mit einer Taste",
     TITLE = "ezBuff",
     -- Hauptfunktion: Linksklick im Addon-Fach und Befehl ohne Wort (Entscheidung 5, T18-3); Hilfe: Kopf und Standard
     -- (Einstellungen, status, hilfe, zuruecksetzen) sagt ezCore, hier nur die eigenen Wörter, %s = geltender Befehl (T18-20)
@@ -233,6 +235,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Reports missing buffs out of combat\nOne click: buff, flask or food\nAn icon per member on the party frames\nStones and oils only on fitting weapons\nBuff the whole group with one key",
     TITLE = "ezBuff",
     MAIN_TEXT = "report in chat what is missing right now",
     CMD_HELP_OWN = {

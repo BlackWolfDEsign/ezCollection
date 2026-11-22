@@ -5,7 +5,7 @@ local Core = ezCore
 --[[
     Preise aus dem Gedächtnis – das Erfassen selbst macht ezCore (ezCore.Prices: Komplett-Scan, Mitlernen bei
     jeder Suche, Speicher je Realm und Fraktion). ezAuction zeigt nur an und bietet den Knopf:
-      - Knopf „Preise erfassen“ oben links im Auktionsfenster (Reiter Kaufen und Verkaufen): startet den
+      - Knopf „Preise erfassen“ unten neben Blizzards Gold (Ergebnisliste und Reiter Verkaufen): startet den
         Komplett-Scan, zeigt Fortschritt bzw. Restzeit (Blizzard erlaubt ihn alle 15 Minuten)
       - Tooltip-Zeile „Auktion: 1 g 20 s (vor 2 Std.)“ über die Tooltip-Pipeline, bei Stapeln auch × Menge;
         weicht, solange ein anderes Addon Auktionspreise im Tooltip zeigt (Auctionator, TradeSkillMaster;
@@ -30,15 +30,42 @@ function Scan.Label()
         if total and total > 0 then return L.SCAN_RUNNING:format(math.floor((done or 0) / total * 100)), false end
         return L.SCAN_STARTING, false
     end
+    if Scan.Unsupported() then return L.SCAN_BUTTON, true end   -- erfasst dann „Meine Preise“ (Scan.Start)
     local wait = Core.Call(prices.ScanReadyIn) or 0
     if wait > 0 then return L.SCAN_WAIT:format(Core.Clock(wait)), false end
     return L.SCAN_BUTTON, true
 end
 
+-- Kann dieser Client den Komplett-Scan? Blizzards Aufruf fehlt oder wurde abgelehnt (Spielbefund vom 21.11.2026: Forever
+-- lehnte ab, der Tooltip sagte trotzdem „jetzt möglich“, und jeder Klick schrieb dieselbe Chatzeile). Gilt, bis das
+-- Auktionshaus wieder geöffnet wird (AH_SHOW unten) oder „Komplett“ im Menü es noch einmal versucht.
+Scan.unsupported = false
+function Scan.Unsupported()
+    if Scan.unsupported then return true end
+    local AH = C_AuctionHouse
+    return not (type(AH) == "table" and AH.ReplicateItems)
+end
+
+-- Warum? Die Ursache aus ezCore.Prices.Scan (Scan.why, Scan.whyError), sonst „Aufruf fehlt“ – als Text für Chat und
+-- Tooltip (Spielbefund vom 21.11.2026: der Client hat alle Aufrufe, der Grund war nicht zu sehen).
+function Scan.WhyText()
+    local why = Scan.why or ((not Scan.unsupported) and "api") or "unknown"
+    local text = L["SCAN_WHY_" .. why]
+    if text == "SCAN_WHY_" .. why or text == nil then text = L.SCAN_WHY_unknown end
+    if why == "call" then text = text:format(tostring(Scan.whyError or "?")) end
+    -- Realm oder Fraktion unbekannt: was der Client liefert (ezCore Keys.MarketWhy), damit der Spieltest es zeigt
+    if why == "realm" and type(Scan.whyError) == "string" and Scan.whyError ~= "" then text = text .. " (" .. Scan.whyError .. ")" end
+    return text
+end
+
+-- Ablehnung merken: Grund und Fehlertext aus ezCore.Prices.Scan
+function Scan.Refused(why, err)
+    Scan.unsupported, Scan.why, Scan.whyError = true, why, err
+end
+
 function Scan.Update()
     if not button then return end
-    local mode = ns.ModeName()
-    local show = ns.Prices() ~= nil and ns.AuctionHouseShown() and (mode == "buy" or mode == "sell")
+    local show = ns.Prices() ~= nil and ns.AuctionHouseShown() and ns.BottomRow()
     button:SetShown(show == true)
     if Scan.arrow then Scan.arrow:SetShown(show == true) end
     if not show then
@@ -54,7 +81,15 @@ end
 function Scan.Start()
     local prices = ns.Prices()
     if not prices then return false, "unsupported" end
-    local ok, reason = prices.Scan()
+    -- Ohne Komplett-Scan erfasst der Knopf die eigenen Taschen-Gegenstände einzeln (wie „Meine Preise“); der Grund
+    -- steht einmal im Chat und dauerhaft im Tooltip
+    if Scan.Unsupported() then return Scan.RefreshMine() end
+    local ok, reason, why, err = prices.Scan()
+    if not ok and reason == "unsupported" then
+        Scan.Refused(why, err)
+        Scan.Update()
+        return Scan.RefreshMine()
+    end
     if not ok then
         if reason == "wait" then
             ns.Print(L.SCAN_FAIL_wait:format(Core.Clock(Core.Call(prices.ScanReadyIn) or 0)))
@@ -143,6 +178,16 @@ local function RefreshClick(items, emptyText)
     return ok
 end
 
+-- „Meine Preise“: die eigenen Taschen-Gegenstände einzeln erfassen (Menü, und ohne Komplett-Scan auch der Knopf).
+-- Ohne Komplett-Scan sagt die erste Erfassung einmal, warum der Knopf das tut.
+function Scan.RefreshMine()
+    if Scan.Unsupported() and not Scan.unsupportedSaid then
+        Scan.unsupportedSaid = true
+        ns.Print(L.SCAN_FAIL_unsupported_switch:format(Scan.WhyText()))
+    end
+    return RefreshClick(nil, L.SCAN_MINE_EMPTY)
+end
+
 -- Bietet ezCore den Durchlauf je Kategorie an (Prices.ScanBrowse, AH-02 – kommt im ezCore-Paket derselben Welle)?
 function Scan.CanBrowse()
     local prices = ns.Prices()
@@ -153,6 +198,7 @@ end
 function Scan.FullBlocked()
     local prices = ns.Prices()
     if not prices then return true end
+    if Scan.Unsupported() then return true, "unsupported" end
     if Scan.lastTimeout then return true, "timeout" end
     local wait = Core.Num(Core.Call(prices.ScanReadyIn)) or 0
     if wait > 0 then return true, "wait" end
@@ -182,9 +228,15 @@ end
 function Scan.MenuEntries()
     local _, enabled = Scan.Label()
     local entries = {
-        { key = "full", text = enabled and L.SCAN_MENU_FULL or (L.SCAN_MENU_FULL .. " (" .. Scan.Label() .. ")"),
-            fn = function() Scan.Start() end },
-        { key = "mine", text = L.SCAN_MENU_MINE, fn = function() return RefreshClick(nil, L.SCAN_MINE_EMPTY) end },
+        { key = "full", text = Scan.Unsupported() and (L.SCAN_MENU_FULL .. " (" .. L.SCAN_NOT_HERE .. ")")
+            or enabled and L.SCAN_MENU_FULL or (L.SCAN_MENU_FULL .. " (" .. Scan.Label() .. ")"),
+            -- ausdrücklich gewählt: Blizzard noch einmal fragen, auch nach einer Ablehnung
+            -- (Review vom 21.11.2026: alte Ursache vergessen, eine Ablehnung jetzt immer erklären)
+            fn = function()
+                Scan.unsupported, Scan.why, Scan.whyError, Scan.unsupportedSaid = false, nil, nil, nil
+                return Scan.Start()
+            end },
+        { key = "mine", text = L.SCAN_MENU_MINE, fn = function() return Scan.RefreshMine() end },
         { key = "missing", text = L.SCAN_MENU_MISSING, fn = function() return RefreshClick(Scan.Missing(), L.SCAN_MISSING_NONE) end },
     }
     if Scan.CanBrowse() then
@@ -230,7 +282,11 @@ function Scan.ButtonTip()
     if line then parts[#parts + 1] = line end
     local prices = ns.Prices()
     local wait = prices and Core.Num(Core.Call(prices.ScanReadyIn)) or 0
-    parts[#parts + 1] = wait > 0 and L.SCAN_TIP_WAIT:format(Core.Clock(wait)) or L.SCAN_TIP_READY
+    if Scan.Unsupported() then
+        parts[#parts + 1] = L.SCAN_TIP_UNSUPPORTED:format(Scan.WhyText())
+    else
+        parts[#parts + 1] = wait > 0 and L.SCAN_TIP_WAIT:format(Core.Clock(wait)) or L.SCAN_TIP_READY
+    end
     parts[#parts + 1] = L.SCAN_TIP_MENU
     return table.concat(parts, "\n\n")
 end
@@ -261,29 +317,34 @@ local function Build()
     local Layout, S = ns.Layout, ns.Layout.SCAN
     button = CreateFrame("Button", "ezAuctionScanButton", AuctionHouseFrame, "UIPanelButtonTemplate")
     button:SetSize(S.w, S.h)
-    -- Rechts neben dem Porträt, links von Blizzards Suchleiste (Favoriten-Knopf ab x = 170) bzw. über dem
-    -- Verkaufsbereich; Maße in ns.Layout (Core.lua), geprüft in Tests/lage.lua
-    button:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPLEFT", S.x, S.y)
+    -- Unten rechts neben Blizzards Gold (Spielbefund vom 21.11.2026: oben verdeckte er im Reiter Verkaufen Forevers
+    -- Reiter „Auktion erstellen“); Maße in ns.Layout (Core.lua), geprüft in Tests/lage.lua
+    local money = AuctionHouseFrame.MoneyFrameBorder
+    if money then
+        button:SetPoint("LEFT", money, "RIGHT", S.gap, 0)
+    else
+        local M = Layout.BLIZZARD.money
+        button:SetPoint("LEFT", AuctionHouseFrame, "BOTTOMLEFT", M.x + M.w + S.gap, M.y + M.h / 2)
+    end
     button:SetMotionScriptsWhileDisabled(true)
     button:SetScript("OnClick", function() Scan.Start() end)
     button:SetScript("OnEnter", function(self) Core.ShowTip(self, L.SCAN_TITLE, Scan.ButtonTip()) end)
     button:SetScript("OnLeave", GameTooltip_Hide)
     button:Hide()
-    -- Pfeil mit dem Menü (AH-16): ein Knopf statt drei; das Zahnrad (Options.lua) rückt rechts daneben. Beide stehen
-    -- in einer zweiten Zeile unter dem Knopf: rechts vom Knopf beginnt Blizzards Favoriten-Knopf (Spielbefund
-    -- 16.11.2026: Pfeil und Zahnrad lagen darüber, „Heute: …“ über dem Suchfeld)
+    -- Pfeil mit dem Menü (AH-16): ein Knopf statt drei; das Zahnrad (Options.lua) rückt rechts daneben, dann
+    -- „Heute: …“ – alles in der Zeile des Knopfs unten neben dem Gold (seit dem 21.11.2026)
     -- Pfeil aus ezCore (Core.Toolbar.ArrowButton, T18-13), kleiner Knopf (Design-System 2.3; bis Welle 22 18); der Name
     -- bleibt als globaler Verweis für das Zahnrad daneben (Options.lua) und die Lage-Prüfungen
     arrowButton = Core.Toolbar.ArrowButton(AuctionHouseFrame, function(self) Scan.Menu(self) end, L.SCAN_MENU_TITLE,
         L.SCAN_MENU_TIP, { size = Layout.SMALL })
     _G.ezAuctionScanMenuButton = arrowButton
-    arrowButton:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -Layout.ROW_GAP)
+    arrowButton:SetPoint("LEFT", button, "RIGHT", Layout.SCAN_GAP, 0)
     arrowButton:Hide()
     Scan.arrow = arrowButton
     coverageText = AuctionHouseFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     coverageText:SetPoint("LEFT", arrowButton, "RIGHT", Layout.CoverageOffset(), 0)
-    -- feste Breite bis kurz vor Blizzards Favoriten-Knopf (Platz für „Heute: 100 %“), damit nichts in die Suchleiste
-    -- ragt; ist der Satz breiter, zeigt Scan.UpdateCoverage nur den Wert
+    -- feste Breite (Platz für „Heute: 100 %“), damit „Nur Verbesserungen“ dahinter fest steht; ist der Satz breiter,
+    -- zeigt Scan.UpdateCoverage nur den Wert
     coverageText:SetWidth(Layout.CoverageWidth())
     coverageText:SetJustifyH("LEFT")
     coverageText:SetWordWrap(false)
@@ -475,7 +536,7 @@ ns.OnSettingChanged(function(key) if key == "scanCoverage" then Scan.UpdateCover
 
 function Scan.WatchedListItems()
     local out, seen = {}, {}
-    for _, list in ipairs(ns.db and ns.db.lists or {}) do
+    for _, list in ipairs(ns.db and ns.Lists and ns.Lists.All() or {}) do
         for _, entry in ipairs(type(list) == "table" and type(list.items) == "table" and list.items or {}) do
             local id = type(entry) == "table" and Core.Num(entry.itemID)
             if id and not seen[id] then
@@ -574,7 +635,7 @@ function Auto.Run()
     local prices = ns.Prices()
     if not prices then return nil end
     local how
-    local ok, reason = Core.Call(prices.Scan, { auto = true })
+    local ok, reason, why, err = Core.Call(prices.Scan, { auto = true })
     if ok then
         how = "scan"
     elseif reason == "other" then
@@ -583,14 +644,25 @@ function Auto.Run()
     elseif Scan.Refresh(nil, nil) then
         how = "refresh"
     end
+    -- lehnt der Client den Komplett-Scan ab, sagt das die Meldung – einmal je Sitzung (wie Scan.RefreshMine)
+    local text = how
+    if how == "refresh" and reason == "unsupported" then
+        Scan.Refused(why, err)
+        text = not Scan.unsupportedSaid and "unsupported" or nil
+        Scan.unsupportedSaid = true
+    end
     if how then
         AutoStore()[ns.PostKey()] = time()
-        ns.Print(L["SCAN_AUTO_" .. how])
+        if text == "unsupported" then ns.Print(L.SCAN_AUTO_unsupported:format(Scan.WhyText()))
+        elseif text then ns.Print(L["SCAN_AUTO_" .. text]) end
     end
     Scan.Update()
     return how
 end
 
-ns.Listen("AH_SHOW", function() ns.Try("ScanOnOpen", Auto.OnShow) end)
+ns.Listen("AH_SHOW", function()
+    Scan.unsupported, Scan.why, Scan.whyError = false, nil, nil   -- je Öffnen neu fragen (Scan.Unsupported)
+    ns.Try("ScanOnOpen", Auto.OnShow)
+end)
 ns.Listen("AH_HIDE", function() Auto.pending = nil end)
 ns.On("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", function() Auto.OnBrowseAnswer() end)

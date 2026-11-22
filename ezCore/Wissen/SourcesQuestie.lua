@@ -22,9 +22,11 @@ local Core = ezCore
       Quest:  name, questLevel
     Nur für die Spawns je Karte (Welle 27) zusätzlich – fehlen sie, bleibt die übrige Quelle „ok“, nur der Teil meldet
     „shape“: Npc.GetAllIds, Object.GetAllIds (Q.Spawns) und Quest.objectives, startedBy, finishedBy (Q.QuestTargets).
-    Ob die Koordinaten in den vier Zonen mit geänderter Karte schon umgerechnet sind, ist [unbestätigt] (DG-13):
+    Ob die Koordinaten in den vier Zonen mit geänderter Karte schon umgerechnet sind, war [unbestätigt] (DG-13):
     LibQuestieDB.EraToForever ist deshalb ab Werk nicht angewandt – Schalter Q.ERA_TO_FOREVER (false), eine Stelle
-    Q.Forever für „Woher?“ und die Spawns.
+    Q.Forever für „Woher?“ und die Spawns. Spieltest vom 22.11.2026 in Sturmwind bestätigt das: neben „Auktionator
+    Jaxon“ (15659) stand der Spieler bei 62,4 / 70,3, QuestieDB nennt 61,2 / 70,7, EraToForever ergäbe 67,0 / 79,1 –
+    QuestieDB liefert dort schon Forever-Koordinaten.
 
       Core.Sources.Questie.Ready()        → true | false, "missing" | "shape" (wirft, wenn RequireContract wirft)
       Core.Sources.Questie.CONTRACT       Vertragsnummer, gegen die gebaut ist (4)
@@ -34,9 +36,15 @@ local Core = ezCore
                                           für den gefragten Gegner, nur über Gegenstände, die der Client dir schon
                                           gezeigt hat (cache.item, höchstens LOOT_SCAN), nichts gemerkt.
       Core.Sources.Questie.Register()     meldet die Quelle (neu) an – nach dem Umlegen von LOOT
+      Core.Sources.Questie.Contents(art, id) → Inhalt eines Behälters bzw. einer Kiste (Umkehr-Index, unten)
       Core.Sources.Questie.Exists(art, id) → true | false | nil (Item, Npc, Object, Quest; nil = keine Antwort)
-      Core.Sources.Questie.MapForArea(areaID) → uiMapID | nil   Zuordnung über den Namen laut Client (C_Map), nur im
-                                          Arbeitsspeicher (QuestieDB gruppiert Fundorte nach Gebiets-ID)
+      Core.Sources.Questie.MapForArea(areaID) → uiMapID | nil[, später]   Zuordnung über den Namen laut Client (C_Map),
+                                          passt kein Name: QuestieDBs Zuordnung (LibQuestieDB.Support, als Text
+                                          gelesen, nicht ausgeführt), dann Questies ZoneDB:GetUiMapIdByAreaId (seit
+                                          22.11.2026, Sturmwind; nur Zonen); nur im Arbeitsspeicher (QuestieDB gruppiert
+                                          Fundorte nach Gebiets-ID). später = true: Questie noch nicht bereit, nicht
+                                          merken. Die Indizes (Spawns, Stadtbewohner) baut ezCore einmal je Sitzung: was
+                                          beim Bau „später“ war, fehlt dort bis /reload bzw. ForgetSpawns/ForgetTownsfolk.
     Erkennung: Core.OTHER_ADDONS.QuestieDB (Ordner „QuestieDB“; läuft auch ohne Questie), ezCore.toc nennt es nur
     unter OptionalDeps (jedes Modul läuft allein).
 ]]
@@ -166,11 +174,113 @@ local function BuildMaps()
     end
 end
 
+-- Karte im Client eine Zone? (wie BuildMaps; Dungeon-, Kontinent- und Kleinkarten nicht)
+local function IsZoneMap(map)
+    local info = Core.Call(Field(rawget(_G, "C_Map"), "GetMapInfo"), map)
+    local mapType = type(info) == "table" and not Core.IsSecret(info) and Num(Field(info, "mapType")) or nil
+    return mapType == 3                                      -- 3 = Enum.UIMapType.Zone
+end
+
+-- Zweite Quelle, wenn die Namen nicht passen (Leitlinie 11: zuerst der Client, dann die Datenbank eines installierten
+-- Addons zur Laufzeit). Spielbefund vom 22.11.2026: Gebiet 1519 heißt im deutschen Client „Sturmwind“, die neue Karte
+-- 1453 von WoW Forever aber „Stormwind“ – ohne diese Quelle fehlten alle Stadtbewohner Sturmwinds laut Questie.
+-- Questies eigene Zuordnung: ZoneDB:GetUiMapIdByAreaId (Questie/Database/Zones/zoneDB.lua, gelesen nach Questies
+-- LICENSE.md; nur aufgerufen, nichts kopiert). Nur, wenn Questie geladen ist – QuestieLoader:ImportModule legte sonst ein
+-- leeres Modul in Questies Tabelle an. Die Karte muss im Client eine Zone sein (mapType 3, wie BuildMaps): Questies
+-- Forever-Daten ordnen Dungeon-Gebiete Dungeon-Karten zu, deren Koordinaten laut QuestieDB nicht zu diesen Karten
+-- gehören (Fund des code-reviewers vom 22.11.2026). Questie schreibt bei jedem Fehlschlag eine Debug-Zeile – im Chat nur
+-- mit Questies eigener Debug-Ausgabe. Wirft Questie (Tabelle noch nicht geladen, Start fehlgeschlagen), fragt ezCore
+-- Q.ZONE_RETRY Sekunden nicht erneut (sonst je Spawn im Index ein pcall); Q.ForgetSpawns/ForgetTownsfolk setzen das zurück.
+-- → Karte | nil, später (true: Questie noch nicht bereit – das Ergebnis nicht merken)
+Q.ZONE_MODULE = "ZoneDB"
+Q.ZONE_RETRY = 5
+local zoneLaterUntil = 0               -- Core.Uptime(): bis dahin Questies Zuordnung nicht fragen
+local function QuestieZoneMap(areaID)
+    if Core.Uptime() < zoneLaterUntil then return nil, true end
+    local loader = rawget(_G, "QuestieLoader")
+    if type(loader) ~= "table" or Core.IsSecret(loader) or type(loader.ImportModule) ~= "function" then return nil end
+    if not Core.IsLoaded("Questie") then return nil end
+    local ok, zoneDB = pcall(loader.ImportModule, loader, Q.ZONE_MODULE)
+    local fn = ok and Field(zoneDB, "GetUiMapIdByAreaId") or nil
+    if type(fn) ~= "function" then return nil end
+    local okMap, map = pcall(fn, zoneDB, areaID)
+    if not okMap then                                -- Questies Tabelle noch nicht geladen (Initialize steht aus)
+        zoneLaterUntil = Core.Uptime() + Q.ZONE_RETRY
+        return nil, true
+    end
+    map = ID(map)
+    if not map or not IsZoneMap(map) then return nil end
+    return map
+end
+
+-- Zweite Quelle auch ohne das Addon Questie (Auftrag des Nutzers vom 22.11.2026: „ok dann schließe die lücke noch“):
+-- QuestieDB veröffentlicht dieselbe Zuordnung für Verbraucher über sein öffentliches Feld LibQuestieDB.Support
+-- (Types/LibQuestieDB.t.lua „Support table Whole-table support data“; src/support/data.lua:
+-- Support.Get("ZoneDB").private.areaIdToUiMapId und …Override, gelesen nach QuestieDBs LICENSE.md). Die Werte sind
+-- Text der Form „return { [Gebiet] = Karte, … }“. ezCore führt ihn nicht aus (wie Serialize.lua: kein loadstring),
+-- sondern liest nur die Paare „[Zahl] = Zahl“, Kommentare entfernt; erst die Grundtabelle, dann die Überschreibungen
+-- (0 = bei Questie unterdrückt). Jede Karte prüft danach der Client (nur Zonen). Einmal je Sitzung gelesen, nur im
+-- Arbeitsspeicher; Q.ForgetSpawns/ForgetTownsfolk lesen neu.
+local supportZones                     -- [Gebiet] = Karte | false (nicht lesbar) | nil (noch nicht gelesen)
+
+local function SupportPairs(value, into)
+    if type(value) == "table" and not Core.IsSecret(value) then         -- schon entschlüsselt (künftige Fassung)
+        local found = false
+        for area, map in pairs(value) do
+            local a = ID(area)
+            if a then
+                into[a] = ID(map) or false
+                found = true
+            end
+        end
+        return found
+    end
+    if type(value) ~= "string" or Core.IsSecret(value) then return false end
+    -- Kommentare weg: erst Blockkommentare (--[[ … ]], --[=[ … ]=]), dann bis Zeilenende; ein „--“ in einem Text kann
+    -- so nur Paare kosten, nie falsche erzeugen (Fund des code-reviewers vom 22.11.2026)
+    local text = value:gsub("%-%-%[(=*)%[.-%]%1%]", ""):gsub("%-%-[^\n]*", "") .. "\n"
+    local found = false
+    -- nur ganze Zahlen mit Wortende dahinter (kein 0x…, 1453.5 oder verschachtelte Tabelle als Teilwert)
+    for area, map in text:gmatch("%[%s*(%d+)%s*%]%s*=%s*(%d+)%s*[,}\n]") do
+        local a = ID(tonumber(area))
+        if a then
+            into[a] = ID(tonumber(map)) or false
+            found = true
+        end
+    end
+    return found
+end
+
+local function SupportZones()
+    if supportZones ~= nil then return supportZones end
+    local support = Field(Lib(), "Support")
+    local get = Field(support, "Get")
+    if type(get) ~= "function" then return nil end          -- QuestieDB (noch) nicht da: beim nächsten Mal wieder
+    local ok, zone = pcall(get, "ZoneDB")
+    local private = ok and Field(zone, "private") or nil
+    local out = {}
+    if not SupportPairs(Field(private, "areaIdToUiMapId"), out) then
+        supportZones = false
+        return false
+    end
+    SupportPairs(Field(private, "areaIdToUiMapIdOverride"), out)
+    supportZones = out
+    return out
+end
+
+-- Reihenfolge (Leitlinie 11): Name laut Client, dann QuestieDBs Zuordnung, zuletzt Questies ZoneDB.
+-- → Karte | nil, später (true: noch nicht merken – Questies Zuordnung war noch nicht bereit)
 function Q.MapForArea(areaID)
     local name = AreaName(areaID)
-    if not name then return nil end
-    if not mapByName then BuildMaps() end
-    return mapByName[name]
+    if name then
+        if not mapByName then BuildMaps() end
+        if mapByName[name] then return mapByName[name] end
+    end
+    if not ID(areaID) then return nil end
+    local zones = SupportZones()
+    local map = zones and zones[areaID] or nil
+    if map and IsZoneMap(map) then return map end
+    return QuestieZoneMap(areaID)
 end
 
 -- Koordinaten der vier Zonen mit geänderter Karte (Sturmwind, Mulgore, Rotkammgebirge, Östliche Pestländer): ob
@@ -387,7 +497,7 @@ Q.SPAWN_MAPS = 3           -- so viele gelesene Karten bleiben im Arbeitsspeiche
 Q.RARE_RANKS = { [2] = true, [4] = true }
 Q.ELITE_RANKS = { [1] = true, [2] = true, [3] = true }
 Q.SPAWN_KINDS = { "npc", "object" }
-local KIND_OF = { npc = "Npc", object = "Object" }
+local KIND_OF = { npc = "Npc", object = "Object", item = "Item" }   -- item: Inhalt von Behältern (Q.Contents)
 
 if Core.RegisterMessage then
     Core.RegisterMessage("QUESTIE_SPAWNS", "SourcesQuestie.lua", "Spawns laut Questie: die Einträge einer Karte "
@@ -403,8 +513,10 @@ local wanted                           -- zuletzt gefragte Karte
 local function MapOfArea(area)
     local map = areaMaps[area]
     if map == nil then
-        map = Q.MapForArea(area) or false
-        areaMaps[area] = map
+        local later
+        map, later = Q.MapForArea(area)
+        map = map or false
+        if map or not later then areaMaps[area] = map end    -- „nicht gefunden“ erst merken, wenn Questie antwortet
     end
     return map or nil
 end
@@ -599,8 +711,8 @@ local function StartMap(map)
     spawn.job = { map = map, ids = ids, pos = 1, result = result }
 end
 
--- Eine Scheibe Arbeit. → true, wenn noch etwas aussteht
-local function Work()
+-- Eine Scheibe Arbeit der Spawns. → true, wenn noch etwas aussteht
+local function SpawnWork()
     if spawn.state ~= "index" and not spawn.job then return false end
     local ok, done = pcall(function()
         if spawn.state == "index" then
@@ -628,6 +740,23 @@ local function Work()
     return spawn.state == "index" or spawn.job ~= nil
 end
 
+-- Erst die Spawns (Weltkarte), dann die Stadtbewohner (unten, TownWork) – ein Takt für beide, je Bild nur eine der
+-- beiden Arbeiten (sonst bis zu zweimal SPAWN_BUDGET in einem Bild; Fund des code-reviewers vom 22.11.2026)
+-- Danach der Index „Inhalt von Behältern“ (Q.Contents, 22.11.2026) – weiter nur eine Arbeit je Bild.
+local TownWork, TownPending, ContentsWork, ContentsPending
+local function ContentsLeft() return ContentsPending ~= nil and ContentsPending() or false end
+local function Work()
+    if spawn.state == "index" or spawn.job then
+        local more = SpawnWork()
+        return more or (TownPending ~= nil and TownPending()) or ContentsLeft()
+    end
+    if TownPending ~= nil and TownPending() then
+        local more = TownWork()
+        return more or ContentsLeft()
+    end
+    return ContentsWork ~= nil and ContentsWork() or false
+end
+
 local planned = false
 local Step
 local function Plan(seconds)
@@ -650,6 +779,7 @@ end
 
 function Q.ForgetSpawns()
     spawn, spawnMaps, spawnOrder, areaMaps, wanted = { state = "idle" }, {}, {}, {}, nil
+    zoneLaterUntil, supportZones = 0, nil
 end
 
 function Q.SpawnState()
@@ -765,6 +895,493 @@ function Q.Spawns(mapID, opts)
     if raw then return Filtered(raw, opts) end
     Plan(0)
     return nil, "building", spawn.job.pos - 1, #spawn.job.ids
+end
+
+---------------------------------------------------------------------------
+-- Stadtbewohner laut Questie: Lehrer, Händler, Reparierer (22.11.2026)
+---------------------------------------------------------------------------
+--[[
+    Entscheidung des Nutzers vom 22.11.2026 auf „Lehrer- und Händlerlisten zur Laufzeit aus Questie füllen?“: „Ja,
+    Questie zuerst“ (dazu: „und noch waffenmeister“). Die Lehrer- und Händlerlisten (Core.Npcs, ezMap) füllen sich vor
+    dem ersten Besuch – laut Questie, nur zur Laufzeit, nichts gespeichert (Leitlinien 10, 11).
+
+    Belegt an QuestieDBs öffentlichen Typen (Types/Npc.t.lua: subName, npcFlags „NPC flag bitmask“, friendlyToFaction
+    "A" | "H" | "AH"; Types/LibQuestieDB.t.lua: Enum „Shared constants exposed to consumers“; gelesen am 22.11.2026 nach
+    LICENSE.md). Die Bits der Rollen kommen zur Laufzeit aus LibQuestieDB.Enum.npcFlags (passend zur Spielversion,
+    Namen in Q.TOWN_ROLES) – ezCore führt keine eigene Tabelle.
+
+    Index: einmal über Npc.GetAllIds in Scheiben (derselbe Takt wie die Spawns, nach ihnen; je ID nur npcFlags, bei
+    einer der Rollen dazu spawns); er merkt nur IDs mit einer der Rollen, je Karte. Lesen je Karte: name, subName,
+    friendlyToFaction und der erste Punkt auf dieser Karte; die letzten Q.TOWN_MAPS Karten bleiben im Arbeitsspeicher.
+
+      Q.TownsfolkReady() → true | false, grund ("missing" | "shape" | "error") – liest nichts, baut keinen Index
+      Q.Townsfolk(mapID) → antwort | nil, grund[, fertig, gesamt]
+          grund wie bei Q.Spawns ("building": die Nachricht QUESTIE_TOWNSFOLK (karte | nil, zustand) meldet das Ende)
+          antwort = { map, list = { eintrag … }, source = "Questie", sourceKey = "QuestieDB" } – nur lesen
+          eintrag = { id, name, title (subName oder nil), trainer, vendor, repair, innkeeper, banker, auctioneer,
+                      stablemaster, battlemaster (true | nil; die weiteren nur, wenn das Enum sie kennt), faction ("Alliance" |
+                      "Horde" | nil = beide), hostile (true: friendlyToFaction fehlt – laut Typ keiner Spielerfraktion
+                      freundlich; Core.Npcs.Fits lässt ihn weg), map, x, y (0–1) }
+      Q.ForgetTownsfolk() – Index und Karten verwerfen; Q.SpawnsFinish() erledigt auch diese Arbeit (Prüfungen)
+    Fehlen die Lesefunktionen oder das Enum, meldet nur dieser Teil "shape"; die übrige Quelle bleibt „ok“.
+]]
+Q.TOWN_ROLES = { trainer = "TRAINER", vendor = "VENDOR", repair = "REPAIR" }
+-- Weitere Rollen für die Pfeile an Blizzards Haken im Menü „Aufspüren“ (Entscheidung des Nutzers vom 22.11.2026:
+-- „ok“ auf Gastwirt, Stallmeister, Auktionator, Bankier, Kampfmeister). Wahlweise: fehlt eine im Enum oder ist sie keine
+-- Zweierpotenz, fehlt nur diese Rolle – der Teil bleibt „ok“.
+Q.TOWN_EXTRA_ROLES = { innkeeper = "INNKEEPER", banker = "BANKER", auctioneer = "AUCTIONEER",
+    stablemaster = "STABLEMASTER", battlemaster = "BATTLEMASTER" }
+Q.TOWN_SLICE = 500         -- IDs je Bild beim Aufbau des Index (je ID nur npcFlags)
+Q.TOWN_MAP_SLICE = 60      -- IDs je Bild beim Lesen einer Karte
+Q.TOWN_MAPS = 60           -- so viele gelesene Karten bleiben im Arbeitsspeicher: alle Zonen von zwei Kontinenten
+                           -- (ezMap fragt je Menü alle Zonen deines Kontinents; weniger hieße: immer neu lesen)
+Q.TOWN_FIELDS = { "GetAllIds", "npcFlags", "spawns", "name", "subName", "friendlyToFaction" }
+
+if Core.RegisterMessage then
+    Core.RegisterMessage("QUESTIE_TOWNSFOLK", "SourcesQuestie.lua", "Lehrer und Händler laut Questie: die Einträge "
+        .. "einer Karte sind gelesen (karte, \"ready\"), der Index ist fertig (nil, \"index\") oder QuestieDB antwortet "
+        .. "nicht wie erwartet (nil, \"shape\" | \"error\").", "karte | nil, zustand")
+end
+
+local town = { state = "idle" }
+local townMaps, townOrder = {}, {}
+local townWanted = {}                  -- gefragte Karten, die nach dem Index der Reihe nach gelesen werden
+
+-- Bits der Rollen aus QuestieDBs Enum: jede eine Zweierpotenz, sonst falsche Form. → { trainer = bit, … } oder nil
+local function PowerOfTwo(v)
+    if not v then return false end
+    local p = 1
+    while p < v do p = p * 2 end
+    return p == v
+end
+
+local function TownBits(lib)
+    local enum = Field(Field(lib, "Enum"), "npcFlags")
+    if type(enum) ~= "table" or Core.IsSecret(enum) then return nil end
+    local bits = {}
+    for role, name in pairs(Q.TOWN_ROLES) do
+        local v = ID(Field(enum, name))
+        if not PowerOfTwo(v) then return nil end
+        bits[role] = v
+    end
+    for role, name in pairs(Q.TOWN_EXTRA_ROLES) do
+        local v = ID(Field(enum, name))
+        if PowerOfTwo(v) then bits[role] = v end
+    end
+    return bits
+end
+
+local function HasBit(flags, bit) return math.floor(flags / bit) % 2 == 1 end
+
+function Q.TownsfolkReady()
+    local okReady, ready, why = pcall(Q.Ready)
+    if not okReady then return false, "error" end
+    if ready ~= true then return false, why or "shape" end
+    local lib = Lib()
+    for _, field in ipairs(Q.TOWN_FIELDS) do
+        if not Reader(lib, "Npc", field) then return false, "shape" end
+    end
+    if not TownBits(lib) then return false, "shape" end
+    if town.lib == lib and (town.state == "shape" or town.state == "error") then return false, town.state end
+    return true
+end
+
+local function TownFire(map, state) Core.Fire("QUESTIE_TOWNSFOLK", map, state) end
+
+local function TownFail(reason, err)
+    town = { state = reason, lib = town.lib }
+    townWanted = {}
+    if reason == "error" then Core.Error(Core.name, err, "Questie.Townsfolk") end
+    TownFire(nil, reason)
+end
+
+function Q.ForgetTownsfolk()
+    town, townMaps, townOrder, townWanted = { state = "idle" }, {}, {}, {}
+    zoneLaterUntil, supportZones = 0, nil
+end
+
+local function TownIndexSlice()
+    local idx, start, n = town, SliceMillis(), 0
+    while idx.pos <= idx.len do
+        local id = ID(Field(idx.list, idx.pos))
+        idx.pos, idx.done, n = idx.pos + 1, idx.done + 1, n + 1
+        local okRead, flags = true, nil
+        if id then okRead, flags = pcall(Read, "Npc", "npcFlags", id) end
+        if not okRead then
+            Broken(idx, idx.done, flags)
+        elseif type(flags) == "number" and flags > 0 then
+            local roles
+            for role, bit in pairs(idx.bits) do
+                if HasBit(flags, bit) then
+                    roles = roles or {}
+                    roles[role] = true
+                end
+            end
+            if roles then
+                local okSpawns, spawns = pcall(Read, "Npc", "spawns", id)
+                if not okSpawns then
+                    Broken(idx, idx.done, spawns)
+                elseif type(spawns) == "table" then
+                    idx.roles[id] = roles
+                    for area, points in pairs(spawns) do
+                        local map = ID(area) and type(points) == "table" and MapOfArea(area) or nil
+                        if map then
+                            local at = idx.byMap[map]
+                            if not at then
+                                at = {}
+                                idx.byMap[map] = at
+                            end
+                            if at[#at] ~= id then at[#at + 1] = id end
+                        end
+                    end
+                end
+            end
+        elseif flags ~= nil and type(flags) ~= "number" then
+            idx.skipped = idx.skipped + 1
+        end
+        if Over(start, n, Q.TOWN_SLICE) then return false end
+    end
+    return true
+end
+
+local FACTION = { A = "Alliance", H = "Horde" }
+
+-- Ein Eintrag der Karte map (nil: ohne Namen oder ohne Punkt auf dieser Karte)
+local function TownEntry(id, map, roles)
+    local name = Text(Read("Npc", "name", id))
+    if not name then return nil end
+    local spawns = Read("Npc", "spawns", id)
+    if type(spawns) ~= "table" then return nil end
+    local x, y
+    for area, list in pairs(spawns) do
+        if ID(area) and type(list) == "table" and MapOfArea(area) == map then
+            for i = 1, #list do
+                local p = list[i]
+                local px, py = Num(Field(p, 1)), Num(Field(p, 2))
+                if px and py and px >= 0 and py >= 0 and px <= 100 and py <= 100 then   -- (-1, -1): Ort unbekannt
+                    px, py = Q.Forever(area, px, py)
+                    x, y = px / 100, py / 100
+                    break
+                end
+            end
+        end
+        if x then break end
+    end
+    if not x then return nil end
+    local friendly = Read("Npc", "friendlyToFaction", id)
+    local e = { id = id, name = name, title = Text(Read("Npc", "subName", id)), faction = FACTION[friendly],
+        hostile = friendly == nil or nil, map = map, x = x, y = y }
+    for role in pairs(roles) do e[role] = true end       -- trainer, vendor, repair und die weiteren Rollen
+    return e
+end
+
+-- Zuletzt benutzte Karte nach hinten (verdrängt wird die am längsten nicht gefragte, nicht die zuerst gelesene)
+local function TownTouch(map)
+    for i = #townOrder, 1, -1 do
+        if townOrder[i] == map then
+            table.remove(townOrder, i)
+            break
+        end
+    end
+    townOrder[#townOrder + 1] = map
+end
+
+local function TownStore(result)
+    local map = result.map
+    TownTouch(map)
+    townMaps[map] = result
+    while #townOrder > Q.TOWN_MAPS do
+        townMaps[table.remove(townOrder, 1)] = nil
+    end
+end
+
+-- Karte in Arbeit nehmen → true, wenn Einträge zu lesen sind (ohne IDs ist sie sofort fertig und leer)
+local function TownStartMap(map)
+    local ids = town.byMap and town.byMap[map] or {}
+    local result = { map = map, list = {}, source = "Questie", sourceKey = "QuestieDB", skipped = 0, failed = 0 }
+    if #ids == 0 then
+        TownStore(result)
+        return false
+    end
+    town.job = { map = map, ids = ids, pos = 1, result = result }
+    return true
+end
+
+local function TownMapSlice(job)
+    local start, n, result = SliceMillis(), 0, job.result
+    while job.pos <= #job.ids do
+        local id = job.ids[job.pos]
+        job.pos, n = job.pos + 1, n + 1
+        local okEntry, e = pcall(TownEntry, id, job.map, town.roles[id] or {})
+        if not okEntry then
+            Broken(result, job.pos - 1, e)
+        elseif e then
+            result.list[#result.list + 1] = e
+        end
+        if Over(start, n, Q.TOWN_MAP_SLICE) and job.pos <= #job.ids then return false end
+    end
+    table.sort(result.list, function(a, b)
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
+    return true
+end
+
+-- Die nächste gefragte Karte, die noch fehlt, in Arbeit nehmen → true, wenn eine läuft
+local function TownNext()
+    if town.job then return true end      -- ein Empfänger von QUESTIE_TOWNSFOLK hat schon eine Karte angestoßen
+    while #townWanted > 0 do
+        local map = table.remove(townWanted, 1)
+        if not townMaps[map] and TownStartMap(map) then return true end
+        if townMaps[map] then TownFire(map, "ready") end
+    end
+    return false
+end
+
+TownPending = function() return town.state == "index" or town.job ~= nil end
+
+TownWork = function()
+    if not TownPending() then return false end
+    local ok, done = pcall(function()
+        if town.state == "index" then
+            if not TownIndexSlice() then return nil end
+            town.state, town.list = "ready", nil
+            return "index"
+        end
+        if not TownMapSlice(town.job) then return nil end
+        local result = town.job.result
+        town.job = nil
+        TownStore(result)
+        return result.map
+    end)
+    if not ok then
+        if done == SHAPE then TownFail("shape") else TownFail("error", done) end
+        return false
+    end
+    if done == "index" then
+        TownFire(nil, "index")
+        TownNext()
+    elseif done then
+        TownFire(done, "ready")
+        TownNext()
+    end
+    return town.state == "index" or town.job ~= nil
+end
+
+local function TownStartIndex(lib)
+    local ok, err = pcall(function()
+        local list, n = AllIds(lib, "npc")
+        if n == 0 then error(SHAPE, 0) end
+        town = { state = "index", lib = lib, list = list, len = n, pos = 1, done = 0, total = n, skipped = 0,
+            failed = 0, byMap = {}, roles = {}, bits = TownBits(lib) }
+    end)
+    if not ok then
+        town.lib = lib
+        if err == SHAPE then TownFail("shape") else TownFail("error", err) end
+        return
+    end
+    Plan(0)
+end
+
+function Q.Townsfolk(mapID)
+    mapID = ID(mapID)
+    if not mapID then return nil, "map" end
+    local lib = Lib()
+    if lib and town.lib ~= nil and town.lib ~= lib then Q.ForgetTownsfolk() end   -- neues Global: neu aufbauen
+    local ok, why = Q.TownsfolkReady()
+    if not ok then return nil, why end
+    local raw = townMaps[mapID]
+    if raw then
+        TownTouch(mapID)
+        return raw
+    end
+    if town.state == "idle" then TownStartIndex(lib) end
+    if town.state ~= "index" and town.state ~= "ready" then return nil, town.state end
+    local queued = town.job ~= nil and town.job.map == mapID
+    for _, m in ipairs(townWanted) do
+        if m == mapID then queued = true end
+    end
+    if not queued then townWanted[#townWanted + 1] = mapID end
+    if town.state == "ready" and not town.job then TownNext() end
+    raw = townMaps[mapID]
+    if raw then return raw end
+    Plan(0)
+    if town.state == "index" then return nil, "building", town.done, town.total end
+    if town.job and town.job.map == mapID then return nil, "building", town.job.pos - 1, #town.job.ids end
+    return nil, "building"          -- wartet hinter einer anderen Karte (kein Fortschritt dieser Karte bekannt)
+end
+
+--[[
+    Inhalt von Behältern und Kisten laut Questie (Entscheidung des Nutzers vom 22.11.2026, wörtlich: „zusätzlich „laut
+    Questie““; Anzeige in ezLoot, Contents.lua). QuestieDB kennt nur die Richtung Gegenstand » Quelle (Types/Item.t.lua:
+    itemDrops „Items that contain this item“, objectDrops „Objects that drop this item“, GetAllIds; gelesen am
+    22.11.2026 nach LICENSE.md). Die Umkehr Quelle » Inhalt baut ezCore einmal als Index im Arbeitsspeicher: über
+    Item.GetAllIds in Scheiben (derselbe Takt wie Spawns und Stadtbewohner, nach ihnen; je ID nur itemDrops und
+    objectDrops). Gemerkt werden nur IDs (Behälter bzw. Objekt » Gegenstände), nichts gespeichert, nichts kopiert
+    (Leitlinie 10). QuestieDB führt vor allem Quest-Gegenstände – die Liste ist nie vollständig und nennt keine Chance.
+
+      Q.ContentsReady() → true | false, grund ("missing" | "shape" | "error") – liest nichts, baut keinen Index
+      Q.Contents(kind, id) → antwort | nil, grund[, fertig, gesamt]
+          kind = "item" (Behälter in der Tasche) | "object" (Kiste in der Welt); grund "building" (Index läuft; die
+          Nachricht QUESTIE_CONTENTS (nil, zustand) meldet das Ende), "missing", "shape", "error", "none"
+          antwort = { kind, id, items = { { id, listed = true } … } (höchstens Q.CONTENTS_MAX), n (alle sichtbaren,
+          ohne verschleierte), listed = true, source = "Questie", sourceKey = "QuestieDB" } – nur lesen
+          Verschleierte Gegenstände (der Client kennt sie nicht, nicht enthüllt) nur mit Entdecker-Wissen (DG-18)
+      Q.ContentsState() → zustand, fertig, gesamt
+      Q.ForgetContents() – Index verwerfen; Q.SpawnsFinish() erledigt auch diese Arbeit (Prüfungen)
+    Fehlen die Lesefunktionen, meldet nur dieser Teil "shape"; die übrige Quelle bleibt „ok“.
+]]
+Q.CONTENTS_SLICE = 500     -- IDs je Bild beim Aufbau des Index (je ID itemDrops und objectDrops)
+Q.CONTENTS_MAX = 40        -- höchstens so viele Gegenstände je Antwort
+Q.CONTENTS_FIELDS = { "GetAllIds", "itemDrops", "objectDrops" }
+local BOX_LISTS = { item = "byItem", object = "byObject" }
+
+if Core.RegisterMessage then
+    Core.RegisterMessage("QUESTIE_CONTENTS", "SourcesQuestie.lua", "Inhalt von Behältern und Kisten laut Questie: der "
+        .. "Index ist fertig (nil, \"index\") oder QuestieDB antwortet nicht wie erwartet (nil, \"shape\" | \"error\").",
+        "nil, zustand")
+end
+
+local box = { state = "idle" }
+
+function Q.ContentsReady()
+    local okReady, ready, why = pcall(Q.Ready)
+    if not okReady then return false, "error" end
+    if ready ~= true then return false, why or "shape" end
+    local lib = Lib()
+    for _, field in ipairs(Q.CONTENTS_FIELDS) do
+        if not Reader(lib, "Item", field) then return false, "shape" end
+    end
+    if box.lib == lib and (box.state == "shape" or box.state == "error") then return false, box.state end
+    return true
+end
+
+local function BoxFire(state) Core.Fire("QUESTIE_CONTENTS", nil, state) end
+
+local function BoxFail(reason, err)
+    box = { state = reason, lib = box.lib }
+    if reason == "error" then Core.Error(Core.name, err, "Questie.Contents") end
+    BoxFire(reason)
+end
+
+function Q.ForgetContents() box = { state = "idle" } end
+
+-- Quellen einer Liste (itemDrops bzw. objectDrops eines Gegenstands) in den Index: Quelle » Gegenstand. Ein
+-- unbrauchbarer Eintrag wird übersprungen und gezählt.
+local function BoxAdd(idx, value, map, itemID)
+    if value == nil then return end
+    if type(value) ~= "table" then
+        idx.skipped = idx.skipped + 1
+        return
+    end
+    for i = 1, #value do
+        local src = ID(Field(value, i))
+        if src then
+            local list = map[src]
+            if not list then
+                list = {}
+                map[src] = list
+            end
+            if list[#list] ~= itemID then list[#list + 1] = itemID end
+        else
+            idx.skipped = idx.skipped + 1
+        end
+    end
+end
+
+local function BoxIndexSlice()
+    local idx, start, n = box, SliceMillis(), 0
+    while idx.pos <= idx.len do
+        local id = ID(Field(idx.list, idx.pos))
+        idx.pos, idx.done, n = idx.pos + 1, idx.done + 1, n + 1
+        if not id then
+            idx.skipped = idx.skipped + 1          -- Loch oder ungültige ID in der Liste (wie bei den Spawns)
+        else
+            local okItems, items = pcall(Read, "Item", "itemDrops", id)
+            local okObjects, objects = pcall(Read, "Item", "objectDrops", id)
+            if not okItems then
+                Broken(idx, idx.done, items)
+            elseif not okObjects then
+                Broken(idx, idx.done, objects)
+            else
+                BoxAdd(idx, items, idx.byItem, id)
+                BoxAdd(idx, objects, idx.byObject, id)
+            end
+        end
+        if Over(start, n, Q.CONTENTS_SLICE) then return false end
+    end
+    return true
+end
+
+ContentsPending = function() return box.state == "index" end
+
+ContentsWork = function()
+    if not ContentsPending() then return false end
+    local ok, done = pcall(BoxIndexSlice)
+    if not ok then
+        if done == SHAPE then BoxFail("shape") else BoxFail("error", done) end
+        return false
+    end
+    if not done then return true end
+    box.state, box.list = "ready", nil
+    BoxFire("index")
+    return false
+end
+
+local function BoxStartIndex(lib)
+    local ok, err = pcall(function()
+        local list, n = AllIds(lib, "item")
+        if n == 0 then error(SHAPE, 0) end
+        box = { state = "index", lib = lib, list = list, len = n, pos = 1, done = 0, total = n, skipped = 0,
+            failed = 0, byItem = {}, byObject = {} }
+    end)
+    if not ok then
+        box.lib = lib
+        if err == SHAPE then BoxFail("shape") else BoxFail("error", err) end
+        return
+    end
+    Plan(0)
+end
+
+function Q.ContentsState() return box.state, box.done, box.total end
+
+function Q.Contents(kind, id)
+    local field = BOX_LISTS[kind]
+    id = ID(id)
+    if not (field and id) then return nil, "none" end
+    local lib = Lib()
+    if lib and box.lib ~= nil and box.lib ~= lib then Q.ForgetContents() end   -- neues Global: neu aufbauen
+    local ok, why = Q.ContentsReady()
+    if not ok then return nil, why end
+    if box.state == "idle" then BoxStartIndex(lib) end
+    if box.state == "index" then
+        Plan(0)
+        return nil, "building", box.done, box.total
+    end
+    if box.state ~= "ready" then return nil, box.state end
+    local ids = box[field][id]
+    if not ids then return nil, "none" end
+    -- n zählt nur sichtbare Gegenstände: die Zahl verschleierter wäre schon Entdecker-Wissen (Gegenprüfung 22.11.2026)
+    local items, explorer, visible = {}, Explorer(), 0
+    for i = 1, #ids do
+        local itemID = ids[i]
+        if explorer or Sources.ClientKnowsItem(itemID) then
+            visible = visible + 1
+            if #items < Q.CONTENTS_MAX then items[#items + 1] = { id = itemID, listed = true } end
+        end
+    end
+    if #items == 0 then return nil, "none" end
+    return { kind = kind, id = id, items = items, n = visible, listed = true, source = "Questie", sourceKey = "QuestieDB" }
+end
+
+-- Auskunft für Core.Sources (contentsOf(id, kind)): läuft der Index noch oder ist nur dieser Teil kaputt (fehlende
+-- Lesefunktion, viele Fehler – steht schon in der Fehlerliste), hat die Quelle nicht nachgesehen ("skip"). Nie
+-- "shape": das kippte den Stand der ganzen Quelle in /ez status und Sources.Hint (Gegenprüfung 22.11.2026).
+local function ContentsOf(id, kind)
+    local result, why = Q.Contents(kind, id)
+    if result then return result end
+    if why == "none" then return nil end
+    return nil, "skip"
 end
 
 -- Gegner und Objekte einer Quest bzw. eines Gegenstands (für die Filter „nur für eine Quest“, „nur für einen
@@ -1031,6 +1648,7 @@ function Q.Register()
         ready = Q.Ready,
         whereFrom = WhereFrom,
         lootOf = Q.LOOT and LootOf or nil,
+        contentsOf = ContentsOf,
     })
 end
 Q.Register()

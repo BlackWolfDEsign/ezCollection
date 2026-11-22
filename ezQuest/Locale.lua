@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Stufe vor jeder Quest im Dialog\nAutomatisch annehmen und abgeben per Häkchen\nLeveling-Route, nach Stufe gewichtet\nQuest-Erfahrung als Vorschau auf der Leiste\nDungeon-Quests mit ihrem Eingang",
     TITLE = "ezQuest",
     -- Addon-Fach (Entscheidung 5 vom 18.11.2026): ezQuest hat kein eigenes Fenster – jeder Klick öffnet die
     -- Einstellungen; Zeilen, Hilfe-Kopf und Standardzeilen kommen aus ezCore.
@@ -84,6 +86,7 @@ local de = {
     HINT_AUTO = "Häkchen „Automatisch“: ezQuest nimmt Quests an und gibt fertige ab. Umschalt beim Ansprechen hält es an; Quests mit Gold-Kosten und die Wahl zwischen mehreren Belohnungen bleiben bei dir.",
     HINT_LEVEL = "Die Zahl in Klammern vor jeder Quest ist ihre Stufe, „+“ heißt Elite. Türkis hinterlegt sind Quests, die es erst in Forever gibt.",
     HINT_LOG = "Im Questlog sind neue Forever-Quests türkis hinterlegt. Fährst du mit der Maus über eine Dungeon-Quest, nennt der Tooltip den Dungeon, seine Stufen und den Eingang.",
+    HINT_LOG_ROUTE = "Im Zahnrad-Menü oben am Questlog startest du die Leveling-Route: Sie ordnet die Quests deines Logs nach Weg und Erfahrung, nach Stufe gewichtet; der Tooltip jedes Schritts sagt, warum er dort steht.",
     HINT_SORT = "Dieser Pfeil sortiert die Verfolgung nach Stufe, niedrigste zuerst. Klick schaltet es an und aus (auch %s).",
 
     -- Ergänzende Addons
@@ -196,6 +199,8 @@ local de = {
     OPT_HEADER_XP = "Erfahrungsleiste",
     OPT_HEADER_XP_TIP = "Blizzards Erfahrungsleiste unten am Bildschirm: ezQuest zeigt dort, wie weit dich deine Quests bringen. Nur Anzeige – die Leiste bleibt, wo sie ist.",
     OPT_xpPreview = "Quest-Erfahrung auf der Erfahrungsleiste",
+    OPT_xpTickFollow = "Erholungs-Marke rückt um die fertigen Quests weiter",
+    OPT_xpTickFollow_TIP = "Quest-Erfahrung verbraucht keine Erholung: nach der Abgabe beginnt deine Erholung erst hinter den fertigen Quests. ezQuest setzt Blizzards Marke darum ans Ende des blauen Stücks (außerhalb des Kampfes). Aus: die Marke bleibt, wo Blizzard sie setzt (dein Stand plus Erholung).",
     OPT_xpPreview_TIP = "Zeigt hinter dem Stand von Blizzards Erfahrungsleiste hell die Erfahrung deiner fertigen Quests und blass die aller Quests im Log. Maus über die Leiste: „nach Abgabe Stufe X, Y %“. Die Erfahrung je Quest nennt das Questlog; nennt es keine, bleibt die Leiste unverändert. Auf Höchststufe oder mit ausgeschalteter Erfahrung zeigt ezQuest nichts, ebenso wenn ein anderes Addon die Leiste ausblendet oder ersetzt.",
     -- Quests teilen (Share.lua; Wunsch des Nutzers vom 18.11.2026, ab Werk aus mit Hinweis)
     OPT_HEADER_SHARE = "Quests teilen",
@@ -231,8 +236,12 @@ local de = {
     XPP_LEGEND_HEAD = "Farben der Leiste",
     XPP_LEG_XP = "deine Erfahrung auf dieser Stufe",
     XPP_LEG_XP_RESTED = "deine Erfahrung – du bist erholt: Monster geben mehr Erfahrung",
-    XPP_LEG_REST = "bis zur Marke reicht deine Erholung noch",
-    XPP_LEG_REST_OVER = "deine Erholung reicht über diese Stufe hinaus",
+    XPP_LEG_REST = "dunkelblau: so weit reicht deine Erholung",
+    XPP_LEG_REST_AFTER = "dunkelblau: deine Erholung – sie beginnt nach den fertigen Quests, denn Quest-Erfahrung verbraucht keine Erholung",
+    XPP_LEG_REST_OVER = " – sie reicht über diese Stufe hinaus",
+    XPP_LEG_REST_NEXT = "dunkelblau: nach der Abgabe der fertigen Quests beginnt deine Erholung erst auf der nächsten Stufe",
+    XPP_LEG_TICK = "Blizzards Marke: Ende der Erholung, wenn du die fertigen Quests nicht abgibst",
+    XPP_LEG_TICK_MOVED = "Marke: Ende deiner Erholung nach der Abgabe – ezQuest rückt Blizzards Marke um die fertigen Quests weiter",
     XPP_LEG_DONE = "kräftig: Erfahrung der fertigen Quests (die Abgabe bringt sie sofort)",
     XPP_LEG_ALL = "blass: Erfahrung aller Quests im Log zusammen",
     XPP_STATUS = "Erfahrungsleiste: fertige Quests %s EP, alle Quests %s EP",
@@ -405,6 +414,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Level before every quest in the dialog\nAccept and turn in automatically with a tick\nLevelling route weighted by level\nQuest experience previewed on the bar\nDungeon quests with their entrance",
     TITLE = "ezQuest",
     CMD_HELP_OWN = {
         "  %s auto – accept and turn in automatically on/off",
@@ -473,6 +483,7 @@ local en = {
     HINT_AUTO = "\"Automatic\" checkbox: ezQuest accepts quests and turns in finished ones. Hold Shift while talking to pause; quests that cost gold and choosing between several rewards stay with you.",
     HINT_LEVEL = "The number in brackets before each quest is its level, \"+\" means elite. Quests with a teal background are new in Forever.",
     HINT_LOG = "In the quest log, new Forever quests have a teal background. Hover a dungeon quest and the tooltip names the dungeon, its levels and the entrance.",
+    HINT_LOG_ROUTE = "In the gear menu at the top of the quest log you start the levelling route: it orders the quests in your log by way and experience, weighted by level; the tooltip of each step says why it is there.",
     HINT_SORT = "This arrow sorts the tracker by level, lowest first. Click to turn it on and off (also %s).",
 
     COMPANION_WHY_QUESTIE = "Shows quests, quest givers and objectives on the map and minimap. ezQuest deliberately does not rebuild that and adds to Questie: the level in NPC dialogs, the sorted tracker, the tint for new Forever quests and the quest items for ezBag.",
@@ -581,6 +592,8 @@ local en = {
     OPT_HEADER_XP = "Experience bar",
     OPT_HEADER_XP_TIP = "Blizzard's experience bar at the bottom of the screen: ezQuest shows there how far your quests will take you. Display only – the bar stays where it is.",
     OPT_xpPreview = "Quest experience on the experience bar",
+    OPT_xpTickFollow = "Rested marker moves on by the finished quests",
+    OPT_xpTickFollow_TIP = "Quest experience does not use up your rested bonus: after turn-in it only starts behind the finished quests. So ezQuest moves Blizzard's marker to the end of the blue part (out of combat). Off: the marker stays where Blizzard puts it (your experience plus rested bonus).",
     OPT_xpPreview_TIP = "Shows, behind the fill of Blizzard's experience bar, the experience of your finished quests in a bright shade and that of all quests in your log in a pale one. Hover over the bar: \"after turn-in level X, Y%\". The experience per quest comes from the quest log; if it gives none, the bar stays unchanged. At the level cap or with experience turned off ezQuest shows nothing, nor when another addon hides or replaces the bar.",
     OPT_HEADER_SHARE = "Sharing quests",
     OPT_autoShare = "Share accepted quests automatically",
@@ -615,8 +628,12 @@ local en = {
     XPP_LEGEND_HEAD = "Colours of the bar",
     XPP_LEG_XP = "your experience on this level",
     XPP_LEG_XP_RESTED = "your experience – you are rested: monsters give more experience",
-    XPP_LEG_REST = "your rested bonus lasts up to the marker",
-    XPP_LEG_REST_OVER = "your rested bonus lasts beyond this level",
+    XPP_LEG_REST = "dark blue: how far your rested bonus lasts",
+    XPP_LEG_REST_AFTER = "dark blue: your rested bonus – it starts after the finished quests, as quest experience does not use it up",
+    XPP_LEG_REST_OVER = " – it lasts beyond this level",
+    XPP_LEG_REST_NEXT = "dark blue: after turning in the finished quests your rested bonus only starts on the next level",
+    XPP_LEG_TICK = "Blizzard's marker: end of your rested bonus if you do not turn in the finished quests",
+    XPP_LEG_TICK_MOVED = "Marker: end of your rested bonus after turn-in – ezQuest moves Blizzard's marker on by the finished quests",
     XPP_LEG_DONE = "strong: experience of finished quests (turning them in gives it at once)",
     XPP_LEG_ALL = "pale: experience of all quests in your log together",
     XPP_STATUS = "Experience bar: finished quests %s XP, all quests %s XP",

@@ -28,7 +28,7 @@ local function Register()
     -- „Automatisch ausblenden“, „Im Kampf ausblenden“ und „Platz oben freihalten“ wirken nur mit „Leiste anzeigen“
     -- (Bar.lua: UpdateBarVisibility, ReservedHeight) – grau, solange sie aus ist (Querschnitt „Unterschalter ausgrauen“, Einstellungs-Prüfung 19.11.2026)
     local UNDER_BAR = { autoHideTop = true, hideInCombat = true, reserveTop = true }
-    for _, key in ipairs({ "topBar", "autoHideTop", "hideInCombat", "reserveTop", "viewport", "locked", "tooltipsInCombat" }) do
+    for _, key in ipairs({ "topBar", "autoHideTop", "hideInCombat", "reserveTop", "viewport", "locked", "tooltipsInCombat", "tipAlts" }) do
         page:Checkbox(key, nil, UNDER_BAR[key] and { parent = "topBar" } or nil)
     end
 

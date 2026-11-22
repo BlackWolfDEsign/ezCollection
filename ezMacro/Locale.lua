@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Makro-Namen und -Beschreibungen stehen zweisprachig direkt in Data\*.lua.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Fertige Makros je Klasse und Volk\nEin-Klick: Essen, Reittier, Durchbuffen\nGift, Waffenzauber, Stein oder Öl je Hand\nEmotes und Ansagen im Reiter Chat\nAngeln mit eigener Taste\nRänge aktualisieren, lange Makros",
     TITLE = "ezMacro",
 
     TAB_class = "Klasse",
@@ -969,6 +971,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Ready macros per class and race\nOne-click: food, mount, buff group\nPoison, imbue, stone or oil per hand\nEmotes and announcements in the Chat tab\nFishing on its own key\nUpdate ranks, long macros",
     TITLE = "ezMacro",
 
     TAB_class = "Class",

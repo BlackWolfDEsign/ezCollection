@@ -27,8 +27,8 @@ local Core = ezCore
       Tree.AddMenu(root, id) → dieselbe Gliederung als Untermenüs (Blizzards Menü-API über Core.Menu)
       Tree.AddSettings(page) → Abschnitt der Einstellungsseite (Gruppen als Auswahl an/aus/teilweise, Blätter als Haken)
       Tree.Icon(id) → Symbol (Icons.DEF, sonst das der Gruppe darüber), Tree.Source(id) → Quelle (graue Zeile),
-      Tree.AddAllToggle(eintrag, id) → „Alle auswählen / Alle abwählen“ im Untermenü einer Gruppe (Welle 27)
-      Tree.AllToggleSkipped(id) → Namen der Blätter, die „Alle auswählen“ dort auslässt (nur auf Wunsch)
+      Tree.AddAllToggle(eintrag, id) → Haken „Alle“ im Untermenü einer Gruppe (Welle 27; seit 21.11.2026 einer)
+      Tree.AllToggleSkipped(id) → Namen der Blätter, die „Alle“ beim Einschalten dort auslässt (nur auf Wunsch)
       Tree.AddRestore(eintrag, id) → „Teilweise wiederherstellen“, solange die Gruppe eine Mischung gemerkt hat;
       Tree.GroupTip(id) → Erklärung einer Gruppe samt „teilweise x von y“ (beide auch für Gather.BuildSection)
     Andere Dateien hängen Blätter an (Tree.Add), damit jede Funktion ihren Schalter selbst nennt.
@@ -132,11 +132,13 @@ end
 -- Dynamische Blätter: Berufslehrer je Titel (Core.Npcs über ns.Trainers)
 ---------------------------------------------------------------------------
 
--- Titel der besuchten Berufslehrer, die zu diesem Charakter passen → { { id, label } … } nach Titel
+-- Titel der besuchten Berufslehrer, die zu diesem Charakter passen → { { id, label } … } nach Titel. Nur besuchte
+-- (seit 22.11.2026 bewusst): mit Questie wechselten die Blätter sonst mit Kontinent und Lesestand; Berufslehrer laut
+-- Questie mit einem Titel ohne Blatt folgen der Gruppe „Berufslehrer“ (Tree.Leaf eines dynamischen Blatts).
 function Tree.ProfessionTitles()
     local seen, out = {}, {}
     local T = ns.Trainers
-    for _, t in ipairs(T and T.List and T.List("profession") or {}) do
+    for _, t in ipairs(T and T.List and T.List("profession", { visited = true }) or {}) do
         local title = type(t.title) == "string" and t.title ~= "" and t.title or L.TREE_PROF_UNTITLED
         if not seen[title] then
             seen[title] = true
@@ -657,19 +659,19 @@ function Tree.AddRestore(entry, id)
         L.TREE_RESTORE_TIP), "menuRestore")
 end
 
--- „Alle auswählen / Alle abwählen“ im Untermenü einer Gruppe (Design-System 2.11: ab drei Einträgen derselben Art,
--- direkt unter dem Kopf der Gruppe, vor den einzelnen Haken; Welle 27). Schaltet die Blätter darunter wie der Klick
--- auf die Gruppe: „Alle auswählen“ lässt aus, was nur auf ausdrücklichen Wunsch angeht (UnderExplicit – unter einem
+-- Haken „Alle“ im Untermenü einer Gruppe (Design-System 2.11: ab drei Einträgen derselben Art, direkt unter dem Kopf
+-- der Gruppe, vor den einzelnen Haken; Welle 27, seit dem 21.11.2026 ein Haken statt „Alle auswählen / Alle
+-- abwählen“). Schaltet die Blätter darunter wie der Klick auf die Gruppe: Einschalten lässt aus, was nur auf ausdrücklichen Wunsch angeht (UnderExplicit – unter einem
 -- Thema aus Tree.EXPLICIT wie „Entdecken“ gehen dessen Gruppen mit an, nicht aber Gruppen aus Tree.EXPLICIT_OWN („laut
 -- Questie“) und Blätter wie „Objekte“ und „seltene Gegner laut Questie“; der Tooltip nennt sie, Fund der Gegenprüfung
 -- 17.11.2026 und Antwort des Nutzers vom selben Tag), Filtergruppen zählen nicht mit; die Punkteschicht
--- baut einmal neu (Batched). Wie beim Klick merkt sich die Gruppe vor dem Schalten ihre Mischung (bzw. vor „Alle
--- abwählen“, welche Blätter an waren): ein Klick auf die Gruppe selbst bringt den Stand davor zurück. Die Auswahl
+-- baut einmal neu (Batched). Wie beim Klick merkt sich die Gruppe vor dem Schalten ihre Mischung (bzw. vor dem
+-- Ausschalten, welche Blätter an waren): ein Klick auf die Gruppe selbst bringt den Stand davor zurück. Die Auswahl
 -- bleibt gemerkt (dieselben Schalter in ezMapDB.settings bzw. ezMapDB.mapFilter, Design-System 2.12).
--- → Eintrag „an“, Eintrag „aus“ oder nil (weniger als drei Blätter)
+-- → der Haken (zweimal, wie Core.Menu.AllToggle) oder nil (weniger als drei Blätter)
 Tree.ALL_TOGGLE_MIN = 3
 
--- Namen der Blätter, die „Alle auswählen“ in dieser Gruppe auslässt → Liste (leer, wenn keins). Liegt ein Blatt unter
+-- Namen der Blätter, die „Alle“ beim Einschalten in dieser Gruppe auslässt → Liste (leer, wenn keins). Liegt ein Blatt unter
 -- einer Gruppe aus Tree.EXPLICIT_OWN, steht deren Name einmal da („Gegner und Objekte laut Questie“ statt jedes Blatts).
 function Tree.AllToggleSkipped(id)
     local out, seen = {}, {}
@@ -724,13 +726,12 @@ function Tree.AddAllToggle(entry, id)
         end
     end
     local skipped = Tree.AllToggleSkipped(id)
-    local onTip = #skipped > 0 and L.TREE_ALL_ON_TIP_SKIP:format(table.concat(skipped, ", ")) or L.TREE_ALL_ON_TIP
-    -- mit Symbolen (ezCores Häkchen und Kreuz; Fund des code-reviewers vom 17.11.2026: jeder Eintrag mit Symbol)
-    local on = Menu.AllToggle(entry, List, LeafValue, SetLeafValue,
-        { off = false, onTip = onTip, wrap = Wrap(true), icons = true,
-          skip = function(leaf) return UnderExplicit(NodeID(leaf), id) end })
-    local _, off = Menu.AllToggle(entry, List, LeafValue, SetLeafValue,
-        { on = false, offTip = L.TREE_ALL_OFF_TIP, wrap = Wrap(false), icons = true })
+    local tip = #skipped > 0 and L.TREE_ALL_TIP_SKIP:format(table.concat(skipped, ", ")) or L.TREE_ALL_TIP
+    -- ein Haken „Alle“ (seit 21.11.2026; vorher zwei Einträge mit Häkchen und Kreuz): Einschalten lässt die Blätter aus,
+    -- die nur mit eigenem Haken angehen (onSkip), Ausschalten nimmt alle heraus
+    local on, off = Menu.AllToggle(entry, List, LeafValue, SetLeafValue,
+        { tip = tip, onWrap = Wrap(true), offWrap = Wrap(false),
+          onSkip = function(leaf) return UnderExplicit(NodeID(leaf), id) end })
     return on, off
 end
 

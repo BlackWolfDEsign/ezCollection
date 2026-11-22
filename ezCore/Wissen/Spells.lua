@@ -7,6 +7,7 @@ local Spells = Core.Spells
     ezMerchant (Lehrer, „Was kommt wann“), ezCombat (Klassen-Fähigkeiten), ezPanel (Hinweis „neue Ränge“).
 
       Namen        Spells.Name(id) → Name, aus dem Client?   Spells.Icon(id)   (Ersatznamen in SpellData.lua)
+                   Spells.Description(id) → Beschreibung aus dem Client oder nil (fragt sie dann an)
       Ränge        Spells.Rank(id) → Zahl oder nil            Spells.ParseRank("Rang 4") → 4
       Bekannt      aus dem Zauberbuch, alle gelernten Ränge – auch die, die das Zauberbuch nicht zeigt (Forever zeigt
                    je Zauber nur den höchsten Rang; einen Haken „Alle Ränge zeigen“ hat es im Spiel nicht, Spieltest 14.11.2026):
@@ -159,6 +160,33 @@ function Spells.Icon(id)
         icon = GetSpellTexture(id)
     end
     return Core.Plain(icon)
+end
+
+-- Beschreibung eines Zaubers aus dem Client (C_Spell.GetSpellDescription; Farb- und Umbruch-Codes weg, Core.CleanText)
+-- – für Einträge wie auf ezMerchants „Was kommt wann“ (Spieltest 21.11.2026, Bild 4: „statt grauer text der
+-- fähigkeiten text?“). Kennt der Client den Text noch nicht (leer), fragt ezCore ihn an (C_Spell.RequestLoadSpellData;
+-- Blizzard meldet SPELL_DATA_LOAD_RESULT) und liefert nil – je Zauber nur einmal, damit ein Zauber ohne Beschreibung
+-- keine Kette aus Anfrage, Meldung und Neuzeichnen auslöst. Geheime Werte gelten als nicht da (Core.Plain).
+local descriptionCache, descriptionAsked = {}, {}
+
+function Spells.Description(id)
+    id = tonumber(id)
+    if not id then return nil end
+    if descriptionCache[id] then return descriptionCache[id] end
+    local api = rawget(_G, "C_Spell")
+    local describe = type(api) == "table" and api.GetSpellDescription or nil
+    if type(describe) ~= "function" then return nil end
+    local text = Core.CleanText(Core.PlainCall(describe, id))
+    if text then text = Core.CleanText((text:gsub("%s+", " "))) end      -- Absätze des Clients: eine Zeile
+    if text then
+        descriptionCache[id] = text
+        return text
+    end
+    if not descriptionAsked[id] and type(api.RequestLoadSpellData) == "function" then
+        descriptionAsked[id] = true
+        pcall(api.RequestLoadSpellData, id)
+    end
+    return nil
 end
 
 ---------------------------------------------------------------------------

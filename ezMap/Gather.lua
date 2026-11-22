@@ -1058,13 +1058,12 @@ local function AddKind(root, kind, mapID)
     elseif #objects == 0 then
         ns.Icons.Apply(Tip(Menu.Title(entry, L.GMAP_OBJECTS_NONE), L.GMAP_OBJECTS_NONE, L.GMAP_OBJECTS_NONE_TIP), "info")
     end
-    -- Design-System 2.11: „Alle auswählen / Alle abwählen“ über den Vorkommen (ab drei); gemerkt in gatherHidden wie
+    -- Design-System 2.11: ein Haken „Alle“ über den Vorkommen (ab drei); gemerkt in gatherHidden wie
     -- jeder Haken, die Karte zeichnet einmal neu statt je Vorkommen
     if objects and #objects >= 3 then
         Menu.AllToggle(entry, objects, function(o) return not Gather.IsHidden(o.node) end,
             function(o, on) Gather.SetHidden(o.node, not on, true) end,
-            { onText = Core.Style.AllText(true), offText = Core.Style.AllText(false), onTip = Core.L.ALL_CHECK_TIP, offTip = Core.L.ALL_UNCHECK_TIP,
-              after = function(changed) if changed > 0 then Gather.Refresh() end end })
+            { after = function(changed) if changed > 0 then Gather.Refresh() end end })
     end
     for _, o in ipairs(objects or {}) do
         local text = L.GMAP_OBJECT:format(o.name, o.count)

@@ -1117,6 +1117,11 @@ end
       Core.Map.PosOn(ziel, mapID, x, y, true) → x, y auch außerhalb von 0–1 (Richtung und Linie zu einem Punkt neben
                                            der Karte, etwa für Routen über den Kartenrand); nil ohne Weltlage oder
                                            auf einem anderen Kontinent als die Karte ziel
+      Core.Map.Zones(kontinent)          → { { map, name } … } die Zonen direkt unter dem Kontinent laut Client
+                                           (C_Map.GetMapChildrenInfo mit Kartentyp Zone), nach Namen; leer ohne
+                                           Antwort. Zonen unter einer anderen Zone fehlen (bei Forevers Karten keine;
+                                           Städte hängen direkt am Kontinent). Seit 22.11.2026 (ezMap Flugmeister,
+                                           Lehrer und Händler laut Questie)
     Alles nil, wenn der Client die Funktion nicht hat oder gesperrt antwortet.
 ]]
 local Map = {}
@@ -1167,6 +1172,25 @@ function Map.Parent(mapID, kind)
         mapID = Core.Num(info.parentMapID)
     end
     return nil
+end
+
+function Map.Zones(continent)
+    continent = Core.Num(continent)
+    local api = rawget(_G, "C_Map")
+    if not continent or type(api) ~= "table" then return {} end
+    local children = Core.Call(api.GetMapChildrenInfo, continent, MapType("Zone"))
+    if Core.IsSecret(children) or type(children) ~= "table" then return {} end
+    local out, seen = {}, {}
+    for _, child in ipairs(children) do
+        local map = type(child) == "table" and Core.Num(child.mapID) or nil
+        local name = map and child.name
+        if map and not seen[map] and not Core.IsSecret(name) and type(name) == "string" and name ~= "" then
+            seen[map] = true
+            out[#out + 1] = { map = map, name = name }
+        end
+    end
+    table.sort(out, function(a, b) return a.name < b.name end)
+    return out
 end
 
 function Map.WorldPos(mapID, x, y)

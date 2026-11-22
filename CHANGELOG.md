@@ -3,6 +3,106 @@
 Written by hand before every release; it describes what each module can do, not every commit. English first, German below each entry.
 Von Hand vor jeder Veröffentlichung gepflegt; beschreibt, was jedes Modul kann, nicht jeden Commit. Englisch zuerst, Deutsch darunter.
 
+## v1.0.0-beta3
+
+Third beta for WoW Forever: a reworked auction house with shopping lists shared with ezCraft, icon tabs on the profession window, whole combined stacks from the bags with one click, contents of boxes and chests in the tooltip, more townsfolk in the minimap's tracking menu and a clearer experience bar. The introduction now tells in a few lines what each module can do. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).
+Dritte Beta für WoW Forever: ein überarbeitetes Auktionshaus mit Einkaufslisten, die es mit ezCraft teilt, Symbol-Reiter am Berufefenster, ganze zusammengefasste Stapel aus der Tasche mit einem Klick, der Inhalt von Kisten und Truhen im Tooltip, mehr Stadtbewohner im Minikarten-Menü „Aufspüren“ und eine klarere Erfahrungsleiste. Die Einführung erzählt jetzt in wenigen Zeilen, was jedes Modul kann. Vieles ist im Spiel noch ungetestet; Fehler bitte mit der Fehlerliste zum Kopieren melden (Esc » Optionen » AddOns » ezCollection » Erweitert).
+
+### ezCore
+
+- The introduction tells in a few lines what each module can do, next to the question whether to switch it on; the tours match these overviews. “Agree to all” leaves sending letters at the mailbox off and says what you still switch on yourself. Menus have one “All” checkbox instead of “Select all” and “Deselect all”, and checkboxes in menus update right away. Shopping lists are shared by ezAuction and ezCraft (create, rename, delete, add items with Shift+click). Side panels at Blizzard's windows share one width, frame and header. Zones are matched to their map with Questie or QuestieDB, also for Stormwind. If the full auction house scan can't start, the chat line says why.
+- Die Einführung erzählt neben der Frage, ob ein Modul eingeschaltet wird, in wenigen Zeilen, was es kann; die Rundgänge passen zu diesem Überblick. „Allem zustimmen“ lässt das Senden von Briefen am Briefkasten aus und sagt, was du weiter selbst einschaltest. Menüs haben einen Haken „Alle“ statt „Alle auswählen“ und „Alle abwählen“, und Haken in Menüs zeigen ihren Stand sofort. Einkaufslisten teilen sich ezAuction und ezCraft (anlegen, umbenennen, löschen, Gegenstände mit Umschalt+Klick hinzufügen). Seitenteile an Blizzards Fenstern haben eine gemeinsame Breite, einen Rahmen und einen Kopf. Gebiete finden ihre Karte über Questie oder QuestieDB, auch Sturmwind. Startet der Komplett-Scan des Auktionshauses nicht, sagt die Chatzeile warum.
+
+### ezAuction
+
+- New layout: “From your bags” on the left at full height, the market always on the right, “Scan prices” at the bottom next to the gold; all side panels are as wide as ezTalent's and use the same list frame. Shopping lists, “Shopping lists”, “Bargains” and “Watched” sit on the left like Blizzard's categories and are deselected the same way; searches use Blizzard's filters. A “Reset” button (red X next to “Recent searches”) clears search text, selection, categories and filters. Shift+click adds an item to the open shopping list. The market shows a month view, gaps in the price history are joined with a dashed line, and a button enlarges the chart. The full scan works again without realm data. The shopping list from ezCraft no longer subtracts what all your characters own. The revenue and “Next:” lines under “Create auction” are gone; the next item stays gold in the bag list. An error with Blizzard's result list is fixed.
+- Neue Anordnung: „Aus der Tasche“ links in voller Höhe, der Markt immer rechts, „Preise erfassen“ unten neben dem Gold; alle Seitenteile sind so breit wie bei ezTalent und haben denselben Listenrahmen. Einkaufslisten, „Einkaufslisten“, „Schnäppchen“ und „Beobachtet“ stehen links wie Blizzards Kategorien und lassen sich genauso abwählen; Suchen nutzen Blizzards Filter. Ein Knopf „Zurücksetzen“ (rotes X neben „Letzte Suchen“) leert Suchtext, Auswahl, Kategorien und Filter. Umschalt+Klick legt einen Gegenstand in die offene Einkaufsliste. Der Markt zeigt eine Monatsansicht, Lücken im Preisverlauf sind gestrichelt verbunden, ein Knopf vergrößert das Diagramm. Der Komplett-Scan geht wieder ohne Realm-Daten. Die Einkaufsliste aus ezCraft zieht nicht mehr ab, was alle deine Charaktere besitzen. Erlös- und „Nächster:“-Zeile unter „Auktion erstellen“ entfallen; der nächste Gegenstand bleibt golden in der Taschenliste. Ein Fehler mit Blizzards Ergebnisliste ist behoben.
+
+### ezBag
+
+- A right-click on a combined slot passes on all its stacks at the mailbox, in a trade and at the bank, and sells all of them at a merchant; the slot shows its largest stack first. Shift+right-click opens ezBag's own amount box, as big as Blizzard's split window and at the clicked slot, at a merchant, mailbox, trade or bank up to the total of all stacks; the amount is put into as few stacks as possible. Without a window open the split amount (up to one stack) stays in your hand like with Blizzard; at the guild bank and the auction house Blizzard's window stays. Items dropped on the combined “Free” tile are sorted in right away.
+- Ein Rechtsklick auf einen zusammengefassten Platz gibt an der Post, im Handel und an der Bank alle seine Stapel weiter und verkauft beim Händler alle; der Platz zeigt zuerst seinen größten Stapel. Umschalt+Rechtsklick öffnet ezBags eigenes Anzahl-Feld, so groß wie Blizzards Teil-Fenster und am angeklickten Platz, bei Händler, Post, Handel oder Bank bis zur Gesamtzahl aller Stapel; die Anzahl wird zu möglichst wenigen Stapeln zusammengelegt. Ohne offenes Fenster bleibt die geteilte Anzahl (bis zu einem Stapel) in der Hand wie bei Blizzard; an der Gildenbank und im Auktionshaus bleibt Blizzards Fenster. Was auf der zusammengefassten Kachel „Frei“ abgelegt wird, ordnet ezBag gleich ein.
+
+### ezBars
+
+- The introduction says in a few lines what ezBars can do.
+- Die Einführung sagt in wenigen Zeilen, was ezBars kann.
+
+### ezBuff
+
+- The introduction says in a few lines what ezBuff can do.
+- Die Einführung sagt in wenigen Zeilen, was ezBuff kann.
+
+### ezChat
+
+- In the conversation view the input line whispers the person of the open conversation, and switching back to “General” and the other tabs restores the channel. The whisper sound only plays while you are away. “Show history at login”, which put old whisper, say and yell lines into the general chat, is switched off once for everyone (your own choice counts after that), and neither “Agree to all” nor an import turns it on.
+- In der Gesprächsansicht flüstert die Eingabezeile die Person des offenen Gesprächs an, beim Wechsel zurück zu „Allgemein“ und den anderen Reitern kehrt der Kanal zurück. Der Ton bei Flüstern kommt nur noch, wenn du abwesend bist. „Verlauf beim Einloggen zeigen“, das alte Flüster-, Sagen- und Schreien-Zeilen in den allgemeinen Chat stellte, wird einmal für alle ausgeschaltet (danach gilt deine Wahl); „Allem zustimmen“ und ein Import schalten ihn nicht mehr ein.
+
+### ezCombat
+
+- The rotation pages in the spellbook start a section such as “In combat” on a new page and keep even spacing. The cheat sheet shows the full rotation name and folds the calculation details away.
+- Die Rotations-Seiten im Zauberbuch beginnen einen Abschnitt wie „Im Kampf“ auf einer neuen Seite und halten gleiche Abstände. Der Spickzettel zeigt den Namen der Rotation ganz und klappt die Berechnungs-Angaben ein.
+
+### ezCraft
+
+- Icon tabs on the profession window like ezAuction and ezTalent; the side panel is as wide as ezTalent's. The “Recipe” view is gone; shopping lists are the default view and can be created, renamed and deleted; Shift+click adds items or recipes. Buttons and a cost line sit in the recipe area. “Auction house” searches every reagent right away while the auction house is open, otherwise it remembers them for the next visit. New items worth disenchanting bring a question: Disenchant, No or Never.
+- Symbol-Reiter am Berufefenster, im Stil von ezAuction und ezTalent; das Seitenteil ist so breit wie bei ezTalent. Die Ansicht „Rezept“ entfällt; Einkaufslisten sind die Grundansicht und lassen sich anlegen, umbenennen und löschen; Umschalt+Klick fügt Gegenstände oder Rezepte hinzu. Knöpfe und eine Kostenzeile stehen im Rezeptbereich. „Auktionshaus“ sucht bei offenem Auktionshaus sofort jede Zutat, sonst merkt es sie für den nächsten Besuch vor. Neue Gegenstände, die sich zum Entzaubern lohnen, lösen eine Frage aus: Entzaubern, Nein oder Niemals.
+
+### ezGear
+
+- The introduction and tour say in a few lines what ezGear can do.
+- Einführung und Rundgang sagen in wenigen Zeilen, was ezGear kann.
+
+### ezHeal
+
+- Blizzard's click casting panel docks to the right of the spellbook and moves with it; closing the spellbook closes it too, and closing the panel keeps the spellbook open.
+- Blizzards Klick-Belegung dockt rechts am Zauberbuch an und wandert mit; schließt du das Zauberbuch, geht sie mit zu, schließt du sie, bleibt das Zauberbuch offen.
+
+### ezLoot
+
+- The tooltip of opened bags, boxes, lockboxes and chests shows what was inside, from your own openings and, when Questie runs, what they can contain according to Questie.
+- Der Tooltip geöffneter Beutel, Kisten, Schließkassetten und Truhen zeigt, was darin war – aus deinen eigenen Öffnungen und, wenn Questie läuft, was sie laut Questie enthalten können.
+
+### ezMacro
+
+- Menus use the one “All” checkbox; the introduction says in a few lines what ezMacro can do.
+- Menüs nutzen den einen Haken „Alle“; die Einführung sagt in wenigen Zeilen, was ezMacro kann.
+
+### ezMail
+
+- A right-click on a combined bag slot attaches all its stacks to the letter. Menus use the one “All” checkbox; the tour shows the address book.
+- Ein Rechtsklick auf einen zusammengefassten Taschenplatz hängt alle seine Stapel an den Brief. Menüs nutzen den einen Haken „Alle“; der Rundgang zeigt das Adressbuch.
+
+### ezMap
+
+- The minimap menu “Tracking” has one trainer entry, flight masters one by one in a submenu, vendors of your zone at Blizzard's “Repair” and an “All” checkbox in place of “Deselect all”; innkeepers, stable masters, auctioneers, bankers and battlemasters get arrows like the trainers and cover the whole continent. Trainers, weapon masters and vendors come from Questie when it runs. The ezMap button and the menu look alike. A new option puts the mail icon at the top right of the minimap, with or without the compact minimap.
+- Das Minikarten-Menü „Aufspüren“ hat einen Lehrer-Eintrag, Flugmeister einzeln in einem Untermenü, Händler deiner Zone an Blizzards „Reparieren“ und einen Haken „Alle“ an der Stelle von „Alle abwählen“; Gastwirte, Stallmeister, Auktionatoren, Bankiers und Kampfmeister bekommen Pfeile wie die Lehrer und reichen über den ganzen Kontinent. Lehrer, Waffenmeister und Händler stammen aus Questie, wenn es läuft. ezMap-Knopf und Menü sehen gleich aus. Ein neuer Schalter setzt das Postsymbol oben rechts an die Minikarte, mit und ohne kompakte Minikarte.
+
+### ezMerchant
+
+- The spellbook page “What comes when” starts each section on a new page, keeps even spacing and shows the spell's description instead of grey details.
+- Die Zauberbuch-Seite „Was kommt wann“ beginnt jeden Abschnitt auf einer neuen Seite, hält gleiche Abstände und zeigt die Beschreibung des Zaubers statt grauer Angaben.
+
+### ezPanel
+
+- One switch “Other characters in tooltip” instead of five; menus use the one “All” checkbox.
+- Ein Schalter „Andere Charaktere im Tooltip“ statt fünf; Menüs nutzen den einen Haken „Alle“.
+
+### ezQuest
+
+- The experience bar shows rested experience again, right after the gold area of your finished quests; Blizzard's rested mark moves along with it, and the stripe under the blue is gone. The levelling route stays in your zone first, the next zone follows as an arrow at the edge, and no line runs across beside the map.
+- Die Erfahrungsleiste zeigt die Erholung wieder, direkt nach der goldenen Fläche der fertigen Quests; Blizzards Erholungs-Marke wandert mit, der Streifen unter dem Blau ist weg. Die Leveling-Route bleibt zuerst in deiner Zone, die nächste Zone folgt als Pfeil am Rand, und keine Linie läuft mehr quer neben der Karte.
+
+### ezSocial
+
+- The introduction says in a few lines what ezSocial can do.
+- Die Einführung sagt in wenigen Zeilen, was ezSocial kann.
+
+### ezTalent
+
+- The chosen template is highlighted the same way in “Advice” and “Templates”; the recommended template needs no extra background. All side panels look alike, with the header above the frame and the chosen tab in gold; the template sits at the top of the talent window. “Best with n points” shows where it comes from, and its checkbox loads at once.
+- Die gewählte Vorlage ist in „Empfehlung“ und „Vorlagen“ gleich hervorgehoben; die empfohlene Vorlage braucht keinen eigenen Hintergrund. Alle Seitenteile sehen gleich aus, mit dem Kopf über dem Kasten und dem gewählten Reiter in Gold; die Vorlage steht oben im Talentfenster. „Bestes mit n Punkten“ zeigt seine Herkunft, sein Haken lädt sofort.
+
 ## v1.0.0-beta2
 
 Second beta for WoW Forever: a compact minimap, a talent advisor with play styles, gear advice from your talents, clearer rotations and party frames. “Agree to all” in the introduction now turns on, besides the actions without a click listed there, every other feature that is off by default and allowed by Blizzard's rules – except pure looks and anything that risks Blizzard's rules or a safeguard. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).
@@ -65,8 +165,8 @@ Zweite Beta für WoW Forever: eine kompakte Minikarte, eine Talent-Empfehlung na
 
 ### ezQuest
 
-- The levelling route weighs each quest by its level against yours and by the time it takes, and the tooltip “Why at this point:” explains the place. The route arrow on the minimap is larger, with an “Arrow size” slider. The experience bar tooltip is wider, with amounts on the right and the colours of the bar explained.
-- Die Leveling-Route gewichtet jede Quest nach ihrer Stufe im Vergleich zu deiner und nach dem Zeitaufwand, und der Tooltip „Warum an dieser Stelle:“ erklärt den Platz. Der Pfeil der Route auf der Minikarte ist größer, mit Regler „Größe des Pfeils“. Der Tooltip der Erfahrungsleiste ist breiter, mit Mengen rechts und erklärten Farben der Leiste.
+- The levelling route weighs each quest by its level against yours and by the time it takes, and the tooltip “Why at this point:” explains the place. The route arrow on the minimap is larger, with an “Arrow size” slider. The experience bar tooltip is wider, with amounts on the right and the colours of the bar explained. Your rested bonus stays visible on the bar: it starts after your finished quests, as quest experience does not use it up. The quest colours on the bar now match the swatches in the tooltip, and the rested marker moves on by your finished quests (can be turned off).
+- Die Leveling-Route gewichtet jede Quest nach ihrer Stufe im Vergleich zu deiner und nach dem Zeitaufwand, und der Tooltip „Warum an dieser Stelle:“ erklärt den Platz. Der Pfeil der Route auf der Minikarte ist größer, mit Regler „Größe des Pfeils“. Der Tooltip der Erfahrungsleiste ist breiter, mit Mengen rechts und erklärten Farben der Leiste. Deine Erholung bleibt auf der Leiste zu sehen: sie beginnt nach den fertigen Quests, denn Quest-Erfahrung verbraucht keine Erholung. Die Questfarben auf der Leiste passen jetzt zu den Farbproben im Tooltip, und die Erholungs-Marke rückt um die fertigen Quests weiter (abschaltbar).
 
 ### ezSocial
 

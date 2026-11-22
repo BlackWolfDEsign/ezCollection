@@ -2,13 +2,20 @@ local _, ns = ...
 local Core = ezCore
 local L = ns.L
 
+-- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
+-- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
+-- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
+ns.FEATURE_STEPS = { "tabAdvice", { "list", "tabTemplates" }, "tabEffects", false, false }
+
 --[[
     Rundgang mit Erklärblasen am Talentfenster (Abschlussrunde „Tooltip-Guide“, Entscheidung des Nutzers 13.11.2026;
-    docs/roadmap/ezTalent.md, „Abschlussrunde“). Beim ersten Öffnen des Talentfensters drei Blasen, eine nach der
-    anderen, jede dort, wo ihr Teil steht (bis zum Spielbefund vom 19.11.2026 vier – mit dem Klappknopf „Vorlagen »“):
+    docs/roadmap/ezTalent.md, „Abschlussrunde“). Beim ersten Öffnen des Talentfensters vier Blasen, eine nach der
+    anderen, jede dort, wo ihr Teil steht (bis zum Spielbefund vom 19.11.2026 mit dem Klappknopf „Vorlagen »“; seit
+    dem 22.11.2026 mit dem Reiter „Empfehlung“, Abgleich mit dem Kurzüberblick der Einführung):
 
       list          Liste im Seitenteil „Vorlagen“ (Klick lädt die Vorschau; danach Übernehmen, Anpassen, Speichern)
       tabTemplates  Seitenreiter „Vorlagen“ am rechten Rand
+      tabAdvice     Seitenreiter „Empfehlung“ (nur mit dem Schalter adviceTab)
       tabEffects    Seitenreiter „Auswirkungen“
 
     Gebaut mit Core.NewTour({ owner = ns, field = "hints" }): Gesehenes steht in ezTalentDB.hints, „Erweitert“ »
@@ -53,6 +60,11 @@ Tour.STEPS = {
     { key = "tabTemplates", text = L.TOUR_TAB_TEMPLATES, side = "left", target = function()
         local host = Host()
         return host and host.tabs.templates
+    end },
+    -- Reiter „Empfehlung“ (nur mit dem Schalter adviceTab; sonst fehlt das Ziel und der Schritt wird übersprungen)
+    { key = "tabAdvice", text = L.TOUR_TAB_ADVICE, side = "left", target = function()
+        local host = Host()
+        return host and host.tabs.advice
     end },
     { key = "tabEffects", text = L.TOUR_TAB_EFFECTS:format(ezCore.SettingsPathText("ezTalent")), side = "left", target = function()
         local host = Host()

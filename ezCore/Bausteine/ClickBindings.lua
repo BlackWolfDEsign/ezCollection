@@ -1056,6 +1056,12 @@ local function Unsaved()
     if not ok or Core.IsSecret(value) then return false end
     return value == true
 end
+CB.Unsaved = Unsaved     -- auch für ezHeal (Zauberbuch und Klick-Zauber zusammen schließen)
+
+-- Lädt ezCore Blizzards Fenster gerade neu (CB.Reload: schließen, öffnen, Makros zurück)? Module, die auf Schließen und
+-- Öffnen von Klick-Zauber oder Zauberbuch reagieren (ezHeal, Dock.lua), halten sich solange zurück.
+local reloading = false
+function CB.Reloading() return reloading end
 
 -- Blizzards Fenster blendet beim Schließen sein „fokussiertes“ Fenster aus, auch die Makroverwaltung (OnHide →
 -- ClearFocusedFrame → HideUIPanel), und zeigt beim Öffnen das Zauberbuch (OnShow → SetFocusedFrame(FramePortraits[1]),
@@ -1083,11 +1089,20 @@ function CB.Reload(quiet)
     end
     local macro = Core.PanelShown("macro") == true
     local book = Core.Panels.FrameVisible("PlayerSpellsFrame") == true
-    local closed, why = CB.Toggle(true)
-    if not closed then return false, why end
-    if CB.Shown() then return false, "error" end
-    local opened, reason = CB.Open(true)
-    if opened and macro then RestoreMacro(book) end
+    reloading = true
+    local ok, opened, reason = pcall(function()
+        local closed, why = CB.Toggle(true)
+        if not closed then return false, why end
+        if CB.Shown() then return false, "error" end
+        local done, because = CB.Open(true)
+        if done and macro then RestoreMacro(book) end
+        return done, because
+    end)
+    reloading = false
+    if not ok then
+        Core.Error(ADDON, opened, "CB.Reload")
+        return false, "error"
+    end
     return opened, reason
 end
 

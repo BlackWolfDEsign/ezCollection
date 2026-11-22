@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Breites Händlerfenster mit Suche, Filter\nMehrere Waren auf einmal kaufen\nBeim Lehrer alles auf einmal lernen\n„Was kommt wann“: Lernstufen und Kosten\nReparieren, Plunder, Auffüllen auf Wunsch",
     TITLE = "ezMerchant",
 
     -- Hilfe (Gesamtreview 18.11.2026, T18-20): Kopf und Standardzeilen kommen aus ezCore (Core.HelpLines), hier nur die
@@ -339,21 +341,22 @@ local de = {
     UPCOMING_WAY = "Lehrer auf der Karte zeigen",
     UPCOMING_WAY_SHORT = "Zum Lehrer",
     UPCOMING_WAY_TO = "Nächster: %s, %s",
-    UPCOMING_WAY_UNKNOWN = "Noch kein Lehrer auf diesem Kontinent gemerkt",
+    UPCOMING_WAY_UNKNOWN = "Noch kein Lehrer auf diesem Kontinent bekannt",
     UPCOMING_WAY_NOPOS_SHORT = "Deine Position ist gerade nicht bekannt",
     UPCOMING_WAY_SOURCE = "laut ezMap",
     UPCOMING_WAY_TIP = "Klick: setzt Blizzards Kartenmarkierung auf den nächsten Lehrer deiner Klasse auf diesem Kontinent.",
-    UPCOMING_WAY_SOURCE_TIP = "Quelle: ezMap merkt sich jeden Lehrer, dessen Fenster du einmal geöffnet hast.",
+    UPCOMING_WAY_SOURCE_TIP = "Quelle: ezMap – Lehrer, deren Fenster du einmal geöffnet hast, und solange Questie läuft alle Lehrer deines Kontinents laut Questie.",
     UPCOMING_WAY_SET = "Kartenmarkierung gesetzt: %s, %s (laut ezMap).",
-    UPCOMING_WAY_NONE = "ezMap kennt auf diesem Kontinent noch keinen Lehrer deiner Klasse – öffne einmal sein Fenster, dann merkt ezMap ihn.",
+    UPCOMING_WAY_NONE = "ezMap kennt auf diesem Kontinent noch keinen Lehrer deiner Klasse – öffne einmal sein Fenster, dann merkt ezMap ihn (mit Questie sind alle Lehrer bekannt).",
     UPCOMING_WAY_NOPOS = "Deine Position ist gerade nicht bekannt (z. B. im Dungeon) – draußen noch einmal versuchen.",
     UPCOMING_WAY_FAILED = "Kartenmarkierung nicht gesetzt: %s",
-    UPCOMING_WAY_NOMAP = "Dafür braucht es ezMap (es merkt sich die Lehrer).",
+    UPCOMING_WAY_NOMAP = "Dafür braucht es ezMap (es kennt die Lehrer).",
 
     -- „Was kommt wann“: Begleiter und Quelle (MER-08)
     UPCOMING_TAB_TIP_PET = "Mitgezählt sind die Fähigkeiten deines Begleiters, die jetzt bei seinem Ausbilder warten; sie stehen am Ende unter „Begleiter“.",
     UPCOMING_NO_DATA_CLIENT = "Noch keine Lehrerdaten – darunter steht, was laut Client auf welcher Stufe kommt (dazu dein Zauberbuch), noch ohne Kosten. Besuche einmal deinen Klassenlehrer, danach mit Kosten und Summen.",
     UPCOMING_FROM_CLIENT = "Stufe laut Client (Zauber je Stufe), Kosten erst nach einem Lehrerbesuch",
+    UPCOMING_DESC_SOURCE = "Beschreibung laut Client",
     UPCOMING_PET = "Begleiter",
     UPCOMING_PET_NOW_SUM = "jetzt %s",
     UPCOMING_PET_NO_DATA = "Noch keine Daten vom Ausbilder deines Begleiters – öffne einmal sein Lehrerfenster (Tierausbilder bzw. Dämonenausbilder), dann stehen hier seine Fähigkeiten mit Stufe und Kosten.",
@@ -405,6 +408,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Wider vendor window, search and filter\nBuy several goods at once\nLearn everything at once at the trainer\n“What comes when”: levels and costs\nRepair, junk and restock if you want",
     TITLE = "ezMerchant",
 
     CMD_HELP_OWN = {
@@ -728,21 +732,22 @@ local en = {
     UPCOMING_WAY = "Show trainer on the map",
     UPCOMING_WAY_SHORT = "Find trainer",
     UPCOMING_WAY_TO = "Nearest: %s, %s",
-    UPCOMING_WAY_UNKNOWN = "No trainer remembered on this continent yet",
+    UPCOMING_WAY_UNKNOWN = "No trainer known on this continent yet",
     UPCOMING_WAY_NOPOS_SHORT = "Your position isn't known right now",
     UPCOMING_WAY_SOURCE = "according to ezMap",
     UPCOMING_WAY_TIP = "Click: sets Blizzard's map pin on the nearest trainer of your class on this continent.",
-    UPCOMING_WAY_SOURCE_TIP = "Source: ezMap remembers every trainer whose window you have opened once.",
+    UPCOMING_WAY_SOURCE_TIP = "Source: ezMap – trainers whose window you have opened once and, while Questie is running, all trainers of your continent according to Questie.",
     UPCOMING_WAY_SET = "Map pin set: %s, %s (according to ezMap).",
-    UPCOMING_WAY_NONE = "ezMap doesn't know a trainer of your class on this continent yet – open their window once and ezMap remembers them.",
+    UPCOMING_WAY_NONE = "ezMap doesn't know a trainer of your class on this continent yet – open their window once and ezMap remembers them (with Questie, all trainers are known).",
     UPCOMING_WAY_NOPOS = "Your position isn't known right now (e.g. in a dungeon) – try again outside.",
     UPCOMING_WAY_FAILED = "Map pin not set: %s",
-    UPCOMING_WAY_NOMAP = "This needs ezMap (it remembers the trainers).",
+    UPCOMING_WAY_NOMAP = "This needs ezMap (it knows the trainers).",
 
     -- “What comes when”: pet and source (MER-08)
     UPCOMING_TAB_TIP_PET = "Also counted: your pet's abilities waiting at its trainer now; they are listed at the end under “Pet”.",
     UPCOMING_NO_DATA_CLIENT = "No trainer data yet – below is what the client says comes at which level (plus your spellbook), without costs. Visit your class trainer once to see costs and totals.",
     UPCOMING_FROM_CLIENT = "Level according to the client (spells per level), costs only after a trainer visit",
+    UPCOMING_DESC_SOURCE = "Description according to the client",
     UPCOMING_PET = "Pet",
     UPCOMING_PET_NOW_SUM = "now %s",
     UPCOMING_PET_NO_DATA = "No data from your pet's trainer yet – open its trainer window once (pet trainer or demon trainer), then its abilities are listed here with level and cost.",

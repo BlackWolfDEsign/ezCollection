@@ -215,7 +215,7 @@ end
 
 function Gear.Update()
     local mode = ns.ModeName()
-    if gear then gear:SetShown(ns.AuctionHouseShown() and (mode == "buy" or mode == "sell")) end
+    if gear then gear:SetShown(ns.AuctionHouseShown() and ns.BottomRow()) end
     if auctionsGear then auctionsGear:SetShown(ns.AuctionHouseShown() and mode == "auctions") end
 end
 
@@ -262,15 +262,16 @@ end
 
 ns.OnAuctionHouse(function()
     gear = NewGear("ezAuctionGearButton", AuctionHouseFrame)
-    -- rechts neben dem Pfeil unter dem Knopf „Preise erfassen“ (AH-16; Lage seit dem Spielbefund vom 16.11.2026 in
-    -- ns.Layout); ohne Pfeil an derselben Stelle (bis Welle 27 bei x = 170 – über Blizzards Favoriten-Knopf)
+    -- rechts neben dem Pfeil neben dem Knopf „Preise erfassen“ unten am Gold (AH-16; Lage in ns.Layout, seit dem
+    -- 21.11.2026 unten); ohne Pfeil an derselben Stelle
     local Layout = ns.Layout
     local scan = _G.ezAuctionScanMenuButton
     if scan then
         gear:SetPoint("LEFT", scan, "RIGHT", Layout.GAP, 0)
     else
-        local S = Layout.SCAN
-        gear:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPLEFT", S.x + Layout.SMALL + Layout.GAP, S.y - S.h - Layout.ROW_GAP)
+        local S, M = Layout.SCAN, Layout.BLIZZARD.money
+        gear:SetPoint("LEFT", AuctionHouseFrame, "BOTTOMLEFT",
+            M.x + M.w + S.gap + S.w + Layout.SCAN_GAP + Layout.SMALL + Layout.GAP, M.y + M.h / 2)
     end
     -- Reiter Auktionen: rechts neben dem Unter-Reiter „Verlauf“ (History.lua), ohne ihn neben Blizzards „Gebote“
     local auctions = AuctionHouseFrame.AuctionsFrame

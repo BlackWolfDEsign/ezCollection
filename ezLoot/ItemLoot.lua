@@ -251,20 +251,28 @@ end
 
 -- Neue oder entfernte Beute ändert auch den Nenner „in a von b“ anderer Gegenstände desselben Gegners: alles frisch.
 local function Forget(kind)
-    if kind == nil or kind == "loot" then I.ClearCache() end
+    if kind == nil or kind == "loot" then
+        I.ClearCache()
+        if ns.Contents then ns.Contents.ClearCache() end
+    end
 end
 Core.Listen("HISTORY_ADDED", Forget, ADDON)
 Core.Listen("HISTORY_REMOVED", Forget, ADDON)
 Core.Listen("HISTORY_CLEARED", Forget, ADDON)
 
 -- Shift gedrückt oder losgelassen, während der Tooltip unsere Zeilen an diesem Gegenstand zeigt: neu zeichnen.
+-- Auch für den Inhalt von Behältern (Contents.lua, Contents.shownItem).
 function I.OnModifier(key)
     if key ~= "LSHIFT" and key ~= "RSHIFT" then return false end
-    if not (I.shownItem and GameTooltip and GameTooltip:IsShown() and GameTooltip.GetItem and GameTooltip.RefreshData) then
+    local contents = ns.Contents and ns.Contents.shownItem
+    if not ((I.shownItem or contents) and GameTooltip and GameTooltip:IsShown() and GameTooltip.GetItem
+        and GameTooltip.RefreshData) then
         return false
     end
     local ok, _, _, id = pcall(GameTooltip.GetItem, GameTooltip)
-    if not ok or ns.IsSecret(id) or Num(id) ~= I.shownItem then return false end
+    if not ok or ns.IsSecret(id) then return false end
+    id = Num(id)
+    if not id or (id ~= I.shownItem and id ~= contents) then return false end
     return pcall(GameTooltip.RefreshData, GameTooltip) == true
 end
 ns.On("MODIFIER_STATE_CHANGED", function(_, key) I.OnModifier(key) end)

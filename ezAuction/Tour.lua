@@ -1,5 +1,10 @@
 local _, ns = ...
 local L = ns.L
+
+-- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
+-- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
+-- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
+ns.FEATURE_STEPS = { "lists", "lists", "market", { "sellList", "priceRule" }, "scan" }
 local Core = ezCore
 
 --[[
@@ -24,11 +29,13 @@ function Tour.BesideTarget()
 end
 
 Tour.STEPS = {
-    { key = "beside", target = function() return Tour.BesideTarget() end, text = L.TOUR_BESIDE, side = "below" },
-    -- rechts statt darunter: unter dem Knopf steht seit Welle 27 die Zeile mit dem Pfeil, den die Blase erklärt
-    { key = "scan", target = function() return ns.Scan.Button() end, text = L.TOUR_SCAN, side = "right" },
+    -- Knopf und Zahnrad stehen seit dem 21.11.2026 unten neben Blizzards Gold: die Blasen darüber, sonst lägen sie
+    -- unter dem Auktionsfenster
+    { key = "beside", target = function() return Tour.BesideTarget() end, text = L.TOUR_BESIDE, side = "above" },
+    { key = "scan", target = function() return ns.Scan.Button() end, text = L.TOUR_SCAN, side = "above" },
     { key = "lists", target = function() return ns.Buy.HeaderButton() end, text = L.TOUR_LISTS, side = "right" },
-    { key = "sellList", target = function() return ns.Sell.ToggleButton() end, text = L.TOUR_SELL_LIST, side = "below" },
+    -- „Aus der Tasche“ selbst (der Knopf „Taschenliste“ entfiel am 21.11.2026): die Blase rechts neben dem Seitenteil
+    { key = "sellList", target = function() return ns.Sell.PanelFrame() end, text = L.TOUR_SELL_LIST, side = "right" },
     { key = "priceRule", target = function() return ns.Sell.RuleButton() end, text = L.TOUR_PRICE_RULE, side = "right" },
     { key = "undercut", target = function() return ns.Undercut.Button() end, text = L.TOUR_UNDERCUT, side = "above" },
     { key = "history", target = function() return ns.History.Tab() end, text = L.TOUR_HISTORY, side = "below" },

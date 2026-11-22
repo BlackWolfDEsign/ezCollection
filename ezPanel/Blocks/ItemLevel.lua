@@ -23,7 +23,6 @@ local block = ns.RegisterBlock({
         enabled = false, zone = "left", order = 62,
         overall = false,     -- auf der Leiste zusätzlich die Stufe mit den Taschen
         slots = true,        -- Plätze im Tooltip
-        alts = true,         -- andere Charaktere im Tooltip
     },
     hints = function() return { L.ILVL_HINT_LEFT } end,
 })
@@ -74,7 +73,7 @@ function block:OnTooltip(tooltip)
         end
     end
 
-    if cfg.alts then
+    if ns.TipAlts() then
         local others = ns.Characters(function(_, key) return key ~= ns.charKey and ezCore.ItemLevelOf(key) ~= nil end)
         if #others > 0 then
             tooltip:AddLine(" ")
@@ -100,5 +99,5 @@ function block:OnMenu(root)
     ns.MenuCheck(root, L.ILVL_SHOW_OVERALL, cfg, "overall", self)
     local tip = root:CreateButton(L.MENU_TOOLTIP)
     ns.MenuCheck(tip, L.ILVL_SHOW_SLOTS, cfg, "slots", self)
-    ns.MenuCheck(tip, L.TIP_SHOW_ALTS, cfg, "alts", self)
+    ns.MenuTipAlts(tip, self)
 end

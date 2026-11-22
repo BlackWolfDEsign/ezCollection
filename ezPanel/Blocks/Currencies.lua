@@ -28,7 +28,6 @@ local block = ns.RegisterBlock({
         backpack = true,
         pinned = {},
         showMax = false,
-        alts = true,
     },
     hints = { L.CUR_HINT_LEFT },
 })
@@ -176,7 +175,7 @@ function block:OnTooltip(tooltip)
         end
     end
 
-    if self.cfg.alts then
+    if ns.TipAlts() then
         local bar = OnBarList()
         local first = true
         for _, entry in ipairs(ns.Characters()) do
@@ -217,7 +216,7 @@ function block:OnMenu(root)
         if info then list[#list + 1] = { id = id, info = info } end
     end
     table.sort(list, function(a, b) return a.info.name < b.info.name end)
-    -- Angeheftete Währungen: nur „Alle abwählen“ (Design-System 2.11 – „alle anheften“ hat keinen Sinn; gemerkt in
+    -- Angeheftete Währungen: der Haken „Alle“ schaltet nur aus (Design-System 2.11 – „alle anheften“ hat keinen Sinn; gemerkt in
     -- cfg.pinned), danach einmal TrackPinned und neu zeichnen
     ns.MenuAllToggle(bar, list, function(e) return cfg.pinned[e.id] == true end,
         function(e, on) cfg.pinned[e.id] = on or nil end,
@@ -232,5 +231,5 @@ function block:OnMenu(root)
         end)
     end
     ns.MenuCheck(root, L.CUR_SHOW_MAX, cfg, "showMax", self)
-    ns.MenuCheck(root, L.TIP_SHOW_ALTS, cfg, "alts", self)
+    ns.MenuTipAlts(root, self)
 end

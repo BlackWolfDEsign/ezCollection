@@ -25,7 +25,6 @@ local block = ns.RegisterBlock({
         enabled = false, zone = "left", order = 80, icon = false, label = false,
         onBar = "primary",    -- primary | all
         names = false,
-        alts = true,
     },
     hints = { L.PROF_HINT_LEFT },
 })
@@ -112,7 +111,7 @@ function block:OnTooltip(tooltip)
         ns.TipLine(tooltip, L.PROF_TRAINER, "orange", true)
     end
 
-    if self.cfg.alts then
+    if ns.TipAlts() then
         local first = true
         for _, entry in ipairs(ns.Characters()) do
             local c = entry.c
@@ -147,5 +146,5 @@ function block:OnMenu(root)
     ns.MenuRadio(bar, L.PROF_SHOW_ALL, cfg, "onBar", "all", self)
     bar:CreateDivider()
     ns.MenuCheck(bar, L.PROF_SHOW_NAMES, cfg, "names", self)
-    ns.MenuCheck(root, L.TIP_SHOW_ALTS, cfg, "alts", self)
+    ns.MenuTipAlts(root, self)
 end

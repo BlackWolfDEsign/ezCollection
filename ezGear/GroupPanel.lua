@@ -342,6 +342,11 @@ local function Build(parent)
 
     panel:HookScript("OnShow", function() ns.Try("GroupPanel", Panel.Refresh) end)
     parent:HookScript("OnHide", function() ns.GroupCheck.Cancel("closed") end)
+    -- Rundgang: beim ersten Öffnen des Reiters die Blase am Pfeil (Tour.lua, Schritt groupCheck)
+    parent:HookScript("OnShow", function()
+        if not ns.StartGroupTour or (ns.Tour and ns.Tour:Done()) then return end
+        C_Timer.After(0.3, function() ns.Try("Tour", ns.StartGroupTour) end)
+    end)
     local info = RaidInfo()
     if type(info) == "table" and info.HookScript then
         info:HookScript("OnShow", function() ns.Try("GroupPanel", Panel.ApplyShown) end)

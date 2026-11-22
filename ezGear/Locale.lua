@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Grüner Pfeil an besserer Ausrüstung\nItemlevel und Haltbarkeit am Charakter\nGewichte passend zu deiner Spielweise\nSets, Umziehen für Reiten und Angeln\n„Gruppe prüfen“: Itemlevel, Verzauberungen",
     TITLE = "ezGear",
     -- Hauptfunktion: Linksklick im Addon-Fach und Befehl ohne Wort (Entscheidung 5, T18-3; vorher Rechtsklick); Hilfe:
     -- Kopf und Standard (Einstellungen, status, hilfe, zuruecksetzen) sagt ezCore, hier nur die eigenen Wörter (T18-20)
@@ -131,6 +133,7 @@ local de = {
     TOUR_COMPARE = "Zeig auf einen Gegenstand: Die Zeile „+12 % für …“ im Tooltip vergleicht ihn mit deiner Ausrüstung – nach deiner Gewichtung. „Automatisch“ folgt der Spezialisierung (/ezgear gewichtung).",
     TOUR_ARROW = "%s Grüner Pfeil an Taschenplätzen und Questbelohnungen: besser als das, was du trägst; ein roter Pfeil nach unten: schlechter. Ohne Pfeil sagt der Tooltip, warum. %s Das Gold-Symbol markiert die Belohnung mit dem höchsten Verkaufswert.",
     TOUR_SETS = "„Sets“ legt ein Set aus Blizzards Ausrüstungsmanager an. Im selben Menü: Gewichtung und welches Set beim Reiten und Angeln von selbst angelegt wird.",
+    TOUR_GROUP = "Ausrüstungs-Check: Der Pfeil am Reiter „Schlachtzug“ klappt ihn auf – Itemlevel, Verzauberungen und leere Plätze je Mitglied. Abgefragt wird erst, wenn du dort „Gruppe prüfen“ klickst.",
     TOUR_SETTINGS = "Alles lässt sich einzeln abschalten – %s Unter „Erweitert“ zeigt „Erneut zeigen“ diese Erklärung noch einmal.",
     SETS_NONE = "Noch keine Sets – „Sets bearbeiten“ legt eines an.",
     SETS_EDIT = "Sets bearbeiten …",
@@ -291,6 +294,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Green arrow on better gear\nItem level and durability on the character\nWeights that fit your play style\nSets, changing for riding and fishing\n“Check group”: item level and enchants",
     TITLE = "ezGear",
     MAIN_TEXT = "choose stat weights (automatic, per role, Pawn scale)",
     CMD_HELP_OWN = {
@@ -416,6 +420,7 @@ local en = {
     TOUR_COMPARE = "Hover an item: the line “+12% for …” in its tooltip compares it with your gear – using your stat weights. “Automatic” follows your specialization (/ezgear weights).",
     TOUR_ARROW = "%s Green arrow on bag slots and quest rewards: better than what you wear; a red arrow pointing down: worse. Without an arrow the tooltip says why. %s The gold coin marks the reward with the highest vendor value.",
     TOUR_SETS = "“Sets” equips a set from Blizzard's equipment manager. The same menu holds the stat weights and which set to wear automatically when mounting and fishing.",
+    TOUR_GROUP = "Gear check: the arrow at the “Raid” tab opens it – item level, enchants and empty slots per member. Nothing is queried until you click “Check group” there.",
     TOUR_SETTINGS = "Everything can be turned off on its own – %s “Show again” under “Advanced” repeats this tour.",
     SETS_NONE = "No sets yet – \"Edit sets\" creates one.",
     SETS_EDIT = "Edit sets …",

@@ -171,6 +171,8 @@ local function Register()
     page:Checkbox("minimapSquare")
     -- Koordinaten ins Zonenkästchen, Lupe und Kalender auf den Ring (Spieltest 20.11.2026, MinimapCompact.lua)
     page:Checkbox("minimapCompact")
+    -- Blizzards Postsymbol oben rechts an die Minikarte (Spieltest 21.11.2026, MinimapCompact.lua)
+    page:Checkbox("minimapMailCorner")
     -- von selbst wieder herauszoomen: ein Schieber mit 0 = aus (Nr. 91, 92); der Haken im Menü „Aufspüren“ bleibt
     page:Slider("minimapAutoZoomDelay", 0, ns.MinimapZoom.MAX, 1, ns.MinimapZoom.Label)
 

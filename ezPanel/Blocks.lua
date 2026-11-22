@@ -436,6 +436,17 @@ end
 -- Rechtsklick-Menü
 ---------------------------------------------------------------------------
 
+-- „Andere Charaktere im Tooltip“ im Rechtsklick-Menü eines Bausteins: derselbe gemeinsame Schalter wie auf der
+-- Einstellungsseite (tipAlts, 21.11.2026), über ns.SetSetting wie die Schalter in Bar.lua (das Kästchen einer gerade
+-- offenen Einstellungsseite zeigt den Wert nach erneutem Öffnen)
+function ns.MenuTipAlts(root, def)
+    return root:CreateCheckbox(ns.L.TIP_SHOW_ALTS, function() return ns.TipAlts() end, function()
+        ns.SetSetting("tipAlts", not ns.TipAlts())
+        if def then ns.QueueUpdate(def) end
+        return REFRESH
+    end)
+end
+
 function ns.MenuCheck(root, text, tbl, key, def, onChange)
     return root:CreateCheckbox(text, function() return tbl[key] and true or false end, function()
         tbl[key] = not tbl[key]
@@ -445,18 +456,18 @@ function ns.MenuCheck(root, text, tbl, key, def, onChange)
     end)
 end
 
--- „Alle auswählen / Alle abwählen“ über einer Mehrfachauswahl im Menü (Design-System 2.11, Welle 22): ezCores Baustein
--- Core.Menu.AllToggle mit ezCores Wortlaut (Core.Style.AllText) und Erklärzeilen, erst ab ALL_TOGGLE_MIN Einträgen
--- derselben Art. after(anzahl) läuft einmal nach dem Klick, nur wenn sich etwas geändert hat (z. B. Baustein neu
--- zeichnen statt je Eintrag). opts.on = false: nur „Alle abwählen“. Rückgabe wie Core.Menu.AllToggle.
+-- Haken „Alle“ über einer Mehrfachauswahl im Menü (Design-System 2.11, Welle 22; seit 21.11.2026 ein Haken statt
+-- „Alle auswählen / Alle abwählen“): ezCores Baustein Core.Menu.AllToggle mit ezCores Wortlaut und Erklärzeile, erst ab
+-- ALL_TOGGLE_MIN Einträgen derselben Art. after(anzahl) läuft einmal nach dem Klick, nur wenn sich etwas geändert hat
+-- (z. B. Baustein neu zeichnen statt je Eintrag). opts.on = false: der Haken schaltet nur aus. Rückgabe wie
+-- Core.Menu.AllToggle.
 ns.ALL_TOGGLE_MIN = 3
 function ns.MenuAllToggle(root, list, get, set, after, opts)
     opts = opts or {}
-    local Menu, Style = ezCore.Menu, ezCore.Style
+    local Menu = ezCore.Menu
     if type(list) ~= "table" or #list < ns.ALL_TOGGLE_MIN or type(Menu.AllToggle) ~= "function" then return nil, nil end
     return Menu.AllToggle(root, list, get, set, {
-        on = opts.on, onText = Style.AllText(true), offText = Style.AllText(false),
-        onTip = ezCore.L.ALL_CHECK_TIP, offTip = ezCore.L.ALL_UNCHECK_TIP,
+        on = opts.on,
         after = function(changed) if changed > 0 and after then after(changed) end end,
     })
 end

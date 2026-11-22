@@ -34,7 +34,10 @@ local Core = ezCore
       Keys.Instance(instanceID, name) → instanceID oder Notschlüssel
       Keys.Recipe(id | "L:Beruf:Name", beruf, name) → recipeID oder Notschlüssel (Altschlüssel werden umgeschrieben)
       Keys.Taxi(nodeID, name)        → nodeID oder Notschlüssel (Altbestand ezMapDB.flights)
-      Keys.Realm()                   → Laufnummer des Realms in ezCoreDB.realms (Namen nur dort)
+      Keys.Realm()                   → Laufnummer des Realms in ezCoreDB.realms (Namen nur dort); ohne Kennung und Namen
+                                       der feste Eintrag „ohne Kennung“ (anon, 4. Spieltest vom 21.11.2026)
+      Keys.RealmName()               → Realmname wie GetNormalizedRealmName, sonst aus GetRealmName, sonst Core.realm
+      Keys.MarketWhy()               → Text: was der Client für Realm und Seite liefert (Komplett-Scan, Grund "realm")
       Keys.Side()                    → Seite des eigenen Charakters ("A", "H", "N")
       Keys.Market(ablage)            → Laufnummer des Preis-Bereichs (Realm + Seite) im Träger der Preise, Realm-
                                        Laufnummer dort; die Zuordnung steht in ablage.meta.realms/areas (nur Zahlen)
@@ -331,23 +334,79 @@ function Keys.Instance(instanceID, name)
     return Keys.Fallback("instance", name)
 end
 
+-- Realmname in der Form von GetNormalizedRealmName (ohne Leerzeichen und Bindestriche). Liefert der Client sie nicht
+-- (Spielbefund vom 21.11.2026: „Realm oder Fraktion sind ezCore noch unbekannt“), dieselbe Form aus GetRealmName.
+local function RealmName()
+    for _, fname in ipairs({ "GetNormalizedRealmName", "GetRealmName" }) do
+        local name = Plain(Core.Call(G(fname)))
+        if type(name) == "string" then
+            name = Core.NormalizeRealm(name)   -- Names.lua, dieselbe Form wie GetNormalizedRealmName
+            if name ~= "" then return name end
+        end
+    end
+    -- Dritter Weg: der Realm, den Core.InitIdentity beim Anmelden gemerkt hat (Names.lua; „?“ heißt unbekannt).
+    local known = Plain(Core.realm)
+    if type(known) == "string" and known ~= "" and known ~= "?" then return known end
+    return nil
+end
+Keys.RealmName = RealmName
+
 -- Laufnummer des Realms. Namen stehen nur in ezCoreDB.realms; die Welt-Tabellen tragen nur die Nummer.
+-- Liefert der Client weder Kennung noch Namen (WoW Forever, Spieltest vom 21.11.2026: GetRealmID 0, kein Name), gilt
+-- der Eintrag mit der Rolle „ohne Kennung“ (idless = true, bleibt dauerhaft): ohne Kennung und Namen gibt es für ezCore
+-- nur diesen einen Realm. Vorher lieferte Keys.Realm dann nil, und kein Preis-Bereich entstand (bis 15.11.2026 hing der
+-- Speicher nur am Namensschlüssel „?-Fraktion“, Core.HouseKey). Die Rolle bekommt beim ersten Mal ein noch nicht
+-- erkannter Eintrag (anon), sonst der einzige bekannte Realm (keine Gabelung), sonst ein neuer Eintrag (anon).
+-- Meldet der Client später Kennung oder Namen und passt kein Eintrag, übernimmt der anon-Eintrag sie (einmal; nicht,
+-- wenn ein anderer Eintrag denselben Namen trägt). Bekannte Grenze: liefert dann ein ANDERER Realm als erster eine
+-- Kennung, bekommt er den anon-Eintrag (Befund des Reviews vom 21.11.2026; auf WoW Forever bisher nur ein Realm).
 function Keys.Realm()
     local db = Core.db
     if type(db) ~= "table" then return nil end
     local id = Num(Core.Call(G("GetRealmID")))
+    if id and id <= 0 then id = nil end
     local native = Num(Core.Call(G("GetNativeRealmID")))
-    local fn = G("GetNormalizedRealmName")
-    local name = type(fn) == "function" and Plain(fn()) or nil
-    if type(name) ~= "string" or name == "" then name = nil end
-    if not ((id and id > 0) or name) then return nil end
+    if native and native <= 0 then native = nil end
+    local name = RealmName()
     db.realms = type(db.realms) == "table" and db.realms or {}
+    local anon, idless, count, only
+    local function HasName(r, wanted)
+        for _, known in ipairs(type(r.names) == "table" and r.names or {}) do if known == wanted then return true end end
+        return false
+    end
     for n, r in ipairs(db.realms) do
         if type(r) == "table" then
-            if id and id > 0 and r.id == id then return n end
-            if not (id and id > 0) and name and type(r.names) == "table" then
-                for _, known in ipairs(r.names) do if known == name then return n end end
+            count, only = (count or 0) + 1, n
+            if r.anon then anon = anon or n end
+            if r.idless then idless = idless or n end
+            if id and r.id == id then return n end
+            if not id and name and HasName(r, name) then return n end
+        end
+    end
+    if not (id or name) then
+        if idless then return idless end
+        local pick = anon or (count == 1 and only) or nil
+        if not pick then
+            db.realms[#db.realms + 1] = { anon = true, native = native, names = {} }
+            pick = #db.realms
+        end
+        db.realms[pick].idless = true
+        return pick
+    end
+    if anon then
+        local taken = false
+        if name then
+            for n, r in ipairs(db.realms) do
+                if n ~= anon and type(r) == "table" and HasName(r, name) then taken = true end
             end
+        end
+        if not taken then
+            local r = db.realms[anon]
+            r.anon, r.id = nil, id
+            if native then r.native = native end
+            r.names = type(r.names) == "table" and r.names or {}
+            if name then r.names[#r.names + 1] = name end
+            return anon
         end
     end
     db.realms[#db.realms + 1] = { id = id, native = native, names = { name } }
@@ -397,6 +456,34 @@ function Keys.Market(root)
     return Keys.MarketArea(root, Keys.Realm(), Keys.Side())
 end
 
+-- Warum Keys.Market nichts liefert – für die Meldung des Komplett-Scans (Prices.Scan, Grund "realm"). Nur Kennungen
+-- der Client-Funktionen und Zahlen, keine Namen. Jede mögliche Ursache hat ihr eigenes Feld (Befund des Reviews):
+-- „db +/–“ (ezCoreDB da), „GetRealmID –|nil|0|n“ (– = Funktion fehlt), „GetNativeRealmID …“, „RealmName +/–“, „UnitFactionGroup
+-- Alliance|Horde|Neutral|secret|nil“, „realm #n|–“ (Laufnummer in ezCoreDB.realms), „store carrier|core|memory|–“ und
+-- „meta +/–“ (Kopf der Preis-Ablage).
+local function ClientValue(fname, ...)
+    local fn = G(fname)
+    if type(fn) ~= "function" then return "–" end   -- Funktion fehlt im Client (nil-Wert: "nil")
+    local value = Core.Call(fn, ...)
+    if IsSecret(value) then return "secret" end
+    return tostring(value)
+end
+function Keys.MarketWhy()
+    local raw = Core.Call(G("UnitFactionGroup"), "player")
+    local side = IsSecret(raw) and "secret" or ((type(raw) == "string" and raw ~= "") and raw) or "nil"
+    local realm = Keys.Realm()
+    local M = DB.Market
+    local root, where
+    if M and M.Root then
+        local ok, r, w = pcall(M.Root)
+        if ok then root, where = r, w end
+    end
+    return ("db %s · GetRealmID %s · GetNativeRealmID %s · RealmName %s · UnitFactionGroup %s · realm %s · store %s · meta %s"):format(
+        type(Core.db) == "table" and "+" or "–", ClientValue("GetRealmID"), ClientValue("GetNativeRealmID"),
+        RealmName() and "+" or "–", side, realm and ("#" .. realm) or "–", where or "–",
+        (type(root) == "table" and type(root.meta) == "table") and "+" or "–")
+end
+
 function Keys.MarketArea(root, core, side)
     if type(root) ~= "table" or type(root.meta) ~= "table" then return nil end
     local info = core and Core.db and type(Core.db.realms) == "table" and Core.db.realms[core]
@@ -406,12 +493,20 @@ function Keys.MarketArea(root, core, side)
     m.areas = type(m.areas) == "table" and m.areas or {}
     local id = Num(info.id)
     if id and id <= 0 then id = nil end
-    local rn
+    local rn, byCore
     for i, r in ipairs(m.realms) do
         if type(r) == "table" and ((id and Num(r.id) == id) or (not id and not Num(r.id) and r.core == core)) then
             rn = i
             break
         end
+        if type(r) == "table" and id and not Num(r.id) and r.core == core then byCore = byCore or i end
+    end
+    -- Der Realm hatte bisher keine Kennung (fester Eintrag ohne Kennung, Keys.Realm) und hat jetzt eine: derselbe Bereich
+    -- bekommt sie, statt einen zweiten anzulegen.
+    if not rn and byCore then
+        rn = byCore
+        m.realms[rn].id = id
+        if Num(info.native) then m.realms[rn].native = Num(info.native) end
     end
     if not rn then
         m.realms[#m.realms + 1] = { id = id, native = Num(info.native), core = core }

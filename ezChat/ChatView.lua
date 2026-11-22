@@ -8,8 +8,8 @@ local Conv = ns.Conv
 -- Blizzards private Chats). Er listet die offenen Gespräche; die Liste bleibt über
 -- Neustarts erhalten, anders als Blizzards „Zu privatem Chat umwandeln“.
 -- Wer eines wählt, sieht im Chatfenster nur noch dieses Gespräch samt Verlauf, und
--- Blizzards Eingabezeile flüstert dem Partner (Flüstern „klebt“ dort). Ein Klick
--- auf einen Chat-Reiter führt zurück zum normalen Chat.
+-- Blizzards Eingabezeile flüstert dem Partner (Flüstern „klebt“ dort, Chat.SetTellTarget). Ein Klick
+-- auf einen Chat-Reiter führt zurück zum normalen Chat, die Eingabezeile zurück auf den Chattyp davor.
 -- Eigene Frames: die Ansicht liegt über dem Chatfenster, der Reiter hängt an Blizzards
 -- Reiterleiste. An Blizzards Chatfenster ändert ezChat nur die Durchsichtigkeit von Chattext
 -- (FontStringContainer) und den Teilen der Bildlaufleiste, solange ein Gespräch gezeigt wird
@@ -207,6 +207,12 @@ end
 -- Gesprächsansicht über dem Chatfenster
 ---------------------------------------------------------------------------
 
+-- Das gerade sichtbare Chatfenster der Reiterleiste (alle angedockten liegen übereinander).
+local function ShownChatFrame()
+    local dock = Dock()
+    return (dock and dock.selected) or ChatFrame1
+end
+
 local function Fill()
     dirty = false
     local convo = active and ns.C and ns.C.convos[active]
@@ -215,15 +221,12 @@ local function Fill()
     messages:Fill(convo)
     local status, hint = ns.ConvoStatus(convo, true)   -- kurz: eine Zeile über dem Chat, ohne die Angaben eines Offline-Partners
     if ns.MissingSurname(convo.name) then hint = L.NEED_SURNAME:format(convo.name) end
+    ns.Chat.KeepTell(convo, ShownChatFrame())   -- neuer Name (Nachname ergänzt, zusammengelegt): Flüsterziel nachführen
+    local tellTarget = hint == "" and ns.Chat.TellTarget()   -- die Zeile öffnet Enter, nicht ezChat (Chat.lua)
+    if tellTarget then hint = L.VIEW_ENTER:format(tellTarget) end
     if hint ~= "" then status = status .. "  " .. ezCore.Grey(hint) end
     header:SetText(status)
     UpdateTab()
-end
-
--- Das gerade sichtbare Chatfenster der Reiterleiste (alle angedockten liegen übereinander).
-local function ShownChatFrame()
-    local dock = Dock()
-    return (dock and dock.selected) or ChatFrame1
 end
 
 -- Blizzards Chattext und Bildlaufleiste des Fensters ausblenden, solange ein Gespräch
@@ -357,6 +360,8 @@ local function CreateOverlay()
         local ok, err
         if chat ~= fadedChat then
             ok, err = pcall(ApplyLook, chat)   -- Blizzard hat ein anderes Fenster gewählt
+            local convo = ok and active and ns.C and ns.C.convos[active]
+            if convo then ok, err = pcall(ns.Chat.KeepTell, convo, chat) end   -- Stil „IM“: dessen Eingabezeile
         else
             ok, err = pcall(KeepOnTop, chat)
             if ok then ok, err = pcall(KeepFaded) end
@@ -368,8 +373,8 @@ local function CreateOverlay()
     overlay:Hide()
 end
 
--- Gespräch im Chatfenster zeigen. fromUser: aus einem Klick heraus, dann wird auch
--- Blizzards Eingabezeile auf Flüstern an den Partner gestellt.
+-- Gespräch im Chatfenster zeigen und Blizzards Eingabezeile auf Flüstern an den Partner stellen. fromUser: aus
+-- einem Klick heraus (dann ein Hinweis, wenn ein Battle.net-Partner kein Freund mehr ist).
 function View.Select(key, fromUser)
     local convo = key and ns.C and ns.C.convos[key]
     if not convo or not View.Enabled() then return end
@@ -379,15 +384,22 @@ function View.Select(key, fromUser)
     active = key
     ApplyLook(ShownChatFrame())
     overlay:Show()
+    -- Blizzards Eingabezeile flüstert dem Partner, solange die Ansicht das Gespräch zeigt – auch nach Esc und beim
+    -- Wechsel zu einem anderen Gespräch; View.Close stellt den Stand davor wieder her (Chat.SetTellTarget). Die Zeile
+    -- öffnet der Spieler mit Enter; aus Addon-Code geöffnet blieben Blizzards Chat-Merker befleckt (Chat.lua).
+    -- Ist ein Battle.net-Partner kein Freund mehr, sagt das ein Hinweis (wie Chat.Tell, ohne Blizzards Eingabe).
+    -- Vor Fill, damit dessen Nachführen (Chat.KeepTell) schon das neue Gespräch vorfindet.
+    local set = ns.Chat.SetTellTarget(convo, ShownChatFrame())
+    if not set and fromUser and convo.bn and not select(3, ns.BNFind(convo.name)) then ns.Print(L.BN_NOT_FRIEND) end
     Fill()
     -- Solange die Ansicht das Gespräch zeigt: Flüstern an Offline-Partner in die Warteschlange.
     ns.Delivery.Expect(key, 86400)
-    if fromUser then ns.Chat.Tell(convo, nil) end
 end
 
 -- Zurück zum normalen Chat.
 function View.Close()
     if active then ns.Delivery.Expect(active) end   -- noch zehn Minuten wie nach Gesprächsbeginn
+    ns.Chat.RestoreTell()   -- Eingabezeile zurück auf den Chattyp vor dem Gespräch
     active = nil
     dirty = false
     RestoreChat()

@@ -4,7 +4,7 @@
 ## Notes: Shared base of ezCollection: character data of all alts, bags/bank/mail, item and spell knowledge, one mail queue, tooltip pipeline, settings category "ezCollection". Required by every ezCollection module.
 ## Notes-deDE: Gemeinsame Basis der ezCollection: Charakterdaten aller Twinks, Taschen/Bank/Post, Item- und Zauber-Wissen, eine Versand-Warteschlange, Tooltip-Pipeline, Einstellungs-Kategorie "ezCollection". Wird von jedem Modul der ezCollection gebraucht.
 ## Author: BlackWolf-Design
-## Version: 1.16.0
+## Version: 1.17.0
 ## Category: ezCollection
 ## IconTexture: Interface\AddOns\ezCore\Media\ezCollection
 ## SavedVariables: ezCoreDB
@@ -85,6 +85,7 @@ Charakter\CharData.lua
 Wissen\Npcs.lua
 Charakter\Durability.lua
 Charakter\Junk.lua
+Charakter\Lists.lua
 Bausteine\SlotMarks.lua
 Wissen\DungeonData.lua
 Wissen\Dungeons.lua

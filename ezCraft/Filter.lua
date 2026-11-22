@@ -312,12 +312,11 @@ function Skill.BuildMenu(root)
     local Menu, Icons = Core.Menu, ns.Icons
     local sec = Icons.Section(root, L.FILTER_HEAD, { icon = Icons.For("colors"), tip = L.FILTER_HEAD_TIP,
         source = L.FILTER_SOURCE })
-    -- Design-System 2.11 (Mehrfachauswahl): „Alle auswählen / Alle abwählen“ direkt unter der Überschrift, vor den
-    -- Haken; Wortlaut Core.Style.AllText (Blizzards CHECK_ALL/UNCHECK_ALL, sonst ezCores Text). Gemerkt wie jeder Haken.
+    -- Design-System 2.11 (Mehrfachauswahl): ein Haken „Alle“ direkt unter der Überschrift, vor den Haken (seit
+    -- 21.11.2026 einer statt „Alle auswählen / Alle abwählen“). Gemerkt wie jeder Haken.
     if type(Menu.AllToggle) == "function" and Core.Style then
         Menu.AllToggle(sec, Skill.COLORS, Skill.Wanted, Skill.SetWanted,
-            { onText = Core.Style.AllText(true), offText = Core.Style.AllText(false), icons = true,
-              onTip = Core.L.ALL_CHECK_TIP, offTip = L.FILTER_ALL_OFF_TIP })
+            { offTip = L.FILTER_ALL_OFF_TIP })
     end
     for _, color in ipairs(Skill.COLORS) do
         local label = L["FILTER_" .. color]

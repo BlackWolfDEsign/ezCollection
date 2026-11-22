@@ -11,10 +11,12 @@ local Core = ezCore
         punkte: { { x = Zahl, y = Zahl oder nil (Lücke), high = Zahl oder nil (Band bis dahin), bar = Zahl oder nil
                     (Balken am Fuß, z. B. Menge) } … } in beliebiger Reihenfolge
         opts:   width, height (Bildpunkte, Pflicht), step (Abstand zweier Nachbarn in x, Standard 1 – ein größerer
-                Abstand ist eine Lücke ohne Linie), barShare (Anteil der Höhe für die Balken, Standard 0,2),
+                Abstand ist eine Lücke, gestrichelt überbrückt – bridgeGaps), barShare (Anteil der Höhe für die Balken, Standard 0,2),
                 yMin, yMax, xMin, xMax (ohne Angabe aus den Daten), guides = { Wert … } (Hilfslinien, z. B. Median),
-                dashed = { Wert … } (gestrichelt, z. B. Händlerpreis), dash = 6, gap = 4
-        geo:    lines = { { x1, y1, x2, y2 } … }, band = { { x, y1, y2, w } … } (Rechteck ab x, Breite w),
+                dashed = { Wert … } (gestrichelt, z. B. Händlerpreis), dash = 6, gap = 4,
+                bridgeGaps (Standard an: Lücken gestrichelt überbrücken; false = offen lassen)
+        geo:    lines = { { x1, y1, x2, y2 } … }, bridges = { { x1, y1, x2, y2 } … } (über eine Lücke, vom letzten
+                Punkt davor zum ersten danach), bridgeDashes = { { x1, y1, x2, y2 } … } (dieselben Strecken in Strichen), band = { { x, y1, y2, w } … } (Rechteck ab x, Breite w),
                 bars = { { x, w, h } … }, guides = { { y, value } … }, dashes = { { x1, y, x2 } … },
                 dots = { { x, y, index } … }, slot (Breite je Schritt), plotBottom, xMin, xMax, yMin, yMax
       Core.Graph.Segment(x1, y1, x2, y2) → Mitte x, Mitte y, Länge, Winkel (für gedrehte Texturen)
@@ -23,6 +25,7 @@ local Core = ezCore
       local graph = Core.NewGraph(parent, { width = 220, height = 90, tooltip = function(punkt, i) return titel,
           zeile … end })
       graph:SetData(punkte, opts)  graph:Clear()  graph.frame  graph.mode ("line" oder "texture")
+      graph:SetSize(breite, höhe) – neue Größe (Rahmen und Vorgabe für SetData; zeichnet die letzten Punkte neu)
     Linien über frame:CreateLine; kennt Forever CreateLine nicht, nimmt der Ausweichweg gedrehte Texturen
     (Texture:SetRotation), ohne SetRotation eine Treppe aus waagrechten und senkrechten Strecken.
 ]]
@@ -84,7 +87,25 @@ function Graph.Geometry(points, opts)
     local function X(x) if xMax <= xMin then return width / 2 end return slot / 2 + (x - xMin) / step * slot end
     local function Y(v) return plotBottom + (v - yMin) / (yMax - yMin) * (height - plotBottom) end
     geo.slot, geo.plotBottom, geo.xMin, geo.xMax, geo.yMin, geo.yMax = slot, plotBottom, xMin, xMax, yMin, yMax
-    local prev
+    -- Lücken (Tage ohne Erfassung) gestrichelt überbrücken: Entscheidung des Nutzers vom 21.11.2026 „Gestrichelt
+    -- verbinden (Empfohlen)“ – der Verlauf bleibt lesbar, und man sieht, dass dazwischen nichts erfasst wurde
+    local bridge = opts.bridgeGaps ~= false
+    -- geklemmt: ein Strich unter 1 Bildpunkt oder ein negativer Abstand liefe endlos bzw. erzeugte Unmengen Teile
+    local dash, gap = max(1, Core.Num(opts.dash) or 6), max(0, Core.Num(opts.gap) or 4)
+    geo.bridges, geo.bridgeDashes = {}, {}
+    local function Bridge(x1, y1, x2, y2)
+        geo.bridges[#geo.bridges + 1] = { x1, y1, x2, y2 }
+        local dx, dy = x2 - x1, y2 - y1
+        local len = sqrt(dx * dx + dy * dy)
+        if len <= 0 then return end
+        local t = 0
+        while t < len do
+            local t2 = min(t + dash, len)
+            geo.bridgeDashes[#geo.bridgeDashes + 1] = { x1 + dx * t / len, y1 + dy * t / len, x1 + dx * t2 / len, y1 + dy * t2 / len }
+            t = t + dash + gap
+        end
+    end
+    local prev, last
     for _, e in ipairs(list) do
         local p = e.p
         local x, y = X(p.x), Core.Num(p.y)
@@ -96,8 +117,11 @@ function Graph.Geometry(points, opts)
             if high and high > y then geo.band[#geo.band + 1] = { x - w / 2, py, Y(high), w } end
             if prev and p.x - prev.x <= step + 1e-9 then
                 geo.lines[#geo.lines + 1] = { X(prev.x), Y(prev.y), x, py }
+            elseif bridge and last then
+                Bridge(X(last.x), Y(last.y), x, py)
             end
             prev = { x = p.x, y = y }
+            last = prev
         else
             prev = nil   -- Lücke: fehlender Tag
         end
@@ -109,7 +133,6 @@ function Graph.Geometry(points, opts)
     for _, v in ipairs(type(opts.guides) == "table" and opts.guides or {}) do
         if Core.Num(v) then geo.guides[#geo.guides + 1] = { Y(v), v } end
     end
-    local dash, gap = Core.Num(opts.dash) or 6, Core.Num(opts.gap) or 4
     for _, v in ipairs(type(opts.dashed) == "table" and opts.dashed or {}) do
         if Core.Num(v) then
             local y, x = Y(v), 0
@@ -196,7 +219,7 @@ function Methods:Clear()
         for i = 1, pool.used do pool[i]:Hide() end
         pool.used = 0
     end
-    self.points, self.geo = nil, nil
+    self.points, self.geo, self.lastOpts = nil, nil, nil
 end
 
 function Methods:ShowTip(hit)
@@ -227,6 +250,8 @@ function Methods:SetData(points, opts)
     for _, guide in ipairs(geo.guides) do Rect(self, "guide", 0, guide[1], width, 1, 1, 1, 1, 0.35) end
     for _, d in ipairs(geo.dashes) do Rect(self, "guide", d[1], d[2], d[3] - d[1], 1, 0.7, 0.7, 0.7, 0.7) end
     for _, l in ipairs(geo.lines) do Segment(self, l[1], l[2], l[3], l[4], 2, r, g, b, 1) end
+    -- über Lücken: dieselbe Stärke und Farbe wie die Linie, nur in Strichen (Nutzer, 21.11.2026: „NICHT DÜNNER“)
+    for _, l in ipairs(geo.bridgeDashes) do Segment(self, l[1], l[2], l[3], l[4], 2, r, g, b, 1) end
     for _, dot in ipairs(geo.dots) do
         Rect(self, "dot", dot[1] - 2, dot[2] - 2, 4, 4, r, g, b, 1)
         local hit = Take(self, "hit")
@@ -235,8 +260,25 @@ function Methods:SetData(points, opts)
         hit:SetSize(max(4, geo.slot), max(1, height))
         hit.ezPoint, hit.ezIndex = points[dot[3]], dot[3]
     end
-    self.points, self.geo = points, geo
+    self.points, self.geo, self.lastOpts = points, geo, opts
     return geo
+end
+
+-- Größe ändern (ezAuctions Vergrößern-Pfeil am Seitenteil „Markt“, 21.11.2026): Rahmen und Vorgabe für SetData; liegen
+-- schon Punkte, werden sie in der neuen Größe neu gezeichnet. → true, wenn geändert
+function Methods:SetSize(width, height)
+    width, height = Core.Num(width), Core.Num(height)
+    if not (width and height and width > 0 and height > 0) then return false end
+    if self.opts.width == width and self.opts.height == height then return false end
+    self.opts.width, self.opts.height = width, height
+    self.frame:SetSize(width, height)
+    if self.points and self.lastOpts then
+        -- ohne width/height der letzten Daten (sonst gälte die alte Größe weiter, SetData)
+        local again = {}
+        for k, v in pairs(self.lastOpts) do if k ~= "width" and k ~= "height" then again[k] = v end end
+        self:SetData(self.points, again)
+    end
+    return true
 end
 
 -- parent: Rahmen, an dem der Graph hängt (Pflicht); opts: width, height, tooltip, owner, noLines (Ausweichweg

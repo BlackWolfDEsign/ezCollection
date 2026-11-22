@@ -11,6 +11,8 @@ local _, ns = ...
 local BUFF_HINT_DE = "Buffs per Klick wirken immer deinen höchsten Rang – ein Mitspieler mit zu niedriger Stufe nimmt ihn nicht an. Für solche Ziele hilft das Modul ezBuff: Sein Symbol am Rahmen (Einstellungen von ezBuff, Abschnitt „Gruppe“) wählt den Rang nach der Stufe des Ziels."
 local BUFF_HINT_EN = "Buffs cast by click always use your highest rank – a group member whose level is too low cannot receive it. For those targets use the ezBuff module: its icon on the frame (ezBuff settings, section “Group”) picks the rank by the target's level."
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Heil-Vorlagen für Blizzards Klick-Zauber\nHeilen, Bannen, Beleben, Buffen per Klick\nVorschau und Rückfrage vor dem Übernehmen\n„Zurück“ kennt jede Klick-Belegung\nEigene HoTs am Gruppenrahmen",
     TITLE = "ezHeal",
 
     -- Hilfe: Kopf und Standardbefehle (Einstellungen, status, hilfe, zuruecksetzen) sagt ezCore (Core.HelpLines), hier nur
@@ -171,6 +173,10 @@ local de = {
     OPT_entrySpellbook_TIP = "Zeigt rechts an Blizzards Zauberbuch einen Seitenreiter (unter den Reitern von ezMerchant, ezMacro und ezCombat), der Blizzards Fenster „Klick-Zauber“ öffnet – so wie dort der Portrait-Knopf zurück zum Zauberbuch führt.",
     OPT_entryMacro = "Knopf am Makrofenster",
     OPT_entryMacro_TIP = "Zeigt in der Titelleiste von Blizzards Makrofenster links neben dem Schließen-Knopf einen kleinen Knopf, der Blizzards Fenster „Klick-Zauber“ öffnet – so wie dort der Portrait-Knopf zurück zu den Makros führt.",
+    OPT_dockSpellbook = "Klick-Zauber am Zauberbuch andocken",
+    OPT_dockSpellbook_TIP = "Hängt Blizzards Fenster „Klick-Zauber“ rechts an das Zauberbuch (neben die Seitenreiter); verschiebst du das Zauberbuch, wandert es mit. Reicht rechts der Platz nicht, sitzt es links daneben. Nur außerhalb des Kampfes; ausgeschaltet oder ohne Zauberbuch steht es wieder dort, wo Blizzard es hinsetzt. Verschiebt ein anderes Addon Blizzards Fenster, bleibt es dort, wo dieses Addon es hinsetzt.",
+    OPT_pairSpellbook = "Zauberbuch und Klick-Zauber zusammen schließen",
+    OPT_pairSpellbook_TIP = "Schließt du Blizzards Fenster „Klick-Zauber“, bleibt das Zauberbuch offen; schließt du das Zauberbuch, geht „Klick-Zauber“ mit zu (mit ungespeicherten Änderungen nach Blizzards Rückfrage). Esc schließt beide. Der Wechsel zu den Makros über Blizzards Knopf oben rechts bleibt, wie er ist. Nur außerhalb des Kampfes.",
 
     -- Benannte Profile der Klick-Belegung (HL-08; Daten in ezCore.ClickBindings)
     MENU_PROFILES = "Profile der Klick-Belegung",
@@ -272,6 +278,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Healing templates for click casting\nHeal, dispel, resurrect, buff by click\nPreview and question before applying\n“Undo” knows every click binding\nYour own HoTs on the party frames",
     TITLE = "ezHeal",
 
     MAIN_TEXT = "open Blizzard's Click Casting window",
@@ -417,6 +424,10 @@ local en = {
     OPT_entrySpellbook_TIP = "Shows a side tab on the right of Blizzard's spellbook (below the tabs of ezMerchant, ezMacro and ezCombat) that opens Blizzard's Click Casting window – just as its portrait button leads back to the spellbook.",
     OPT_entryMacro = "Button at the macro window",
     OPT_entryMacro_TIP = "Shows a small button in the title bar of Blizzard's macro window, left of the close button, that opens Blizzard's Click Casting window – just as its portrait button leads back to the macros.",
+    OPT_dockSpellbook = "Dock Click Casting to the spellbook",
+    OPT_dockSpellbook_TIP = "Attaches Blizzard's Click Casting window to the right of the spellbook (next to the side tabs); if you move the spellbook, it follows. Without room on the right it sits on the left. Only out of combat; when turned off or without the spellbook it goes back to where Blizzard places it. If another addon moves Blizzard's windows, it stays where that addon puts it.",
+    OPT_pairSpellbook = "Close spellbook and Click Casting together",
+    OPT_pairSpellbook_TIP = "Closing Blizzard's Click Casting window keeps the spellbook open; closing the spellbook also closes Click Casting (with unsaved changes after Blizzard's confirmation). Escape closes both. Switching to the macros with Blizzard's button at the top right stays as it is. Only out of combat.",
 
     MENU_PROFILES = "Click binding profiles",
     MENU_PROFILE_SAVE = "Save current bindings as …",

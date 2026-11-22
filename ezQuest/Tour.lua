@@ -1,5 +1,10 @@
 local ADDON, ns = ...
 local L = ns.L
+
+-- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
+-- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
+-- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
+ns.FEATURE_STEPS = { { "level", "levelGossip" }, { "auto", "autoGossip" }, "log", false, "log" }
 local Core = ezCore
 
 --[[
@@ -70,7 +75,11 @@ Tour.tour = Core.NewTour({
         { key = "autoGossip", target = Tour.GossipSwitchTarget, text = L.HINT_AUTO, side = "right" },
         { key = "level", target = Tour.GreetingTarget, text = L.HINT_LEVEL, side = "right" },
         { key = "levelGossip", target = Tour.GossipTarget, text = L.HINT_LEVEL, side = "right" },
-        { key = "log", target = Tour.LogTarget, text = L.HINT_LOG, side = "left" },
+        -- mit der Leveling-Route nennt die Blase auch sie (Zahnrad-Menü; eigener Schritt am Zahnrad: Rahmenname in
+        -- Forever ungeprüft, und die Prüfungen begrenzen den Rundgang auf sechs Blasen)
+        { key = "log", target = Tour.LogTarget, side = "left", text = function()
+            return ns.Enabled("levelRoute") and (L.HINT_LOG .. " " .. L.HINT_LOG_ROUTE) or L.HINT_LOG
+        end },
         { key = "sort", target = Tour.SortTarget, text = function() return L.HINT_SORT:format(ns.SlashCmd(L.CMD_SORT)) end, side = "left" },
     },
 })

@@ -24,6 +24,22 @@ local L = Core.L
       Npcs.Learn(kind)           → merkt den NPC, mit dem gerade gesprochen wird (intern)
       Nachricht: NPCS_CHANGED (npcID, kind)
 
+    Laut Questie (Entscheidung des Nutzers vom 22.11.2026: „Ja, Questie zuerst“, dazu „und noch waffenmeister“):
+      Npcs.List({ …, questie = { uiMapID … } }) → Liste, wartet
+                                   nimmt die Lehrer, Händler und Reparierer dieser Karten laut Questie dazu
+                                   (Core.Sources.Questie.Townsfolk, nur zur Laufzeit, nichts gespeichert). Solche
+                                   Einträge tragen source = "questie"; ein besuchter NPC mit derselben ID geht vor.
+                                   wartet = true, solange Questie eine der Karten noch liest (Nachricht
+                                   QUESTIE_TOWNSFOLK meldet das Ende). Ohne QuestieDB bleibt die Liste wie bisher.
+      Npcs.TitleKind(titel)      → Art eines Lehrers allein am Titel: "profession" (Core.Menu.ProfessionOfTitle),
+                                   "class", klasse (Klassenname des Clients oder englisches Kürzel, alle Klassen),
+                                   "pet" (Tierausbilder), sonst "other"
+      Npcs.IsWeaponMasterTitle(titel) → Waffenmeister? (Wort in der Sprache des Clients oder englisch); Einträge
+                                   der Art "other" mit diesem Titel tragen weapon = true
+      Npcs.SourceLabel(eintrag)  → „laut Questie“ bzw. „von dir besucht“
+      Npcs.ROLES                 → { "innkeeper", "banker", "auctioneer", "stablemaster", "battlemaster" }: weitere
+                                   Arten für filter.kind, nur laut Questie (22.11.2026, Pfeile im Menü „Aufspüren“)
+
     Das Händler-Wissen (Knowledge.VendorSources) nennt über die NPC-ID dieselben Koordinaten.
     Einmalige Übernahme aus ezMapDB.trainers (die alten Daten bleiben liegen, migrated.ezMapTrainers).
 
@@ -109,6 +125,56 @@ function Npcs.IsPetTrainerTitle(title)
     return title:lower():find(word:lower(), 1, true) ~= nil
 end
 
+-- Wort im Titel (Sprache des Clients bzw. englisch), ohne Groß- und Kleinschreibung
+local function TitleHas(title, word, english)
+    if Core.IsSecret(title) or type(title) ~= "string" or title == "" then return false end
+    local lower = title:lower()
+    for _, w in ipairs({ word, english }) do
+        if type(w) == "string" and w ~= "" and lower:find(w:lower(), 1, true) then return true end
+    end
+    return false
+end
+
+-- Waffenmeister (dort lernen alle Klassen Waffenfertigkeiten; Nutzer am 22.11.2026: „und noch waffenmeister“)
+function Npcs.IsWeaponMasterTitle(title)
+    local word = L.NPC_WEAPON_MASTER_TITLE
+    if word == "NPC_WEAPON_MASTER_TITLE" then word = nil end
+    return TitleHas(title, word, "Weapon Master")
+end
+
+-- Art eines Lehrers allein am Titel (für Einträge laut Questie, ohne offenes Lehrerfenster). Klassennamen aus dem
+-- Client (männlich und weiblich) und das englische Kürzel („Rogue Trainer“ – falls Questie den Titel englisch liefert);
+-- der längste Treffer gilt („Dämonenjäger“ vor „Jäger“).
+-- → "profession" | "class", klasse | "pet" | "other"
+function Npcs.TitleKind(title)
+    if Core.IsSecret(title) or type(title) ~= "string" or title == "" then return "other" end
+    local M = Core.Menu
+    if type(M) == "table" and type(M.ProfessionOfTitle) == "function" and M.ProfessionOfTitle(title) then
+        return "profession"
+    end
+    local lower = title:lower()
+    local classes = type(LOCALIZED_CLASS_NAMES_MALE) == "table" and LOCALIZED_CLASS_NAMES_MALE or {}
+    local best, bestLen
+    for class in pairs(classes) do
+        if type(class) == "string" then
+            local names = ClassNames(class)
+            names[#names + 1] = class:lower()
+            for _, name in ipairs(names) do
+                if type(name) == "string" and name ~= "" and (not bestLen or #name > bestLen)
+                    and lower:find(name:lower(), 1, true) then
+                    best, bestLen = class, #name
+                end
+            end
+        end
+    end
+    if best then return "class", best end
+    if TitleHas(title, L.NPC_PET_TRAINER_TITLE ~= "NPC_PET_TRAINER_TITLE" and L.NPC_PET_TRAINER_TITLE or nil,
+        "Pet Trainer") then
+        return "pet"
+    end
+    return "other"
+end
+
 -- Art eines Lehrers: „profession“ (Beruf), „class“ (Titel nennt die eigene Klasse), „pet“ (Tierausbilder), sonst
 -- „other“ (Reiten, Waffen …).
 function Npcs.TrainerKind(title)
@@ -176,7 +242,81 @@ end
 local function Copy(id, e)
     return { id = id, name = e.name, title = e.title, trainer = e.trainer, vendor = e.vendor, repair = e.repair,
         class = e.class, faction = e.faction, map = e.map, x = e.x, y = e.y, zone = e.zone, seen = e.seen,
-        kind = e.trainer and "trainer" or (e.vendor and "vendor" or nil) }
+        kind = e.trainer and "trainer" or (e.vendor and "vendor" or nil),
+        weapon = (e.trainer == "other" and Npcs.IsWeaponMasterTitle(e.title)) or nil }
+end
+
+-- Art am Titel je Eintrag laut Questie nur einmal bestimmen (die Menüs lesen die Liste mehrmals je Öffnen); schwach
+-- gemerkt: verwirft ezCore eine gelesene Karte, fällt auch das weg
+local kindOf = setmetatable({}, { __mode = "k" })
+
+-- Eintrag laut Questie (Core.Sources.Questie.Townsfolk) in derselben Form wie Copy, mit source = "questie"
+-- Weitere Rollen laut Questie (Gastwirt …; Core.Sources.Questie.TOWN_EXTRA_ROLES), als Art in filter.kind
+Npcs.ROLES = { "innkeeper", "banker", "auctioneer", "stablemaster", "battlemaster" }
+local IS_ROLE = {}
+for _, r in ipairs(Npcs.ROLES) do IS_ROLE[r] = true end
+
+local function FromQuestie(q, NameOf)
+    local e = { id = q.id, name = q.name, title = q.title, vendor = q.vendor or nil, repair = q.repair or nil,
+        faction = q.faction, hostile = q.hostile or nil, map = q.map, x = q.x, y = q.y, source = "questie" }
+    for _, r in ipairs(Npcs.ROLES) do e[r] = q[r] or nil end
+    if q.trainer then
+        local k = kindOf[q]
+        if not k then
+            local trainer, class = Npcs.TitleKind(q.title)
+            k = { trainer = trainer, class = trainer == "class" and class or nil,
+                weapon = (trainer == "other" and Npcs.IsWeaponMasterTitle(q.title)) or nil }
+            kindOf[q] = k
+        end
+        e.trainer, e.class, e.weapon = k.trainer, k.class, k.weapon
+    end
+    e.zone = NameOf(q.map)
+    e.kind = e.trainer and "trainer" or (e.vendor and "vendor" or nil)
+    if not e.kind then
+        for _, r in ipairs(Npcs.ROLES) do if e[r] then e.kind = r break end end
+    end
+    return e
+end
+
+-- Passt ein Eintrag laut Questie überhaupt zur gefragten Art? (vor dem Umwandeln – die Menüs fragen oft nur Lehrer)
+local function RoleWanted(q, filter)
+    if filter.kind == "trainer" and not q.trainer then return false end
+    if filter.kind == "vendor" and not q.vendor then return false end
+    if IS_ROLE[filter.kind] and not q[filter.kind] then return false end
+    if filter.repair and not q.repair then return false end
+    return true
+end
+
+-- Einträge laut Questie für diese Karten (nur die, die nicht schon besucht sind) → Liste, wartet
+local function QuestieEntries(maps, visited, filter, NameOf)
+    local Q = Core.Sources and Core.Sources.Questie
+    local out, pending = {}, false
+    if type(maps) ~= "table" or type(Q) ~= "table" or type(Q.Townsfolk) ~= "function" then return out, false end
+    local seen = {}
+    for _, map in ipairs(maps) do
+        map = Core.Num(map)
+        if map and not seen[map] then
+            seen[map] = true
+            local ok, answer, why = pcall(Q.Townsfolk, map)
+            if ok and type(answer) == "table" and type(answer.list) == "table" then
+                for _, q in ipairs(answer.list) do
+                    if type(q) == "table" and Core.Num(q.id) and not visited[q.id] and RoleWanted(q, filter) then
+                        visited[q.id] = true          -- dieselbe ID auf zwei Karten nur einmal
+                        out[#out + 1] = FromQuestie(q, NameOf)
+                    end
+                end
+            elseif ok and why == "building" then
+                pending = true
+            end
+        end
+    end
+    return out, pending
+end
+
+function Npcs.SourceLabel(e)
+    if type(e) ~= "table" then return nil end
+    if e.source == "questie" then return L.SOURCES_ACCORDING:format("Questie") end
+    return L.NPC_SOURCE_VISITED
 end
 
 local function Valid(e)
@@ -192,6 +332,7 @@ end
 -- Passt der NPC zu diesem Charakter? Klassenlehrer nur der eigenen Klasse, nur die eigene Fraktion.
 function Npcs.Fits(e)
     if type(e) ~= "table" then return false end
+    if e.hostile then return false end        -- laut Questie keiner Spielerfraktion freundlich
     if e.trainer == "class" and e.class and e.class ~= Core.PlayerClass() then return false end
     local mine = Faction()
     if e.faction and mine and e.faction ~= mine then return false end
@@ -202,6 +343,7 @@ local function Matches(e, filter)
     if not filter then return true end
     if filter.kind == "trainer" and not e.trainer then return false end
     if filter.kind == "vendor" and not e.vendor then return false end
+    if IS_ROLE[filter.kind] and not e[filter.kind] then return false end    -- Gastwirt … (nur laut Questie)
     if filter.trainer and e.trainer ~= filter.trainer then return false end
     if filter.repair and not e.repair then return false end
     if filter.map and e.map ~= filter.map then return false end
@@ -210,25 +352,45 @@ local function Matches(e, filter)
     return true
 end
 
-local function ZoneOf(e)
-    if e.map and Core.MapName then return Core.MapName(e.map) end
-    return e.zone or ""
-end
-
 function Npcs.List(filter)
     if type(filter) == "string" then filter = { kind = filter } end
     if type(filter) ~= "table" then filter = nil end
-    local list = {}
-    for id, e in pairs(Entries()) do
-        if type(id) == "number" and Valid(e) and Matches(e, filter) then list[#list + 1] = Copy(id, e) end
+    -- Kartennamen je Aufruf einmal fragen (Sortieren und Einträge laut Questie; Fund des code-reviewers vom 22.11.2026)
+    local names = {}
+    local function NameOf(map)
+        if not map or not Core.MapName then return nil end
+        local n = names[map]
+        if n == nil then
+            n = Core.MapName(map) or false
+            names[map] = n
+        end
+        return n or nil
     end
+    local list, visited, pending = {}, {}, false
+    for id, e in pairs(Entries()) do
+        if type(id) == "number" and Valid(e) and Matches(e, filter) then
+            -- nur ein passender Besuch verdrängt den Eintrag laut Questie (ein nur als Händler besuchter Lehrer bzw.
+            -- ein Besuch ohne Ort bleibt laut Questie in der Lehrerliste)
+            visited[id] = true
+            list[#list + 1] = Copy(id, e)
+        end
+    end
+    if filter and filter.questie then
+        local extra
+        extra, pending = QuestieEntries(filter.questie, visited, filter, NameOf)
+        for _, e in ipairs(extra) do
+            if Matches(e, filter) then list[#list + 1] = e end
+        end
+    end
+    local zoneKey = {}
+    for _, e in ipairs(list) do zoneKey[e] = (e.map and NameOf(e.map)) or e.zone or "" end
     table.sort(list, function(a, b)
-        local za, zb = ZoneOf(a), ZoneOf(b)
+        local za, zb = zoneKey[a], zoneKey[b]
         if za ~= zb then return za < zb end
         if a.name ~= b.name then return a.name < b.name end
         return a.id < b.id
     end)
-    return list
+    return list, pending
 end
 
 function Npcs.Find(name)

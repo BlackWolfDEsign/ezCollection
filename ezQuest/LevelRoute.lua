@@ -1277,12 +1277,64 @@ local function Totals(steps, ctx)
     return walk.xp, walk.total, walk.level, known
 end
 
+-- Schritte in anderen Zonen (Abgaben bei NPCs anderswo, Entscheidung 10) ans Ende (Entscheidung des Nutzers vom
+-- 21.11.2026: „Ans Ende, als Randpfeil (Empfohlen)“ auf „klasse ezmap ignoriert nun die zonen? wtf“ – vorher konnte
+-- Schritt 1 in Westfall liegen und 2 bis 7 in Elwynn). Am Ende stehen sie nach Zone beisammen, in der Folge des ersten
+-- Auftretens (sonst Zickzack Westfall, Sturmwind, Westfall – auf der Karte wieder zwei Linien vom Rand), innerhalb einer
+-- Zone in ihrer Folge von vorher. Bleiben, wo sie sind: Schritte ohne bekannte Zone, und die Abgabe einer Quest mit
+-- Zeitlimit – sie käme sonst später an, und eine kürzere Route rechtfertigt kein abgelaufenes Zeitlimit (dieselbe Zusage
+-- wie LR.Smooth und LR.Uncross; Review vom 21.11.2026). Bricht das den Vorrang (StepsValid), bleibt die Reihenfolge
+-- davor. → Zahl verschobener Schritte
+function LR.ZoneLast(stations, order, ctx)
+    if not (ctx and ctx.zone) or #order < 3 then return 0 end
+    local here, zones, byZone = { order[1] }, {}, {}
+    for pos = 2, #order do
+        local s = stations[order[pos]]
+        local timed = false
+        if s then
+            for _, q in ipairs(LR.QuestsOf(s)) do if q.timed then timed = true end end
+        end
+        if s and s.zone and s.zone ~= ctx.zone and not timed then
+            if not byZone[s.zone] then
+                byZone[s.zone] = {}
+                zones[#zones + 1] = s.zone
+            end
+            local list = byZone[s.zone]
+            list[#list + 1] = order[pos]
+        else
+            here[#here + 1] = order[pos]
+        end
+    end
+    if #zones == 0 then return 0 end
+    local before = {}
+    for k, v in ipairs(order) do before[k] = v end
+    local n = 0
+    for _, v in ipairs(here) do
+        n = n + 1
+        order[n] = v
+    end
+    for _, zone in ipairs(zones) do
+        for _, v in ipairs(byZone[zone]) do
+            n = n + 1
+            order[n] = v
+        end
+    end
+    if not StepsValid(stations, order) then
+        for k = 1, #before do order[k] = before[k] end
+        return 0
+    end
+    local moved = 0
+    for k = 1, #order do if order[k] ~= before[k] then moved = moved + 1 end end
+    return moved
+end
+
 -- Ergebnis aus Reihenfolge und Listen → state
 local function Finish(stations, order, dist, ctx, outside, sources, tick, after)
     LR.Prune(stations, order, dist, ctx, outside, tick)
     LR.HoldBack(stations, order, dist, ctx, tick)
     LR.Smooth(stations, order, dist, ctx, after, tick)
     LR.Uncross(stations, order, dist, ctx, after, tick)
+    LR.ZoneLast(stations, order, ctx)
     local steps = {}
     for pos = 2, #order do steps[#steps + 1] = stations[order[pos]] end
     steps = Bundle(steps)
@@ -2391,6 +2443,11 @@ function LR.Insert(questID, quiet)
     if not StepsValid(groups, order) then
         for k = #order, 1, -1 do order[k] = placed[k] end
     end
+    -- auch eine neu aufgenommene Quest: Abgaben anderswo ans Ende (21.11.2026). „Eigene Zone“ ist bewusst die, in der
+    -- du jetzt stehst (ctx aus LR.Context), nicht die, für die die Route gerechnet wurde: ohne „Route mitführen“ (routeAuto)
+    -- kommt zuerst, was hier liegt; die Ziele der neuen Quest liegen ohnehin hier (LR.Stations, Grund „zone“). Bricht das
+    -- den Vorrang, bleibt die Reihenfolge (StepsValid in LR.ZoneLast).
+    LR.ZoneLast(groups, order, ctx)
     local steps = {}
     for pos = 2, #order do steps[#steps + 1] = groups[order[pos]] end
     state.steps = steps

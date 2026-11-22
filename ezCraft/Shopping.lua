@@ -4,27 +4,28 @@ local Core = ezCore
 local Data = ns.Data
 
 --[[
-    Einkaufsliste aus Rezepten (ezCraftDB.shopping, für alle Twinks gemeinsam).
-      Eintrag: { id = recipeID, count }  – nur das, was dem Spieler gehört.
-    Name, Symbol, Produkt und Zutaten liest ezCraft jedes Mal frisch (Data.Recipe: offenes Berufefenster,
-    sonst das Rezept-Wissen von ezCore, Knowledge.Recipe) – so veraltet nichts, und die Liste funktioniert
-    auch am Auktionshaus, wenn das Berufefenster zu ist.
+    Listen in ezCraft (seit dem 21.11.2026 ezCores gemeinsame Listen, Core.Lists – dieselben wie in ezAuction;
+    Entscheidung des Nutzers „Ein Speicher in ezCore (Empfohlen)“). Vorher eine eigene Einkaufsliste aus Rezepten
+    (ezCraftDB.shopping); sie wird einmal zur Liste „ezCraft“ (Shopping.Adopt, Merker ezCraftDB.ezCoreDB.migrated.listsFromEzCraft) und
+    bleibt als Rückfall liegen.
+      Gewählte Liste   ezCraftDB.window.list (Name); ohne Wahl die erste Liste. „Auf die Liste“ legt ein Rezept in die
+                       gewählte (fehlt jede Liste, entsteht „ezCraft“).
+      Einträge         Rezepte ({ recipe, count, buy }) und Gegenstände ({ itemID, count }) – siehe Core.Lists
+    Name, Symbol, Produkt und Zutaten liest ezCraft jedes Mal frisch (Data.Recipe: offenes Berufefenster, sonst das
+    Rezept-Wissen von ezCore) – ezCraft meldet sich dafür als Anbieter bei Core.Lists an (auch für „vorhanden“ nach den
+    Einstellungen, womit ezAuction das fehlende Material sucht).
     „Vorhanden“ zählt wie im Berufefenster nach den Einstellungen (Tasche immer, Bank, Post, Gildenbank, Twinks).
     Fehlendes, das sich im aktuellen Gebiet sammeln lässt, heißt „hier sammelbar“ (Data.Gather, ezCore.Gathering – eigene
     Ernten „bei dir“ zuerst); im Seitenteil führt der Kartenknopf „Nächste Fundorte“ zur Weltkarte (SAM-24, Panel.lua).
 
     Für andere Module (ezCore.API("ezCraft")):
-      ShoppingList()        → { [itemID] = fehlende Anzahl }
-      Needs()               → { [itemID] = Gesamtbedarf } (auch was schon da ist – z. B. damit ezBag oder ezMerchant
-                              Material der Liste nicht als Plunder verkaufen; V-144)
-      ShoppingRecipes()     → { { recipeID, name, count }, … }
-      AddRecipe(recipeID, n) → true, neue Anzahl
-    Nachricht EZCRAFT_SHOPPING_CHANGED (ezCore.Listen) bei jeder Änderung.
-    Einkaufen über ezAuction (abgestimmt mit m-ezauction, 13.11.2026):
-      ezCore.API("ezAuction").AddShoppingList(name, items, true) mit items = { { itemID, count, name }, … };
-      true leert eine Liste gleichen Namens und füllt sie neu. Rückgabe: Listenname, Anzahl übernommener
-      Einträge – nil, solange ezAuction noch nicht bereit ist. Die Liste steht im Auktionshaus im Reiter
-      „Kaufen“ oben in Blizzards Kategorienliste. Übergeben wird nur, was fehlt.
+      ShoppingList()        → { [itemID] = fehlende Anzahl } über alle Listen
+      Needs()               → { [itemID] = Gesamtbedarf } über alle Listen (auch was schon da ist – z. B. damit ezBag
+                              oder ezMerchant Material der Listen nicht als Plunder verkaufen; V-144)
+      ShoppingRecipes()     → { { recipeID, name, count }, … } (alle Listen)
+      AddRecipe(recipeID, n) → true, neue Anzahl (gewählte Liste)
+    Nachricht EZCRAFT_SHOPPING_CHANGED (ezCore.Listen) bei jeder Änderung einer Liste (ezCores LISTS_CHANGED).
+    Einkaufen über ezAuction: die Listen sind dieselben – ezAuction sucht bei Rezepten das fehlende Material.
 ]]
 
 local Shopping = {}
@@ -33,24 +34,74 @@ ns.Shopping = Shopping
 local floor, max, min = math.floor, math.max, math.min
 local EMPTY = {}
 
-local function List() return ns.db and ns.db.shopping or EMPTY end
+local function Lists() return Core.Lists end
 
--- Gesamtbedarf je Gegenstand, einmal gerechnet (V-145: vorher las jeder Item-Tooltip alle Rezepte der Liste neu).
--- Gilt, bis sich die Liste oder die Rezepte ändern: Shopping.Invalidate bei jeder Änderung der Liste, beim Öffnen,
--- Auffrischen und Schließen des Berufefensters und wenn ezCore Rezepte gelernt hat.
+-- Gewählte Liste (Tabelle aus Core.Lists) oder nil, wenn es keine gibt: die gemerkte, sonst „ezCraft“, sonst die
+-- erste änderbare, sonst die erste (Review 21.11.2026: nicht still eine Liste mit Quelle oder eine fremde Liste).
+function Shopping.Selected()
+    local lists = Lists()
+    if not lists then return nil end
+    local name = ns.db and ns.db.window.list
+    local list = name and lists.Find(name)
+    if list then return list end
+    list = lists.Find(L.SHOP_AUCTION_LIST)
+    if list then return list end
+    for _, other in ipairs(lists.All()) do
+        if lists.Editable(other) then return other end
+    end
+    return lists.All()[1]
+end
+
+-- Liste wählen (Tabelle oder Name). → true, wenn es sie gibt
+function Shopping.Select(list)
+    local lists = Lists()
+    if type(list) == "string" and lists then list = lists.Find(list) end
+    if type(list) ~= "table" or not ns.db then return false end
+    ns.db.window.list = list.name
+    Shopping.Invalidate()
+    ns.Fire("SHOPPING_CHANGED")
+    return true
+end
+
+-- Liste für „Auf die Liste“ und „Hinzufügen“: die gewählte, wenn sie änderbar ist, sonst „ezCraft“ (änderbar; wird
+-- angelegt). → Liste oder nil vor dem Laden
+function Shopping.Target()
+    local lists = Lists()
+    if not lists then return nil end
+    local list = Shopping.Selected()
+    if list and lists.Editable(list) then return list end
+    list = lists.Find(L.SHOP_AUCTION_LIST)
+    if not (list and lists.Editable(list)) then list = lists.Create(L.SHOP_AUCTION_LIST) end
+    if list and ns.db then ns.db.window.list = list.name end
+    return list
+end
+
+local function List()
+    local list = Shopping.Selected()
+    return list and list.items or EMPTY
+end
+
+-- Gesamtbedarf der gewählten Liste, einmal gerechnet (V-145: vorher las jeder Item-Tooltip alle Rezepte neu).
+-- Gilt, bis sich eine Liste oder die Rezepte ändern.
 local needCache
 
-function Shopping.Invalidate() needCache = nil end
+function Shopping.Invalidate()
+    needCache = nil
+    if Lists() then Lists().Invalidate() end
+end
 
+-- Jede Änderung einer Liste (ezCores LISTS_CHANGED): eigene Nachricht und die alte für ezBag und ezCore.Junk.
 local function Changed()
     needCache = nil
     ns.Fire("SHOPPING_CHANGED")
     Core.Fire("EZCRAFT_SHOPPING_CHANGED")
 end
+Core.Listen("LISTS_CHANGED", Changed, ADDON)
 
+-- Eintrag des Rezepts in der gewählten Liste und sein Index.
 local function Find(recipeID)
     for index, entry in ipairs(List()) do
-        if entry.id == recipeID then return entry, index end
+        if entry.recipe == recipeID then return entry, index end
     end
     return nil
 end
@@ -69,9 +120,30 @@ function Shopping.Migrate(list)
     return list
 end
 
--- Rezept eines Eintrags, frisch gelesen (nil, wenn weder Fenster noch Rezept-Wissen es kennen).
+-- Einmal: die alte Einkaufsliste (ezCraftDB.shopping) wird die gemeinsame Liste „ezCraft“ (Entscheidung des Nutzers
+-- vom 21.11.2026). Die alte Tabelle bleibt unangetastet liegen. Merker ezCoreDB.migrated.listsFromEzCraft – im selben
+-- Speicher wie die Listen (Review 21.11.2026: geht ezCoreDB verloren, wird erneut übernommen). → Zahl übernommener Rezepte
+Shopping.ADOPT_FLAG = "listsFromEzCraft"
+function Shopping.Adopt(db)
+    local lists, core = Lists(), Core.db
+    if not (lists and type(db) == "table" and type(core) == "table") then return 0 end
+    if type(core.migrated) ~= "table" then core.migrated = {} end
+    return Core.MigrateOnce(core.migrated, Shopping.ADOPT_FLAG, function()
+        local items = {}
+        for _, entry in ipairs(type(db.shopping) == "table" and db.shopping or EMPTY) do
+            local id = type(entry) == "table" and Core.Num(entry.id)
+            if id then items[#items + 1] = { recipe = id, count = max(1, floor(Core.Num(entry.count) or 1)) } end
+        end
+        if #items == 0 then return 0 end
+        local _, created = lists.Adopt({ { name = L.SHOP_AUCTION_LIST, items = items } })
+        if created and created[1] and type(db.window) == "table" and not db.window.list then db.window.list = created[1].name end
+        return #items
+    end) or 0
+end
+
+-- Rezept eines Eintrags, frisch gelesen (nil bei Gegenständen und wenn weder Fenster noch Rezept-Wissen es kennen).
 function Shopping.Recipe(entry)
-    return entry and Data.Recipe(entry.id) or nil
+    return entry and entry.recipe and Data.Recipe(entry.recipe) or nil
 end
 
 -- Zutaten eines Eintrags: { [itemID] = Anzahl je Herstellung }.
@@ -82,92 +154,165 @@ function Shopping.Reagents(entry)
     return r
 end
 
--- Name und Symbol eines Eintrags; unbekannte Rezepte heißen „#recipeID“.
+-- Name und Symbol eines Eintrags (ezCores Core.Lists.Label/Icon); unbekannte Rezepte heißen „#recipeID“.
 function Shopping.Name(entry)
-    local recipe = Shopping.Recipe(entry)
-    return recipe and recipe.name or ("#" .. tostring(entry.id))
+    if Lists() then return Lists().Label(entry) end
+    return "#" .. tostring(entry and (entry.recipe or entry.itemID))
 end
 
 function Shopping.Icon(entry)
-    local recipe = Shopping.Recipe(entry)
-    return recipe and (recipe.icon or (recipe.product and Data.ItemIcon(recipe.product))) or nil
+    return Lists() and Lists().Icon(entry) or nil
 end
 
+-- Einträge der gewählten Liste (Rezepte und Gegenstände).
 function Shopping.Entries() return List() end
 
--- Rezept (aus Data.Recipe) mit Menge hinzufügen; dasselbe Rezept wird zusammengezählt.
+-- Rezept (aus Data.Recipe) mit Menge in die gewählte Liste; dasselbe Rezept wird zusammengezählt. → true, Anzahl
 function Shopping.Add(recipe, quantity)
     if not (recipe and recipe.recipeID and ns.db) then return false end
-    quantity = max(1, floor(tonumber(quantity) or 1))
-    local entry = Find(recipe.recipeID)
-    if not entry then
-        entry = { id = recipe.recipeID, count = 0 }
-        table.insert(ns.db.shopping, entry)
-    end
-    entry.count = entry.count + quantity
-    Changed()
-    return true, entry.count
+    local list = Shopping.Target()
+    if not (list and Lists().Editable(list)) then return false end
+    local entry = Lists().AddRecipe(list, recipe.recipeID, max(1, floor(tonumber(quantity) or 1)))
+    if not entry then return false end
+    return true, entry.count, list.name
 end
 
--- Anzahl setzen; 0 oder weniger entfernt den Eintrag.
+-- Gegenstand, Link oder Rezept-Link (Eingabefeld, Shift-Klick) in die gewählte Liste. → Eintrag oder nil
+function Shopping.AddItem(value)
+    local list = Shopping.Target()
+    if not (list and Lists().Editable(list)) then return nil end
+    return Lists().AddEntry(list, value)
+end
+
+-- Anzahl eines Rezepts der gewählten Liste setzen; 0 oder weniger entfernt den Eintrag.
 function Shopping.SetCount(recipeID, count)
-    local entry, index = Find(recipeID)
-    if not entry then return false end
-    count = floor(tonumber(count) or 0)
-    if count <= 0 then
-        table.remove(ns.db.shopping, index)
-    else
-        entry.count = count
-    end
-    Changed()
-    return true
+    local _, index = Find(recipeID)
+    if not index then return false end
+    return Lists().SetCount(Shopping.Selected(), index, count)
 end
 
 function Shopping.Remove(recipeID) return Shopping.SetCount(recipeID, 0) end
 
-function Shopping.Clear()
-    if not ns.db then return end
-    wipe(ns.db.shopping)
-    Changed()
+-- Zeile index der gewählten Liste: Menge setzen (0 entfernt) bzw. entfernen.
+function Shopping.SetEntryCount(index, count)
+    local list = Shopping.Selected()
+    return list ~= nil and Lists().SetCount(list, index, count)
 end
 
--- Einkaufsliste leeren nach Rückfrage – ein Weg für die Knöpfe (Einstellungen, Seitenteil) und „/ezcraft leeren“
--- (T9-10). announce: danach „Einkaufsliste geleert.“ im Chat (der Befehl hat sonst keine sichtbare Antwort).
+function Shopping.RemoveEntry(index)
+    local list = Shopping.Selected()
+    return list ~= nil and Lists().RemoveEntry(list, index)
+end
+
+-- Rezept: im Auktionshaus Material (ab Werk) oder den Gegenstand selbst suchen.
+function Shopping.ToggleBuy(index)
+    local list = Shopping.Selected()
+    local entry = list and list.items[index]
+    return entry ~= nil and Lists().SetBuy(list, index, not entry.buy)
+end
+
+-- Gewählte Liste leeren (die Liste bleibt).
+function Shopping.Clear()
+    local list = Shopping.Selected()
+    if not list then return end
+    wipe(list.items)
+    Lists().Changed(list)
+end
+
+-- Gewählte Liste leeren nach Rückfrage – ein Weg für die Knöpfe (Einstellungen, Seitenteil) und „/ezcraft leeren“
+-- (T9-10). announce: danach „Liste geleert.“ im Chat (der Befehl hat sonst keine sichtbare Antwort).
 function Shopping.AskClear(announce)
-    return Core.Confirm(L.SHOP_CLEAR_CONFIRM, function()
+    local list = Shopping.Selected()
+    if not (list and Lists().Editable(list)) then
+        ns.Print(list and L.LIST_SOURCE_PANEL or L.SHOP_EMPTY)
+        return nil
+    end
+    return Core.Confirm(L.SHOP_CLEAR_CONFIRM:format(list.name), function()
         Shopping.Clear()
         if announce then ns.Print(L.SHOP_CLEARED) end
     end)
 end
 
+---------------------------------------------------------------------------
+-- Listen anlegen, umbenennen, löschen (Knöpfe in der Ansicht „Listen“)
+---------------------------------------------------------------------------
+
+function Shopping.Create(name)
+    local list = Lists() and Lists().Create(name)
+    if list then Shopping.Select(list) end
+    return list
+end
+
+function Shopping.AskCreate()
+    return Core.AskText(L.LIST_NEW_PROMPT, "", function(text) Shopping.Create(text) end, 40)
+end
+
+-- → true, Name | false
+function Shopping.Rename(list, name)
+    local ok, newName = Lists().Rename(list, name)
+    if ok then
+        if ns.db then ns.db.window.list = newName end
+        ns.Fire("SHOPPING_CHANGED")
+    else
+        ns.Print(L.LIST_RENAME_TAKEN:format(type(name) == "string" and name or ""))
+    end
+    return ok, newName
+end
+
+function Shopping.AskRename()
+    local list = Shopping.Selected()
+    if not list then return nil end
+    return Core.AskText(L.LIST_RENAME_PROMPT:format(list.name), list.name, function(text) Shopping.Rename(list, text) end, 40)
+end
+
+function Shopping.Delete(list)
+    if not (list and Lists().Delete(list)) then return false end
+    if ns.db then ns.db.window.list = nil end
+    Shopping.Invalidate()
+    ns.Fire("SHOPPING_CHANGED")
+    return true
+end
+
+function Shopping.AskDelete()
+    local list = Shopping.Selected()
+    if not list then return nil end
+    return Core.Confirm(L.LIST_DELETE_CONFIRM:format(list.name), function() Shopping.Delete(list) end, { alert = true })
+end
+
+---------------------------------------------------------------------------
+-- Bedarf
+---------------------------------------------------------------------------
+
+-- Bedarf der gewählten Liste (Rezepte: Zutaten × Anzahl; Gegenstände mit Menge).
 local function NeedMap()
     if needCache then return needCache end
-    local need = {}
-    for _, entry in ipairs(List()) do
-        for itemID, per in pairs(Shopping.Reagents(entry)) do
-            need[itemID] = (need[itemID] or 0) + per * (entry.count or 1)
-        end
-    end
+    local need = Lists() and Lists().Needs(Shopping.Selected() or EMPTY) or {}
     if ns.db then needCache = need end   -- vor dem Laden der Datenbank nichts merken
     return need
 end
 
--- Gesamtbedarf { [itemID] = Anzahl } über alle Einträge (eine Kopie: der Aufrufer darf sie verändern).
+-- Gesamtbedarf { [itemID] = Anzahl } der gewählten Liste (eine Kopie: der Aufrufer darf sie verändern).
 function Shopping.Needs()
     local need = {}
     for itemID, n in pairs(NeedMap()) do need[itemID] = n end
     return need
 end
 
--- Bedarf eines einzelnen Gegenstands (für den Tooltip).
+-- Bedarf eines Gegenstands über alle Listen (Tooltip, Schutz vor dem Verkaufen).
 function Shopping.NeedFor(itemID)
-    return NeedMap()[itemID] or 0
+    return Lists() and Lists().NeedFor(itemID) or 0
 end
 
--- Zeilen { itemID, name, icon, need, stock, have, missing }: fehlendes zuerst, dann nach Namen.
-function Shopping.Totals(S)
+-- Gesamtbedarf aller Listen (Schnittstelle Needs, V-144).
+function Shopping.AllNeeds()
+    return Lists() and Lists().Needs() or {}
+end
+
+-- Zeilen { itemID, name, icon, need, stock, have, missing }: fehlendes zuerst, dann nach Namen. needs: Bedarf (ohne
+-- Angabe die gewählte Liste).
+function Shopping.Totals(S, needs)
     local rows = {}
-    for itemID, need in pairs(Shopping.Needs()) do
+    for itemID, need in pairs(needs or Shopping.Needs()) do
         local stock = Data.Stock(itemID)
         local have = Data.Have(stock, S)
         rows[#rows + 1] = { itemID = itemID, name = Data.ItemName(itemID), icon = Data.ItemIcon(itemID), need = need,
@@ -180,9 +325,9 @@ function Shopping.Totals(S)
     return rows
 end
 
-function Shopping.MissingMap(S)
+function Shopping.MissingMap(S, needs)
     local map = {}
-    for _, row in ipairs(Shopping.Totals(S)) do
+    for _, row in ipairs(Shopping.Totals(S, needs)) do
         if row.missing > 0 then map[row.itemID] = row.missing end
     end
     return map
@@ -196,6 +341,24 @@ function Shopping.BagNeeds()
         if lack > 0 then needs[itemID] = lack end
     end
     return needs
+end
+
+-- Anbieter für Core.Lists: Rezepte aus dem offenen Berufefenster bzw. dem Rezept-Wissen, „vorhanden“ nach den
+-- Einstellungen (damit ezAuction bei Rezepten genau das Fehlende sucht).
+function Shopping.RecipeForLists(recipeID)
+    local recipe = Data.Recipe(recipeID)
+    if not recipe then return nil end
+    local reagents = {}
+    for _, r in ipairs(recipe.reagents or EMPTY) do
+        local id, n = Core.Num(r.itemID), Core.Num(r.count)
+        if id and n then reagents[id] = (reagents[id] or 0) + n end
+    end
+    return { name = recipe.name, icon = recipe.icon or (recipe.product and Data.ItemIcon(recipe.product)) or nil,
+        product = recipe.product, reagents = reagents }
+end
+if Core.Lists then
+    Core.Lists.SetProvider({ recipe = Shopping.RecipeForLists,
+        have = function(itemID) return Data.Have(Data.Stock(itemID)) end }, ADDON)
 end
 
 ---------------------------------------------------------------------------
@@ -309,14 +472,27 @@ function Shopping.Withdraw()
     return true
 end
 
+-- Statuszeile: Zahl der Listen, gewählte Liste und ihre Einträge.
+function Shopping.StatusLine()
+    local list = Shopping.Selected()
+    return L.STATUS_SHOPPING:format(Lists() and #Lists().All() or 0, list and list.name or "–", list and #list.items or 0)
+end
+
+-- „2× Leinenhemd“ (Rezept), „20× Leinenstoff“ bzw. „Leinenstoff“ (Gegenstand mit bzw. ohne Menge)
+function Shopping.EntryText(entry)
+    local name = Shopping.Name(entry)
+    if entry.count then return L.SHOP_LINE_RECIPE:format(entry.count, name) end
+    return name
+end
+
 function Shopping.Print()
     local list = List()
     if #list == 0 then
         ns.Print(L.SHOP_EMPTY)
         return
     end
-    ns.Print(L.SHOP_HEAD)
-    for _, entry in ipairs(list) do ns.Print(L.SHOP_LINE_RECIPE:format(entry.count, Shopping.Name(entry))) end
+    ns.Print(L.SHOP_HEAD:format(Shopping.Selected().name))
+    for _, entry in ipairs(list) do ns.Print(Shopping.EntryText(entry)) end
     local gatherOn = ns.Enabled("gatherHint")
     for _, row in ipairs(Shopping.Totals()) do
         local line = L.SHOP_LINE_ITEM:format(row.name, min(row.have, row.need), row.need)
@@ -330,57 +506,143 @@ end
 -- ezAuction: Einkaufen über dessen Einkaufslisten
 ---------------------------------------------------------------------------
 
-function Shopping.AuctionFunction()
+-- Ist das Auktionshaus offen (ezCores Core.AuctionHouseOpen)? Der Knopf „Auktionshaus“ am Rezept sucht nur dann.
+function Shopping.AuctionOpen()
+    return type(Core.AuctionHouseOpen) == "function" and Core.AuctionHouseOpen() == true
+end
+
+-- ezAuctions Suche ohne gespeicherte Liste (API.SearchItems) oder nil
+function Shopping.SearchFunction()
     local api = Core.API("ezAuction")
-    local fn = api and api.AddShoppingList
+    local fn = api and api.SearchItems
     return type(fn) == "function" and fn or nil
 end
 
--- Übergibt das Fehlende aus Material-Zeilen (Data.Materials oder Shopping.Totals) als Liste listName an ezAuction;
--- eine Liste gleichen Namens wird ersetzt. Rückgabe: true bei Erfolg.
-function Shopping.SendRowsToAuction(listName, rows)
-    local fn = Shopping.AuctionFunction()
+-- Bei offenem Auktionshaus die Liste dort gleich suchen (ezAuctions ShowList mit search; Wunsch des Nutzers vom
+-- 21.11.2026: „der button auktionshaus muss bei geöffneten auktionshaus direkt die gegenstände suchen“). Ohne offenes
+-- Auktionshaus oder ohne die Schnittstelle: nichts. → true, wenn ezAuction sucht
+function Shopping.SearchInAuction(listName)
+    local api = Core.API("ezAuction")
+    local show = api and api.ShowList
+    if type(show) ~= "function" or type(listName) ~= "string" then return false end
+    local ok, shown = pcall(show, listName, true)
+    if not ok then
+        ns.Error(shown, "ezAuction.ShowList")
+        return false
+    end
+    if shown then ns.Print(L.SHOP_AH_SEARCHING:format(listName)) end
+    return shown == true
+end
+
+-- Die gewählte Liste im Auktionshaus: sie ist dieselbe wie dort (Core.Lists) – nichts wird kopiert. Bei offenem
+-- Auktionshaus sucht ezAuction sie sofort, sonst sagt ezCraft, wo sie steht.
+function Shopping.SendToAuction()
+    local list = Shopping.Selected()
+    if not list then return false end
+    local api = Core.API("ezAuction")
+    if Shopping.SearchInAuction(list.name) then return true end
+    if not api then
+        ns.Print(L.SHOP_NO_AUCTION)
+        return false
+    end
+    ns.Print(L.SHOP_IN_AUCTION:format(list.name))
+    return true
+end
+
+-- Knopf „Auktionshaus“ am Rezept: jede Zutat (Menge wie im Feld „Herstellen“, abzüglich der Tasche) sofort im Auktionshaus suchen, ohne
+-- eine Liste zu speichern (Entscheidung des Nutzers vom 21.11.2026 „Nein, sofort suchen (Empfohlen)“; vorher legte
+-- er eine Liste „Beruf: Rezept“ an). Der Name „Beruf: Rezept“ steht in Blizzards Ergebnisleiste. → true, wenn gesucht
+-- label (frei): Name in Blizzards Ergebnisleiste; ohne „Beruf: Rezept“ des offenen Berufs.
+function Shopping.SendRecipeToAuction(recipe, quantity, label)
+    if not recipe then return false end
+    local fn = Shopping.SearchFunction()
     if not fn then
         ns.Print(L.SHOP_NO_AUCTION)
         return false
     end
+    -- jede Zutat, auch die vorhandene (Wunsch des Nutzers vom 21.11.2026: „zudem soll es mir im ah auch die mats
+    -- anzeigen die ich schon habe“); Menge ist, was in der Tasche fehlt – reicht die Tasche, ohne Menge
     local items = {}
-    for _, row in ipairs(rows or EMPTY) do
-        if (row.missing or 0) > 0 then
-            -- name dient ezAuction als Suchbegriff; ein Platzhalter „#itemID“ (noch nicht geladen) bleibt weg.
-            local name = type(row.name) == "string" and not row.name:find("^#") and row.name or nil
-            items[#items + 1] = { itemID = row.itemID, count = row.missing, name = name }
-        end
+    for _, row in ipairs(Data.Materials(recipe, quantity)) do
+        -- name dient ezAuction als Suchbegriff; ein Platzhalter „#itemID“ (noch nicht geladen) bleibt weg.
+        local name = type(row.name) == "string" and not row.name:find("^#") and row.name or nil
+        local lack = (row.need or 0) - ((row.stock and row.stock.bags) or 0)
+        items[#items + 1] = { itemID = row.itemID, count = lack > 0 and lack or nil, name = name }
     end
     if #items == 0 then
-        ns.Print(L.SHOP_NOTHING_MISSING)
+        ns.Print(L.SHOP_NO_MATERIAL)
         return false
     end
-    local ok, name, added = pcall(fn, listName, items, true)
+    label = label or Shopping.RecipeLabel(recipe)
+    local ok, started, why = pcall(fn, label, items)
     if not ok then
-        ns.Error(name, "ezAuction.AddShoppingList")
+        ns.Error(started, "ezAuction.SearchItems")
         return false
     end
-    if type(name) ~= "string" then
-        ns.Print(L.SHOP_AUCTION_NOT_READY)
+    if not started then
+        ns.Print(why == "closed" and L.SHOP_AH_CLOSED or L.SHOP_AH_BUSY)
         return false
     end
-    ns.Print(L.SHOP_TO_AUCTION:format(tonumber(added) or #items, name))
+    ns.Print(L.SHOP_AH_SEARCHING_RECIPE:format(label))
     return true
 end
 
--- Das Fehlende der ganzen Einkaufsliste als Liste „ezCraft“.
-function Shopping.SendToAuction()
-    return Shopping.SendRowsToAuction(L.SHOP_AUCTION_LIST, Shopping.Totals())
+-- „Beruf: Rezept“ für Blizzards Ergebnisleiste (Beruf des offenen Fensters, sonst „ezCraft“)
+function Shopping.RecipeLabel(recipe)
+    return L.SHOP_AUCTION_RECIPE:format(Data.ProfessionName() or L.TITLE, recipe and recipe.name or "?")
 end
 
--- Das Fehlende eines Rezepts (Menge wie im Feld „Herstellen“) als Liste „Beruf: Rezept“.
-function Shopping.SendRecipeToAuction(recipe, quantity)
-    if not recipe then return false end
-    local rows = Data.Materials(recipe, quantity)
-    local prefix = Data.ProfessionName() or L.TITLE
-    return Shopping.SendRowsToAuction(L.SHOP_AUCTION_RECIPE:format(prefix, recipe.name), rows)
+---------------------------------------------------------------------------
+-- Vormerken für das Auktionshaus (Entscheidung des Nutzers vom 21.11.2026 „Vormerken (Empfohlen)“; Frage: „button
+-- auktionshaus, kann dieser das auf öffnen wenn ich einfach vor dem auktionator stehe?“ – öffnen kann ein Addon es
+-- nicht, Blizzards sichere Knöpfe kennen keine Aktion „mit NPC sprechen“). Bei geschlossenem Auktionshaus merkt der
+-- Knopf „Auktionshaus“ das Rezept mit Menge vor; beim Öffnen des Auktionshauses sucht ezAuction dann jede Zutat
+-- sofort (ohne gespeicherte Liste). Ein zweiter Klick auf dasselbe Rezept nimmt es zurück. Nur bis /reload.
+---------------------------------------------------------------------------
+
+local pending   -- { recipeID, quantity, name, label }
+
+function Shopping.Pending() return pending end
+function Shopping.ClearPending()
+    if not pending then return end
+    pending = nil
+    ns.Fire("SHOPPING_CHANGED")
 end
+
+-- Vormerken bzw. zurücknehmen. → true, wenn jetzt vorgemerkt
+function Shopping.TogglePending(recipe, quantity)
+    if not (recipe and recipe.recipeID) then return false end
+    if pending and pending.recipeID == recipe.recipeID then
+        pending = nil
+        ns.Print(L.SHOP_AH_UNQUEUED:format(recipe.name))
+        ns.Fire("SHOPPING_CHANGED")
+        return false
+    end
+    local replaced = pending and pending.name
+    pending = { recipeID = recipe.recipeID, quantity = max(1, floor(tonumber(quantity) or 1)), name = recipe.name,
+        label = Shopping.RecipeLabel(recipe) }
+    -- ein Platz: ein anderes Rezept ersetzt das vorgemerkte – die Meldung sagt es (Review 21.11.2026)
+    ns.Print(replaced and L.SHOP_AH_QUEUED_REPLACE:format(recipe.name, replaced) or L.SHOP_AH_QUEUED:format(recipe.name))
+    ns.Fire("SHOPPING_CHANGED")
+    return true
+end
+
+-- Das Vorgemerkte jetzt suchen (beim Öffnen des Auktionshauses). → true, wenn ezAuction sucht
+-- Ist das Auktionshaus schon wieder zu, bleibt die Vormerkung für das nächste Öffnen.
+function Shopping.RunPending()
+    local p = pending
+    if not p or not Shopping.AuctionOpen() then return false end
+    pending = nil
+    ns.Fire("SHOPPING_CHANGED")
+    local recipe = Data.Recipe(p.recipeID)
+    if not recipe then return false end
+    return Shopping.SendRecipeToAuction(recipe, p.quantity, p.label)
+end
+
+-- kurz nach dem Öffnen, damit ezAuction und Blizzards Kaufen-Seite bereit sind
+ns.On("AUCTION_HOUSE_SHOW", function()
+    if pending and C_Timer and C_Timer.After then C_Timer.After(0.5, Shopping.RunPending) end
+end)
 
 ---------------------------------------------------------------------------
 -- Tooltip-Zeile an Material, das auf der Liste steht
@@ -399,10 +661,11 @@ end, ADDON)
 -- Schnittstelle für andere Module
 ---------------------------------------------------------------------------
 
-ns.API.ShoppingList = function() return Shopping.MissingMap() end
+-- Was über alle Listen fehlt { [itemID] = Anzahl }.
+ns.API.ShoppingList = function() return Shopping.MissingMap(nil, Shopping.AllNeeds()) end
 
--- Gesamtbedarf der Einkaufsliste je Gegenstand (V-144) – auch das, was schon vorhanden ist.
-ns.API.Needs = function() return Shopping.Needs() end
+-- Gesamtbedarf aller Listen je Gegenstand (V-144) – auch das, was schon vorhanden ist.
+ns.API.Needs = function() return Shopping.AllNeeds() end
 
 ns.On("TRADE_SKILL_SHOW", Shopping.Invalidate)
 ns.On("TRADE_SKILL_LIST_UPDATE", Shopping.Invalidate)
@@ -411,8 +674,12 @@ Core.Listen("RECIPES_CHANGED", Shopping.Invalidate, ADDON)
 
 ns.API.ShoppingRecipes = function()
     local out = {}
-    for _, entry in ipairs(List()) do
-        out[#out + 1] = { recipeID = entry.id, name = Shopping.Name(entry), count = entry.count }
+    for _, list in ipairs(Lists() and Lists().All() or EMPTY) do
+        for _, entry in ipairs(list.items or EMPTY) do
+            if entry.recipe then
+                out[#out + 1] = { recipeID = entry.recipe, name = Shopping.Name(entry), count = entry.count, list = list.name }
+            end
+        end
     end
     return out
 end

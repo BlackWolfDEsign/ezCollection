@@ -111,8 +111,9 @@ function Beside.SellTabName()
     return L.OPT_HEADER_SELL
 end
 
--- Zusatz im Tooltip des Knopfs „Taschenliste“ (Frage 7 – Empfehlung umgesetzt, Antwort offen): Unten stehen neben
--- Auctionator zwei Reiter zum Verkaufen; dieser Knopf gehört zu Blizzards. nil ohne fremdes Addon.
+-- Zusatz im Tooltip des Filters der Taschenliste (Frage 7 – Empfehlung umgesetzt, Antwort offen; bis zum 21.11.2026 am
+-- Knopf „Taschenliste“): Unten stehen neben Auctionator zwei Reiter zum Verkaufen; die Liste gehört zu Blizzards.
+-- nil ohne fremdes Addon.
 function Beside.SellListLine()
     local other = Beside.Running()
     if not other then return nil end

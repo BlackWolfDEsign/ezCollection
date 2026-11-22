@@ -20,7 +20,7 @@ local Core = ezCore
       Core.Sources.Register(schlüssel, quelle) → true | false, "invalid"
           quelle = { label = Anzeigename, ready = fn() → true | false, grund ("missing" | "shape"),
                      recipeFor = fn(itemID), lootOf = fn(npcID, info), openFor = fn(npcID),
-                     whereFrom = fn(itemID, opts), recipesUsing = fn(itemID),
+                     whereFrom = fn(itemID, opts), recipesUsing = fn(itemID), contentsOf = fn(id, art),
                      own = true (eigene Daten: keine Marke „fremd“, Zeile „bei dir“, nicht in /ez status),
                      silent = true (stiller Rückfall: fehlt er, nennt ihn kein Hinweis),
                      generic = true (openFor öffnet nur das Fenster, nicht den Gegner: nur mit ausdrücklichem
@@ -71,6 +71,9 @@ local Core = ezCore
           Name (EC-97, ST-17): wofür der Gegenstand Zutat ist – zuerst selbst Gesehenes (Knowledge.RecipesUsing),
           sonst AtlasLoot zur Laufzeit (AtlasLoot hat keinen Rückweg Zutat » Rezepte: begrenzte Suche über die
           Produkte, die der Client dir schon gezeigt hat; nichts wird gespeichert)
+      Core.Sources.ContentsOf(art, id) → { kind, id, items = { { id, listed = true } … }, n, listed, source,
+          sourceKey } | nil – was ein Behälter (art "item") bzw. eine Kiste (art "object") enthalten kann, ohne Chance;
+          heute nur QuestieDB (Umkehr-Index, SourcesQuestie.lua); läuft der Index noch: nil (Grund "skip")
       Core.Sources.ClientKnowsItem(itemID) → true, wenn der Client den Gegenstand liefert oder er enthüllt ist
       Core.Sources.Label(antwort) → „laut AtlasLoot“, „laut Questie“, „bei dir“ …
       Core.Sources.Hint(auskunft) → Satz, warum keine Quelle antwortet („Questie nicht installiert“) | nil; stille
@@ -86,7 +89,7 @@ local Core = ezCore
     Angemeldete Quellen:
       own            die eigene Entdecker-Datenbank (DiscoveryView.lua): whereFrom über Core.Drops.SourcesOf,
                      Core.Vendors.Selling, Core.Places.Of und DB.Text; recipesUsing über Knowledge.RecipesUsing
-      QuestieDB      LibQuestieDB zur Laufzeit (SourcesQuestie.lua): whereFrom; lootOf nur vorbereitet, ab Werk aus
+      QuestieDB      LibQuestieDB zur Laufzeit (SourcesQuestie.lua): whereFrom, contentsOf; lootOf nur vorbereitet, ab Werk aus
       AtlasLoot      AtlasLoot Classic Forever (global AtlasLoot): recipeFor über
                      AtlasLoot.Data.Profession.GetCraftSpellForCreatedItem und GetProfessionData,
                      dazu AtlasLoot.Data.Recipe.GetRecipeForSpell (im Spiel bestätigt: 118 → 2330); recipesUsing über
@@ -99,7 +102,7 @@ local Sources = {}
 Core.Sources = Sources
 
 Sources.ORDER = { "own", "QuestieDB", "AtlasLoot" }
-Sources.ASKS = { "recipeFor", "lootOf", "openFor", "whereFrom", "recipesUsing" }
+Sources.ASKS = { "recipeFor", "lootOf", "openFor", "whereFrom", "recipesUsing", "contentsOf" }
 Sources.WHERE_MAX = 8            -- Einträge je Liste in WhereFrom (n nennt die ganze Zahl)
 Sources.SCAN_MAX = 4000          -- RecipesUsing über AtlasLoot: höchstens so viele neue Produkte je Frage in den Index
 
@@ -228,6 +231,9 @@ function CHECK.lootOf(r)
     if #kept == 0 then return "entry", dropped end
     return "ok", dropped
 end
+
+-- Inhalt eines Behälters bzw. einer Kiste: dieselbe Form wie die Beute eines Gegners (items mit id, chance nil)
+CHECK.contentsOf = CHECK.lootOf
 
 -- „Woher?“: Listen von Einträgen; ein unbrauchbarer Eintrag fällt einzeln weg, eine Liste in falscher Form heißt
 -- „shape“. Ohne einen einzigen Eintrag: "entry" (nur diese Antwort ist leer).
@@ -434,6 +440,16 @@ function Sources.LootOf(npcID, info)
     if not npcID then return nil end
     if info ~= nil and type(info) ~= "table" then info = nil end
     return Sources.Ask("lootOf", npcID, info)
+end
+
+-- Inhalt eines Behälters (art "item", itemID) bzw. einer Kiste (art "object", objectID) laut einer angebundenen
+-- Datenbank (22.11.2026, ezLoot Contents.lua). Die Quelle bekommt (id, art) – die ID zuerst, damit verworfene Einträge
+-- je ID gezählt werden (Skip).
+Sources.CONTENT_KINDS = { item = true, object = true }
+function Sources.ContentsOf(kind, id)
+    id = ID(id)
+    if not (id and Sources.CONTENT_KINDS[kind]) then return nil end
+    return Sources.Ask("contentsOf", id, kind)
 end
 
 -- Liefert der Client den Gegenstand selbst (volles GetItemInfo mit Namen) oder ist er auf diesem Realm enthüllt?

@@ -36,6 +36,10 @@ ns.DEFAULTS = {
     viewport = false,
     locked = false,
     tooltipsInCombat = true,
+    -- Andere Charaktere im Tooltip der Bausteine Taschen, Währungen, Gegenstandsstufe, Berufe und Reparatur: ein
+    -- gemeinsamer Schalter statt fünf (Entscheidung des Nutzers vom 21.11.2026: „Ein gemeinsamer Schalter (Empfohlen)“);
+    -- gespeicherte Werte der Bausteine übernimmt ns.MigrateTipAlts
+    tipAlts = true,
     moneyStyle = "coins",
 }
 
@@ -56,6 +60,7 @@ ns.TOGGLES = {
     { "reserveTop", "oben", en = "top" },
     { "viewport", "platz", en = "viewport" },
     { "locked", "sperren", en = "lock" },
+    { "tipAlts", "tooltiptwinks", en = "tooltipalts" },
 }
 
 ---------------------------------------------------------------------------
@@ -101,7 +106,9 @@ Core.NewModule(ADDON, ns, {
     -- Einstellungs-Prüfung 19.11.2026 (ezCore ohne neue Versionsnummer): gemeinsamer Schaltersatz „Automatisch reparieren“
     "SharedOn", "SetShared", "Junk.RepairSettings", "Junk.AdoptPanelRepair", "Junk.RepairMixedOff", "Junk.RepairPathText",
     -- 20.11.2026 (ohne neue Versionsnummer): „Im Auktionshaus Wertvolles behalten“ als eine Stelle in ezCore
-    "Junk.MerchantKeeps", "Junk.ShowKept" },
+    "Junk.MerchantKeeps", "Junk.ShowKept",
+    -- 21.11.2026: einmalige Umstellung auf den gemeinsamen Schalter „Andere Charaktere im Tooltip“ (ns.MigrateTipAlts)
+    "MigrateOnce" },
     db = "ezPanelDB",
     tables = { "blocks", "tour" },   -- blocks: je Baustein an/aus, Bereich, Reihenfolge, Optionen; tour: gesehene Erklärblasen
     onLoad = function(db)
@@ -110,6 +117,7 @@ Core.NewModule(ADDON, ns, {
             db.settings.skin, db.settings.alpha = "title", 1   -- der Titelstreifen ist im Original deckend
         end
         db.settings.bottomBar, db.settings.autoHideBottom = nil, nil   -- untere Leiste entfällt
+        ns.MigrateTipAlts(db)
         -- Charakterdaten liegen seit ezCore in ezCoreDB.chars; db.chars bleibt als Sicherung liegen.
     end,
     slash = {
@@ -521,3 +529,50 @@ end, ADDON)
 -- alle drei Compartment-Zeilen in der TOC).
 ezPanel_OnAddonCompartmentClick, ezPanel_OnAddonCompartmentEnter, ezPanel_OnAddonCompartmentLeave =
     Core.CompartmentHandlers({ ns = ns, title = ADDON, owner = ADDON })
+
+-- „Andere Charaktere im Tooltip“: ein gemeinsamer Schalter (tipAlts) für die Bausteine in ALT_TIP_BLOCKS (Entscheidung
+-- des Nutzers vom 21.11.2026). Vorher hatte jeder dieser Bausteine einen eigenen Wert cfg.alts.
+ns.ALT_TIP_BLOCKS = { "bags", "currencies", "ilvl", "professions", "repair" }
+
+function ns.TipAlts()
+    return ns.S ~= nil and ns.S.tipAlts ~= false
+end
+
+-- Alter Stand aus den Bausteinen: an, wenn bei einem „an“ gespeichert ist; aus nur, wenn alle gespeicherten Werte „aus“
+-- sind; nil, wenn keiner etwas gespeichert hat (dann gilt die Vorgabe). drop: die alten Werte dabei entfernen.
+function ns.TipAltsFrom(blocks, drop)
+    if type(blocks) ~= "table" then return nil end
+    local seen, on = false, false
+    for _, id in ipairs(ns.ALT_TIP_BLOCKS) do
+        local cfg = blocks[id]
+        if type(cfg) == "table" and cfg.alts ~= nil then
+            seen = true
+            if cfg.alts then on = true end
+            if drop then cfg.alts = nil end
+        end
+    end
+    if seen then return on end
+    return nil
+end
+
+-- Einmalige Umstellung (Core.MigrateOnce, Merker db.migrated.tipAlts2111) der Arbeitsdaten und jedes gespeicherten
+-- Profils (code-reviewer 21.11.2026: sonst brächte ein Profilwechsel die alten Werte zurück und ein „aus“ ginge verloren).
+-- → true, wenn die Umstellung lief (nil, wenn schon geschehen).
+function ns.MigrateTipAlts(db)
+    if type(db) ~= "table" or type(db.settings) ~= "table" then return nil end
+    if type(db.migrated) ~= "table" then db.migrated = {} end
+    return Core.MigrateOnce(db.migrated, "tipAlts2111", function()
+        local value = ns.TipAltsFrom(db.blocks, true)
+        if value ~= nil then db.settings.tipAlts = value end
+        for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            if type(profile) == "table" then
+                local was = ns.TipAltsFrom(profile.blocks, true)
+                if was ~= nil then
+                    if type(profile.settings) ~= "table" then profile.settings = {} end
+                    if profile.settings.tipAlts == nil then profile.settings.tipAlts = was end
+                end
+            end
+        end
+        return true
+    end)
+end

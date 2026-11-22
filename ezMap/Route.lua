@@ -927,11 +927,9 @@ function Route.AddMenu(root, mapID)
     for _, kind in ipairs(ns.Gather.KINDS) do
         if kind ~= "chest" or ns.Gather.ChestsWanted() then kinds[#kinds + 1] = kind end
     end
-    -- Design-System 2.11: „Alle auswählen / Alle abwählen“ über den Arten der Route (ab drei; gemerkt wie jeder Haken)
+    -- Design-System 2.11: ein Haken „Alle“ über den Arten der Route (ab drei; gemerkt wie jeder Haken)
     if #kinds >= 3 then
-        Menu.AllToggle(sub, kinds, Route.KindWanted, Route.SetKind,
-            { onText = Core.Style.AllText(true), offText = Core.Style.AllText(false), onTip = Core.L.ALL_CHECK_TIP, offTip = Core.L.ALL_UNCHECK_TIP,
-              icons = true })
+        Menu.AllToggle(sub, kinds, Route.KindWanted, Route.SetKind)
     end
     for _, kind in ipairs(kinds) do
         do

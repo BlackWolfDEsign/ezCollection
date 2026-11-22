@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "„Empfehlung“: Fragebogen zur Spielweise\nVorlagen speichern, teilen, als Vorschau\n„Auswirkungen“ zeigt die Charakterwerte\nVermächtnis-Vorlagen und Twink-Übersicht\nRotation, Set und Leisten passend dazu",
     TITLE = "ezTalent",
     -- Hauptfunktion: Linksklick im Addon-Fach und Befehl ohne Wort (Entscheidung 5, T18-3); Hilfe: Kopf und Standard
     -- (Einstellungen, status, hilfe, zuruecksetzen) sagt ezCore, hier nur die eigenen Wörter, %s = geltender Befehl (T18-20)
@@ -141,7 +143,7 @@ local de = {
     -- Kopf des Seitenteils „Vorlagen“ (Spieltest 15.11.2026): gold Zeile, Fortschritt, EIN Satz zu „Übernehmen“
     HEAD_NO_PLAN = "Keine Vorschau geladen",
     HEAD_PLAN = "Vorschau: %s",
-    HEAD_PLAN_SPLIT = "Vorschau: %s · %s",
+    HEAD_PLAN_SPLIT = "Vorschau (%s): %s",
     HEAD_SET = "Gesetzt: %d von %d Punkten",
     HEAD_SET_FREE = "Gesetzt: %d von %d Punkten · frei: %d",
     HEAD_EMPTY_PLAN = "Die Vorschau hat keinen Punkt.",
@@ -509,7 +511,7 @@ local de = {
     ADVICE_RATE_LINE = "%s des Besten mit %d Punkten",
     ADVICE_RATE = "Dein Baum bewertet",
     ADVICE_BEST_NAME = "Bestes mit %d Punkten (%s)",
-    ADVICE_OWN_POINTS_TIP = "Aus (Standard): Die Empfehlung lädt die volle Verteilung mit 51 Punkten. An: Sie lädt das Beste dieser Verteilung mit deinen jetzigen Punkten – im Spiel gesucht über die Baumregeln des Clients und die Werte des Rechenmodells. Gemerkt je Charakter.",
+    ADVICE_OWN_POINTS_TIP = "Aus (Standard): Die Empfehlung lädt die volle Verteilung mit 51 Punkten. An: Sie lädt das Beste dieser Verteilung mit deinen jetzigen Punkten – im Spiel gesucht über die Baumregeln des Clients und die Werte des Rechenmodells. Setzen oder Rausnehmen lädt sofort neu. Gemerkt je Charakter.",
     ADVICE_OWN_POINTS = "Auf meine Punkte rechnen",
     ADVICE_OWN_NONE = "„%s“ hat keine Werte je Talent (recherchiert) – geladen wird die volle Verteilung.",
     ADVICE_OWN_LINE = "Laden rechnet auf deine %d Punkte (nur berechnete Verteilungen; recherchierte laden voll).",
@@ -620,6 +622,10 @@ local de = {
     ROSTER_EMPTY = "Noch keine Charaktere bekannt.",
     ROSTER_PANEL_TITLE = "Twinks",
     ROSTER_ME = "(du)",
+    ROSTER_SECTION_ME = "Dieser Charakter",
+    ROSTER_SECTION_OTHERS = "Weitere Charaktere",
+    TREE_LABEL_TITLE = "Gewählte Vorlage",
+    TREE_LABEL_TIP = "Die Vorlage, die gerade als Vorschau im Baum liegt, mit ihrer Verteilung – wie oben in „Vorlagen“. Klick öffnet „Vorlagen“.",
     ROSTER_ROW_TIP = "Klick zeigt bzw. verbirgt die Einzelheiten.",
     TAB_ROSTER_TIP = "Übersicht deiner Charaktere: je Twink Stufe, Klasse und Punkte je Talentbaum; ein Klick auf eine Zeile zeigt Vorlage, Berufe und Vermächtnis.",
     LEGACY_TREE_professions = "Berufe",
@@ -629,14 +635,16 @@ local de = {
     -- Rundgang mit Erklärblasen am Talentfenster (Tour.lua); der Knopf „Erklärung – Erneut zeigen“ kommt aus ezCore
     TOUR_LIST = "Ein Klick auf eine Zeile lädt sie als Vorschau in den Baum – an jedem Talent steht dann der Zielrang, gesetzt wird noch nichts. Danach unten „Übernehmen“, oder „Anpassen“ und „Speichern“. Gültig wird es erst mit Blizzards Knopf „{apply}“ unten im Fenster.",
     TOUR_TAB_TEMPLATES = "Der Reiter „Vorlagen“ klappt deine Talent-Vorlagen auf und zu: eigene Vorlagen und typische Bäume deiner Klasse. Ob das Seitenteil offen war, merkt sich ezTalent.",
+    TOUR_TAB_ADVICE = "Der Reiter „Empfehlung“ fragt, wie du spielen willst – wofür, Rolle, Spielweise –, und lädt die passende Verteilung mit Begründung als Vorschau. Darunter bewertet ezTalent deinen Baum.",
     TOUR_TAB_EFFECTS = "Der Reiter „Auswirkungen“ fasst zusammen, was deine gewählten Talente bewirken – gegliedert nach dem Zauber, den sie verändern. Oben stehen die Werte, die sie laut ihrem Text bewirken, auf Wunsch neben einer Vorlage. Den Reiter kannst du abschalten – %s",
-    OPT_TOUR_TIP = "Zeigt die Erklärblasen am Talentfenster (Liste, Reiter „Vorlagen“ und „Auswirkungen“) beim nächsten Öffnen wieder von vorn.",
+    OPT_TOUR_TIP = "Zeigt die Erklärblasen am Talentfenster (Liste, Reiter „Vorlagen“, „Empfehlung“ und „Auswirkungen“) beim nächsten Öffnen wieder von vorn.",
 
     -- Ergänzende Addons (Einstellungen » Erweitert)
     COMPANION_WHY_TWEAKS = "Lässt unverteilte Talentpunkte aufleuchten – daran erinnert ezTalent nicht von selbst. Mit ezTalent überschneidet es sich nicht.",
 }
 
 local en = {
+    INTRO_FEATURES = "“Advice”: questionnaire on your play style\nSave, share and preview templates\n“Effects” shows the character stats\nLegacy templates and alt overview\nMatching rotation, set and bars",
     TITLE = "ezTalent",
     MAIN_TEXT = "open the talent window",
     CMD_HELP_OWN = {
@@ -766,7 +774,7 @@ local en = {
     PLAN_TIP_RANKS = "Preview: %d of %d – in the tree: %d",
     HEAD_NO_PLAN = "No preview loaded",
     HEAD_PLAN = "Preview: %s",
-    HEAD_PLAN_SPLIT = "Preview: %s · %s",
+    HEAD_PLAN_SPLIT = "Preview (%s): %s",
     HEAD_SET = "Spent: %d of %d points",
     HEAD_SET_FREE = "Spent: %d of %d points · free: %d",
     HEAD_EMPTY_PLAN = "The preview has no points.",
@@ -1124,7 +1132,7 @@ local en = {
     ADVICE_RATE_LINE = "%s of the best with %d points",
     ADVICE_RATE = "Your tree rated",
     ADVICE_BEST_NAME = "Best with %d points (%s)",
-    ADVICE_OWN_POINTS_TIP = "Off (default): the advice loads the full build with 51 points. On: it loads the best of that build with your current points – searched in the game using the client's tree rules and the model's values. Remembered per character.",
+    ADVICE_OWN_POINTS_TIP = "Off (default): the advice loads the full build with 51 points. On: it loads the best of that build with your current points – searched in the game using the client's tree rules and the model's values. Ticking or unticking reloads at once. Remembered per character.",
     ADVICE_OWN_POINTS = "Use my points",
     ADVICE_OWN_NONE = "“%s” has no values per talent (researched) – the full build is loaded.",
     ADVICE_OWN_LINE = "Loading uses your %d points (computed builds only; researched ones load in full).",
@@ -1234,6 +1242,10 @@ local en = {
     ROSTER_EMPTY = "No characters known yet.",
     ROSTER_PANEL_TITLE = "Characters",
     ROSTER_ME = "(you)",
+    ROSTER_SECTION_ME = "This character",
+    ROSTER_SECTION_OTHERS = "Other characters",
+    TREE_LABEL_TITLE = "Chosen template",
+    TREE_LABEL_TIP = "The template shown as a preview in the tree, with its distribution – as at the top of Templates. Click opens Templates.",
     ROSTER_ROW_TIP = "Click shows or hides the details.",
     TAB_ROSTER_TIP = "Overview of your characters: level, class and points per talent tree for each one; clicking a row shows template, professions and legacy.",
     LEGACY_TREE_professions = "Professions",
@@ -1242,8 +1254,9 @@ local en = {
 
     TOUR_LIST = "Clicking a row loads it as a preview into the tree – each talent then shows its target rank, nothing is spent yet. Then use “Apply” below, or “Adjust” and “Save”. Only Blizzard's “{apply}” button at the bottom of the window makes it final.",
     TOUR_TAB_TEMPLATES = "The tab “Templates” opens and closes your talent templates: your own templates and typical trees for your class. ezTalent remembers whether the side panel was open.",
+    TOUR_TAB_ADVICE = "The tab “Advice” asks how you want to play – what for, role, play style – and loads the build that fits, with its reasons, as a preview. Below, ezTalent rates your tree.",
     TOUR_TAB_EFFECTS = "The tab “Effects” sums up what your chosen talents do – grouped by the spell they change. At the top are the stats they give according to their text, next to a template if you like. You can turn the tab off – %s",
-    OPT_TOUR_TIP = "Shows the help bubbles at the talent window (list, tabs “Templates” and “Effects”) from the start the next time you open it.",
+    OPT_TOUR_TIP = "Shows the help bubbles at the talent window (list, tabs “Templates”, “Advice” and “Effects”) from the start the next time you open it.",
 
     COMPANION_WHY_TWEAKS = "Makes unspent talent points glow – ezTalent does not remind you of them on its own. It does not overlap with ezTalent.",
 }

@@ -3,7 +3,7 @@
 ## Notes: Extends Blizzard's profession window: materials of all alts (bags, bank, guild bank, mail), who can craft it, skill-up color stages, shopping list, missing recipes and their source, request materials from alts by mail. Part of ezCollection.
 ## Notes-deDE: Erweitert Blizzards Berufefenster: Material aller Twinks (Tasche, Bank, Gildenbank, Post), wer es herstellen kann, Stufen der Skill-Farben, Einkaufsliste, fehlende Rezepte und wo es sie gibt, Material bei Twinks per Post anfordern. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.11.0
+## Version: 1.12.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\Trade_BlackSmithing
 ## RequiredDeps: ezCore
@@ -24,6 +24,7 @@ Filter.lua
 Salvage.lua
 Shipments.lua
 Panel.lua
+Schematic.lua
 Book.lua
 MailTab.lua
 Alerts.lua

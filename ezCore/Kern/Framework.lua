@@ -48,6 +48,7 @@ Core.MESSAGES = {
     PRICES_CHANGED = { from = "Prices.lua", args = "itemID | nil", text = "Preis-Wissen geändert: ein Gegenstand oder (nil) viele." },
     PRICES_SCAN_PROGRESS = { from = "Prices.lua", args = "gelesen, gesamt", text = "Fortschritt des Komplett-Scans im Auktionshaus." },
     PRICES_SCAN_DONE = { from = "Prices.lua", args = "anzahl, grund (nil | \"timeout\" | \"other\")", text = "Der Komplett-Scan ist fertig – oder nach Prices.SCAN_TIMEOUT ohne Liste beendet (\"timeout\"), oder ein anderes Addon hat ihn ausgelöst (\"other\")." },
+    LISTS_CHANGED = { from = "Lists.lua", args = "liste | nil", text = "Eine gemeinsame Liste (Core.Lists, ezCoreDB.lists) wurde angelegt, umbenannt, gelöscht oder ihre Einträge geändert; nil = mehrere oder eine gelöschte. Zuhörer: ezCraft, ezAuction." },
     LOCKOUTS_CHANGED = { from = "Lockouts.lua", args = "charKey", text = "Die Instanz- und Raidsperren des gespielten Charakters haben sich geändert." },
     INSTANCES_CHANGED = { from = "Lockouts.lua", args = "anzahl", text = "Eine Instanz wurde betreten: „Instanzen der letzten Stunde“ ist gewachsen." },
     GEAR_CHANGED = { from = "CharData.lua", args = "charKey", text = "Gegenstandsstufe oder ein angelegter Platz des gespielten Charakters hat sich geändert." },

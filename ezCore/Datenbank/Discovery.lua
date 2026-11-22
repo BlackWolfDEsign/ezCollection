@@ -1481,8 +1481,13 @@ function Discovery.OnLootReady()
     for _, r in ipairs(list) do
         local key = r.guid or "~open"
         local kind, id = SourceOf(r, where, ctx, fishing)
-        -- Angeln: jedes Fenster ist ein eigener Fang, auch aus demselben Schwarm (LOOT_READY-Wiederholungen fängt opening ab)
-        local once = r.guid and kind ~= "fishing" and ((kind or "-") .. "|" .. r.guid)
+        -- Angeln: jedes Fenster ist ein eigener Fang, auch aus demselben Schwarm (LOOT_READY-Wiederholungen fängt opening ab).
+        -- Behälter in der Tasche ebenso (22.11.2026, Review zu ezloot/behaelter-inhalt): ein Stapel Muscheln oder Säcke
+        -- trägt eine Gegenstands-GUID für alle Stücke – je GUID einmal je Sitzung zählte nur das erste Öffnen. Preis:
+        -- Wer ein Fenster schließt, ohne alles zu nehmen, und den Behälter erneut öffnet, zählt ihn zweimal.
+        -- Gilt auch für Zerlegen (Art container mit ctx.kind salvage » Tabelle salvage): zweimal aus demselben Erz- oder
+        -- Kräuterstapel sondiert bzw. gemahlen zählt jetzt zweimal (ezCrafts „so oft zerlegt“, Sal.Own) – vorher einmal.
+        local once = r.guid and kind ~= "fishing" and kind ~= "container" and ((kind or "-") .. "|" .. r.guid)
         local visit = kind == "object" and r.guid and visits[r.guid]
         if not opening[key] and visit and now - visit <= DB.LIMITS.VISIT_SECONDS then
             -- SAM-01: derselbe Besuch – keine neue Ernte. Ertrag nur nach einem neuen Sammelzauber (ein Erzvorkommen

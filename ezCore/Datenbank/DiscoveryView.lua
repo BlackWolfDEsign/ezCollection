@@ -21,6 +21,7 @@ local L = Core.L
       Core.Finds.Of(itemID)          → { { mapID, count, points } … } eigene Sammel-Fundorte (Objekte, Angeln);
                                        count = Ernten, points = Punkte auf der Karte; Kisten nur mit OPT_explorer (SAM-05)
       Core.Finds.IsExplorerObject(id) → true für Kisten (obj kind chest): Entdecker-Wissen
+      Core.Finds.ObjectKind(id)      → Art des Spielobjekts (herb, mine, chest, pool, quest, container) oder nil
       Core.Vendors.Of(npcID), Core.Vendors.Selling(itemID); Core.Trainers.Offers(art), Core.Trainers.For(npcID)
       Core.Flights.Time(von, nach, hops); Core.Entrances.Of(instanceID), Core.Entrances.OnMap(karte)
       Core.Rares.Of(npcID), Core.Rares.OnMap(karte); Core.Zones.Levels(karte); Core.Reveal.Has(itemID);
@@ -370,6 +371,17 @@ Core.Finds = Finds
 function Finds.IsExplorerObject(id)
     local row = DB.Get("obj", id)
     return type(row) == "table" and row.kind == "chest"
+end
+
+-- Art eines geplünderten Spielobjekts (obj kind: herb, mine, chest, pool, quest, container) oder nil – für den Inhalt
+-- von Kisten im Objekt-Tooltip (ezLoot, Contents.lua; 22.11.2026). Gesperrte oder fehlende ID: nil.
+function Finds.ObjectKind(id)
+    if Core.IsSecret(id) then return nil end
+    id = Num(id)
+    if not id or id <= 0 then return nil end
+    local row = DB.Get("obj", id)
+    local kind = type(row) == "table" and row.kind or nil
+    return type(kind) == "string" and kind or nil
 end
 
 -- Welle 13: Sammel-Fundorte nennen nur Sammelknoten (Kraut, Erz, Schwarm) und mit Entdecker-Wissen Kisten – nie

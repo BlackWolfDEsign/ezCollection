@@ -94,7 +94,7 @@ ns.DEFAULTS = {
     flightTimes = true,     -- Flugzeit im Tooltip der Flugpunkte
     flightBar = true,       -- Leiste mit Restzeit während des Flugs
 
-    flightNearest = true,   -- nächster Flugmeister im Menü „Aufspüren“
+    flightNearest = true,   -- nächster und alle Flugmeister je Zone im Menü „Aufspüren“ (Untermenü, 21.11.2026)
     flightDest = true,      -- mit Markierung: Flugmeister am Ziel und gelernte Flugzeit dorthin (MAP-04)
     flightMissing = true,   -- Flugpunkte, die du bzw. deine Twinks noch nicht kennen (Kartenmenü, Tooltip am Flugpunkt;
                             -- Welle 26, F5: laut Client-Tabellen aus ezCore, bekannt laut Blizzards Flug- und Weltkarte)
@@ -129,6 +129,9 @@ ns.DEFAULTS = {
     -- Koordinaten ins Zonenkästchen, Lupe und Kalender auf den Ring, Minikarte nach oben (MinimapCompact.lua;
     -- Spieltest 20.11.2026) – stellt Blizzards Anzeige um, darum ab Werk aus
     minimapCompact = false,
+    -- Blizzards Postsymbol oben rechts an die Minikarte (MinimapCompact.lua; Spieltest 21.11.2026, wörtlich „Post-icon in
+    -- die obere rechte ecke“) – stellt Blizzards Anzeige um, darum ab Werk aus wie die kompakte Minikarte
+    minimapMailCorner = false,
 }
 
 -- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
@@ -139,7 +142,7 @@ ns.DEFAULTS = {
 -- die Optik. Die kompakte Minikarte bleibt "on": ausdrücklicher Wunsch des Nutzers vom 20.11.2026 („"allem zustimmen"
 -- muss auch die kompakte minikarte aktivieren“)
 ns.AGREE = {
-    minimapCompact = "on", pinsRound = "choice", routeNumbers = "choice", rareAlert = "on", minimapSquare = "choice",
+    minimapCompact = "on", minimapMailCorner = "on", pinsRound = "choice", routeNumbers = "choice", rareAlert = "on", minimapSquare = "choice",
     mapFilterSection = { "choice", text = "mapPlace" }, bookTargets = "choice", bookPins = "choice", rarePins = "choice",
     questieNpcs = "choice", questieObjects = "choice", questieRares = "choice", gatherChest = "choice",
     gatherMiniChest = "choice", gatherOverride = "choice", rareOverride = "choice",
@@ -280,6 +283,8 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.NewTimerBar, Core.OptInOnce, Core.MigrateOnce, Core.TipClick
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0", needs = { "AfterCombat", "Npcs", "OpenChatWith", "scaffoldHelpers", "Map.XY", "Map.Parent",
+        -- Lehrer und Händler laut Questie, Zonen des Kontinents (22.11.2026, ohne neue Versionsnummer)
+        "Map.Zones", "Npcs.SourceLabel",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Ton-Helfer aus ezCore (T16-NM4)
         "PlaySound",
         "Map.WorldPos", "Map.PosOn", "Map.Info", "InInstance", "Uptime", "UnitRank", "Npcs.IsPetTrainerTitle",
@@ -300,9 +305,10 @@ Core.NewModule(ADDON, ns, {
         "Discovery.InstanceName",
         -- Welle 27 (modul/ezmap-menue): Symbole und Abschnitte im Menü, Quelle im Tooltip (ohne neue Nummer)
         "Menu.Icon", "Menu.IconMarkup", "Menu.Section",
-        -- Funde des code-reviewers und Antwort des Nutzers vom 17.11.2026: Hülle mit Symbol, Berufssymbol, Einfügen
-        -- unter Blizzards Eintrag (Menu.IconText braucht ezMap seitdem nicht mehr)
-        "Menu.IconRoot", "Menu.ProfessionIcon", "Menu.ProfessionIconOfTitle", "Menu.InsertRoot",
+        -- Funde des code-reviewers und Antwort des Nutzers vom 17.11.2026: Hülle mit Symbol, Berufssymbol (Menu.IconText
+        -- braucht ezMap seitdem nicht mehr; Menu.InsertRoot seit dem 21.11.2026 nicht mehr – die Flugmeister hängen als
+        -- Untermenü an Blizzards Haken, Tracking.AttachFlights)
+        "Menu.IconRoot", "Menu.ProfessionIcon", "Menu.ProfessionIconOfTitle",
         -- Gesamtreview 18.11.2026 (P13 D2; ezCore ohne neue Versionsnummer): Weg zu einer Einstellung in ezCores Form,
         -- Addon-Fach nach Entscheidung 5, Hilfe, Menüeintrag „Einstellungen …“, Kampfsperre, Zeitbalken, Tooltip-Rollen
         "SettingsPathText", "compartmentMain", "HelpLines", "Menu.Settings", "CombatNotice", "NewTimerBar", "TipLine",
@@ -449,9 +455,10 @@ ns.API = {
     -- ClearMiniArrow nimmt es weg (ns.MiniArrow, MiniArrow.lua). Den Schalter führt das Modul der Route.
     ShowMiniArrow = function(owner, point, opts) return ns.MiniArrow.Show(owner, point, opts) end,
     ClearMiniArrow = function(owner) return ns.MiniArrow.Clear(owner) end,
-    -- Gemerkte Lehrer (Kopien): kind = "class" (eigene Klasse) | "profession" | "pet" (Tierausbilder) | "other" | nil (alle)
+    -- Lehrer (Kopien; besuchte und – mit Questie – die deines Kontinents laut Questie, source = "questie"):
+    -- kind = "class" (eigene Klasse) | "profession" | "pet" (Tierausbilder) | "other" | "weapon" | nil (alle)
     Trainers = function(kind) return ns.Trainers.List(kind) end,
-    -- Nächster gemerkter Lehrer auf demselben Kontinent oder nil
+    -- Nächster Lehrer auf demselben Kontinent (besucht oder laut Questie) oder nil
     NearestTrainer = function(kind) return ns.Trainers.Nearest(kind) end,
     -- Markierung auf den nächsten gemerkten Lehrer setzen, still, auch im Kampf (Welle 23; ezPanel und ezMerchant
     -- behalten ihre Texte). Nur eine Ablehnung der Zielverfolgung durch Blizzard nennt ezMap im Chat.

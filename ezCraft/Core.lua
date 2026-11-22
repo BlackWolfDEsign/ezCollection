@@ -15,7 +15,7 @@ local Core = ezCore
       Tooltip.lua    Rezept und Zutaten im Item-Tooltip (Rezept-Wissen von ezCore, sonst „laut AtlasLoot“)
       Salvage.lua    Entzaubern: Wert im Tooltip, Kandidaten in der Tasche (Daten aus ezCore.Salvage)
       Shipments.lua  Material bei Twinks anfordern und am Briefkasten verschicken
-      Panel.lua      Seitenteil mit Pfeil am Berufefenster: Reiter, Ansichten, Knopfleiste
+      Panel.lua      Seitenteil am Berufefenster (Symbol-Reiter): Reiter, Ansichten, Knopfleiste
       Book.lua       Knopf „Fundorte“ an den Sammelberufen in Blizzards Berufsbuch (Menü je Rohstoff, Kürschner-Liste)
       Where.lua      Rezepte und ihre Fundorte: „Woher“, „Noch zu lernen“, „Erhältlich bei“ im Tooltip (Welle 15b)
       Filter.lua     Schwierigkeitsfarben, Chance auf einen Fertigkeitspunkt, Farbfilter in Blizzards Filtermenü
@@ -24,7 +24,7 @@ local Core = ezCore
 ]]
 
 ns.DEFAULTS = {
-    panel = true,            -- ezCraft im Berufefenster (Seitenteil mit Pfeil; auf/zu merkt ezCraftDB.window.open)
+    panel = true,            -- ezCraft im Berufefenster (Seitenteil mit Symbol-Reiter; auf/zu merkt ezCraftDB.window.open)
     bookPanel = true,        -- dasselbe Seitenteil auch auf der Seite „Berufe“ (ohne Rezept und Fehlend; Nr. 22, Welle 23)
     tooltipRecipe = true,    -- Item-Tooltip: Rezept mit Zutaten und Bestand, wofür etwas Zutat ist
     countBank = true,        -- was als „vorhanden“ zählt (Herstellbar, fehlt, Einkaufsliste)
@@ -34,9 +34,8 @@ ns.DEFAULTS = {
     costs = true,            -- Materialkosten aus dem Preis-Wissen von ezCore (Auktionspreise)
     costsBeside = false,     -- Kosten, Ergebnis und Gewinn am Rezept auch neben Auctionator zeigen (CRAFT-02)
     tooltipCost = true,      -- Item-Tooltip eines hergestellten Gegenstands: „Material ≈ …, n von m mit Preis“ (AH-32)
-    skillStages = true,      -- Stufen der Skill-Farben im Berufefenster (zurückhaltend bei SkillUp Forever, ForeverArtisan)
     missingTab = true,       -- Reiter „Fehlend“: nicht erlernte Rezepte und ihre Quelle
-    recipeWhere = true,      -- Fundorte der Rezepte: „Woher“ im Reiter „Rezept“, „Erhältlich bei“ im Tooltip (Welle 15b)
+    recipeWhere = true,      -- Fundorte der Rezepte: „Erhältlich bei“ im Tooltip von Rezepten (Welle 15b)
     recipeWaypoint = true,   -- „Auf der Karte zeigen“ setzt auch Blizzards Wegpunkt
     chanceNumber = false,    -- dieselbe Chance als kleine Zahl neben dem Namen
     cooldownTab = true,      -- Reiter „Abklingzeiten“: Berufs-Abklingzeiten aller Twinks (ezCore.Professions)
@@ -52,6 +51,8 @@ ns.DEFAULTS = {
     tooltipSalvage = true,   -- Item-Tooltip: was Ausrüstung beim Entzaubern ergibt und wert ist (ezCore.Salvage)
     salvageTab = true,       -- Reiter „Entzaubern“: Ausrüstung in der Tasche, die sich entzaubern lässt
     salvageMark = true,      -- Marke „lohnt sich zu entzaubern“ am Taschenplatz (ezCores Platzmarken, CRAFT-10)
+    salvageAsk = true,       -- Nachfrage „Entzaubern / Nein / Niemals“, wenn ein lohnender Gegenstand neu in die Tasche
+                             -- kommt (Salvage.lua Sal.Ask; Wunsch des Nutzers vom 21.11.2026)
 }
 
 -- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
@@ -129,9 +130,10 @@ end
 -- Das Gerüst von ezCore (Core.NewModule, Framework.lua) übernimmt Datenbank, Einloggen, /ezcraft und den Status:
 --   db/tables   ezCraftDB mit settings (Standardwerte aus ns.DEFAULTS) und den Tabellen
 --               hints     gesehene Erklärblasen (Rundgang)
---               shopping  { { id = recipeID, count } }
+--               shopping  { { id = recipeID, count } } – bis 21.11.2026; seitdem die Liste „ezCraft“ in ezCores
+--                         Core.Lists (Shopping.Adopt einmal, Merker ezCoreDB.migrated.listsFromEzCraft), die Tabelle bleibt als Rückfall
 --               shipments { { from, to, items = { [itemID] = n }, note, created } }
---               window    { tab, open } (offene Ansicht, Seitenteil auf oder zu)
+--               window    { tab, open, list } (offene Ansicht, Seitenteil auf oder zu, gewählte Liste)
 --               salvageIgnore { [itemID] = true } (nie zum Entzaubern vorschlagen)
 --               watch     { recent = { recipeID … }, favorites = { [recipeID] = true } } (Material zum Beobachten, AH-39)
 --   needs       was ezCraft von ezCore braucht; fehlt etwas, meldet ezCore es einmal statt eines Fehlers im Modul
@@ -165,6 +167,7 @@ Core.NewModule(ADDON, ns, {
     tables = { "hints", "shopping", "shipments", "window", "salvageIgnore", "watch" },
     onLoad = function(db)
         ns.Shopping.Migrate(db.shopping)   -- vor 1.2 mit Name, Symbol und Zutaten
+        ns.Shopping.Adopt(db)              -- 21.11.2026: in ezCores gemeinsame Listen (einmal)
         ns.MigrateSettings1911(db)
     end,
     login = true,
@@ -220,7 +223,7 @@ end, ADDON)
 ---------------------------------------------------------------------------
 
 ns.AddStatusLine(function()
-    return L.STATUS_SHOPPING:format(#(ns.db and ns.db.shopping or {}))
+    return ns.Shopping.StatusLine()
 end)
 ns.AddStatusLine(function()
     local mine, incoming = 0, 0
@@ -239,9 +242,7 @@ ns.AddStatusLine(function()
         -- woher die Fundorte kommen („bei dir“ zuerst) bzw. dass es noch keine eigenen Ernten gibt (SAM-24)
         lines[#lines + 1] = Data.GatherSourcesText()
     end
-    local other = Data.SkillStagesOther()
-    if other then lines[#lines + 1] = L.STATUS_STAGES_OTHER:format(other) end
-    -- Nur bei eingeschalteten „Materialkosten“: sonst zeigt der Reiter „Rezept“ ohnehin keine Kosten (CostRows).
+    -- Nur bei eingeschalteten „Materialkosten“: sonst zeigt Blizzards Rezeptbereich ohnehin keine Kosten (Schematic.lua).
     local costOther = ns.Enabled("costs") and Data.CraftCostOther(true)
     if costOther then
         lines[#lines + 1] = (ns.Enabled("costsBeside") and L.STATUS_COSTS_BESIDE or L.STATUS_COSTS_OTHER):format(costOther)

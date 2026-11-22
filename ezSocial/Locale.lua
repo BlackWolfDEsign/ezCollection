@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Gruppe suchen: Klassen, Rollen und Stufen\nReiter „Aus dem Chat“: Gruppen aus dem Chat\nTwinks deiner Battle.net-Freunde\nStufen in Questfarben in der Freundesliste\nAuf Wunsch: Beschwörung annehmen und mehr",
     TITLE = "ezSocial",
     -- Hauptfunktion (Linksklick im Addon-Fach und Befehl ohne Wort; Zeilen und Befehl baut ezCore, T18-3)
     MAIN_TEXT = "Reiter „Aus dem Chat“ öffnen (Gruppen aus dem Chat)",
@@ -182,6 +184,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Group Finder: classes, roles and levels\n“From chat” tab: groups from the chat\nAlts of your Battle.net friends\nLevels in quest colors in the friends list\nIf you want: accept summons and more",
     TITLE = "ezSocial",
     MAIN_TEXT = "open the \"From chat\" tab (groups from the chat)",
     LEVEL_ABBR = "Lvl",

@@ -158,11 +158,11 @@ local function SpellLine(entry, state, withCost, pet, known, shown)
     local costText = entry.cost and ns.Money(entry.cost) or (withCost and not pet and L.UPCOMING_COST_UNSEEN) or nil
     local sub = rank > 0 and L.UPCOMING_RANK:format(rank) or nil
     local detail                      -- nie nil: sonst zeigte die Ansicht right (Kosten) als dritte Zeile
-    local level, from
+    local level, from, levelText
     local tip = {}
     if tablesNow then
-        detail, sub = LevelDetail(entry.level and L.UPCOMING_LEVEL:format(entry.level) or L.UPCOMING_LEVEL_UNKNOWN,
-            costText, sub, entry.name)
+        levelText = entry.level and L.UPCOMING_LEVEL:format(entry.level) or L.UPCOMING_LEVEL_UNKNOWN
+        detail, sub = LevelDetail(levelText, costText, sub, entry.name)
         if entry.level then tip[#tip + 1] = L.UPCOMING_LEVEL:format(entry.level) end
         tip[#tip + 1] = { L.UPCOMING_FROM_TABLES:format(U.TableSource() or "?"), "hint" }
     elseif now then
@@ -171,8 +171,8 @@ local function SpellLine(entry, state, withCost, pet, known, shown)
         if entry.level then tip[#tip + 1] = L.UPCOMING_LEVEL:format(entry.level) end
     else
         if shown then level, from = shown.level, shown.from else level, from = U.EntryLevel(entry, pet, known) end
-        detail, sub = LevelDetail(level and L.UPCOMING_LEVEL:format(level) or L.UPCOMING_LEVEL_UNKNOWN, costText, sub,
-            entry.name)
+        levelText = level and L.UPCOMING_LEVEL:format(level) or L.UPCOMING_LEVEL_UNKNOWN
+        detail, sub = LevelDetail(levelText, costText, sub, entry.name)
         LevelTip(tip, entry, level, from, withCost, pet)
     end
     if entry.cost then
@@ -191,9 +191,28 @@ local function SpellLine(entry, state, withCost, pet, known, shown)
     end
     if pet then tip[#tip + 1] = { L.UPCOMING_PET_TIP, "hint" } end
     if entry.client then tip[#tip + 1] = { L.UPCOMING_FROM_CLIENT, "hint" } end
+    -- Beschreibung statt grauer Angaben (Spieltest 21.11.2026, Bild 4, Antwort des Nutzers „Beschreibung + lesbar
+    -- (Empfohlen)“): kennt der Client die Beschreibung, steht der Rang hinter dem Namen, darunter die Beschreibung (zu
+    -- lang: gekürzt, ganz im Tooltip, dort mit der Quelle). Die Stufe steht dann in der Stufen-Überschrift (rechts die
+    -- Summe bis zu dieser Stufe), Stufe und Einzelpreis im Tooltip;
+    -- wo keine Stufen-Überschrift darüber steht (Begleiter, „Jetzt dran“ nur laut Tabellen) bzw. beim Lehrer erlernbar,
+    -- bleibt die dritte Zeile. Ohne Beschreibung bleibt der Eintrag wie bisher.
+    local name = entry.name
+    local desc = U.Description(entry, pet, known)
+    if desc then
+        name, sub = SpellText(entry), desc
+        tip[#tip + 1] = { L.UPCOMING_DESC_SOURCE, "hint" }
+        if (pet or tablesNow) and levelText then
+            detail = costText and (levelText .. " · " .. costText) or levelText
+        elseif not now then
+            detail = ""                  -- leer, nicht nil: sonst zeigte die Ansicht right (Kosten)
+        end
+    end
+    -- lesbar: Symbol und Rahmen zeigen weiter „kommt später“, der Text steht in voller Buchfarbe (ezCore: readable)
     return { kind = "spell", left = SpellText(entry), right = cost, icon = entry.icon, entry = entry, state = state,
-        name = entry.name, sub = sub, detail = detail, pet = pet or nil, level = level, levelFrom = from,
-        spellID = tonumber(entry.id), style = now and "trainable" or "future", tooltip = tip }
+        name = name, sub = sub, detail = detail, pet = pet or nil, level = level, levelFrom = from,
+        spellID = tonumber(entry.id), style = now and "trainable" or "future", readable = true, tooltip = tip,
+        described = desc ~= nil }
 end
 
 -- Ohne Lehrerbesuch: die „kommt später“-Zauber des Zauberbuchs, ergänzt um die Zauber je Stufe laut Client – seit
@@ -381,6 +400,29 @@ function U.EntryLevel(entry, pet, known)
     return nil
 end
 
+-- Beschreibung eines Eintrags aus dem Client (Core.Spells.Description, Leitlinie 11; Spieltest 21.11.2026, Bild 4).
+-- Lehrerdaten tragen keine Zauber-ID: die ID kommt wie bei der Stufe (U.EntryLevel) aus dem Zauberbuch bzw. den
+-- Client-Tabellen mit gleichem Namen und Rang (U.ClientLevels); Fähigkeiten des Begleiters nur mit eigener ID. Fehlt
+-- die Beschreibung noch, merkt sich die Ansicht den Zauber: meldet Blizzard ihn geladen (SPELL_DATA_LOAD_RESULT),
+-- zeichnet sie neu (unten). → Text oder nil
+local waitingDescription = {}
+
+function U.Description(entry, pet, known)
+    local S = Spells()
+    if type(entry) ~= "table" or not (S and type(S.Description) == "function") then return nil end
+    local id = tonumber(entry.id)
+    if not id and not pet then
+        local hit = (known or U.ClientLevels(S))[EntryKey(entry.name, entry.rank)]
+        id = hit and tonumber(hit.id)
+    end
+    if not id then return nil end
+    local text = S.Description(id)
+    waitingDescription[id] = (text == nil) or nil
+    return text
+end
+
+function U.WaitsForDescription(id) return waitingDescription[tonumber(id) or 0] == true end
+
 -- Spätere Einträge mit der Stufe, die jeder von ihnen zeigt (U.EntryLevel), sortiert nach dieser Stufe (ohne Stufe
 -- zuletzt, sonst in der bisherigen Reihenfolge). Kopfzeilen und Summen gruppieren nach derselben Stufe wie die
 -- Einträge: nennt der Client eine andere Stufe als der Lehrer, stünde sonst unter „Stufe 20“ ein Eintrag „Stufe 22“ –
@@ -452,7 +494,7 @@ local function FutureLines(S, level, lines)
     end
     if #now > 0 then
         lines[#lines + 1] = { kind = "header", left = L.UPCOMING_NOW }
-        for _, entry in ipairs(now) do lines[#lines + 1] = SpellLine(entry, "now", false) end
+        for _, entry in ipairs(now) do lines[#lines + 1] = SpellLine(entry, "now", false, nil, known) end
     end
     ReachedLines(lines, reached, false, known)
     local later = {}
@@ -784,16 +826,18 @@ function U.SpellLines(level)
     if not S.TrainerSeen() then return FutureLines(S, level, lines) end
     local now, nowTotal = S.Available(level)
     local running = nowTotal or 0
+    local known                                   -- Stufen und IDs laut Client: einmal je Liste (U.ClientLevels)
     if #now > 0 then
+        known = U.ClientLevels(S)
         lines[#lines + 1] = { kind = "header", left = L.UPCOMING_NOW, right = ns.Money(running) }
-        for _, entry in ipairs(now) do lines[#lines + 1] = SpellLine(entry, "now", true) end
+        for _, entry in ipairs(now) do lines[#lines + 1] = SpellLine(entry, "now", true, nil, known) end
     end
     -- dazu, was nur die Client-Tabellen nennen (Welle 26): schon erreicht als eigene Gruppe, später unter seiner Stufe
     local reached, extra = U.TableExtra(level, S)
     local later = {}
     for _, entry in ipairs(S.Upcoming(level, Core.MaxLevel()) or {}) do later[#later + 1] = entry end
     for _, entry in ipairs(extra) do later[#later + 1] = entry end
-    local known = (#later > 0 or #reached > 0) and U.ClientLevels(S) or nil
+    known = known or ((#later > 0 or #reached > 0) and U.ClientLevels(S) or nil)
     ReachedLines(lines, reached, true, known)
     -- false statt nil: auch ein Eintrag ohne Stufe bekommt seine Kopfzeile („Stufe unbekannt“). Kopfzeilen und Summen
     -- nach der Stufe, die die Einträge zeigen (ByShownLevel)
@@ -862,6 +906,13 @@ local RefreshSoon = ns.Throttle(function() U.Refresh() end, 0.2)
 Core.Listen("SPELLS_TRAINER_CHANGED", function() RefreshSoon() end, ADDON)
 Core.Listen("SPELLS_KNOWN_CHANGED", function() U.ForgetClient() RefreshSoon() end, ADDON)
 ns.On("PLAYER_LEVEL_UP", function() U.ForgetClient() RefreshSoon() end)
+ns.On("SPELL_DATA_LOAD_RESULT", function(_, id, success)
+    if success and U.WaitsForDescription(id) and U.IsOpen() then RefreshSoon() end
+end)
+-- Manche Texte kommen erst nach dem Laden (Blizzard meldet SPELL_TEXT_UPDATE mit der Zauber-ID)
+ns.On("SPELL_TEXT_UPDATE", function(_, id)
+    if U.WaitsForDescription(id) and U.IsOpen() then RefreshSoon() end
+end)
 ns.OnSettingChanged(function(key) if key == "upcoming" then U.UpdateTab() end end)
 
 ns.OnReady(Setup)

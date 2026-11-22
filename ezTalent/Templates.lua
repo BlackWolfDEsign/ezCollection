@@ -327,6 +327,15 @@ function Templates.Presets(class)
     return out
 end
 
+-- Vorauswahl der Klasse nach ihrem Schlüssel (recherchiert oder berechnet). → preset oder nil
+function Templates.PresetByKey(key, class)
+    if key == nil then return nil end
+    for _, preset in ipairs(Templates.Presets(class)) do
+        if preset.key == key then return preset end
+    end
+    return nil
+end
+
 -- Ist die Vorauswahl berechnet (Computed.lua) statt recherchiert?
 function Templates.IsComputed(preset)
     return type(preset) == "table" and preset.grade == "computed"

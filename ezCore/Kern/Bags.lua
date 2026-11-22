@@ -3,7 +3,8 @@ local Core = ezCore
 
 --[[
     Taschen: Zahl, freie Plätze, Listen der Taschen und jeder belegte Platz (Core.NumBagSlots, Core.FreeBagSlots,
-    Core.BagSpace, Core.BagList, Core.ForEachBagItem). Bis Welle 11 in Util.lua (EC-53, V-019); Namen unverändert.
+    Core.EmptyBagSlot, Core.BagSpace, Core.BagList, Core.ForEachBagItem). Bis Welle 11 in Util.lua (EC-53, V-019);
+    Namen unverändert.
 ]]
 
 ---------------------------------------------------------------------------
@@ -25,6 +26,29 @@ function Core.FreeBagSlots()
         if family == 0 then free = free + (count or 0) end
     end
     return free
+end
+
+-- So lange höchstens auf einen gerade abgeteilten Stapel warten: Der Client meldet seinen neuen Platz leer, bis der
+-- Server das Abteilen bestätigt (Spielbefunde vom 21. und 22.11.2026). Eine Stelle für ezCores Anhang-Schlange
+-- (MailQueue.lua) und ezBags Anzahl-Feld (Stacks.lua).
+Core.SPLIT_ARRIVE_WAIT = 5
+
+-- Ein leerer Platz in einer normalen Tasche (Berufstaschen nehmen nicht alles) → bag, slot oder nil.
+-- used (optional): { [bag * 1000 + slot] = true } – schon vergebene Plätze überspringen (MailQueue beim Abteilen,
+-- ezBag beim Verkauf einer Teilmenge; vorher lokal in MailQueue.lua).
+function Core.EmptyBagSlot(used)
+    used = type(used) == "table" and used or {}
+    for bag = 0, Core.NumBagSlots() do
+        local free, family = C_Container.GetContainerNumFreeSlots(bag)
+        if (free or 0) > 0 and (family or 0) == 0 then
+            for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+                if not used[bag * 1000 + slot] and not C_Container.GetContainerItemInfo(bag, slot) then
+                    return bag, slot
+                end
+            end
+        end
+    end
+    return nil
 end
 
 -- Freie und alle Plätze der normalen Taschen: free, total – dazu getrennt die der Spezialtaschen (Berufstaschen,

@@ -113,6 +113,8 @@ end
 ---------------------------------------------------------------------------
 
 local function OnItemClick(button, mouse)
+    -- Rechtsklick auf zusammengefasste Stapel: die übrigen Stapel folgen Blizzards einem in die Tasche (Stacks.lua)
+    if ns.Stacks.OnItemClick(view, button, mouse) then return end
     if mouse ~= "RightButton" or not IsAltKeyDown() or IsShiftKeyDown() or IsControlKeyDown() then return end
     local bag, slot = SlotOf(button)
     if not bag then return end
@@ -614,7 +616,7 @@ function Bank.Refresh(force)
 end
 
 local function CanRelayoutNow()
-    return ns.Render.CanRelayout(bankFrame)
+    return ns.Render.CanRelayout(bankFrame, nil, view)
 end
 
 -- Nach Blizzards (und ClassicUIs) eigener Anordnung, im nächsten Frame.

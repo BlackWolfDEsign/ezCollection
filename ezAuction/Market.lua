@@ -601,12 +601,127 @@ function Market.WeekSource(w)
 end
 
 ---------------------------------------------------------------------------
+-- Langzeit-Verlauf in Monaten (Entscheidung des Nutzers vom 21.11.2026: „Beides bauen“ – auf die Frage „wird der markt
+-- graph über wochen monate und gar jahre nicht zu sehr gestaucht? wie lösen wir das? vergrößern pfeil wie bei der karte?“)
+---------------------------------------------------------------------------
+-- ezCore verdichtet Wochen, die aus seinen Wochen fallen, zu Kalendermonaten (Prices.Months, bis Prices.MonthsMax(), ab
+-- Werk 24). Jede Ansicht zeigt ein festes Fenster (14 Tage, bis 26 Wochen, bis 24 Monate) – so wird der Graph nie
+-- gestaucht. Die jüngeren Monate kommen aus den Wochen (Market.WeekPoints, die wieder bis heute reichen).
+
+Market.GRAPH_MONTHS = 3   -- Monats-Graph erst ab drei Monaten mit Punkten
+
+-- Gibt es für diesen Gegenstand einen Monats-Verlauf? → true | false, Grund: die Gründe der Wochen
+-- (Market.WeeksAvailable – Monate entstehen aus Wochen) und "nomonths" (ezCores Auswahl „Preisverlauf: Monate
+-- behalten“ steht auf 0, oder ezCore kennt keine Monate).
+function Market.MonthsAvailable(item, variant)
+    local ok, why = Market.WeeksAvailable(item, variant)
+    if not ok then return false, why end
+    local prices = Prices()
+    if not (prices and type(prices.Months) == "function" and type(prices.MonthOf) == "function"
+        and type(prices.MonthOfWeek) == "function" and type(prices.MonthsMax) == "function") or (Core.Num(Core.Call(prices.MonthsMax)) or 0) <= 0 then
+        return false, "nomonths"
+    end
+    return true
+end
+
+-- Punkte je Kalendermonat: abgeschlossene Monate aus ezCore (Prices.Months), der angefangene und die jüngeren aus den
+-- Wochen (Market.WeekPoints) zusammengefasst; zu welchem Monat eine Woche gehört, sagt nur ezCore (Prices.MonthOfWeek). Median
+-- eines Monats = Median der Wochen-Mediane (der angefangene Monat aus ezCore zählt so oft, wie er Wochen hat).
+-- → punkte ({ x = Monat, y = Median | nil (Lücke), high, bar = Menge, month = { … }, day }), opts, zustand
+-- ("ok" | "none" | "few"), Zahl der Monate mit Punkten.
+function Market.MonthPoints(item)
+    local prices = Prices()
+    if not (prices and item and type(prices.Months) == "function" and type(prices.MonthOf) == "function") then
+        return {}, {}, "none", 0
+    end
+    local byMonth, open = {}, {}
+    for _, m in ipairs(Core.Call(prices.Months, item) or {}) do
+        local n, median = type(m) == "table" and Core.Num(m.month), type(m) == "table" and Core.Num(m.median)
+        if n and median then
+            local entry = { month = n, low = Core.Num(m.low) or median, high = Core.Num(m.high) or median,
+                median = median, quantity = Core.Num(m.quantity) or 0, days = Core.Num(m.days) or 0 }
+            byMonth[n] = entry
+            if m.open then
+                entry.meds = {}
+                for _ = 1, math.max(1, Core.Num(m.weeks) or 1) do entry.meds[#entry.meds + 1] = median end
+                open[n] = entry
+            end
+        end
+    end
+    for _, point in ipairs((Market.WeekPoints(item))) do
+        local w = type(point) == "table" and point.week
+        local week, median = type(w) == "table" and Core.Num(w.week), type(w) == "table" and Core.Num(w.median)
+        if week and median then
+            local n = type(prices.MonthOfWeek) == "function" and Core.Call(prices.MonthOfWeek, week) or nil
+            local entry = n and byMonth[n]
+            if n and not entry then
+                entry = { month = n, meds = {}, quantity = 0, days = 0 }
+                byMonth[n], open[n] = entry, entry
+            end
+            if n and open[n] then
+                entry.meds[#entry.meds + 1] = median
+                entry.low = math.min(entry.low or median, Core.Num(w.low) or median)
+                entry.high = math.max(entry.high or median, Core.Num(w.high) or median)
+                entry.quantity = math.max(entry.quantity or 0, Core.Num(w.quantity) or 0)
+                entry.days = entry.days + (Core.Num(w.days) or 0)
+            end
+        end
+    end
+    local first, last, count, medians = nil, nil, 0, {}
+    for n, entry in pairs(byMonth) do
+        if entry.meds then
+            entry.median = MedianOf(entry.meds)
+            entry.meds = nil
+        end
+        count = count + 1
+        if not first or n < first then first = n end
+        if not last or n > last then last = n end
+        medians[#medians + 1] = entry.median
+    end
+    if count == 0 then return {}, {}, "none", 0 end
+    local today = Core.Num(Core.Call(prices.Day)) or math.floor(time() / DAY)
+    last = math.max(last, Core.Num(Core.Call(prices.MonthOf, today)) or last)
+    local points = {}
+    for n = first, last do
+        local entry = byMonth[n]
+        local day = type(prices.MonthStart) == "function" and Core.Num(Core.Call(prices.MonthStart, n)) or nil
+        points[#points + 1] = { x = n, y = entry and entry.median or nil, high = entry and entry.high or nil,
+            bar = entry and entry.quantity or nil, month = entry, day = day }
+    end
+    local opts = { xMin = first, xMax = last, guides = {}, dashed = {} }
+    local median = MedianOf(medians)
+    if median then opts.guides[1] = median end
+    return points, opts, count < Market.GRAPH_MONTHS and "few" or "ok", count
+end
+
+-- Monat als Text („11.2026“) aus Prices.MonthOf
+function Market.MonthLabel(month)
+    month = Core.Num(month)
+    if not month then return "?" end
+    return L.MARKET_MONTH_DATE:format(month % 12 + 1, math.floor(month / 12))
+end
+
+-- Tooltip eines Monatspunkts: „Monat 11.2026“, Median der Wochen, Tief und Hoch, Menge, Quelle.
+function Market.MonthTip(entry)
+    local m = type(entry) == "table" and entry.month
+    if type(m) ~= "table" then return nil end
+    local lines = { L.MARKET_MONTH_TIP_MEDIAN:format(ns.Money(m.median)) }
+    if Core.Num(m.low) and Core.Num(m.high) then
+        lines[#lines + 1] = L.MARKET_WEEK_TIP_RANGE:format(ns.Money(m.low), ns.Money(m.high))
+    end
+    if (Core.Num(m.quantity) or 0) > 0 then lines[#lines + 1] = L.MARKET_TIP_QTY:format(m.quantity) end
+    lines[#lines + 1] = L.MARKET_SOURCE:format(Market.WeekSource(m))
+    return L.MARKET_MONTH_TIP_TITLE:format(Market.MonthLabel(m.month)), lines[1], lines[2], lines[3], lines[4]
+end
+
+---------------------------------------------------------------------------
 -- „Als Text kopieren“ (V5 aus docs/archiv/eroerterung-datenbank.md, vom Nutzer am 16.11.2026 freigegeben; Welle 24)
 ---------------------------------------------------------------------------
 -- Die Zahlen des Seitenteils „Markt“ als EINE Tabelle für ezCores Kopierfeld (Core.TableText/Core.CopyAsText aus Welle
 -- 23d) – keine eigene Ausgabe (Leitlinie 2). Je Zeile eine Art, jede Gruppe älteste zuerst:
 --   Tag     ezCores Tagespunkte (Prices.History, alle gemerkten Tage; für Abwandlungen dieselbe Regel wie der Graph)
 --   Woche   der Langzeit-Verlauf (Market.WeekPoints, V1), solange es für den Gegenstand Wochen gibt
+--   Monat   der Verlauf in Monaten (Market.MonthPoints, seit 21.11.2026), solange es Monate gibt
 --   Verkauft, Gekauft, …  deine Auktionen mit diesem Gegenstand (ezCore.History("auction"), alle Charaktere)
 -- Jede Zeile nennt ihre Quelle (Spalte „Quelle“, Leitlinie 11); Beträge in Gold (Spalte „money“), Datum als
 -- Jahr-Monat-Tag, das jede Tabellenkalkulation liest. „Käufer/Verkäufer“ ist eine Namens-Spalte (personal): ab Werk nicht
@@ -687,6 +802,19 @@ function Market.CopyRows(item, variant, opts)
         end
     end
     if opts.any and rows[1] then return rows, reason end
+    -- Monate (21.11.2026): wie im Graph, als eigene Art „Monat“ – die jüngeren fassen dieselben Wochen zusammen wie die
+    -- Zeilen „Woche“ darüber (wer summiert, filtert nach der Spalte „Art“)
+    if itemID and not variant and Market.MonthsAvailable(itemID, false) then
+        for _, point in ipairs((Market.MonthPoints(itemID))) do
+            local m = point.month
+            if type(m) == "table" then
+                rows[#rows + 1] = { kind = L.COPY_KIND_MONTH, date = Market.CopyDay(point.day), low = m.low, high = m.high,
+                    median = m.median, quantity = (Core.Num(m.quantity) or 0) > 0 and m.quantity or nil,
+                    source = Market.WeekSource(m) }
+            end
+        end
+    end
+    if opts.any and rows[1] then return rows, reason end
     local source, History = Core.History, ns.History
     if itemID and History and type(source) == "table" and type(source.List) == "function" then
         local names = {}
@@ -719,11 +847,13 @@ function Market.WatchSet(fresh)
     local up = Core.Uptime and Core.Uptime() or time()
     if fresh or not watchSet or not watchAt or up < watchAt or up - watchAt >= Market.WATCH_TIME then
         local set = {}
-        for _, list in ipairs(ns.db and ns.db.lists or {}) do
+        for _, list in ipairs(ns.db and ns.Lists and ns.Lists.All() or {}) do
             for _, entry in ipairs(type(list) == "table" and list.items or {}) do
                 local id = type(entry) == "table" and Core.Num(entry.itemID)
                 if id then set[id] = true end
             end
+            -- hergestellte Gegenstände: ihr Material bzw. Produkt (ezCores Core.Lists)
+            for id in pairs(Core.Lists and type(list) == "table" and Core.Lists.Needs(list) or {}) do set[id] = true end
         end
         if ns.db then
             for itemID in pairs(ns.RealmData().posts) do

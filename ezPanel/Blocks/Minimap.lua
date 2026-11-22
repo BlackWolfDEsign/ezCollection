@@ -348,7 +348,7 @@ function block:OnMenu(root)
     local pick = root:CreateButton(L.MINIMAP_COLLECT)
     local all = Buttons()
     if #all == 0 then pick:CreateTitle(L.MINIMAP_NONE) end
-    -- „Alle auswählen / Alle abwählen“ über den Knöpfen (Design-System 2.11; gemerkt in cfg.skip), einmal Apply
+    -- Haken „Alle“ über den Knöpfen (Design-System 2.11; gemerkt in cfg.skip), einmal Apply
     ns.MenuAllToggle(pick, all, function(e) return not cfg.skip[e.name] end,
         function(e, on) cfg.skip[e.name] = (not on) or nil end, function() Apply() end)
     for _, e in ipairs(all) do

@@ -66,6 +66,7 @@ local view          -- Core.NewSpellbookView, angelegt beim Einloggen
 local chooserOpen = false       -- Spickzettel: Liste „Andere wählen“ aufgeklappt (bis zur Wahl bzw. zum Schließen)
 local unlearnedOpen = false     -- Spickzettel: „Noch nicht gelernt“ aufgeklappt
 local offOpen = false           -- Spickzettel: „Ausgeschaltet“ aufgeklappt
+local computedOpen = false      -- Spickzettel: „Wie diese Rotation berechnet wurde“ aufgeklappt
 
 local function CharKey() return Core.charKey or "?" end
 
@@ -866,8 +867,11 @@ end
 
 ---------------------------------------------------------------------------
 -- Spickzettel (Entscheidung des Nutzers vom 16.11.2026, „Frage 2: Entwurf A“; Entwurf in docs/roadmap/ezCombat.md,
--- „Entscheidungsfrage: Rotation für Einsteiger verständlich“). Die Standardansicht der Seite: oben „Deine Rotation:
--- <Name>“ mit den Knöpfen „Andere wählen“ und „Anpassen“, der Absatz „So funktioniert sie“, dann drei Blöcke mit
+-- „Entscheidungsfrage: Rotation für Einsteiger verständlich“). Die Standardansicht der Seite: oben „Deine Rotation“,
+-- darunter ihr Name in einer eigenen Zeile (Spieltest 21.11.2026, Bild 1: in der Überschrift blieb neben „angepasst“
+-- vom Namen nur „…“), die Knöpfe „Andere wählen“ und „Erstellen“, der Absatz „So funktioniert sie“, bei einer
+-- berechneten Rotation eingeklappt „Wie diese Rotation berechnet wurde“ (Bilder 2 und 3: „manche rotationen haben viel
+-- zu viel text“ – Annahmen, Quelle der Werte, „vorläufig“ füllten mehr als eine Seite), dann drei Blöcke mit
 -- Alltags-Überschriften – „Bevor es losgeht“, „Im Kampf“ (von oben nach unten: das Erste, das geht, drückst du),
 -- „Wenn es eng wird“ –, je Zeile Nummer, Symbol, Name und EIN Satz (Feld text des Schritts), keine Pfeile, keine
 -- Kästchen; der Schritt, der gerade dran ist, steht hervorgehoben („Jetzt dran“). Ungelerntes steht eingeklappt
@@ -932,7 +936,9 @@ local function EasyLine(rotation, item, number, ctx, info)
 end
 
 -- Zeilen des Spickzettels. Eigene Felder: easy (alle Zeilen), block (Kopf und Schritte eines Blocks), now (Schritt ist
--- dran), unlearned (Schritt, der noch nicht gelernt ist), key "choose" / "edit" / "unlearned" (Zeilen mit Knopf).
+-- dran), unlearned (Schritt, der noch nicht gelernt ist), rotationName (Zeile mit dem Namen unter „Deine Rotation“),
+-- computed (eingeklappte Herkunft einer berechneten Rotation), computedNote (kurzer Hinweis, immer sichtbar), key
+-- "choose" / "edit" / "unlearned" / "computed" (Zeilen mit Knopf).
 function Book.EasyLines()
     local lines = {}
     local list = Rotation.ForClass()
@@ -951,8 +957,10 @@ function Book.EasyLines()
     -- tauscht, Ziehen schiebt); was nur die Liste aller Schritte kann, steht unten unter „Rotation ändern“.
     local Own = ns.RotationOwn
     local full = Own ~= nil and Own.Count() >= Own.MAX
-    lines[#lines + 1] = { kind = "header", left = Fmt(L.ROTATION_EASY_HEAD, Rotation.Name(rotation)), right = right,
-        rotation = rotation.key, easy = true }
+    lines[#lines + 1] = { kind = "header", left = L.ROTATION_EASY_HEAD, right = right, rotation = rotation.key, easy = true }
+    local nameLine = TextLine(Rotation.Name(rotation), "rotationName")    -- der Name ganz, in eigener Zeile
+    nameLine.easy, nameLine.rotation = true, rotation.key
+    lines[#lines + 1] = nameLine
     lines[#lines + 1] = ActionLine("choose", L.ROTATION_EASY_CHOOSE_LABEL,
         chooserOpen and L.ROTATION_EASY_CHOOSE_CLOSE or L.ROTATION_EASY_CHOOSE, L.ROTATION_EASY_CHOOSE_TIP)
     lines[#lines].easy = true
@@ -968,7 +976,32 @@ function Book.EasyLines()
     -- 2. So funktioniert sie (bleibt oben), Herkunft einer berechneten bzw. eigenen Rotation
     local how = Rotation.How(rotation)
     if how then lines[#lines + 1] = TextLine(Fmt(L.ROTATION_BOOK_HOW, how), "how") end
-    for _, text in ipairs(Rotation.ComputedLines(rotation)) do lines[#lines + 1] = TextLine(text, "computed") end
+    -- Herkunft einer berechneten Rotation (berechnet am, Annahmen, Quelle der Werte): eingeklappt, mit Knopf. Die kurzen
+    -- Hinweise (vorläufig, Heiler, nur von Hand wählbar) bleiben sichtbar – sie sagen, warum „Nach Talentbaum“ sie
+    -- nicht nimmt.
+    local NOTE = { [L.ROTATION_COMPUTED_PROVISIONAL] = true, [L.ROTATION_COMPUTED_HEALER] = true,
+        [L.ROTATION_COMPUTED_MANUAL] = true }
+    local details, notes = {}, {}
+    for _, text in ipairs(Rotation.ComputedLines(rotation)) do
+        if NOTE[text] then notes[#notes + 1] = text else details[#details + 1] = text end
+    end
+    for _, text in ipairs(notes) do
+        local line = TextLine(text, "computedNote")
+        line.easy = true
+        lines[#lines + 1] = line
+    end
+    if #details > 0 then
+        lines[#lines + 1] = ActionLine("computed", L.ROTATION_EASY_COMPUTED,
+            computedOpen and L.ROTATION_EASY_HIDE or L.ROTATION_EASY_SHOW, L.ROTATION_EASY_COMPUTED_TIP)
+        lines[#lines].easy = true
+        if computedOpen then
+            for _, text in ipairs(details) do
+                local line = TextLine(text, "computed")
+                line.easy = true
+                lines[#lines + 1] = line
+            end
+        end
+    end
     local origin = OwnOrigin(rotation)
     if origin then lines[#lines + 1] = TextLine(origin, "origin") end
     -- 3. Die drei Blöcke
@@ -1404,7 +1437,7 @@ end
 -- Knopf einer Zeile: "toggle" (Schritt aus/an), "up"/"down" (eine Stelle im Abschnitt), "reset" (zurück zur
 -- Vorlage), "aoe" (Flächenmodus umschalten); Spickzettel: "edit" (Liste aller Schritte), "choose" (Liste „Andere
 -- wählen“ auf/zu), "create" („Erstellen“: eigene Rotation, wie "saveown"), "unlearned" (Noch nicht gelernt auf/zu),
--- "offlist" (Ausgeschaltet auf/zu); Liste aller Schritte: "done" (Fertig), "saveown", "import"; eigene
+-- "offlist" (Ausgeschaltet auf/zu), "computed" (Wie diese Rotation berechnet wurde auf/zu); Liste aller Schritte: "done" (Fertig), "saveown", "import"; eigene
 -- Rotation: "rename", "export", "delete", "add" (Menü der Zauber), "remove" (selbst hinzugefügten Schritt entfernen).
 -- owner: der Knopf (für Menüs). → true, wenn sich etwas geändert hat. Wirkt nie einen Zauber.
 function Book.Button(line, key, owner)
@@ -1421,6 +1454,10 @@ function Book.Button(line, key, owner)
     end
     if key == "offlist" then
         offOpen = not offOpen
+        return true
+    end
+    if key == "computed" then
+        computedOpen = not computedOpen
         return true
     end
     if key == "import" then return Book.ShowImport() end

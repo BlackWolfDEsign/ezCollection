@@ -119,6 +119,7 @@ local function Register()
     -- Erfahrungsleiste (XPPreview.lua): Quest-Erfahrung als Vorschau auf Blizzards Leiste (Feature I1, 18.11.2026)
     page:Header(L.OPT_HEADER_XP, L.OPT_HEADER_XP_TIP)
     page:Checkbox("xpPreview")
+    page:Checkbox("xpTickFollow", nil, { parent = "xpPreview", enabledWhen = function() return ns.Enabled("xpPreview") end })
 
     page:Advanced()
     page:StatusButton(L.OPT_STATUS_TIP)   -- „Status – Im Chat zeigen“ (ezCore, T9-2)

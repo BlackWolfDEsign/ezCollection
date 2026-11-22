@@ -459,7 +459,8 @@ function Advice.BestPlan(ctx, preset, points)
     if result.points == 0 then return nil, "flat" end
     local tpl = Optimize.Template(result, Advice.Tree(ctx))
     tpl.tree, tpl.primary = ctx.treeID, tonumber(preset.tree)
-    return { kind = "new", scope = ctx.scope, tpl = tpl,
+    -- from: Herkunft – die Zeile dieser Verteilung bleibt in „Vorlagen“ und „Empfehlung“ markiert (UI.PresetLoaded)
+    return { kind = "new", scope = ctx.scope, tpl = tpl, from = preset.key,
         name = L.ADVICE_BEST_NAME:format(points, Templates.PresetName(preset)) }
 end
 

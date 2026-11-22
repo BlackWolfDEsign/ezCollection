@@ -28,6 +28,7 @@ ns.DEFAULTS = {
     npcLootHint = true, -- „noch nicht geplündert“ im Tooltip angreifbarer Gegner statt gar keiner Zeile
     itemLoot = true,    -- „Beute bei dir: n× von <Gegner>“ im Tooltip von Gegenständen (LOOT-13, Entscheidungsfrage 7)
     itemOrigin = true,  -- „Herkunft laut Questie: fällt von …“ an Nicht-Rohstoffen ohne eigene Beute (Welle 23, Nr. 24)
+    itemContents = true, -- „Inhalt bei dir: n× geöffnet“ im Tooltip geöffneter Behälter (Contents.lua, 22.11.2026)
     npcWorth = true,    -- „Wert je Tötung: … (aus deiner Beute, n Tötungen)“ im Gegner-Tooltip (V2, Welle 24)
     npcSkin = true,     -- „Kürschnern: ab …“ im Gegner-Tooltip, Wert und Quelle aus ezCore (Welle 27, F4 b)
 }
@@ -42,6 +43,7 @@ ns.TOGGLES = {
     { "npcLoot", "tooltip" },
     { "itemLoot", "gegenstand", en = "item" },
     { "itemOrigin", "herkunft", en = "origin" },
+    { "itemContents", "inhalt", en = "contents" },
     { "npcWorth", "wert", en = "worth" },
     { "npcSkin", "kuerschnern", en = "skin" },
     { "npcLootHint", "hinweis", en = "hint" },
@@ -88,7 +90,8 @@ Core.NewModule(ADDON, ns, {
     -- ohne neue Nummer dazu
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.ItemIconText, Core.SwitchCVar, Core.TipClick, Core.Tooltip.Gap
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
-    title = "ezLoot", core = "1.15.0", needs = { "WhoHandles", "AddCompanion", "NewTour", "TogglePanel",
+    title = "ezLoot", core = "1.15.0", needs = { "ItemInstant", "Sources.ContentsOf", "Finds.ObjectKind", "Discovery.TargetObject", "Tooltip.ORDER.contents",
+        "Tooltip.OBJECT_ORDER.contents", "WhoHandles", "AddCompanion", "NewTour", "TogglePanel",
         "scaffoldHelpers", "Now", "Uptime", "Style.Color", "Style.IconSize",
         -- Welle 23: Teile aus den ezCore-Paketen 23a und 23c (ohne neue Versionsnummer)
         "Style.SetTextColor", "Tooltip.ORDER.loot",
@@ -249,6 +252,9 @@ function ns.OwnStatusLines()
     end
     -- Herkunft laut einer angebundenen Datenbank an Nicht-Rohstoffen (Welle 23, Entscheidung Nr. 24)
     lines[#lines + 1] = ns.Enabled("itemOrigin") and L.STATUS_ITEMORIGIN_ON or L.STATUS_ITEMORIGIN_OFF:format(ns.SlashCmd())
+    -- Inhalt geöffneter Behälter (Contents.lua): aus der Zählung von ezCores Datenbank
+    lines[#lines + 1] = ns.Enabled("itemContents") and L.STATUS_ITEMCONTENTS_ON
+        or L.STATUS_ITEMCONTENTS_OFF:format(ns.SlashCmd())
     local history = ns.LootHistory
     if history and history.Available() then
         lines[#lines + 1] = L.STATUS_HISTORY:format(#history.Entries({ all = false, zone = false, quality = -1 }),

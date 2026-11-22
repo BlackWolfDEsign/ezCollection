@@ -28,6 +28,7 @@ local function Register()
     page:Checkbox("npcSkin")        -- „Kürschnern: ab …“ im Gegner-Tooltip (Welle 27, F4 b; Wert aus ezCore)
     page:Checkbox("itemLoot")       -- neben „Beute im Tooltip von Gegnern“: eigener Schalter für Gegenstände (Frage 7)
     page:Checkbox("itemOrigin")     -- „Herkunft laut …“ an Nicht-Rohstoffen (Welle 23, Entscheidung Nr. 24)
+    page:Checkbox("itemContents")   -- „Inhalt bei dir“ an Schließkassetten, Muscheln, Säcken … (Contents.lua)
 
     -- Schneller plündern: Blizzards „Automatisch plündern“ als Kästchen, das den Stand des Spiels zeigt (vorher ein
     -- Knopf „An/Aus“ ohne sichtbaren Stand; Einstellungs-Prüfung vom 19.11.2026, Abschnitt 4 nach Empfehlung).

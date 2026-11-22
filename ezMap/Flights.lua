@@ -706,6 +706,56 @@ function Flights.NearestMaster(knownOnly)
     return Flights.NearestMasterTo(mapID, px, py, knownOnly)
 end
 
+-- Alle Flugmeister deines Kontinents je Zone (Menü „Aufspüren“, Untermenü an Blizzards Haken „Flugmeister“;
+-- Spielbefund vom 21.11.2026: „sehr gut, aber zum bild die funktion ist gut die anzeige schlecht. man sollte alle
+-- einzeln aus dem menü markieren können“). Quelle wie NodesOn: Blizzards Flugkarte (C_TaxiMap.GetTaxiNodesForMap) je
+-- Zone des Kontinents (C_Map.GetMapChildrenInfo), eigene Fraktion und neutrale, auch noch nicht entdeckte. Ein
+-- Flugmeister steht einmal (Blizzards Knoten-ID, sonst Name), nur mit Lage auf der Zone selbst (0 bis 1), in der Zone,
+-- in deren Karte er am weitesten vom Rand liegt. Deine Zone zuerst, dann die übrigen nach Namen; je Zone nach Namen.
+-- Annahme: Zonen hängen direkt am Kontinent (so bei Forevers Karten, Städte eingeschlossen); eine Zone unter einer
+-- anderen Zone fehlte in der Liste (Fund des code-reviewers vom 21.11.2026, „Im Spiel prüfen“ Punkt 4).
+-- → { { map, name, masters = { { name, map, x, y, id, undiscovered }, … } }, … } (leer ohne Position oder Schnittstelle)
+function Flights.MastersByZone(map)
+    local api = rawget(_G, "C_Map")
+    if not (C_TaxiMap and C_TaxiMap.GetTaxiNodesForMap and type(api) == "table") then return {} end
+    local mapID = ns.Num(map) or ns.PlayerPosition()       -- map: die gezeigte Karte (ezMap-Knopf), sonst dein Standort
+    if not mapID then return {} end
+    local continent = Core.Map.Parent(mapID, "Continent")
+    if not continent then return {} end
+    local here = Core.Map.Parent(mapID, "Zone") or mapID
+    local children = Core.Map.Zones(continent)      -- ezCore seit 22.11.2026 (dieselben Zonen wie Lehrer und Händler)
+    -- Ein Flugpunkt nahe der Zonengrenze liegt oft auf zwei Zonenkarten zwischen 0 und 1 (die Rechtecke überlappen):
+    -- er kommt in die Zone, in deren Karte er am weitesten vom Rand liegt (best[key].margin), nur einmal.
+    local best, zones = {}, {}
+    for _, child in ipairs(children) do
+        local zone = child.map
+        zones[#zones + 1] = { map = zone, name = child.name, masters = {}, here = zone == here }
+        for _, node in ipairs(NodesOn(zone)) do
+            local margin = math.min(node.x, 1 - node.x, node.y, 1 - node.y)
+            local key = node.id or node.name
+            if margin >= 0 and (not best[key] or margin > best[key].margin) then
+                best[key] = { margin = margin, node = node, zone = #zones }
+            end
+        end
+    end
+    for _, b in pairs(best) do
+        local masters = zones[b.zone].masters
+        masters[#masters + 1] = b.node
+    end
+    local out = {}
+    for _, z in ipairs(zones) do
+        if #z.masters > 0 then
+            table.sort(z.masters, function(a, b) return a.name < b.name end)
+            out[#out + 1] = z
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.here ~= b.here then return a.here end
+        return a.name < b.name
+    end)
+    return out
+end
+
 function Flights.MasterLabel(master)
     local text = master.undiscovered and L.TRACK_FLIGHT_NEW or L.TRACK_FLIGHT
     return text:format(master.name)

@@ -107,9 +107,11 @@ local function Build()
     box:SetSize(Core.Style.BUTTON.check, Core.Style.BUTTON.check)   -- Haken (Design-System 2.3; bis Welle 22 22)
     local money = AuctionHouseFrame.MoneyFrameBorder
     if money then
-        box:SetPoint("LEFT", money, "RIGHT", 12, 0)
+        -- hinter der Zeile „Preise erfassen“ (Knopf, Pfeil, Zahnrad, „Heute: …“; seit dem 21.11.2026 unten)
+        box:SetPoint("LEFT", money, "RIGHT", ns.Layout.UpgradeOffset(), 0)
     else
-        box:SetPoint("BOTTOMLEFT", AuctionHouseFrame, "BOTTOMLEFT", 200, 4)
+        local M = ns.Layout.BLIZZARD.money
+        box:SetPoint("LEFT", AuctionHouseFrame, "BOTTOMLEFT", M.x + M.w + ns.Layout.UpgradeOffset(), M.y + M.h / 2)
     end
     local label = Core.Peek(box, "Text")
     if type(label) ~= "table" or not label.SetText then

@@ -14,7 +14,8 @@ local L = Core.L
                                                    verschickt alles in Briefen zu je 12 Stapeln;
                                                    callback(ok, verschickteBriefe, übrigeStapel)
       Einträge: { bag, slot, itemID, count = nil|n (nur genau so große Stapel), split = nil|n (erst abteilen) }
-      Queue.IsBusy(), Queue.IsAttaching(), Queue.Progress(), Queue.Stop(), Queue.SendSlotsEmpty()
+      Queue.IsBusy(), Queue.IsAttaching(), Queue.Progress(), Queue.Stop(), Queue.SendSlotsEmpty(),
+      Queue.FreeSendSlots() → Liste der freien Anhangplätze
 
     Textbriefe (vorher ezChat):
       Queue.SendLetter(to, subject, body, callback)  reiht einen reinen Textbrief ein.
@@ -63,6 +64,9 @@ local function FreeSendSlots()
     return free
 end
 
+-- Freie Anhangplätze des Briefs (Liste der Nummern) – auch für ezBags Umschalt+Rechtsklick (Stacks.lua)
+Queue.FreeSendSlots = FreeSendSlots
+
 function Queue.SendSlotsEmpty()
     for i = 1, MaxSend() do
         if HasSendMailItem(i) then return false end
@@ -70,19 +74,8 @@ function Queue.SendSlotsEmpty()
     return true
 end
 
--- Freier Platz in einer normalen Tasche (Berufstaschen nehmen nicht alles).
-local function EmptyBagSlot(used)
-    for bag = 0, Core.NumBagSlots() do
-        local free, family = C_Container.GetContainerNumFreeSlots(bag)
-        if (free or 0) > 0 and (family or 0) == 0 then
-            for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
-                if not used[bag * 1000 + slot] and not C_Container.GetContainerItemInfo(bag, slot) then
-                    return bag, slot
-                end
-            end
-        end
-    end
-end
+-- Freier Platz in einer normalen Tasche: ezCores Core.EmptyBagSlot (Bags.lua; ezBag verkauft Teilmengen damit)
+local function EmptyBagSlot(used) return Core.EmptyBagSlot(used) end
 
 ---------------------------------------------------------------------------
 -- Anhängen
@@ -124,6 +117,18 @@ local function AttachStep()
     if job.unmailable[entry.itemID] then return Skip(job, "failed") end
 
     local info = C_Container.GetContainerItemInfo(entry.bag, entry.slot)
+    if entry.splitTo and info == nil then
+        -- gerade abgeteilt: Der Client meldet den neuen Platz leer, bis der Server das Abteilen bestätigt – warten
+        -- (Spielbefund vom 22.11.2026: „verkaufen geht aber bei post nicht mehr, da legt der 8 statt 11 rein“ – der
+        -- abgeteilte Rest wurde gleich als „fehlt“ übersprungen). Eigene Wartezeit, die Sperre danach zählt neu.
+        entry.arriveWait = (entry.arriveWait or 0) + ATTACH_DELAY
+        if entry.arriveWait > Core.SPLIT_ARRIVE_WAIT then
+            entry.splitTo = nil
+            Skip(job, "missing")
+        end
+        return
+    end
+    entry.splitTo = nil
     if not (info and info.itemID == entry.itemID) then return Skip(job, "missing") end
     if info.isLocked then
         entry.waited = (entry.waited or 0) + ATTACH_DELAY
@@ -145,7 +150,8 @@ local function AttachStep()
         end
         job.used[bag * 1000 + slot] = true
         entry.bag, entry.slot, entry.count, entry.split, entry.waited = bag, slot, entry.split, nil, 0
-        return                            -- nächster Schritt hängt den neuen Stapel an, sobald er frei ist
+        entry.splitTo, entry.arriveWait = true, 0
+        return                            -- nächster Schritt hängt den neuen Stapel an, sobald er da und frei ist
     end
     if entry.count and info.stackCount ~= entry.count then return Skip(job, "missing") end
 

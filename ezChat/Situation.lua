@@ -11,7 +11,8 @@ local L = ns.L
 --   sitPopup<Lage>  Gesprächsfenster bei neuer Nachricht öffnen: "yes" sofort, "no" nie, "after" nach dem Kampf
 --                   (ab Werk "no"; ohne Lage gilt sitPopupOther – seit der Prüfung der Einstellungen vom 19.11.2026
 --                   sind die fünf Auswahlen der Schalter, einen Hauptschalter gibt es nicht mehr)
---   sitTone<Lage>   zusätzlich ezChats Ton bei neuem Flüstern (Blizzards eigener Flüster-Ton bleibt, wie er ist)
+--   sitToneAway     nur abwesend: zusätzlich ezChats Ton bei neuem Flüstern (Blizzards eigener Flüster-Ton bleibt, wie
+--                   er ist; die übrigen Lagen haben seit der Entscheidung des Nutzers vom 21.11.2026 keinen eigenen Ton)
 --   sitAlarm<Lage>  ezChats Alarme (Kanäle, Partner, Hervorheben, Briefe) dürfen klingeln
 --   reply<Lage>     automatische Antwort, Text replyText<Lage> (leer = Vorgabe in der Sprache des Clients)
 -- Automatische Antwort: höchstens einmal je Partner in replyMinutes Minuten; nie auf Gefiltertes (Spam.lua), nie an
@@ -75,7 +76,8 @@ end
 function Situation.Incoming(convo, entry)
     if not convo or convo.muted or (entry.v ~= nil and entry.v ~= "b") then return false end
     local sit = Situation.Current()
-    if not (sit and Situation.Setting(sit, "sitTone")) then return false end
+    -- nur abwesend (21.11.2026); ein übrig gebliebener Wert einer anderen Lage wirkt nicht
+    if not (sit == "away" and Situation.Setting(sit, "sitTone")) then return false end
     return ns.Alarms.Ring(nil, true)
 end
 

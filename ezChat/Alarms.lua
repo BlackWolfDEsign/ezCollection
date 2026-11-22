@@ -46,7 +46,7 @@ function Alarms.Play(tone)
 end
 
 -- Ton und Blinken; true, wenn ausgelöst (nicht gedrosselt). In einer Lage, in der ezChats Alarme schweigen sollen
--- (Situation.lua, sitAlarm<Lage>), klingelt nichts – außer force (der Ton je Lage bei Flüstern).
+-- (Situation.lua, sitAlarm<Lage>), klingelt nichts – außer force (der Ton bei Flüstern, nur abwesend: Situation.Incoming).
 function Alarms.Ring(tone, force)
     if not force and ns.Situation and not ns.Situation.AlarmsAllowed() then return false end
     local now = GetTime()
@@ -172,11 +172,10 @@ function Alarms.FillMenu(root)
     if #channels > 0 then
         root:CreateDivider()
         root:CreateTitle(L.ALARM_CHANNELS)
-        -- Design-System 2.11 (Welle 22): ab drei Kanälen „Alle auswählen / Alle abwählen“ vor den Haken
+        -- Design-System 2.11 (Welle 22): ab drei Kanälen ein Haken „Alle“ vor den Haken (seit 21.11.2026 einer)
         if #channels >= 3 and ezCore.Style then
             ezCore.Menu.AllToggle(root, channels, function(channel) return ns.db.alarmChannels[channel.key] == true end,
-                function(channel, on) ns.db.alarmChannels[channel.key] = on or nil end,
-                { onText = ezCore.Style.AllText(true), offText = ezCore.Style.AllText(false) })
+                function(channel, on) ns.db.alarmChannels[channel.key] = on or nil end)
         end
         for _, channel in ipairs(channels) do
             Check(root, channel.label, function() return ns.db.alarmChannels[channel.key] == true end,
@@ -192,11 +191,12 @@ function Alarms.FillMenu(root)
     if #partners > 0 then
         root:CreateDivider()
         root:CreateTitle(L.ALARM_PARTNERS)
-        -- Design-System 2.11: eingeschaltet wird im Gespräch, darum hier ab drei Partnern nur „Alle abwählen“
+        -- Design-System 2.11: eingeschaltet wird im Gespräch, darum schaltet der Haken „Alle“ hier ab drei Partnern
+        -- nur aus (on = false; angehakt, solange alle gezeigten Partner Alarm haben)
         if #partners >= 3 and ezCore.Style then
             ezCore.Menu.AllToggle(root, partners, function(item) return item.convo.alarm == true end,
                 function(item, on) Conv.SetFlag(item.key, "alarm", on) end,
-                { on = false, offText = ezCore.Style.AllText(false) })
+                { on = false })
         end
         for _, item in ipairs(partners) do
             Check(root, Conv.Display(item.convo), function() return item.convo.alarm == true end,

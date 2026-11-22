@@ -1,6 +1,11 @@
 local _, ns = ...
 local L = ns.L
 
+-- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
+-- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
+-- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
+ns.FEATURE_STEPS = { "groups", false, { "search", "sort" }, "window", "sort" }
+
 --[[
     Rundgang mit Erklärblasen (Abschlussrunde „Tooltip-Guide“): beim ersten Öffnen der Tasche zeigt ezBag
     nacheinander die wichtigsten Funktionen, jede mit „OK“ zur nächsten (ezCore.NewTour). Gesehenes merkt

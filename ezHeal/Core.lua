@@ -16,6 +16,7 @@ local Core = ezCore
       Preview.lua    Vorschau mit Tastenwahl je Platz in Blizzards Fenster „Klick-Zauber“ (über der Liste)
       Entries.lua    weitere Einstiege zu Blizzards Fenster: Schlachtzug-Liste, Gruppenverwaltung, Zauberbuch, Makros
       Tour.lua       Rundgang mit Erklärblasen beim ersten Öffnen von Blizzards Fenster „Klick-Zauber“
+      Dock.lua       Blizzards Fenster „Klick-Zauber“ dockt rechts am Zauberbuch an und wandert mit
       Options.lua    Einstellungsseite (ezCollection → ezHeal)
 
     Geändert wird die Klick-Belegung nur außerhalb des Kampfes. Was ein anderes Addon schon übernimmt (Clique,
@@ -31,6 +32,8 @@ ns.DEFAULTS = {
     entryGroup = true,      -- Knopf in der Gruppen- und Raidverwaltung
     entrySpellbook = true,  -- Seitenreiter am Zauberbuch
     entryMacro = true,      -- Knopf in der Titelleiste des Makrofensters
+    dockSpellbook = true,   -- Blizzards Fenster „Klick-Zauber“ rechts am Zauberbuch, wandert mit (Dock.lua)
+    pairSpellbook = true,   -- Klick-Zauber zu: Zauberbuch bleibt offen; Zauberbuch zu: Klick-Zauber geht mit (Dock.lua)
 }
 
 -- Befehle zusätzlich zu den Standardwörtern des Gerüsts (Optionen, Status, Hilfe)

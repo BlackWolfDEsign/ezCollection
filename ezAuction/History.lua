@@ -441,6 +441,18 @@ local function Select(button, selected)
     end
 end
 
+-- Die Fläche des Verlaufs über alles legen, was Blizzard in Übersicht und Liste zeigt (beim Zeigen, Blizzards Zeilen
+-- entstehen erst mit den Daten; Spielbefund vom 21.11.2026: Blizzards Spaltenköpfe und „Keine Gegenstände gefunden“
+-- lagen über dem Verlauf). ns.RaiseAbove in Core.lua.
+local function RaisePanel()
+    local frame = AuctionsFrame()
+    if not (frame and panel) then return end
+    ns.RaiseAbove(panel, frame.SummaryList, frame.AllAuctionsList)
+    -- der eigene Reiter überlappt die Fläche um 2 Pixel: dieselbe Schicht, solange der Verlauf offen ist
+    if tab then ns.StrataAbove(tab) end
+end
+History.RaisePanel = RaisePanel
+
 -- Ebene des eigenen Reiters: gewählt über der Fläche des Verlaufs (er überlappt sie wie Blizzards Reiter um 2 Pixel),
 -- sonst auf der Ebene von Blizzards „Gebote“ – darüber lag er auf der Kopfzeile der Liste (Spielbefund 16.11.2026).
 local function TabLevel()
@@ -611,6 +623,7 @@ function History.Show()
     if not panel then return false end
     shown = true
     panel:Show()
+    RaisePanel()
     UpdateTabLooks()
     History.Refresh()
     -- Unten im Reiter gehören Blizzards und ezAuctions Auktions-Knöpfe zur Übersicht, nicht zum Verlauf.
@@ -622,6 +635,8 @@ function History.Hide()
     if not shown then return end
     shown = false
     if panel then panel:Hide() end
+    -- zu: der Reiter zurück auf Blizzards Schicht (sonst läge er auf der Kopfzeile der Liste, Spielbefund 16.11.2026)
+    if tab then ns.StrataOf(tab) end
     UpdateTabLooks()
     ns.Fire("HISTORY_VIEW", false)
 end

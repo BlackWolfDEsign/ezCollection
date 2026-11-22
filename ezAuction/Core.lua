@@ -71,10 +71,10 @@ ns.DEFAULTS = {
     neverBelowVendor = true,    -- nach Abzug der Gebühr nie unter dem Händlerpreis
     floorTrend = false,         -- nie unter dem Tief der erfassten Tage (AUC-13, Frage 2: entschieden 13.11.2026, ab Werk aus)
     rememberPost = true,        -- letzten Preis, Dauer und Menge je Gegenstand merken und vorbelegen
-    -- Welle 13 (AH-18 bis AH-20, AH-38; Tor T1 für den Verkaufsbereich ohne Ergebnis: ns.T1)
+    -- Welle 13 (AH-18 bis AH-20, AH-38; Tor T1 für den Verkaufsbereich seit dem 21.11.2026 „geht“: ns.T1)
     suggestOnly = false,        -- Preisregel und „Zuletzt“ nur vorschlagen („Vorschlag: …“), nichts eintragen
     priceWarn = true,           -- Warnzeile am Preisfeld: weit unter dem Median (Market.Judge) oder Händler zahlt mehr
-    nextItem = true,            -- „Als Nächstes: …“ und die nächste Zeile der Taschenliste hervorheben
+    nextItem = true,            -- die nächste Zeile der Taschenliste golden hervorheben („Als Nächstes“)
     postNext = false,           -- nach dem Einstellen den nächsten einlegen (wirkt erst mit Tor T1 „geht“)
     postDefaults = true,        -- Standard-Menge und -Dauer je Gegenstand oder Kategorie (Menü an „Zuletzt“)
     bidPercent = 0,             -- Startgebot = so viel Prozent des Sofortkaufs (nur Einzelstücke; 0 = aus)
@@ -161,7 +161,9 @@ Core.NewModule(ADDON, ns, {
     -- Gesamtreview 18.11.2026 (P19a, kern/ssot-helfer; ohne neue Nummer): gemeinsame Helfer statt Kopien
     "PlaySound", "ICON_FALLBACK",
     -- Einstellungs-Prüfung vom 19.11.2026: Einmal-Umstellung (Prozent unter Tiefstpreis)
-    "MigrateOnce" },
+    "MigrateOnce",
+    -- Spieltest vom 21.11.2026: Schicht über dem Auktionshaus (ns.StrataAbove)
+    "Plain" },
     db = "ezAuctionDB",
     tables = { "lists", "realms", "ui", "hints", "watch" },
     -- ui.lastList schrieb ezAuction bis Welle 4, gelesen hat es nie jemand (AUC-11, Entscheidung C vom 13.11.2026):
@@ -426,6 +428,15 @@ function ns.ModeName()
     return nil
 end
 
+-- Steht die Zeile unten („Preise erfassen“, Pfeil, Zahnrad, „Heute: …“)? In der Ergebnisliste und im Reiter Verkaufen.
+-- In der Ansicht eines Gegenstands (Kaufen ohne Ergebnisliste, auch WoW-Marke) liegen dort Blizzards Gebot und
+-- Sofortkauf (ItemBuyFrame/CommoditiesBuyFrame reichen bis 5 über die Unterkante; Gethe/wow-ui-source, Zweig forever,
+-- Shared/Blizzard_AuctionHouseItemBuyFrame.xml) – dort bleibt die Zeile weg.
+function ns.BottomRow()
+    local mode, browsing = ns.ModeName()
+    return mode == "sell" or (mode == "buy" and browsing == true)
+end
+
 -- Auktionshaus offen? Eine Antwort für alle Module: ezCores Core.AuctionHouseOpen (Blizzards Fenster, sonst der Stand
 -- aus AUCTION_HOUSE_SHOW/_CLOSED; Welle 23a). Der Name bleibt für die Aufrufer in ezAuction.
 function ns.AuctionHouseShown()
@@ -619,11 +630,32 @@ end
 -- nur dem Kaufbereich (Probe X7: Menge im Warenkauf): kein Taint-Block; der Fehler „kann nicht mehr gekauft werden“
 -- ließ sich nicht wiederholen, ein Kauf nach dem Setzen der Menge ging durch. Für den Verkaufsbereich (Teile a
 -- und b des Tors) gibt es kein Ergebnis – darum bauen AH-18 und AH-19 die Anzeige-Fassung. Ein Ergebnis „geht“ setzt
--- ns.T1.sell = "geht": dann legen „Nächster“ und die Standardwerte selbst ein (Blizzards SetPostItem, SetQuantity,
+-- ns.T1.sell = "geht": dann legen der Klick auf die goldene Zeile, postNext und die Standardwerte selbst ein (Blizzards SetPostItem, SetQuantity,
 -- SetDuration). Bei „blockiert“: ns.T1.sell = "blockiert", und „Nur vorschlagen“ ist ab Werk an (ns.SuggestDefault).
-ns.T1 = { sell = "offen", buy = "kein Block, Fehler nicht wiederholbar" }
+-- Verkaufsbereich seit dem 21.11.2026 „geht“ (Entscheidung des Nutzers im zweiten Spieltest: „Ja, direkt einlegen
+-- (Empfohlen)“ auf „wieso legt aus der tasche, ein klick auf item nicht in die auswahl“): der Klick in der Taschenliste
+-- legt ein, der Nutzer prüft im Spiel, ob „Auktion erstellen“ danach durchgeht. Meldet Blizzard für ezAuction eine
+-- blockierte Aktion (ADDON_ACTION_BLOCKED/FORBIDDEN), gilt für diese Sitzung „blockiert“ (unten, ns.T1Blocked).
+ns.T1 = { sell = "geht", buy = "kein Block, Fehler nicht wiederholbar" }
 
 function ns.SellSetsValues() return ns.T1.sell == "geht" end
+
+-- Blizzard hat eine Aktion von ezAuction blockiert: der Verkaufsbereich fällt für diese Sitzung auf die Anzeige-Fassung
+-- zurück, einmal mit Erklärung im Chat. → true, wenn umgestellt
+function ns.T1Blocked(addon, action)
+    -- Blizzard kann die Blockade auch ezCore zuschreiben (Ereignisse und Helfer laufen über ezCores Rahmen): dann nur,
+    -- wenn die Aktion zum Auktionshaus gehört (Review vom 21.11.2026)
+    local mine = addon == ADDON or (addon == Core.name and type(action) == "string" and action:find("AuctionHouse", 1, true) ~= nil)
+    if not mine then return false end
+    -- auch das Abwählen von Blizzards Kategorie (Ausnahme von Leitlinie 5, BuyTab.lua) ruht dann bis /reload
+    if ns.Buy then ns.Buy.noCategoryReset = true end
+    if ns.T1.sell ~= "geht" then return false end
+    ns.T1.sell = "blockiert"
+    ns.Print(L.T1_BLOCKED_SWITCH:format(tostring(action or "?")))
+    return true
+end
+ns.On("ADDON_ACTION_BLOCKED", function(_, addon, action) ns.T1Blocked(addon, action) end)
+ns.On("ADDON_ACTION_FORBIDDEN", function(_, addon, action) ns.T1Blocked(addon, action) end)
 
 -- Stand von T1 für Texte in der Spielsprache (Leitlinie 7): die Werte oben bleiben die Schlüssel für den Code.
 ns.T1_TEXT = { offen = "T1_STATE_OPEN", blockiert = "T1_STATE_BLOCKED", geht = "T1_STATE_WORKS",
@@ -788,6 +820,162 @@ ns.Listen("AH_SHOW", function() ns.Try("Yield", Yield.Note) end)
 -- Koordinaten: ab der linken oberen Ecke von AuctionHouseFrame, x nach rechts, y nach oben (also negativ nach unten).
 ---------------------------------------------------------------------------
 
+-- Höchste Rahmenebene in frame und seinen Kindern (Blizzards Listen legen Kopfzeile, Zeilen und Leertext höher als die
+-- Liste selbst). Nur gelesen.
+function ns.TopLevel(frame, depth)
+    if type(frame) ~= "table" or type(frame.GetFrameLevel) ~= "function" then return 0 end
+    local top = frame:GetFrameLevel() or 0
+    depth = depth or 0
+    if depth < 6 and type(frame.GetChildren) == "function" then
+        for _, child in ipairs({ frame:GetChildren() }) do
+            local level = ns.TopLevel(child, depth + 1)
+            if level > top then top = level end
+        end
+    end
+    return top
+end
+
+-- Eine eigene Fläche über Blizzards Teile legen, die sie verdeckt (Verlauf, Listen-Editor; Spielbefund vom 21.11.2026:
+-- Blizzards Spaltenköpfe und „Keine Gegenstände gefunden“ lagen darüber). Nur die eigene Ebene ändert sich.
+-- → neue Ebene oder nil
+function ns.RaiseAbove(own, ...)
+    if type(own) ~= "table" or type(own.SetFrameLevel) ~= "function" then return nil end
+    local top = 0
+    for i = 1, select("#", ...) do
+        local level = ns.TopLevel((select(i, ...)))
+        if level > top then top = level end
+    end
+    if own:GetFrameLevel() <= top then own:SetFrameLevel(top + 5) end
+    ns.StrataAbove(own)
+    return own:GetFrameLevel()
+end
+
+-- Die eigene Fläche eine Schicht über Blizzards Auktionshaus legen (höchstens DIALOG). Zweiter Spieltest vom 21.11.2026:
+-- die höhere Ebene allein reichte nicht – Blizzards Listen legen Spaltenköpfe und Zeilen erst mit den Daten an, also
+-- nach dem Anheben, und Blizzards SummaryList läuft mit useParentLevel (Blizzard_AuctionHouseAuctionsFrame.xml, Zweig
+-- forever). Ohne own: nichts. → gesetzte Schicht
+local STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }
+function ns.StrataAbove(own, base)
+    if type(own) ~= "table" or type(own.SetFrameStrata) ~= "function" then return nil end
+    base = base or rawget(_G, "AuctionHouseFrame")
+    local current = type(base) == "table" and type(base.GetFrameStrata) == "function" and Core.Plain(base:GetFrameStrata()) or "MEDIUM"
+    local index
+    for i, name in ipairs(STRATA) do if name == current then index = i end end
+    -- unbekannte Schicht (z. B. FULLSCREEN): nichts ändern, sonst läge die Fläche darunter (Review vom 21.11.2026)
+    if not index then return nil end
+    local want = STRATA[math.min(index + 1, #STRATA)]
+    own:SetFrameStrata(want)
+    return want
+end
+
+-- Gemeinsamer Rahmen der Seitenteile am Auktionshaus (Markt, Aus der Tasche; Entscheidung des Nutzers vom 21.11.2026:
+-- „Wie „Aus der Tasche“ (Empfohlen)“): Blizzards ButtonFrameTemplate ohne Bildnis und Knopfleiste, Titel in der
+-- Titelleiste, ohne eigenes X (ein- und ausblenden über Knopf bzw. Pfeil). Seit dem 21.11.2026 ezCores Core.PanelLook –
+-- derselbe Rahmen wie ezTalents und ezCrafts Seitenteile. f muss auf ButtonFrameTemplate beruhen.
+ns.PANEL_TOP = Core.PANEL_TOP or 30   -- Inhalt beginnt unter der Titelleiste (Filter der Taschenliste, Name im Markt)
+function ns.PanelLook(f, title)
+    return Core.PanelLook(f, title)
+end
+
+-- Breite aller Seitenteile am Auktionshaus (Markt, Aus der Tasche, Einkaufsliste): wie ezTalent 460 (Auftrag des
+-- Nutzers vom 21.11.2026 an ezTalent, auch für ezAuction: „fenster und design … vereinheitlichen“; Entscheidung des
+-- Nutzers zur Breite in ezAuction: „Alle 460 wie ezTalent“). Ist auf der Seite weniger Platz, wird ein Teil schmaler,
+-- bis ns.PANEL_MIN (wie ezTalents UI.PANEL_MIN); reicht nicht einmal das, legt ezCores Core.Dock es über das Fenster.
+ns.PANEL_WIDTH = Core.PANEL_SIZE.width      -- Breite und Mindestbreite aus ezCore (eine Stelle für alle Seitenteile)
+ns.PANEL_MIN = Core.PANEL_SIZE.min
+-- Maße und Schriften der Listen, gleich in allen Seitenteilen aller Module (ezCores Core.PANEL_LIST; nur lesen – keine
+-- Kopie als Ersatz, Leitlinie 2: ezAuction verlangt ezCore aus demselben Repository)
+ns.LOOK = Core.PANEL_LIST
+-- Knöpfe unten in den Seitenteilen aus ezCore (Core.PANEL_BUTTONS: 22 hoch, 14 vom Rand, 6 Abstand, 10 über der Unterkante)
+ns.BUTTON_H, ns.BUTTON_X, ns.BUTTON_GAP, ns.BUTTON_Y = Core.PANEL_BUTTONS.height, Core.PANEL_BUTTONS.left,
+    Core.PANEL_BUTTONS.space, Core.PANEL_BUTTONS.bottom
+
+-- Breite aus dem freien Platz: Wunschbreite, sonst was frei ist (mindestens ns.PANEL_MIN). room = nil (Lage unbekannt)
+-- gilt als genug. → Breite (nie unter ns.PANEL_MIN)
+function ns.FitWidth(room, wish)
+    return Core.PanelWidth(room, wish or ns.PANEL_WIDTH, ns.PANEL_MIN) or ns.PANEL_MIN   -- Regel aus ezCore
+end
+
+-- Blizzards inneren Kasten (f.Inset aus ButtonFrameTemplate) zwischen Kopf und Knöpfe legen, wie ezTalent und ezCraft
+-- (Core.PanelInset; ohne das säße der Kasten fest 60 unter dem Rand, ein mehrzeiliger Kopf liefe quer darüber).
+-- below = unterster Teil des Kopfs, left = dessen Abstand zum linken Rand, bottom = Abstand über der Unterkante.
+-- → der Kasten oder nil (ohne Kasten im Client)
+function ns.PanelInset(f, below, left, bottom)
+    if type(Core.PanelInset) ~= "function" then return nil end
+    return Core.PanelInset(f, below, bottom, { left = left, gap = ns.LOOK.headGap })
+end
+
+-- Seitenteile links am Auktionshaus: „Aus der Tasche“ beim Verkaufen (SellTab.lua), die gewählte Einkaufsliste beim
+-- Kaufen (Editor.lua; Entscheidung des Nutzers vom 21.11.2026: „Ja, Seitenteil links (Empfohlen)“) – nie beide
+-- zugleich. Eine Breite, eine Seite (Schalter sellListSide), ein Andocken.
+ns.LEFT_PANEL_WIDTH = ns.PANEL_WIDTH
+-- Abstand jedes Seitenteils zu Blizzards Fenster bzw. zum Seitenteil daneben – links wie rechts derselbe (vierter
+-- Spieltest vom 21.11.2026: „rechts ist der richtige“; links dockte „Aus der Tasche“ mit 0 an, der Markt mit Core.Docks 2).
+ns.PANEL_GAP = 2
+
+-- Seite: links (Entscheidung „Zwei Seitenteile“: links die Listen, rechts der Markt). „Automatisch“: links, wenn dort
+-- Platz ist (ezCores Core.DockRoom; unbekannt zählt als Platz) – sonst rechts außen neben dem Markt. Blizzard stellt
+-- das Auktionshaus an den linken Rand; mit „Blizzard-Fenster verschieben“ (ezCore) lässt es sich nach rechts ziehen.
+-- Das Blizzard-Fenster selbst rückt ezAuction nie.
+function ns.LeftPanelSide(frame, width)
+    local side = ns.S.sellListSide
+    if side == "left" or side == "right" then return side end
+    local room = Core.DockRoom and Core.DockRoom(frame or AuctionHouseFrame, AuctionHouseFrame, "left", ns.PANEL_GAP)
+    -- links, solange dort wenigstens die Mindestbreite frei ist (das Teil wird dann schmaler, ns.PlaceLeftPanel)
+    if room == nil or room >= math.min(width or ns.LEFT_PANEL_WIDTH, ns.PANEL_MIN) then return "left" end
+    return "right"
+end
+
+-- Andocken in voller Höhe an Blizzards Fenster (ns.LeftPanelSide). Steht der offene Markt (MarketPanel, ab Werk rechts;
+-- ohne Platz weicht er nach links) auf derselben Seite, dockt das Teil außen an ihm – sofern dort Platz ist; sonst
+-- direkt an Blizzards Fenster, mit Platzprüfung (Core.Dock check/overlap: reicht es auf keiner Seite, liegt es innen
+-- über dem Fenster, statt aus dem Bildschirm zu ragen). frame.dockSide merkt die Seite. Seit dem 21.11.2026 mit der
+-- Breite nach dem Platz (ns.FitWidth: 460, bei weniger Platz bis ns.PANEL_MIN); frame.OnWidth(frame, breite) ordnet
+-- danach den Inhalt (Knöpfe je Breite). → Seite, Breite
+function ns.PlaceLeftPanel(frame, width)
+    local wish = width or ns.LEFT_PANEL_WIDTH
+    if frame:GetParent() ~= AuctionHouseFrame then frame:SetParent(AuctionHouseFrame) end
+    local market = ns.MarketPanel and ns.MarketPanel.Frame()
+    -- Träger und Breite für eine Seite: außen am offenen Markt derselben Seite, wenn dort die Mindestbreite frei ist
+    local function Fit(side)
+        local parent = AuctionHouseFrame
+        if market and market:IsShown() and market.side == side then
+            local room = Core.DockRoom(frame, market, side, ns.PANEL_GAP)
+            if room == nil or room >= ns.PANEL_MIN then parent = market end
+        end
+        return parent, ns.FitWidth(Core.DockRoom(frame, parent, side, ns.PANEL_GAP), wish)
+    end
+    local side = ns.LeftPanelSide(frame, math.min(wish, ns.PANEL_MIN))
+    local parent
+    -- höchstens zweimal: wechselt ezCores Platzprüfung die Seite, Träger und Breite für die neue Seite neu rechnen
+    -- (Befund des Reviews: sonst blieb das Teil schmal, obwohl drüben Platz war)
+    for _ = 1, 2 do
+        parent, width = Fit(side)
+        frame:SetWidth(width)
+        local placed = side
+        if parent == market then
+            Core.Dock(frame, parent, { side = side, gap = ns.PANEL_GAP })
+        else
+            placed = Core.Dock(frame, parent, { side = side, gap = ns.PANEL_GAP, check = true, overlap = true,
+                width = width }) or side
+        end
+        if placed == side then break end
+        side = placed
+    end
+    frame.dockSide, frame.fitWidth = side, width
+    if type(frame.OnWidth) == "function" then ns.Try("PanelWidth", frame.OnWidth, frame, width) end
+    return side, width
+end
+
+-- Zurück auf Blizzards Schicht (z. B. der Reiter „Verlauf“, solange der Verlauf zu ist).
+function ns.StrataOf(own, base)
+    if type(own) ~= "table" or type(own.SetFrameStrata) ~= "function" then return nil end
+    base = base or rawget(_G, "AuctionHouseFrame")
+    local current = type(base) == "table" and type(base.GetFrameStrata) == "function" and Core.Plain(base:GetFrameStrata()) or "MEDIUM"
+    own:SetFrameStrata(current)
+    return current
+end
+
 local Layout = {}
 ns.Layout = Layout
 
@@ -811,27 +999,45 @@ Layout.BLIZZARD = {
     -- Reiter Auktionen (Mainline/Blizzard_AuctionHouseAuctionsFrame.xml): „Auktionen“ TOPLEFT 47/−1, obere Reiter
     -- 32 hoch (PanelTabButtonTemplate); SummaryList TOP = Reiter BOTTOM +2, AllAuctionsList TOP = SummaryList TOP −1
     auctions = { tabTop = -1, tabHeight = 32, listRise = 1 },
+    -- Gold unten links (Shared/Blizzard_AuctionHouseFrame.xml: MoneyFrameBorder 158 × 19, BOTTOMLEFT 5/6); die Listen
+    -- darüber beginnen 2 über seiner Oberkante (BOTTOM = MoneyFrameBorder TOP +2), also 27 über der Unterkante
+    money = { x = 5, y = 6, w = 158, h = 19, listGap = 2 },
 }
 
--- Eigene Maße. Erste Zeile rechts neben dem Bildnis: Knopf „Preise erfassen“ (Blizzards Textknopf, Breite für
--- „Preise erfassen“/„Wieder in 13:00“). Zweite Zeile darunter: Pfeil mit dem Menü, Zahnrad und „Heute: …“ – rechts
--- begrenzt durch Blizzards Favoriten-Knopf (ab x = 170, COVERAGE_RIGHT davor), damit nichts in die Suchleiste ragt.
--- Gegenprüfung vom 17.11.2026: „Heute: 100 %“ ist in GameFontDisableSmall bei UI-Skalierung 1,0 rund 67 breit
--- (ausgemessen am Bildschirmfoto des Spielbefunds); bis zur Kante des Knopfs blieben nur 64 – deshalb rückt der Text
--- mit kleineren Abständen bis kurz vor den Favoriten-Knopf (70).
+-- Eigene Maße. Eine Zeile unten rechts neben Blizzards Gold (Layout.SCAN unten): Knopf „Preise erfassen“ (Blizzards
+-- Textknopf, Breite für „Preise erfassen“/„Wieder in 13:00“), Pfeil mit dem Menü, Zahnrad und „Heute: …“ mit fester
+-- Breite (COVERAGE_W; passt der Text nicht, steht nur die Zahl) – „Heute: 100 %“ ist in GameFontDisableSmall bei
+-- UI-Skalierung 1,0 rund 67 breit (Gegenprüfung vom 17.11.2026, am Bildschirmfoto ausgemessen). Bis zum 21.11.2026
+-- standen sie in zwei Zeilen oben neben dem Bildnis, begrenzt durch Blizzards Favoriten-Knopf.
 -- (Core.Style gibt es seit ezCore 1.13.0, needs nennt Style.ColorText; ohne es die Werte von dort, damit das Laden
 -- mit einem älteren ezCore nicht abbricht und ezCore den Grund nennen kann)
 local BUTTON = Core.Style and Core.Style.BUTTON or { close = 24, small = 16 }
-Layout.SCAN = { x = 62, y = -26, w = 104, h = 22 }
-Layout.ROW_GAP = 3                          -- Abstand der zweiten Zeile unter dem Knopf
+-- Seit dem Spielbefund vom 21.11.2026 (Entscheidung des Nutzers: „Zwei Seitenteile“, „Preise erfassen“ neben das Gold)
+-- stehen Knopf, Pfeil, Zahnrad und „Heute: …“ in einer Zeile unten rechts neben Blizzards Gold; vorher oben neben dem
+-- Bildnis, wo sie im Reiter Verkaufen Forevers Reiter „Auktion erstellen“ verdeckten. gap: Abstand zum Gold.
+Layout.SCAN = { gap = 8, w = 104, h = 22 }
+Layout.SCAN_GAP = 2                         -- zwischen Knopf und Pfeil
 Layout.SMALL = BUTTON.small                 -- Pfeil und Zahnrad: kleiner Knopf (16, Design-System 2.2)
 Layout.GAP = 2                              -- zwischen Pfeil und Zahnrad
 Layout.TEXT_GAP = 2                         -- zwischen Zahnrad und „Heute: …“
-Layout.COVERAGE_RIGHT = 2                   -- Abstand von „Heute: …“ zu Blizzards Favoriten-Knopf
+Layout.COVERAGE_W = 80                      -- feste Breite von „Heute: …“ („Heute: 100 %“ misst im Spiel rund 67)
+Layout.UPGRADE_GAP = 10                     -- Abstand von „Heute: …“ zu „Nur Verbesserungen“ (Reiter Kaufen)
 Layout.TEXT_HEIGHT = 12                     -- Zeilenhöhe von GameFontDisableSmall (nur für die Prüfung der Rechtecke)
 -- „Letzte Suchen“: rechts neben dem Suchfeld wie der Knopf an Blizzards Auswahlfeld (UIDropDownMenuTemplate: Button
 -- 24 × 24 mit UI-ChatIcon-ScrollDown, Blizzard_SharedXML/Mainline/UIDropDownMenuTemplates.xml)
 Layout.RECENT = { gap = 2, size = BUTTON.close }
+-- „Zurücksetzen“ rechts neben „Letzte Suchen“ (Wunsch des Nutzers vom 21.11.2026): Symbolknopf 24 × 24 mit Blizzards
+-- eigenem Zurücksetzen-Bild (X am Filterknopf, Atlas auctionhouse-ui-filter-redx). Für einen Textknopf ist kein Platz:
+-- bis zu Blizzards Filterknopf bleiben laut Layout.BLIZZARD nur Layout.ResetRoom() (29) Pixel (Befund des Reviews).
+Layout.RESET = { gap = 2, size = BUTTON.close, atlas = "auctionhouse-ui-filter-redx",
+    file = "Interface\\Buttons\\UI-GroupLoot-Pass-Up" }
+-- Freier Platz zwischen „Letzte Suchen“ und Blizzards Filterknopf (Maße aus AuctionHouseSearchBarTemplate)
+function Layout.ResetRoom()
+    local B = Layout.BLIZZARD
+    local recentRight = B.favorites.w + B.searchBox.gap + B.searchBox.w + Layout.RECENT.gap + Layout.RECENT.size
+    local filterLeft = B.searchBar.w - B.searchButton.w - B.filterButton.gap - B.filterButton.w
+    return filterLeft - recentRight
+end
 -- Reiter „Verlauf“: Abstand wie PanelTemplates_AnchorTabs (3); Zahnrad im Reiter Auktionen 10 rechts davon, auf der
 -- Höhe der Schrift eines nicht gewählten oberen Reiters (PanelTemplates_DeselectTab: Mitte −8) – 2 höher, damit es
 -- über der Liste bleibt, die 1 Pixel über der Unterkante der Reiter beginnt
@@ -863,8 +1069,13 @@ function Layout.CoverageOffset()
     return Layout.GAP + Layout.SMALL + Layout.TEXT_GAP
 end
 function Layout.CoverageWidth()
-    local left = Layout.SCAN.x + Layout.SMALL + Layout.CoverageOffset()
-    return Layout.SearchBarLeft() - Layout.COVERAGE_RIGHT - left
+    return Layout.COVERAGE_W
+end
+
+-- Abstand von „Nur Verbesserungen“ zur rechten Kante des Golds: hinter der ganzen Zeile „Preise erfassen“.
+function Layout.UpgradeOffset()
+    local S = Layout.SCAN
+    return S.gap + S.w + Layout.SCAN_GAP + Layout.SMALL + Layout.CoverageOffset() + Layout.COVERAGE_W + Layout.UPGRADE_GAP
 end
 
 -- Volle Breite eines Textes, auch wenn die Schrift-Zeile eine feste Breite hat und kürzt (GetUnboundedStringWidth;
@@ -876,9 +1087,11 @@ function Layout.TextWidth(fontString)
     return Core.Num(measure(fontString)) or 0
 end
 
--- Rechtecke: Blizzards Teile (1. Rückgabe) und ezAuctions Teile (2.) in den Reitern Kaufen und Verkaufen.
+-- Rechtecke: Blizzards Teile (1. Rückgabe) und ezAuctions Teile (2.) in den Reitern Kaufen und Verkaufen. Oben (y nach
+-- unten negativ, von der Oberkante): Suchleiste und „Letzte Suchen“. Unten (Schlüssel mit „bottom“; y von der Unterkante
+-- nach oben): Gold, die Listen darüber und die Zeile „Preise erfassen“ samt „Nur Verbesserungen“.
 function Layout.Rects()
-    local B, S = Layout.BLIZZARD, Layout.SCAN
+    local B = Layout.BLIZZARD
     local barLeft = Layout.SearchBarLeft()
     local barRight = B.frameWidth + B.searchBar.right
     local barMid = B.searchBar.top - B.searchBar.h / 2
@@ -890,19 +1103,24 @@ function Layout.Rects()
     blizzard.searchButton = Centered(barRight - B.searchButton.w, B.searchButton.w, B.searchButton.h)
     blizzard.filterButton = Centered(blizzard.searchButton.l - B.filterButton.gap - B.filterButton.w,
         B.filterButton.w, B.filterButton.h)
-    -- Kategorienliste (Kaufen) und Verkaufsbereich (Verkaufen): es zählt die Oberkante
-    blizzard.categories = Rect(4, B.searchBar.top - B.searchBar.h - B.categoriesGap, barLeft - 4, 400)
-    blizzard.sell = Rect(4, B.sellTop, B.frameWidth - 8, 400)
-
     local own = {}
-    own.scan = Rect(S.x, S.y, S.w, S.h)
-    local rowTop = own.scan.b - Layout.ROW_GAP
-    own.scanMenu = Rect(S.x, rowTop, Layout.SMALL, Layout.SMALL)
-    own.gear = Rect(own.scanMenu.r + Layout.GAP, rowTop, Layout.SMALL, Layout.SMALL)
-    own.coverage = Rect(own.scanMenu.r + Layout.CoverageOffset(), rowTop - (Layout.SMALL - Layout.TEXT_HEIGHT) / 2,
-        Layout.CoverageWidth(), Layout.TEXT_HEIGHT)
     own.recent = Centered(blizzard.searchBox.r + Layout.RECENT.gap, Layout.RECENT.size, Layout.RECENT.size)
-    return blizzard, own
+
+    -- unten: y von der Unterkante nach oben
+    local M, S = B.money, Layout.SCAN
+    local mid = M.y + M.h / 2
+    local function Row(l, w, h) return Rect(l, mid + h / 2, w, h) end
+    local bottom = {}
+    bottom.money = Rect(M.x, M.y + M.h, M.w, M.h)
+    local listsBottom = M.y + M.h + M.listGap
+    bottom.lists = Rect(0, listsBottom + 400, B.frameWidth, 400)
+    local ownBottom = {}
+    ownBottom.scan = Row(bottom.money.r + S.gap, S.w, S.h)
+    ownBottom.scanMenu = Row(ownBottom.scan.r + Layout.SCAN_GAP, Layout.SMALL, Layout.SMALL)
+    ownBottom.gear = Row(ownBottom.scanMenu.r + Layout.GAP, Layout.SMALL, Layout.SMALL)
+    ownBottom.coverage = Row(ownBottom.scanMenu.r + Layout.CoverageOffset(), Layout.COVERAGE_W, Layout.TEXT_HEIGHT)
+    ownBottom.upgrade = Row(bottom.money.r + Layout.UpgradeOffset(), Layout.SMALL, Layout.SMALL)
+    return blizzard, own, bottom, ownBottom
 end
 
 -- Reiter Auktionen, nur senkrecht (x ist dort die Breite der Reiter-Schrift): Oberkante der Liste unter den Reitern und
@@ -1050,6 +1268,10 @@ end
 function ns.DecorateNow(itemList, fn)
     local box = itemList and itemList.ScrollBox
     if not (box and box.ForEachFrame) then return end
+    -- Blizzards ScrollBox ohne Ansicht (Liste noch nie gezeigt): ScrollBoxListMixin:ForEachFrame ruft GetView() ohne
+    -- Prüfung auf und bricht ab (Blizzard_SharedXML/Shared/Scroll/ScrollBox.lua, Zweig forever; Spielbefund 21.11.2026
+    -- bei ITEM_SEARCH_RESULTS_UPDATED und LISTS_CHANGED). Ohne Ansicht gibt es keine Zeilen zu markieren.
+    if type(box.GetView) == "function" and box:GetView() == nil then return end
     box:ForEachFrame(function(row)
         ns.Try("Decorate", fn, row, row.rowData, ns.RowOverlay(row))
     end)
@@ -1077,7 +1299,9 @@ end
 ---------------------------------------------------------------------------
 
 -- Liste mit Blizzards ScrollBox und Rollbalken. init(row, data) baut bzw. füllt eine Zeile (Button).
-function ns.NewScrollList(parent, rowHeight, init)
+-- spacing = Luft zwischen den Zeilen (Blizzards SetPadding der linearen Ansicht; ns.LOOK.entryGap in den Seitenteilen).
+-- list:SetInside(kasten) legt die Liste in Blizzards inneren Kasten (ns.PanelInset) mit den Maßen aus ns.LOOK.
+function ns.NewScrollList(parent, rowHeight, init, spacing)
     local box = CreateFrame("Frame", nil, parent, "WowScrollBoxList")
     local bar
     for _, template in ipairs({ "MinimalScrollBar", "WowClassicScrollBar", "WowTrimScrollBar" }) do
@@ -1086,6 +1310,7 @@ function ns.NewScrollList(parent, rowHeight, init)
     end
     local view = CreateScrollBoxListLinearView()
     if view.SetElementExtent then view:SetElementExtent(rowHeight) end
+    if spacing and view.SetPadding then pcall(view.SetPadding, view, 0, 0, 0, 0, spacing) end
     view:SetElementInitializer("Button", function(row, data)
         row:SetHeight(rowHeight)
         ns.Try("ListRow", init, row, data)
@@ -1102,6 +1327,18 @@ function ns.NewScrollList(parent, rowHeight, init)
             bar:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 4, 0)
         end
     end
+    function list:SetInside(region)
+        local look = ns.LOOK
+        box:ClearAllPoints()
+        box:SetPoint("TOPLEFT", region, "TOPLEFT", look.insetLeft, -look.insetTop)
+        box:SetPoint("BOTTOMRIGHT", region, "BOTTOMRIGHT", -look.insetRight, look.insetTop)
+        if bar then
+            bar:ClearAllPoints()
+            bar:SetPoint("TOPLEFT", box, "TOPRIGHT", 4, 0)
+            bar:SetPoint("BOTTOMLEFT", box, "BOTTOMRIGHT", 4, 0)
+        end
+        list.inside = region
+    end
     function list:SetData(items)
         local retain = ScrollBoxConstants and ScrollBoxConstants.RetainScrollPosition
         box:SetDataProvider(CreateDataProvider(items), retain)
@@ -1112,9 +1349,10 @@ end
 -- Textknopf ohne Rahmen (klein, gold, beim Überfahren weiß, abgeschaltet grau) – für „Zuletzt“ und „Regel“ am
 -- Preisfeld, „Wochen“ und „Als Text kopieren“ im Seitenteil „Markt“ (ohne eigene Schrift bliebe ein abgeschalteter
 -- Knopf gold).
+ns.TEXT_BUTTON_H = 14
 function ns.TextButton(parent)
     local button = CreateFrame("Button", nil, parent)
-    button:SetHeight(14)
+    button:SetHeight(ns.TEXT_BUTTON_H)
     button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     button.text:SetPoint("LEFT")
     button:SetFontString(button.text)
@@ -1166,7 +1404,7 @@ end
 -- Zeilen, eine Meldung von Core.Require). Die Befehle selbst (ns.HandleSlash, ns.PrintHelp, „/ezauction“, „/eza“)
 -- setzt das Gerüst aus opts.slash oben.
 ns.AddStatusLine(function()
-    local lines = { L.STATUS_LISTS:format(#(ns.db and ns.db.lists or {})) }
+    local lines = { L.STATUS_LISTS:format(#(ns.db and ns.Lists and ns.Lists.All() or {})) }
     local posts = 0
     if ns.db then
         for _ in pairs(ns.RealmData().posts) do posts = posts + 1 end

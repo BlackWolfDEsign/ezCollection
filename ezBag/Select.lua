@@ -39,10 +39,21 @@ local function State(view)
     return active[view]
 end
 
+-- Ist der Platz markiert? Bei zusammengefassten Stapeln zählt jeder ihrer Stapel: Ändern sich die Anzahlen, kann ein
+-- anderer Stapel nach vorne rücken (Render.Compact: der größte liegt vorne) – die Markierung bleibt am Platz.
+local function PickedIn(s, entry)
+    local key = Select.KeyOf(entry)
+    if key and s.picked[key] then return true end
+    for _, other in ipairs(entry.merged or {}) do
+        local k = Select.KeyOf(other)
+        if k and s.picked[k] then return true end
+    end
+    return false
+end
+
 function Select.IsPicked(view, entry)
     local s = State(view)
-    local key = s and Select.KeyOf(entry)
-    return key ~= nil and s.picked[key] == true
+    return s ~= nil and PickedIn(s, entry)
 end
 
 -- Markierte Einträge der Ansicht (nur, was gerade sichtbar ist), samt zusammengefasster Stapel.
@@ -50,8 +61,7 @@ function Select.Picked(view)
     local s, list = State(view), {}
     if not s then return list end
     for _, entry in ipairs(view.entries or {}) do
-        local key = Select.KeyOf(entry)
-        if key and s.picked[key] then
+        if PickedIn(s, entry) then
             list[#list + 1] = entry
             for _, other in ipairs(entry.merged or {}) do list[#list + 1] = other end
         end
@@ -64,8 +74,7 @@ function Select.Count(view)
     local s = State(view)
     if not s then return 0 end
     for _, entry in ipairs(view.entries or {}) do
-        local key = Select.KeyOf(entry)
-        if key and s.picked[key] then n = n + 1 end
+        if PickedIn(s, entry) then n = n + 1 end
     end
     return n
 end
@@ -155,7 +164,16 @@ function Select.Toggle(view, entry)
     local s = State(view)
     local key = s and Select.KeyOf(entry)
     if not key then return end
-    s.picked[key] = not s.picked[key] or nil
+    if PickedIn(s, entry) then
+        -- aufheben: auch die Markierung eines zusammengefassten Stapels, der inzwischen nicht mehr vorne liegt
+        s.picked[key] = nil
+        for _, other in ipairs(entry.merged or {}) do
+            local k = Select.KeyOf(other)
+            if k then s.picked[k] = nil end
+        end
+    else
+        s.picked[key] = true
+    end
     Select.Refresh(view)
 end
 
@@ -221,24 +239,36 @@ local function AtBank() return ns.Inventory.IsBankOpen() end
 
 -- Nacheinander benutzen (verkaufen bzw. umlagern), damit der Server mitkommt. Nie im Kampf (T1-2, Gesamtreview
 -- 18.11.2026; Risiko 11 in docs/blizzard-regeln.md): beginnt er unterwegs, hört der Ticker auf und meldet combatText.
-local useTicker
-local function UseAll(slots, stillOk, combatText)
+-- append = true (Rechtsklick auf zusammengefasste Stapel, Stacks.lua): Läuft schon ein Durchgang, kommen die Plätze
+-- hinten dazu (ohne doppelte), statt ihn abzubrechen – schnelle Rechtsklicks nacheinander gehen alle durch.
+local useTicker, useList
+local function UseAll(slots, stillOk, combatText, append)
+    if append and useTicker and useList then
+        local seen = {}
+        for _, s in ipairs(useList) do seen[s.bag .. ":" .. s.slot] = true end
+        for _, s in ipairs(slots) do
+            if not seen[s.bag .. ":" .. s.slot] then useList[#useList + 1] = s end
+        end
+        return
+    end
     if useTicker then useTicker:Cancel() end
-    local i = 0
+    local list, i = slots, 0
+    useList = list
     useTicker = C_Timer.NewTicker(SELL_INTERVAL, function(t)
         i = i + 1
-        local s = slots[i]
+        local s = list[i]
         local fight = s ~= nil and ns.InCombat()
         if not s or fight or not stillOk() then
             t:Cancel()
-            useTicker = nil
+            if useList == list then useTicker, useList = nil, nil end
             if fight then ns.Print(combatText) end
             return
         end
         local info = C_Container.GetContainerItemInfo(s.bag, s.slot)
         if info and info.itemID == s.itemID then C_Container.UseContainerItem(s.bag, s.slot) end
-    end, #slots + 1)
+    end)
 end
+Select.UseAll = UseAll   -- auch für zusammengefasste Stapel per Rechtsklick (Stacks.lua)
 
 function Select.Sell(view)
     if not AtMerchant() then return 0 end
@@ -278,8 +308,10 @@ function Select.Attach(view)
     local entries = {}
     for _, s in ipairs(LiveSlots(view)) do entries[#entries + 1] = { bag = s.bag, slot = s.slot, itemID = s.itemID } end
     if #entries == 0 then return 0 end
+    -- done bekommt die übrigen Einträge als Liste (MailQueue.Attach), nicht ihre Zahl
     queue.Attach(entries, function(left)
-        if type(left) == "number" and left > 0 then ns.Print(ns.CountText("SELECT_MAIL_FULL", left)) end
+        local n = type(left) == "table" and #left or 0
+        if n > 0 then ns.Print(ns.CountText("SELECT_MAIL_FULL", n)) end
     end)
     Select.Clear(view)
     return #entries

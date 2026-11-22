@@ -1,6 +1,11 @@
 local _, ns = ...
 local L = ns.L
 
+-- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
+-- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
+-- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
+ns.FEATURE_STEPS = { "bar", { "block", "gold" }, { "block", "bar" }, "bar", false }
+
 --[[
     Rundgang mit Erklärblasen (Abschlussrunde „Tooltip-Guide“, ezCore.NewTour): beim ersten Erscheinen der
     Leiste die wichtigsten Funktionen – Bausteine, Leistenmenü, Gold, Charaktere, Meldungen, Werkzeuge.

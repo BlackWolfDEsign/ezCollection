@@ -7,14 +7,18 @@ local Core = ezCore
       - Einkaufslisten als eigene Einträge oben in Blizzards Kategorienliste, mit Blizzards Knopfvorlage
         (AuctionCategoryButtonTemplate) und Blizzards Aussehen (AuctionHouseFilterButton_SetUp). Blizzards
         Kategorien rücken darunter; ihre Liste bleibt unangetastet.
-      - Klick auf eine Liste sucht alle Einträge (Search.lua), der Stift öffnet den Editor (Editor.lua).
+      - Klick auf eine Liste wählt sie wie eine Kategorie (Buy.Select; seit dem zweiten Spieltest vom 21.11.2026):
+        Blizzards Kategorie wird abgewählt und umgekehrt, die Liste steht links (Editor.lua), und Blizzards „Suchen“
+        sucht mit Blizzards Filter nur ihre Einträge (Search.lua). Vorher suchte schon der Klick, und ein Blatt-Symbol
+        öffnete den Editor über Blizzards Ergebnisliste.
       - „< Händler“ in Blizzards Ergebnisliste, wenn der Tiefstpreis unter dem Händlerpreis liegt.
       - „−23 %“/„+10 %“ gegen den Marktwert, ab fünf erfassten Tagen gegen den Median (Market.Judge), mit
         Begründung, Quelle und Verfügbarkeit im Tooltip der Zeile; Pfeil „besser“ aus ezGear (Upgrade.lua).
     Fertigstellungsplan Welle 14 (AH-22 bis AH-24):
       - „Schnäppchen (n)“ und „Beobachtet (n)“ als eigene Einträge unter den Einkaufslisten (Abschnitte Bargain und
-        Watch unten); ein Klick zeigt die Treffer in Blizzards Ergebnisliste (Auftrag in ezCores Warteschlange, Rang
-        „modul“). Nichts davon steht in Blizzards Tabelle AuctionCategories.
+        Watch unten); seit dem vierten Spieltest vom 21.11.2026 wählt ein Klick sie wie eine Kategorie (Buy.Pick, noch
+        ein Klick wählt ab), „Suchen“ bzw. Enter zeigt die Treffer in Blizzards Ergebnisliste (Auftrag in ezCores
+        Warteschlange, Rang „modul“). Nichts davon steht in Blizzards Tabelle AuctionCategories.
       - Kauf-Komfort am Warenkauf und an der Einzelstück-Liste (Abschnitt „Kaufbereich“ unten): „Bedarf: n“, Zeile im
         Kaufdialog, günstigste Zeile je Stück. Kaufen und Bieten bleiben Blizzards Knöpfe – ezAuction ruft nie
         StartCommoditiesPurchase, ConfirmCommoditiesPurchase oder PlaceBid.
@@ -22,8 +26,11 @@ local Core = ezCore
 
 local Buy = {}
 ns.Buy = Buy
+Buy.LEFT_PAD = 3     -- wie Blizzards Kategorien (view:SetPadding, leftPad = 3)
+Buy.SEPARATOR = 8    -- Abstand mit Trennlinie zwischen den eigenen Einträgen und Blizzards Kategorien
 
 local holder, scrollPoints
+local allLists = { items = {} }   -- Sammel-Liste „alle Einkaufslisten“ (Buy.AllLists)
 local buttons = {}
 local ROW_HEIGHT = 20
 local GREEN = Core.GREEN
@@ -84,19 +91,13 @@ local function NewButton()
     if not ok or not button then button = PlainButton(holder) end
     button:SetHeight(ROW_HEIGHT)
     button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    -- Stift: Liste bearbeiten (sichtbar an jeder Liste)
-    local edit = CreateFrame("Button", nil, button)
-    edit:SetSize(Core.Style.BUTTON.small, Core.Style.BUTTON.small)   -- Design-System 2.3 (bis Welle 22 14)
-    edit:SetPoint("RIGHT", button, "RIGHT", -6, 0)
-    edit:SetNormalTexture("Interface\\Buttons\\UI-GuildButton-PublicNote-Up")
-    edit:SetHighlightTexture("Interface\\Buttons\\UI-GuildButton-PublicNote-Up", "ADD")
-    edit:SetScript("OnClick", function()
-        local row = button.ezRow
-        if row and row.list then ns.Editor.Open(row.list) end
-    end)
-    edit:SetScript("OnEnter", function(self) Core.ShowTip(self, L.LIST_EDIT, L.LIST_EDIT_TIP) end)
-    edit:SetScript("OnLeave", GameTooltip_Hide)
-    button.ezEdit = edit
+    -- Stand der Listensuche bzw. Treffer („1/3 …“, „2/3“) rechts in der Zeile, nie gekürzt (Buy.ListCount). Das
+    -- Blatt-Symbol „Liste bearbeiten“ davor entfiel am 21.11.2026: die gewählte Liste steht links (Editor.lua)
+    local count = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    count:SetPoint("RIGHT", button, "RIGHT", -6, 0)
+    count:SetJustifyH("RIGHT")
+    count:Hide()
+    button.ezCount = count
     -- Pfeil-Kreis am Eintrag „Beobachtet“: Fehlende auffrischen (AH-23; nur zu sehen, wenn welche fehlen)
     local refresh = CreateFrame("Button", nil, button)
     refresh:SetSize(Core.Style.BUTTON.small, Core.Style.BUTTON.small)
@@ -125,6 +126,17 @@ local function ListLabel(list)
     local result = ns.Search.results[list]
     if result then return L.LIST_RESULT:format(list.name, result.found, result.total) end
     return list.name
+end
+
+-- Stand einer Liste als eigene Zahl rechts in der Zeile (Spieltest vom 21.11.2026: „klicke ich auf diese, und dann auf
+-- suchen, wird mir alles gesucht“ – der Stand hing hinten am Namen und fiel bei langen Namen der Kürzung zum Opfer,
+-- man sah nicht, dass der Klick schon sucht). → Text oder nil
+function Buy.ListCount(list)
+    local index, total = ns.Search.Progress(list)
+    if index then return L.LIST_COUNT_RUNNING:format(index, total) end
+    local result = ns.Search.results[list]
+    if result then return L.LIST_COUNT_RESULT:format(result.found, result.total) end
+    return nil
 end
 
 -- „+ Fehlende Bücher“ steht da, solange diesem Charakter Bücher fehlen und es die Liste „Bibliotheksbücher“ noch nicht gibt.
@@ -188,29 +200,38 @@ function Buy.Refresh()
         local info
         if row.kind == "header" then
             local name = #lists > 0 and L.LISTS_COUNT:format(L.LISTS, #lists) or L.LISTS
-            info = { type = "category", name = name, selected = not ns.db.ui.listsCollapsed }
+            -- hervorgehoben nur mit gewählter Liste, wie Blizzards Kategorie über der gewählten Unterkategorie
+            -- (zweiter Spieltest vom 21.11.2026: „wieso kann ich beides selektieren?“)
+            -- gewählt („alle Listen“, Buy.Pick("lists")) oder über der gewählten Liste – wie Blizzards Oberkategorie
+            info = { type = "category", name = name, selected = Buy.pick == "lists" or Buy.active ~= nil }
         elseif row.kind == "list" then
-            info = { type = "subCategory", name = ListLabel(row.list), selected = Buy.active == row.list }
+            info = { type = "subCategory", name = row.list.name, selected = Buy.active == row.list }
         elseif row.kind == "more" then
             info = { type = "subCategory", name = L.LIST_MORE:format(#lists - row.from + 1), selected = false }
         elseif row.kind == "books" then
             info = { type = "subCategory", name = GREEN .. L.LIST_BOOKS_NEW .. "|r", selected = false }
-        elseif row.kind == "bargain" then
-            local count = Buy.Bargain.Count()
-            local name = L.BARGAIN_ROW:format(count)
-            info = { type = "category", name = count > 0 and name or Core.Grey(name), selected = ShownKind() == "bargain" }
-        elseif row.kind == "watch" then
-            info = { type = "category", name = L.WATCH_ROW:format(ns.Watch.Count()), selected = ShownKind() == "watch" }
+        elseif row.kind == "bargain" or row.kind == "watch" then
+            -- hervorgehoben, solange gewählt (Buy.Pick), wie eine Kategorie – nicht erst nach der Suche
+            local count = row.kind == "bargain" and Buy.Bargain.Count() or ns.Watch.Count()
+            local name = (row.kind == "bargain" and L.BARGAIN_ROW or L.WATCH_ROW):format(count)
+            info = { type = "category", name = count > 0 and name or Core.Grey(name), selected = Buy.pick == row.kind }
         else
             info = { type = "subCategory", name = GREEN .. L.LIST_NEW .. "|r", selected = false }
         end
         Style(button, info)
-        -- Platz für den Stift, damit lange Namen nicht darunter laufen
+        -- Platz für den Pfeil-Kreis an „Beobachtet“, damit lange Namen nicht darunter laufen
         local refresh = row.kind == "watch" and ns.AuctionHouseShown() and #ns.Watch.Missing() > 0
+        local count = row.kind == "list" and Buy.ListCount(row.list)
+            or (row.kind == "header" and Buy.pick == "lists" and Buy.ListCount(allLists)) or nil
+        button.ezCount:SetText(count or "")
+        button.ezCount:SetShown(count ~= nil)
         if button.Text then
-            button.Text:SetPoint("RIGHT", button, "RIGHT", (row.kind == "list" or refresh) and -22 or -4, 0)
+            if count then
+                button.Text:SetPoint("RIGHT", button.ezCount, "LEFT", -3, 0)
+            else
+                button.Text:SetPoint("RIGHT", button, "RIGHT", refresh and -22 or -4, 0)
+            end
         end
-        button.ezEdit:SetShown(row.kind == "list")
         button.ezRefresh:SetShown(refresh == true)
         button:Show()
     end
@@ -221,8 +242,8 @@ end
 local function NewList()
     Core.AskText(L.LIST_NEW_PROMPT, ns.Lists.UniqueName(L.LIST_DEFAULT_NAME), function(text)
         local list = ns.Lists.Create(text)
-        Buy.active = list
-        ns.Editor.Open(list)
+        Buy.Select(list)
+        ns.Editor.Focus()
     end)
 end
 
@@ -233,7 +254,8 @@ function Buy.StartBooks()
         ns.Print(L.BOOKS_NONE)
         return false
     end
-    Buy.StartList(list)
+    -- gewählt wie jede Liste; Blizzards „Suchen“ sucht sie (zweiter Spieltest vom 21.11.2026)
+    Buy.Select(list)
     return true
 end
 
@@ -241,10 +263,53 @@ function Buy.StartList(list)
     -- Listen mit Quelle vor jeder Suche auffrischen (Buch abgegeben, Material inzwischen gekauft).
     local source = ns.Lists.SourceOf(list)
     if source then ns.Lists.UpdateSource(source, false) end
-    Buy.active = list
-    ns.Editor.Close()
+    if Buy.active ~= list then Buy.Select(list) end
     ns.Search.Start(list)
     Buy.Refresh()
+end
+
+-- Alle Einkaufslisten als eine Suche (Spieltest vom 21.11.2026: „klick einkaufslisten also ausgewählt dann suche alle
+-- sachen aus den einkaufslisten, wenn spezifische liste ausgewählt dann suche nur nach items der liste... genauso wie es
+-- blizz macht“): eine Sammel-Liste aus den Einträgen aller Listen; derselbe Gegenstand mit denselben Filtern (bzw.
+-- dasselbe Rezept) nur einmal, Mengen zusammengezählt. Die Sammel-Liste ist keine gespeicherte Liste.
+function Buy.AllLists()
+    allLists.name = L.LISTS
+    local items, seen = {}, {}
+    for _, list in ipairs(ns.Lists.All()) do
+        for _, entry in ipairs(type(list) == "table" and type(list.items) == "table" and list.items or {}) do
+            if type(entry) == "table" then
+                -- Begriffe ohne itemID unabhängig von Groß- und Kleinschreibung (Befund des Reviews)
+                local key = entry.recipe and ("r" .. tostring(entry.recipe) .. (entry.buy and "b" or ""))
+                    or (tostring(entry.itemID or string.lower(ns.Lists.SearchText(entry) or "")) .. "|"
+                        .. tostring(entry.exact or "") .. "|" .. ns.Lists.FilterKey(entry))
+                local have = seen[key]
+                if have then
+                    local a, b = Core.Num(have.count), Core.Num(entry.count)
+                    if a or b then have.count = (a or 0) + (b or 0) end
+                    -- Höchstpreis: der strengere gilt; hat eine Liste keinen, gilt keiner (unabhängig von der Reihenfolge)
+                    local pa, pb = Core.Num(have.maxPrice), Core.Num(entry.maxPrice)
+                    have.maxPrice = (pa and pb) and math.min(pa, pb) or nil
+                else
+                    local copy = {}
+                    for k, v in pairs(entry) do copy[k] = v end
+                    seen[key] = copy
+                    items[#items + 1] = copy
+                end
+            end
+        end
+    end
+    allLists.items = items
+    return allLists
+end
+
+function Buy.StartAll()
+    ns.Lists.UpdateSources()
+    if Buy.pick ~= "lists" then Buy.Pick("lists") end
+    local all = Buy.AllLists()
+    if ns.Lists.ForgetSearch then ns.Lists.ForgetSearch() end   -- die Sammel-Liste ändert sich mit jeder Liste
+    local started = ns.Search.Start(all)
+    Buy.Refresh()
+    return started
 end
 
 -- Nur eine Zeile einer Liste suchen (Knopf „Suchen“ an der Zeile im Editor, AH-10). Rückgabe: true, wenn gesucht wird.
@@ -254,8 +319,7 @@ function Buy.StartEntry(list, entry)
         if other == entry then index = i end
     end
     if not index then return false end
-    Buy.active = list
-    ns.Editor.Close()
+    if Buy.active ~= list then Buy.Select(list) end
     local started = ns.Search.Start(list, index)
     Buy.Refresh()
     return started
@@ -266,11 +330,11 @@ local function MoreMenu(owner, from)
     local opened = Core.Menu.Open(owner, function(root)
         for index = from, #lists do
             local list = lists[index]
-            Core.Menu.Button(root, ListLabel(list), function() Buy.StartList(list) end)
+            Core.Menu.Button(root, ListLabel(list), function() Buy.Select(list) end)
         end
     end)
-    -- Ohne Menü: die nächste verborgene Liste suchen.
-    if not opened and lists[from] then Buy.StartList(lists[from]) end
+    -- Ohne Menü: die nächste verborgene Liste wählen.
+    if not opened and lists[from] then Buy.Select(lists[from]) end
 end
 
 function Buy.OnClick(button, mouse)
@@ -278,24 +342,35 @@ function Buy.OnClick(button, mouse)
     if not row then return end
     Core.PlaySound("IG_MAINMENU_OPTION_CHECKBOX_ON")
     if row.kind == "header" then
-        ns.db.ui.listsCollapsed = not ns.db.ui.listsCollapsed
-        Buy.Refresh()
-    elseif row.kind == "list" then
-        if mouse == "RightButton" then
-            ns.Editor.Open(row.list)
-        elseif ns.Search.IsRunning(row.list) then
+        -- wie Blizzards Oberkategorie: Klick wählt „alle Listen“ und klappt auf, noch ein Klick wählt ab und klappt zu;
+        -- läuft die Suche aller Listen, bricht der Klick sie ab
+        if ns.Search.IsRunning(allLists) then
             ns.Search.Cancel()
+        elseif Buy.pick == "lists" and mouse ~= "RightButton" then
+            ns.db.ui.listsCollapsed = true
+            Buy.Select(nil)
         else
-            Buy.StartList(row.list)
+            ns.db.ui.listsCollapsed = false
+            Buy.Pick("lists")
+        end
+    elseif row.kind == "list" then
+        -- wie eine Kategorie: wählen (links erscheint die Liste); noch ein Klick wählt ab; läuft ihre Suche, bricht
+        -- der Klick sie ab
+        if ns.Search.IsRunning(row.list) then
+            ns.Search.Cancel()
+        elseif Buy.active == row.list and mouse ~= "RightButton" then
+            Buy.Select(nil)
+        else
+            Buy.Select(row.list)
         end
     elseif row.kind == "more" then
         MoreMenu(button, row.from)
     elseif row.kind == "books" then
         Buy.StartBooks()
-    elseif row.kind == "bargain" then
-        Buy.ShowBargains()
-    elseif row.kind == "watch" then
-        Buy.ShowWatched()
+    elseif row.kind == "bargain" or row.kind == "watch" then
+        -- wie eine Kategorie (vierter Spieltest vom 21.11.2026: „unsere listenpunkte muss man genauso abwählen können
+        -- wie die blizzard kategorien“): Klick wählt, noch ein Klick wählt ab; gesucht wird mit „Suchen“ bzw. Enter
+        if Buy.pick == row.kind and mouse ~= "RightButton" then Buy.Select(nil) else Buy.Pick(row.kind) end
     else
         NewList()
     end
@@ -326,7 +401,6 @@ function Buy.ShowTooltip(button)
         local cost = ns.Enabled("listCost") and ns.Lists.CostText(list)
         if cost then Core.TipLine(GameTooltip, cost, "normal", true) end
         GameTooltip:AddLine(ns.Search.IsRunning(list) and L.LIST_CANCEL_TIP or L.LIST_SEARCH_TIP, nil, nil, nil, true)
-        GameTooltip:AddLine(L.LIST_RIGHT_TIP, nil, nil, nil, true)
     elseif row.kind == "more" then
         Core.TipTitle(GameTooltip, L.LIST_MORE:format(#ns.Lists.All() - row.from + 1))
         GameTooltip:AddLine(L.LIST_MORE_TIP, nil, nil, nil, true)
@@ -348,6 +422,220 @@ function Buy.ShowTooltip(button)
     end
     GameTooltip:Show()
 end
+
+---------------------------------------------------------------------------
+-- Auswahl wie eine Kategorie (zweiter Spieltest vom 21.11.2026; Entscheidungen des Nutzers „Wie eine Kategorie
+-- (Empfohlen)“ und – für das Abwählen von Blizzards Kategorie – „Ja, Ausnahme (Empfohlen)“ zu Leitlinie 5)
+---------------------------------------------------------------------------
+
+local resetting = false
+Buy.noCategoryReset = false   -- nach einer Blockade durch Blizzard für die Sitzung aus (ns.T1Blocked)
+
+-- Blizzards gewählte Kategorie zurücksetzen – derselbe Aufruf wie Blizzards eigener Favoriten-Knopf
+-- (AuctionHouseSearchBarMixin:StartFavoritesSearch → SetSelectedCategory(nil), Shared/Blizzard_AuctionHouseSearchBar.lua,
+-- Zweig forever). Die einzige Ausnahme von Leitlinie 5 in ezAuction: nur außerhalb des Kampfes, geschützt aufgerufen.
+-- → true, wenn zurückgesetzt
+function Buy.ResetBlizzardCategory()
+    if Buy.noCategoryReset or (InCombatLockdown and InCombatLockdown()) then return false end
+    local categories = Categories()
+    if not (categories and categories.GetSelectedCategory and categories.SetSelectedCategory) then return false end
+    local ok, index = pcall(categories.GetSelectedCategory, categories)
+    if not ok or index == nil then return false end
+    resetting = true
+    local done = pcall(categories.SetSelectedCategory, categories, nil)
+    resetting = false
+    return done
+end
+
+-- Eine Liste wählen (nil: alles Eigene abwählen – Liste, Schnäppchen, Beobachtet). Gewählt: Blizzards Kategorie wird
+-- abgewählt, die Liste steht links, Blizzards „Suchen“ sucht nur ihre Einträge (Buy.UpdateSearchButton). Eine Liste
+-- mit Quelle wird vorher aufgefrischt.
+function Buy.Select(list)
+    if list ~= nil and not ns.Lists.IndexOf(list) then list = nil end
+    Buy.active = list
+    Buy.pick = nil
+    if list then
+        local source = ns.Lists.SourceOf(list)
+        if source then ns.Lists.UpdateSource(source, false) end
+        ns.ShowBrowseResults()
+        Buy.ResetBlizzardCategory()
+        -- Schnäppchen und Beobachtet sind nicht mehr gewählt
+        local shown = ns.Search.shown
+        if shown and (shown.kind == "bargain" or shown.kind == "watch") then ns.Search.shown = nil end
+    end
+    if ns.Editor then ns.Editor.Update() end
+    Buy.UpdateSearchButton()
+    Buy.Refresh()
+    return list ~= nil
+end
+
+-- „Schnäppchen“ bzw. „Beobachtet“ wählen wie eine Kategorie (kind "bargain" | "watch"; vierter Spieltest vom
+-- 21.11.2026): die Liste und Blizzards Kategorie sind abgewählt, der Eintrag ist hervorgehoben, gesucht wird erst mit
+-- „Suchen“ bzw. Enter im leeren Suchfeld (Buy.SearchSelected). Vorher suchte schon der Klick und meldete im Chat.
+function Buy.Pick(kind)
+    if kind ~= "bargain" and kind ~= "watch" and kind ~= "lists" then return Buy.Select(nil) end
+    Buy.active = nil
+    Buy.pick = kind
+    -- eine gezeigte Schnäppchen- bzw. Beobachtet-Ansicht gehört nicht mehr zur Auswahl (wie Buy.Select)
+    local shown = ns.Search.shown
+    if shown and (shown.kind == "bargain" or shown.kind == "watch") and shown.kind ~= kind then ns.Search.shown = nil end
+    ns.ShowBrowseResults()
+    Buy.ResetBlizzardCategory()
+    if ns.Editor then ns.Editor.Update() end
+    Buy.UpdateSearchButton()
+    Buy.Refresh()
+    return true
+end
+
+-- „Suchen“ bzw. Enter mit eigener Auswahl: die gewählte Liste, Schnäppchen oder Beobachtet. → wie die Suche selbst
+function Buy.SearchSelected()
+    if Buy.active then return Buy.StartList(Buy.active) end
+    if Buy.pick == "lists" then return Buy.StartAll() end
+    if Buy.pick == "bargain" then return Buy.ShowBargains() end
+    if Buy.pick == "watch" then return Buy.ShowWatched() end
+    return false
+end
+
+-- Blizzard hat eine Kategorie gewählt (Klick des Spielers): die Liste ist abgewählt, Schnäppchen und Beobachtet auch.
+function Buy.OnCategorySelected(index)
+    if resetting or index == nil then return end
+    local shown = ns.Search.shown
+    if shown and (shown.kind == "bargain" or shown.kind == "watch") then ns.Search.shown = nil end
+    if Buy.active or Buy.pick then Buy.Select(nil) else Buy.Refresh() end
+end
+
+-- Blizzards Suche ging los (Suchfeld mit Eingabetaste, Favoriten): mit gewählter Liste und leerem Suchfeld sucht
+-- ezAuction danach die Liste. Blizzards breite Abfrage ist dann schon unterwegs; die Listensuche startet nach ihrer
+-- Antwort (Search.AfterBlizzardAnswer – sonst zählte sie für den ersten Eintrag) als Klick-Auftrag ohne Haltezeit
+-- und ersetzt Blizzards Ergebnis. Mit Suchtext oder bei den Favoriten ist die Liste abgewählt. kind: nil oder "favorites".
+function Buy.OnBlizzardSearch(searchString, kind)
+    if not (Buy.active or Buy.pick) then return end
+    if kind == nil and (searchString == nil or Core.Trim(tostring(searchString)) == "") then
+        local list, pick = Buy.active, Buy.pick
+        ns.Search.AfterBlizzardAnswer(function()
+            if Buy.active == list and Buy.pick == pick and ns.AuctionHouseShown() then Buy.SearchSelected() end
+        end)
+    else
+        Buy.Select(nil)
+    end
+end
+
+-- Eigener Knopf „Suchen“ genau über Blizzards Knopf, solange eine Liste gewählt ist: Blizzards Knopf würde alles suchen
+-- (seine Abfrage kennt keine Liste); ezAuction sucht die Einträge mit Blizzards Filter. Gleiches Aussehen.
+local searchButton
+local function BuildSearchButton()
+    local bar = AuctionHouseFrame.SearchBar
+    local blizzard = bar and bar.SearchButton
+    if searchButton or type(blizzard) ~= "table" or type(blizzard.GetFrameLevel) ~= "function" then return end
+    searchButton = CreateFrame("Button", "ezAuctionListSearchButton", bar, "UIPanelButtonTemplate")
+    searchButton:SetAllPoints(blizzard)
+    searchButton:SetFrameLevel((blizzard:GetFrameLevel() or 1) + 5)
+    searchButton:SetText(blizzard.GetText and blizzard:GetText() or rawget(_G, "SEARCH") or L.EDITOR_SEARCH)
+    searchButton:SetScript("OnClick", function()
+        Core.PlaySound("IG_MAINMENU_OPTION_CHECKBOX_ON")
+        Buy.SearchSelected()
+    end)
+    searchButton:SetScript("OnEnter", function(self)
+        local tip = Buy.active and L.LIST_SEARCH_BUTTON_TIP:format(Buy.active.name)
+            or (Buy.pick == "lists" and L.LISTS_SEARCH_TIP)
+            or (Buy.pick == "bargain" and L.BARGAIN_SEARCH_TIP) or (Buy.pick == "watch" and L.WATCH_SEARCH_TIP) or ""
+        Core.ShowTip(self, self:GetText() or L.EDITOR_SEARCH, tip)
+    end)
+    searchButton:SetScript("OnLeave", GameTooltip_Hide)
+    searchButton:Hide()
+    -- Text ins Suchfeld getippt: die Liste ist abgewählt, Blizzards Knopf sucht wieder selbst
+    local box = bar.SearchBox
+    if box and box.HookScript then
+        box:HookScript("OnTextChanged", function(self, user)
+            if user and (Buy.active or Buy.pick) and Core.Trim(self:GetText() or "") ~= "" then Buy.Select(nil) end
+        end)
+    end
+end
+
+function Buy.UpdateSearchButton()
+    if not searchButton then return end
+    local own = ((Buy.active ~= nil or Buy.pick == "lists") and ns.Enabled("shoppingLists"))
+        or (Buy.pick == "bargain" and ns.Enabled("bargainList"))
+        or (Buy.pick == "watch" and ns.Enabled("watchList"))
+    searchButton:SetShown((own and ns.AuctionHouseShown() and ns.ModeName() == "buy") == true)
+end
+
+-- Eigener Knopf „Suchen“, solange zu sehen (für Prüfungen und den Rundgang).
+function Buy.SearchButton()
+    return searchButton ~= nil and searchButton:IsVisible() and searchButton or nil
+end
+
+-- Knopf „Zurücksetzen“ (Wunsch des Nutzers vom 21.11.2026: „zurücksetzen button der aktuellen suche beim kaufen reiter“;
+-- Entscheidung „Everything, like Blizzard (Recommended)“): zurück zum Zustand nach dem Öffnen – Suchtext, eigene Auswahl
+-- (Einkaufsliste, Schnäppchen, Beobachtet) und eigene Suche; außerhalb des Kampfes auch Blizzards Kategorie und Filter
+-- über Blizzards eigene Funktionen (CategoriesList:SetSelectedCategory(nil) wie der Favoriten-Knopf,
+-- FilterButton:Reset() wie Blizzards X am Filterknopf; Shared/Blizzard_AuctionHouseSearchBar.lua, Zweig forever) –
+-- die zweite Ausnahme von Leitlinie 5 in ezAuction. Blizzards zuletzt gezeigte Ergebnisse bleiben stehen (es gibt keine
+-- Abfrage „nichts“). → true, wenn Blizzards Kategorie bzw. Filter dabei zurückgesetzt werden durften und es ging
+function Buy.ResetSearch()
+    local Search = ns.Search
+    -- schon eingereihte eigene Sendungen (Search.Item, Search.Replay) prüfen Search.shown und entfallen mit ClearShown
+    if Search.running then Search.Cancel(true) end
+    if Search.CancelAfterAnswer then Search.CancelAfterAnswer() end
+    Search.ClearShown()
+    -- eigene Kategorien wie nach dem Öffnen: nichts gewählt, „Einkaufslisten“ zugeklappt (Spieltest vom 21.11.2026:
+    -- „zürcksetzen muss auch unsere kaegorien schließen und abwählen“)
+    ns.db.ui.listsCollapsed = true
+    Buy.Select(nil)
+    local bar = AuctionHouseFrame and AuctionHouseFrame.SearchBar
+    local box = bar and bar.SearchBox
+    if type(box) == "table" then
+        if type(box.Reset) == "function" then pcall(box.Reset, box) elseif box.SetText then box:SetText("") end
+        if box.ClearFocus then box:ClearFocus() end
+    end
+    local blizzard = not Buy.noCategoryReset and not (InCombatLockdown and InCombatLockdown())
+    local done = false
+    if blizzard then
+        if Buy.ResetBlizzardCategory() then done = true end
+        local filter = bar and bar.FilterButton
+        if type(filter) == "table" and type(filter.Reset) == "function" and pcall(filter.Reset, filter) then done = true end
+    end
+    Buy.Refresh()
+    return done
+end
+
+local resetButton
+local function BuildResetButton()
+    local bar = AuctionHouseFrame.SearchBar
+    local after = _G.ezAuctionRecentButton or (bar and bar.SearchBox)
+    if resetButton or type(bar) ~= "table" or type(after) ~= "table" then return end
+    local R = ns.Layout.RESET
+    resetButton = CreateFrame("Button", "ezAuctionResetSearch", bar)
+    resetButton:SetSize(R.size, R.size)
+    resetButton.icon = resetButton:CreateTexture(nil, "ARTWORK")
+    resetButton.icon:SetAllPoints()
+    Core.SetIcon(resetButton.icon, R.atlas, R.file)
+    resetButton:SetHighlightTexture(R.file, "ADD")
+    local highlight = resetButton:GetHighlightTexture()
+    if highlight and highlight.SetAlpha then highlight:SetAlpha(0.4) end
+    resetButton:SetPoint("LEFT", after, "RIGHT", R.gap, 0)
+    resetButton:SetScript("OnClick", function()
+        Core.PlaySound("IG_MAINMENU_OPTION_CHECKBOX_ON")
+        Buy.ResetSearch()
+    end)
+    resetButton:SetScript("OnEnter", function(self) Core.ShowTip(self, L.SEARCH_RESET, L.SEARCH_RESET_TIP) end)
+    resetButton:SetScript("OnLeave", GameTooltip_Hide)
+end
+function Buy.ResetButton() return resetButton end
+
+ns.OnAuctionHouse(function()
+    BuildSearchButton()
+    BuildResetButton()
+    local categories = Categories()
+    if categories and categories.SetSelectedCategory then
+        hooksecurefunc(categories, "SetSelectedCategory", function(_, index) ns.Try("CategorySelected", Buy.OnCategorySelected, index) end)
+    end
+end)
+ns.Listen("AH_MODE", function() Buy.UpdateSearchButton() end)
+ns.Listen("AH_HIDE", function()
+    Buy.active, Buy.pick = nil, nil
+    Buy.UpdateSearchButton()
+end)
 
 -- Kopfzeile „Einkaufslisten“, solange sie zu sehen ist (Ziel des Rundgangs).
 function Buy.HeaderButton()
@@ -378,20 +666,35 @@ function Buy.Attach()
         scrollPoints = {}
         for index = 1, box:GetNumPoints() do scrollPoints[index] = { box:GetPoint(index) } end
     end
-    local x, y = 3, -6
+    local x, y, right = 3, -6, -25
     for _, point in ipairs(scrollPoints) do
         if point[1] == "TOPLEFT" then x, y = point[4] or x, point[5] or y end
+        if point[1] == "BOTTOMRIGHT" or point[1] == "TOPRIGHT" or point[1] == "RIGHT" then right = point[4] or right end
     end
     if not holder then
         holder = CreateFrame("Frame", nil, categories)
         Buy.holder = holder
     end
     holder:ClearAllPoints()
-    holder:SetPoint("TOPLEFT", categories, "TOPLEFT", x, y)
-    holder:SetPoint("RIGHT", categories, "RIGHT", -25, 0)
+    -- Zeilen wie Blizzards Kategorien: deren Liste rückt die Knöpfe 3 nach rechts (Shared/
+    -- Blizzard_AuctionHouseCategoriesList.lua: view:SetPadding(0, 0, leftPad = 3, 0, 0)) und reicht bis zur rechten Kante
+    -- ihrer ScrollBox (Spielbefund vom 21.11.2026: „zentrieren wie die anderen“ – vorher 3 weiter links, rechts 25 frei)
+    holder:SetPoint("TOPLEFT", categories, "TOPLEFT", x + Buy.LEFT_PAD, y)
+    holder:SetPoint("RIGHT", categories, "RIGHT", right, 0)
     holder:SetHeight(ROW_HEIGHT)
+    -- Abstand und Trennlinie zu Blizzards Kategorien („die eigenen etwas abgrenzen“, 21.11.2026)
+    if not holder.rule then
+        local rule = holder:CreateTexture(nil, "ARTWORK")
+        rule:SetHeight(1)
+        local r, g, b = Core.Style.Color("normal")
+        rule:SetColorTexture(r or 1, g or 0.82, b or 0, 0.4)   -- Blizzards Gold, halb durchsichtig
+        holder.rule = rule
+    end
+    holder.rule:ClearAllPoints()
+    holder.rule:SetPoint("TOPLEFT", holder, "BOTTOMLEFT", 4, -(Buy.SEPARATOR / 2))
+    holder.rule:SetPoint("TOPRIGHT", holder, "BOTTOMRIGHT", -4, -(Buy.SEPARATOR / 2))
     box:ClearAllPoints()
-    box:SetPoint("TOPLEFT", holder, "BOTTOMLEFT", 0, -2)
+    box:SetPoint("TOPLEFT", holder, "BOTTOMLEFT", -Buy.LEFT_PAD, -Buy.SEPARATOR)
     for _, point in ipairs(scrollPoints) do
         if point[1] ~= "TOPLEFT" and point[1] ~= "TOP" and point[1] ~= "TOPRIGHT" then box:SetPoint(unpack(point)) end
     end
@@ -466,10 +769,12 @@ end
 -- Menge, die die gerade gesuchte Einkaufsliste von diesem Gegenstand braucht (Eintrag mit itemID und Menge,
 -- z. B. aus ezCraft „fehlt noch n“); nil ohne Liste oder Menge (Vollprüfung V-161). Dritte Rückgabe: der Eintrag.
 function Buy.Wanted(data)
-    local list = Buy.active
+    -- „alle Listen“: die Sammel-Liste frisch (eine Liste kann sich seit der Suche geändert haben; Befund des Reviews)
+    local list = Buy.active or (Buy.pick == "lists" and Buy.AllLists()) or nil
     local itemID = type(data) == "table" and type(data.itemKey) == "table" and data.itemKey.itemID
     if not (list and itemID) then return nil end
-    for _, entry in ipairs(list.items or {}) do
+    -- hergestellte Gegenstände zählen mit ihrem fehlenden Material (ns.Lists.SearchEntries)
+    for _, entry in ipairs(ns.Lists.SearchEntries(list)) do
         if entry.itemID == itemID and entry.count then return entry.count, list, entry end
     end
     return nil
@@ -924,8 +1229,7 @@ local function ShowKeys(kind, keys, text)
     local api = C_AuctionHouse
     if not (api and api.SearchForItemKeys) then return false, "missing" end
     if ns.Search.running then ns.Search.Cancel(true) end
-    if ns.Editor then ns.Editor.Close() end
-    Buy.active = nil
+    if Buy.pick ~= kind then Buy.Pick(kind) end   -- gesucht wird nur, was gewählt ist (wie Buy.StartList)
     ns.ShowBrowseResults()
     local shown = { kind = kind, keys = keys }
     ns.Search.shown = shown
@@ -941,7 +1245,7 @@ local function ShowKeys(kind, keys, text)
     return true
 end
 
--- Klick auf „Schnäppchen (n)“. Rückgabe: true, oder false und Grund ("closed", "other", "empty", "missing").
+-- „Suchen“ mit gewähltem „Schnäppchen (n)“ (Buy.SearchSelected). Rückgabe: true, oder false und Grund ("closed", "other", "empty", "missing").
 function Buy.ShowBargains()
     if not ns.AuctionHouseShown() then return false, "closed" end
     if ns.ModeName() == "other" then return false, "other" end
@@ -982,7 +1286,7 @@ end
 -- Beobachtet (AH-23, Welle 14): Eintrag „Beobachtet (n)“ – der Spiegel steht in Lists.lua (ns.Watch)
 ---------------------------------------------------------------------------
 
--- Klick: Blizzards eigene Favoritensuche (C_AuctionHouse.SearchForFavorites – dieselbe Abfrage wie Blizzards
+-- „Suchen“ mit gewähltem „Beobachtet“: Blizzards eigene Favoritensuche (C_AuctionHouse.SearchForFavorites – dieselbe Abfrage wie Blizzards
 -- Favoriten-Knopf; dessen StartFavoritesSearch ruft ezAuction nicht, weil es SetSelectedCategory aufruft – Welle 13).
 -- Die Antwort lernt der Spiegel mit (Watch.pending), die Zeilen tragen Zielpreis und „Ziel“. Rückgabe wie oben.
 function Buy.ShowWatched()
@@ -995,8 +1299,7 @@ function Buy.ShowWatched()
         return false, "empty"
     end
     if ns.Search.running then ns.Search.Cancel(true) end
-    if ns.Editor then ns.Editor.Close() end
-    Buy.active = nil
+    if Buy.pick ~= "watch" then Buy.Pick("watch") end
     ns.ShowBrowseResults()
     local shown = { kind = "watch" }
     ns.Search.shown = shown
@@ -1319,6 +1622,11 @@ ns.Listen("AH_HIDE", function()
 end)
 ns.OnSettingChanged(function(key)
     if key == "shoppingLists" or key == "bargainList" or key == "watchList" then
+        -- abgeschaltet, während gewählt: abwählen (sonst suchte Enter die abgeschaltete Ansicht; Befund des Reviews)
+        if (key == "bargainList" and Buy.pick == "bargain" or key == "watchList" and Buy.pick == "watch"
+            or key == "shoppingLists" and (Buy.active or Buy.pick == "lists")) and not ns.Enabled(key) then
+            Buy.Select(nil)
+        end
         Buy.Apply()
         if key == "bargainList" and ns.Enabled("bargainList") then Bargain.FromBrowse(true) end
     end

@@ -480,8 +480,9 @@ local function AddRulesMenu(root, key)
     end
 
     local kinds = menu:CreateButton(L.MENU_RULE_KIND)
-    -- Design-System 2.11 (Mehrfachauswahl): „Alle auswählen“ nimmt jede Art ganz (die Haken „Alle <Art>“), „Alle
-    -- abwählen“ nimmt jeden Haken heraus, auch die der Unterarten. Gemerkt in den Regeln der Gruppe (2.12).
+    -- Design-System 2.11 (Mehrfachauswahl): ein Haken „Alle“ (seit 21.11.2026). Einschalten nimmt jede Art ganz (die
+    -- Haken „Alle <Art>“), Ausschalten nimmt jeden Haken heraus, auch die der Unterarten. Gemerkt in den Regeln der
+    -- Gruppe (2.12).
     local classes = ItemClasses()
     local whole, every = {}, {}
     for _, class in ipairs(classes) do
@@ -498,10 +499,7 @@ local function AddRulesMenu(root, key)
         RulesChanged()
     end
     if #classes >= 3 then
-        ezCore.Menu.AllToggle(kinds, whole, IsClass, SetClass,
-            { off = false, onText = ezCore.Style.AllText(true), after = ClassesChanged })
-        ezCore.Menu.AllToggle(kinds, every, IsClass, SetClass,
-            { on = false, offText = ezCore.Style.AllText(false), after = ClassesChanged })
+        ezCore.Menu.AllToggle(kinds, whole, IsClass, SetClass, { offList = every, after = ClassesChanged })
         kinds:CreateDivider()
     end
     for _, class in ipairs(classes) do
@@ -556,14 +554,14 @@ local function AddRulesMenu(root, key)
             if not next(rules.tags) then rules.tags = nil end
             RulesChanged()
         end
-        -- Design-System 2.11: „Alle auswählen / Alle abwählen“ über alle Schlagwörter (alle Familien).
+        -- Design-System 2.11: ein Haken „Alle“ über alle Schlagwörter (alle Familien).
         if #known >= 3 then
             local keys = {}
             for i, tag in ipairs(known) do keys[i] = tag.key end
             ezCore.Menu.AllToggle(tagsMenu, keys, IsTag, function(tag, on)
                 rules.tags = rules.tags or {}
                 rules.tags[tag] = on or nil
-            end, { onText = ezCore.Style.AllText(true), offText = ezCore.Style.AllText(false), after = function()
+            end, { after = function()
                 if rules.tags and not next(rules.tags) then rules.tags = nil end
                 RulesChanged()
             end })

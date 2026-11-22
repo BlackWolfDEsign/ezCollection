@@ -601,7 +601,9 @@ end
 -- copy = true: eigene Tabellen statt derselben wie im Plan. → rec oder nil
 function Plan.Record(plan, copy)
     if type(plan) ~= "table" then return nil end
-    local rec = { kind = plan.kind, key = plan.key, name = plan.name }
+    -- fresh: ein neuer Plan, nie geändert (etwa „Bestes mit n Punkten“) – gilt nach /reload nicht als geändert
+    local rec = { kind = plan.kind, key = plan.key, name = plan.name, from = plan.from,
+        fresh = (plan.kind == "new" and not plan.edited) or nil }
     if plan.edited or plan.kind == "new" then
         local tpl = plan.tpl
         rec.edited, rec.primary, rec.orderFrom, rec.orderEdited = true, tpl.primary, tpl.orderFrom, tpl.orderEdited
@@ -639,12 +641,11 @@ function Plan.FromRecord(rec, ctx)
     if rec.kind == "own" then
         plan = Plan.FromTemplate(ctx.scope, rec.key)
     elseif rec.kind == "preset" then
-        for _, preset in ipairs(ctx.kind == "class" and Templates.Presets() or {}) do
-            if preset.key == rec.key then plan = Plan.FromPreset(preset, ctx) end
-        end
+        local preset = ctx.kind == "class" and Templates.PresetByKey(rec.key) or nil
+        if preset then plan = Plan.FromPreset(preset, ctx) end
     elseif rec.kind == "new" and rec.edited then
         plan = { kind = "new", name = type(rec.name) == "string" and rec.name or L.PLAN_NEW_NAME, scope = ctx.scope,
-            tpl = { nodes = {}, choices = {}, tree = ctx.treeID } }
+            from = type(rec.from) == "string" and rec.from or nil, tpl = { nodes = {}, choices = {}, tree = ctx.treeID } }
     end
     if not plan then return nil end
     if rec.edited then
@@ -652,6 +653,7 @@ function Plan.FromRecord(rec, ctx)
             orderFrom = rec.orderFrom, orderEdited = rec.orderEdited })
         plan.tpl.nodes, plan.tpl.choices, plan.edited = clean.nodes, clean.choices, true
         plan.tpl.order, plan.tpl.orderFrom, plan.tpl.orderEdited = clean.order, clean.orderFrom, clean.orderEdited
+        if rec.fresh and plan.kind == "new" then plan.edited = nil end
     end
     return plan
 end

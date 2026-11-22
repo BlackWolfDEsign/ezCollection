@@ -643,7 +643,9 @@ function Painter:Path(seq, opts)
     end
     for k = 2, #groups do
         local a, b = groups[k - 1], groups[k]
-        if not a.gap and not b.gap then list[#list + 1] = { a.x, a.y, b } end
+        -- zwei Schritte neben der Karte: keine Linie quer über die Karte (Spielbefund vom 21.11.2026 – eine Linie ohne
+        -- Punkte lief durch Elwynn); vom letzten Schritt auf der Karte führt die Linie bis zum Rand in Richtung des nächsten
+        if not a.gap and not b.gap and not (a.off and b.off) then list[#list + 1] = { a.x, a.y, b } end
     end
     -- Abschnitte zu Schritten neben der Karte (off) enden am Kartenrand: EINE durchgehende Linie statt zweier Stücke
     -- (Spielbefund vom 19.11.2026, Bilder 35–37 und 42: „es sieht wie 2 leveling routen aus“; vorher fiel ein Schritt

@@ -251,7 +251,8 @@ function Rotation.ComputedLines(rotation)
     if values then lines[#lines + 1] = L.ROTATION_COMPUTED_VALUES:format(values) end
     if not Rotation.AutoEligible(rotation) then
         -- Heiler-Grund und „vorläufig“ schließen sich nicht aus: eine vorläufige Heiler-Rotation zeigt beide, „Vorläufig –
-        -- Grundwerte geschätzt“ zuletzt (Tooltip, Seite und Spickzettel)
+        -- Grundwerte geschätzt“ zuletzt (Tooltip, Seite und Spickzettel). Die drei Hinweise stehen unverändert als L-Text
+        -- in der Liste: der Spickzettel (RotationBook, Book.EasyLines) erkennt sie daran und lässt sie sichtbar.
         if c.healer then lines[#lines + 1] = L.ROTATION_COMPUTED_HEALER end
         if c.provisional then
             lines[#lines + 1] = L.ROTATION_COMPUTED_PROVISIONAL

@@ -13,8 +13,7 @@ local Core = ezCore
     Material    Data.Materials(recipe, menge) → Zeilen mit Bedarf, Bestand, fehlt; dazu herstellbar.
     Skill       Data.SkillStages(recipe) → { orange, yellow, green, gray, current, approx, source, computed, conflict,
                 sourceText } – zuerst laut Client-Tabellen (ezCores Knowledge.RecipeStages, Welle 26), sonst beobachtet;
-                Data.StageSource(stages, farbe), Data.StageConflicts(stages), Data.StageAt(stages, fertigkeit)
-                Data.SkillStagesOther() → Name von SkillUp Forever o. Ä., wenn es die Skill-Farben übernimmt
+                Data.StageAt(stages, fertigkeit)
     Twinks      Data.Crafters(recipe) → { charKey, … } oder nil (das Item-Wissen kennt es noch nicht)
     Kosten      Data.Price(itemID), Data.Cost(zeilen), Data.ProductValue(recipe, menge) aus ezCore.Prices;
                 Data.Profit(recipe, menge, kosten) → Ergebnis und Gewinn nach Auktionsgebühr (Prices.Net, AH-32);
@@ -26,7 +25,7 @@ local Core = ezCore
     Fehlend     Data.MissingRecipes() → nicht erlernte Rezepte des offenen Berufs mit Quelle
     Gegenstand  Data.RecipeForItem(itemID) → Rezept, das ihn herstellt; Data.RecipesUsing(itemID) → wofür er Zutat ist
                 (Rezept-Wissen von ezCore: jedes Rezept, das ein Twink im Berufefenster einmal gesehen hat)
-    Abklingzeit Data.CooldownsByChar(), Data.RecipeCooldowns(recipeID) aus ezCore.Professions (alle Twinks);
+    Abklingzeit Data.CooldownsByChar() aus ezCore.Professions (alle Twinks);
                 Data.ReadyCooldowns() → fertige, Data.ReadyCooldownsMerged() → dieselben, geteilte Abklingzeiten
                 (Transmutationen) je Twink zusammengefasst (ezCores Gruppe); Data.ReadyCooldownLine(e) → „Rezept bei
                 Twink“; Data.CooldownLabel(e) → Name, bei mehreren Zaubern einer Gruppe der Name der Gruppe
@@ -224,16 +223,6 @@ function Data.Materials(recipe, quantity, S)
     end
     if #rows == 0 then bagsOnly, all = 0, 0 end
     return rows, { bags = bagsOnly, all = all }
-end
-
--- Was für die Menge in der eigenen Tasche fehlt: { [itemID] = Anzahl } (zum Anfordern bei Twinks).
-function Data.MissingInBags(rows)
-    local needs = {}
-    for _, row in ipairs(rows) do
-        local lack = row.need - row.stock.bags
-        if lack > 0 then needs[row.itemID] = lack end
-    end
-    return needs
 end
 
 ---------------------------------------------------------------------------
@@ -468,58 +457,6 @@ function Data.StageAt(stages, rank, learnFrom)
     return nil
 end
 
--- Quelle einer Stufe als kurzer Text (Leitlinie 11): „laut Client“, „bei dir beobachtet“, „laut Berufefenster“;
--- gerechnetes Grün „gerechnet“. nil ohne Wert.
-function Data.StageSource(stages, stage)
-    if type(stages) ~= "table" or not stages[stage] then return nil end
-    if stages.computed and stages.computed[stage] then return L.STAGE_SRC_COMPUTED end
-    local src = stages.source and stages.source[stage]
-    if src == "client" then return L.STAGE_SRC_CLIENT end
-    if src == "live" then return L.STAGE_SRC_LIVE end
-    return L.STAGE_SRC_SEEN
-end
-
--- Hinweise zu Abweichungen (Beobachtung bzw. Berufefenster gegen die Client-Tabelle) – nichts wird still
--- überschrieben: Die Tabelle gilt, die Beobachtung bleibt Gegenprobe; beim Grau gilt das offene Fenster.
--- → { Satz … } in der Reihenfolge der Farben
-function Data.StageConflicts(stages)
-    local out = {}
-    local conflict = type(stages) == "table" and stages.conflict
-    if type(conflict) ~= "table" then return out end
-    for _, stage in ipairs(Data.STAGES) do
-        local c = conflict[stage]
-        if type(c) == "table" and c.client then
-            local name = L["STAGE_" .. stage]
-            if c.live then out[#out + 1] = L.STAGE_CONFLICT_LIVE:format(name, c.live, c.client) end
-            if c.seen then out[#out + 1] = L.STAGE_CONFLICT_SEEN:format(name, c.seen, c.client) end
-        end
-    end
-    return out
-end
-
--- Eine Stufe als Text: „30“, beobachtet „~30“, unbekannt „?“.
-function Data.StageValue(stages, stage)
-    local value = stages[stage]
-    if not value then return "?" end
-    return (stages.approx and stages.approx[stage] and "~" or "") .. tostring(value)
-end
-
--- „1 · 30 · 45 · 60“ in den vier Farben; unbekannte Stufen als „?“.
-function Data.StagesText(stages)
-    local parts = {}
-    for _, stage in ipairs(Data.STAGES) do
-        parts[#parts + 1] = Data.StageColorCode(stage) .. Data.StageValue(stages, stage) .. "|r"
-    end
-    return table.concat(parts, "  ")
-end
-
--- Rücksicht (Leitlinie 9): Name des Addons, das die Skill-Farben schon zeigt (SkillUp Forever, ForeverArtisan),
--- erkannt in ezCore (ns.OtherFor des Gerüsts, also Core.WhoHandles; Liste in docs/fremd-addons.md); sonst nil.
-function Data.SkillStagesOther()
-    local label = ns.OtherFor("skillStages")
-    return type(label) == "string" and label or nil
-end
-
 -- Rücksicht (Leitlinie 9, W-58/CRAFT-02): Name des Addons, das Materialkosten, Ergebnis und Gewinn am Rezept schon
 -- zeigt (Auctionator; ezCore prüft nur „läuft es?“, nie dessen Einstellungen). nil, wenn keins läuft oder der
 -- Schalter „costsBeside“ (auch daneben zeigen) an ist; mit any = true unabhängig vom Schalter.
@@ -528,13 +465,6 @@ function Data.CraftCostOther(any)
     if type(label) ~= "string" then return nil end
     if not any and ns.Enabled("costsBeside") then return nil end
     return label
-end
-
-function Data.HasStageData(stages)
-    for _, stage in ipairs(Data.STAGES) do
-        if stages[stage] then return true end
-    end
-    return false
 end
 
 ---------------------------------------------------------------------------
@@ -561,10 +491,6 @@ function Data.Crafters(recipe)
         end
     end
     return out
-end
-
-function Data.CraftersKnown()
-    return KnowledgeFn("Crafters") ~= nil
 end
 
 -- Name eines Twinks in Klassenfarbe, der aktuelle Charakter als „du“.
@@ -968,17 +894,6 @@ function Data.CooldownsByChar()
         return a.list[1].readyAt < b.list[1].readyAt
     end)
     return groups
-end
-
--- Abklingzeiten eines Rezepts bei allen Twinks (ezCore merkt Rezept-Abklingzeiten unter der Rezept-ID);
--- withReady: auch fertige.
-function Data.RecipeCooldowns(recipeID, withReady)
-    local out = {}
-    if not recipeID then return out end
-    for _, e in ipairs(Data.Cooldowns(withReady)) do
-        if e.id == recipeID then out[#out + 1] = e end
-    end
-    return out
 end
 
 -- Name und Symbol eines Eintrags: Zauber/Rezept (Zahl) oder Gegenstand („i<itemID>“).
@@ -1431,7 +1346,10 @@ function Data.WatchRecipes()
             out[#out + 1] = id
         end
     end
-    for _, entry in ipairs(ns.Shopping and ns.Shopping.Entries() or EMPTY) do add(entry.id) end
+    -- Rezepte aller Listen (ezCores Core.Lists, seit dem 21.11.2026)
+    for _, list in ipairs(ns.db and Core.Lists and Core.Lists.All() or EMPTY) do
+        for _, entry in ipairs(list.items or EMPTY) do add(entry.recipe) end
+    end
     local db = WatchDB()
     if db then
         local favorites = {}

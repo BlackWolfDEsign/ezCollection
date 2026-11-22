@@ -47,7 +47,6 @@ local block = ns.RegisterBlock({
         inventory = false,
         -- autoRepair, guild, report: seit der Einstellungs-Prüfung vom 19.11.2026 ezCores gemeinsamer Schaltersatz
         -- (RepairOn/RepairGuild/RepairReport unten); alte Werte in den Profilen liest nur noch ns.RepairSettings
-        alts = true,           -- Haltbarkeit der anderen Charaktere im Tooltip
     },
     hints = function() return { L.REPAIR_HINT_LEFT, ezCore.ClickText("left", "SHIFT", L.REPAIR_HINT_SHIFT) } end,   -- T18-9
 })
@@ -431,7 +430,7 @@ function block:OnTooltip(tooltip)
             ns.TipDoubleLine(tooltip, L.REPAIR_GUILD_LIMIT, limit == -1 and L.UNLIMITED or ns.Money(limit), "normal", "highlight")
         end
     end
-    if cfg.alts then
+    if ns.TipAlts() then
         local first = true
         for _, entry in ipairs(ns.Characters(function(_, key) return key ~= ns.charKey end)) do
             local d = Durability.Of(entry.key)
@@ -556,7 +555,7 @@ function block:OnMenu(root)
     bar:CreateDivider()
     ns.MenuCheck(bar, L.REPAIR_SHOW_COST, cfg, "cost", self)
     ns.MenuCheck(root, L.REPAIR_INVENTORY, cfg, "inventory", self, function() ScheduleScan(0.1) end)
-    ns.MenuCheck(root, L.TIP_SHOW_ALTS, cfg, "alts", self)
+    ns.MenuTipAlts(root, self)
 
     local auto = root:CreateButton(L.REPAIR_AUTO)
     -- ein Schaltersatz für ezMerchant und ezPanel (ezCore, Gruppe vendor): mit ezMerchant repariert dieses, die Häkchen

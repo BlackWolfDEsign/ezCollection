@@ -208,6 +208,9 @@ local function UpdateBookButton()
     SendMailNameEditBox:SetTextInsets(0, on and 16 or 0, 0, 0)
 end
 
+-- Knopf „Adressbuch“ am Empfängerfeld (für den Rundgang, Tour.lua) → Knopf oder nil
+function Send.BookButton() return bookButton end
+
 -- Kleiner Pfeil im rechten Ende des Empfängerfelds, wie bei einem Auswahlfeld.
 local function CreateBookButton()
     local box = SendMailNameEditBox
@@ -353,6 +356,11 @@ function Send.AttachEntries(entries)
         end
     end)
 end
+
+-- Für andere Module über ezCore.API("ezMail"): ezBags Rechtsklick auf zusammengefasste Stapel (ezBag/Stacks.lua)
+-- hängt hierüber an – mit denselben Meldungen und demselben Nachsenden wie der Alt-Klick.
+ns.API = ns.API or {}
+ns.API.AttachEntries = Send.AttachEntries
 
 -- Alt-Klick: alle Stapel desselben Gegenstands (gleich gebunden), der geklickte zuerst.
 local function SameItems(bag, slot)

@@ -2,6 +2,8 @@ local _, ns = ...
 
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Info-Leiste oben im Stil von WoW Forever\nBausteine: Ort, Gold, Erfahrung, Taschen\nTooltip und Rechtsklick-Menü je Baustein\nProfile je Charakter oder Spezialisierung\nPlatz oben für die Leiste auf Wunsch",
     -- Allgemein
     ONLINE = "online", YOU = "(du)", TOTAL = "Gesamt", 
     UNLIMITED = "unbegrenzt", LEVEL = "Stufe", SESSION = "Sitzung", PER_HOUR = "Pro Stunde",
@@ -348,6 +350,8 @@ local de = {
     OPT_reserveTop_TIP = "An: Blizzards Fenster am oberen Rand – Minikarte, Buffs, Spieler- und Zielfenster oben, Zonen-Anzeige – rücken um die Höhe der Leiste nach unten (folgt Schriftgröße und Skalierung). Fenster, die du im Bearbeitungsmodus selbst verschoben hast, bleiben, wo sie sind. Aus oder mit „automatisch ausblenden“: sofort Blizzards Lage. Wird nur außerhalb des Kampfes umgestellt. Ab Werk aus; „Allem zustimmen“ in der Einführung schaltet es ein.",
     OPT_locked = "Bausteine sperren", OPT_locked_TIP = "Verhindert versehentliches Verschieben per Ziehen.",
     OPT_tooltipsInCombat = "Tooltips im Kampf zeigen", OPT_tooltipsInCombat_TIP = "Aus: Während eines Kampfes zeigen die Bausteine keine Tooltips.",
+    OPT_tipAlts = "Andere Charaktere im Tooltip",
+    OPT_tipAlts_TIP = "Die Tooltips von Taschen, Währungen, Gegenstandsstufe, Berufe und Reparatur nennen auch deine anderen Charaktere. Ein Schalter für alle fünf; derselbe steht im Rechtsklick-Menü dieser Bausteine.",
     OPT_skin = "Hintergrund", OPT_skin_TIP = "Aussehen der Leiste im Originalstil von WoW Forever: wie die Titelleiste der Fenster (Optionen, Kombinierter Rucksack) oder wie die Tooltips.",
     OPT_alpha = "Deckkraft", OPT_alpha_TIP = "Wie stark der Hintergrund der Leiste deckt.",
     OPT_fontSize = "Schriftgröße", OPT_fontSize_TIP = "Größe der Schrift. Höhe der Leiste, Symbole und Abstände wachsen mit.",
@@ -384,7 +388,7 @@ local de = {
     CMD_HELP_OWN = {
         "  %s leiste – Leiste an/aus",
         "  %s auto – automatisch ausblenden an/aus",
-        "  %s kampf | oben | platz | sperren – im Kampf ausblenden / Platz oben / Spielwelt verkleinern / sperren",
+        "  %s kampf | oben | platz | sperren | tooltiptwinks – im Kampf ausblenden / Platz oben / Spielwelt verkleinern / sperren / andere Charaktere im Tooltip",
         "  %s <baustein> – Baustein an/aus (%s bausteine zeigt alle)",
         "  %s standard – Einstellungen zurücksetzen (mit Rückfrage), %s zuruecksetzen – Anordnung zurücksetzen",
         "  %s titan – Einstellungen aus Titan Panel übernehmen",
@@ -503,7 +507,7 @@ local de = {
     LOC_MAP_COORDS_BY = "zeigt %s", LOC_MAP_COORDS_EZMAP_OFF = "ezMap – ausgeschaltet",
 
     -- Erfahrung: Weg zum nächsten Lehrer über ezMap (MAP-21)
-    XP_TRAINER_WAY = "Zum nächsten Lehrer", XP_TRAINER_NEAREST = "Nächster gemerkter Lehrer (laut ezMap)",
+    XP_TRAINER_WAY = "Zum nächsten Lehrer", XP_TRAINER_NEAREST = "Nächster Lehrer (laut ezMap: besucht oder laut Questie)",
     XP_TRAINER_WAY_SET = "Markierung gesetzt: %s, %s. Blizzards Karte zeigt den Weg.",
     XP_TRAINER_WAY_NONE = "Noch kein Lehrer deiner Klasse auf diesem Kontinent gemerkt. ezCore merkt sich jeden Lehrer, dessen Fenster du öffnest.",
     XP_TRAINER_WAY_FAILED = "Markierung nicht gesetzt: %s",
@@ -518,6 +522,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Info bar at the top in WoW Forever's style\nBlocks: location, gold, experience, bags\nTooltip and right-click menu per block\nProfiles per character or specialization\nSpace at the top for the bar if you want",
     ONLINE = "online", YOU = "(you)", TOTAL = "Total", 
     UNLIMITED = "unlimited", LEVEL = "Level", SESSION = "Session", PER_HOUR = "Per hour",
     PLAYED_TOTAL = "Time played", HEARTH = "Hearthstone", OTHER_CHARS = "Other characters",
@@ -834,6 +839,8 @@ local en = {
     OPT_reserveTop_TIP = "On: Blizzard frames at the top edge – minimap, buffs, player and target frame at the top, zone display – move down by the height of the bar (follows font size and scale). Frames you moved yourself in Edit Mode stay where they are. Off or with auto-hide: Blizzard's position right away. Only changed out of combat. Off by default; \"Agree to all\" in the introduction turns it on.",
     OPT_locked = "Lock blocks", OPT_locked_TIP = "Prevents moving blocks by accident.",
     OPT_tooltipsInCombat = "Show tooltips in combat", OPT_tooltipsInCombat_TIP = "Off: no block tooltips in combat.",
+    OPT_tipAlts = "Other characters in tooltip",
+    OPT_tipAlts_TIP = "The tooltips of Bags, Currencies, Item level, Professions and Repair also list your other characters. One switch for all five; the same switch is in the right-click menu of these blocks.",
     OPT_skin = "Background", OPT_skin_TIP = "Look of the bar in the original WoW Forever style: like the title bar of windows (Options, Combined Backpack) or like tooltips.",
     OPT_alpha = "Opacity", OPT_alpha_TIP = "How opaque the bar background is.",
     OPT_fontSize = "Font size", OPT_fontSize_TIP = "Text size. Bar height, icons and gaps grow with it.",
@@ -862,7 +869,7 @@ local en = {
     CMD_HELP_OWN = {
         "  %s bar – bar on/off",
         "  %s autohide – auto-hide on/off",
-        "  %s hideincombat | top | viewport | lock – hide in combat / space at the top / shrink world / lock",
+        "  %s hideincombat | top | viewport | lock | tooltipalts – hide in combat / space at the top / shrink world / lock / other characters in tooltip",
         "  %s <block> – toggle a block (%s blocks lists them)",
         "  %s defaults – reset settings (asks first), %s reset – reset layout",
         "  %s titan – import settings from Titan Panel",
@@ -970,7 +977,7 @@ local en = {
     LOC_MAP_COORDS_EZMAP = "Coordinates on the world map (shown by ezMap)",
     LOC_MAP_COORDS_BY = "shown by %s", LOC_MAP_COORDS_EZMAP_OFF = "ezMap – switched off",
 
-    XP_TRAINER_WAY = "To the nearest trainer", XP_TRAINER_NEAREST = "Nearest remembered trainer (according to ezMap)",
+    XP_TRAINER_WAY = "To the nearest trainer", XP_TRAINER_NEAREST = "Nearest trainer (according to ezMap: visited or according to Questie)",
     XP_TRAINER_WAY_SET = "Waypoint set: %s, %s. Blizzard's map shows the way.",
     XP_TRAINER_WAY_NONE = "No trainer of your class remembered on this continent yet. ezCore remembers every trainer whose window you open.",
     XP_TRAINER_WAY_FAILED = "Waypoint not set: %s",

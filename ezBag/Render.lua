@@ -17,8 +17,8 @@ local L = ns.L
     - Zugeklappte und leere Gruppen werden zu Schildern, genau so breit wie ihr
       Text. Sie stehen im freien Rest der letzten Reihe oder darunter.
     - Auf Wunsch fasst jede Gruppe gleiche Gegenstände zu einem Platz zusammen
-      (BetterBags „Compact“): der erste Platz zeigt die Gesamtzahl, die übrigen
-      werden versteckt wie in zugeklappten Gruppen (g.hidden).
+      (BetterBags „Compact“): der Platz des größten Stapels zeigt die Gesamtzahl,
+      die übrigen werden versteckt wie in zugeklappten Gruppen (g.hidden).
     - Kein eigener Hintergrund: Es bleibt der originale von Tasche bzw. Bank.
 ]]
 
@@ -326,23 +326,37 @@ local function Expand(groups)
 end
 
 -- Gleiche Gegenstände (gleicher Link) einer Gruppe zu einem Platz zusammenfassen:
--- der erste behält seinen Platz und bekommt stackTotal, die übrigen wandern nach g.hidden.
+-- der größte Stapel behält seinen Platz und bekommt stackTotal, die übrigen wandern nach g.hidden. Der größte, weil
+-- unter dem Platz Blizzards Knopf dieses Stapels liegt: Blizzards Anzahl-Fenster (Umschalt+Klick) reicht nur bis zu
+-- dessen Größe (Spielbefund vom 21.11.2026: „ich habe 24 wollstoff mit shift und reechtsklick kann ich davon nur 4
+-- nehmen anstatt max 20“; vorher der erste in Taschenreihenfolge). Bei gleicher Größe bleibt der erste.
 -- entry.compactKey (falls gesetzt) ersetzt den Link als Schlüssel – das ezBag-Fenster fasst mit „Fundort zeigen“
 -- nur Stapel am selben Ort zusammen (Gegenprüfung W-1811-ezBag), damit Symbol und Zeilen „Liegt:“ stimmen.
 function Render.Compact(g)
-    local seen, keep, hidden = {}, {}, {}
+    local seen, keep, hidden, at = {}, {}, {}, {}
     for _, entry in ipairs(g.entries) do
         local key = entry.itemID and (entry.compactKey or entry.link or entry.itemID)
         local rep = key and seen[key]
         if rep then
-            rep.stackTotal = (rep.stackTotal or rep.count or 1) + (entry.count or 1)
-            rep.merged = rep.merged or {}
-            rep.merged[#rep.merged + 1] = entry
-            hidden[#hidden + 1] = entry
+            local total = (rep.stackTotal or rep.count or 1) + (entry.count or 1)
+            local merged = rep.merged or {}
+            if (entry.count or 1) > (rep.count or 1) then
+                -- der größere Stapel übernimmt den Platz, der bisherige wird einer der zusammengefassten
+                rep.stackTotal, rep.merged = nil, nil
+                merged[#merged + 1] = rep
+                hidden[#hidden + 1] = rep
+                entry.stackTotal, entry.merged = total, merged
+                keep[at[key]] = entry
+                seen[key] = entry
+            else
+                merged[#merged + 1] = entry
+                rep.stackTotal, rep.merged = total, merged
+                hidden[#hidden + 1] = entry
+            end
         else
-            if key then seen[key] = entry end
             entry.stackTotal, entry.merged = nil, nil
             keep[#keep + 1] = entry
+            if key then seen[key], at[key] = entry, #keep end
         end
     end
     g.entries, g.hidden = keep, hidden
@@ -380,6 +394,11 @@ function Render.Flow(groups, geom, opts)
         g.count = #g.entries
         g.collapsed = not opts.searching and ns.Groups.IsCollapsed(opts.viewKey, g.groupKey)
         g.compressed = g.key == "empty" and ns.S.compressEmpty and g.count > 1
+        -- Zusammengefasstes „Frei“ zeigt den LETZTEN leeren Platz: Blizzard legt Eingelagertes, Herausgenommenes und
+        -- Abgeteiltes in den ersten freien Platz. Zeigte die Kachel ihn, stünde dort bis zum nächsten Neuordnen (nicht,
+        -- solange die Maus über dem Fenster steht) ein Gegenstand mit der Frei-Zahl (Spielbefund vom 21.11.2026:
+        -- „beim ein und auslagern kommt es kurz zum anzeigefehler, der nach 3-5s erledigt ist“).
+        if g.compressed then table.insert(g.entries, 1, table.remove(g.entries)) end
         g.visible = g.collapsed and 0 or (g.compressed and 1 or g.count)
         if g.visible == 0 then
             out.chips[#out.chips + 1] = g
@@ -631,12 +650,13 @@ end
 Render.CHECK_INTERVAL = 0.2    -- wie oft eine aufgeschobene Neuordnung geprüft wird
 
 -- Darf jetzt neu geordnet werden? Nicht, solange eine Gruppe gezogen wird, etwas am Mauszeiger hängt, Blizzards
--- Stapel-Teiler offen ist oder die Maus über dem Fenster steht (sonst springt beim Benutzen etwas weg).
--- busy: weiterer Grund der Ansicht (Breite wird gezogen, Umlagern läuft).
-function Render.CanRelayout(frame, busy)
+-- Stapel-Teiler offen ist oder die Maus über dem Fenster steht (sonst springt beim Benutzen etwas weg) – außer in der
+-- zusammengefassten „Frei“-Kachel liegt inzwischen etwas (view:FreeTileTaken()).
+-- busy: weiterer Grund der Ansicht (Breite wird gezogen, Umlagern läuft). view: die Ansicht (optional).
+function Render.CanRelayout(frame, busy, view)
     if Render.IsBusy() or busy or CursorHasItem() then return false end
     if StackSplitFrame and StackSplitFrame:IsShown() then return false end
-    if frame and frame:IsMouseOver(10, -10, -10, 10) then return false end
+    if frame and frame:IsMouseOver(10, -10, -10, 10) and not (view and view:FreeTileTaken()) then return false end
     return true
 end
 
@@ -968,6 +988,7 @@ function View:HideAll()
     wipe(self.targets)
     wipe(self.entries)
     wipe(self.byButton)
+    self.out = nil   -- nichts mehr gezeigt: auch keine „Frei“-Kachel mehr (View:FreeTileTaken)
 end
 
 --[[
@@ -975,6 +996,23 @@ end
     Ecke des Layouts; PlaceItem(entry, shown, left, top, group) kümmert sich um
     den Platz-Knopf eines Eintrags.
 ]]
+-- Liegt im gezeigten Platz der zusammengefassten „Frei“-Kachel inzwischen ein Gegenstand? Dann hat der Spieler dort
+-- etwas abgelegt, und die Kachel zeigt bis zum Neuordnen einen Gegenstand unter „Frei“ (Spielbefund vom 22.11.2026 mit
+-- Bildschirmfoto, wörtlich: „aus 24 wuden 24+16 … jetzt zeigt es wieder 24 an“) – dann ordnet ezBag gleich neu, auch
+-- unter der Maus (Render.CanRelayout).
+function View:FreeTileTaken()
+    local out = self.out
+    if not out then return false end
+    for _, g in ipairs(out.groups or {}) do
+        local e = g.compressed and g.entries and g.entries[1]
+        -- dieselbe Regel wie beim Einsortieren (Categories.lua): belegt ist ein Platz mit einer Gegenstands-ID
+        if e and type(e.bag) == "number" and e.slot and ns.ItemIDOf(C_Container.GetContainerItemInfo(e.bag, e.slot)) then
+            return true
+        end
+    end
+    return false
+end
+
 function View:Draw(out, Place, PlaceItem)
     self.out = out
     wipe(self.targets)
@@ -1121,6 +1159,11 @@ function View:SetHover(hovered)
 end
 
 local hoverHooked = setmetatable({}, { __mode = "k" })
+
+-- Ansicht, zu der ein Platz-Knopf gerade gehört (Tasche, Bank, Gildenbank) – für Tooltip-Zeilen (Stacks.lua).
+function Render.ViewOf(button)
+    return hoverHooked[button]
+end
 
 -- Platz-Knopf für "verwandte Gegenstände hervorheben" vorbereiten.
 function Render.HookHover(button, view)

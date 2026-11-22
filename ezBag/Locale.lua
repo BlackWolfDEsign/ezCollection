@@ -2,6 +2,8 @@ local _, ns = ...
 
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Tasche und Bank in Gruppen, eigene Regeln\nMarken für Itemlevel, Plunder und besser\nSuche, Sortieren, Profile, Umlagern\nTaschen, Bank und Post aller Charaktere\nAuf Wunsch gleiche Stapel zusammenfassen",
     CAT_new = "Neu",
     CAT_books = "Bücher",
     CAT_quest = "Quest",
@@ -405,7 +407,7 @@ local de = {
 
     -- 1.5: Gleiche zusammenfassen
     OPT_compactStacks = "Gleiche Gegenstände zusammenfassen",
-    OPT_compactStacks_TIP = "Mehrere Stapel desselben Gegenstands stehen auf einem Platz mit der Gesamtzahl (wie BetterBags „Compact“). Klick, Rechtsklick und Ziehen gelten für den ersten Stapel; danach rückt der nächste nach. Auch im Sortierknopf der Werkzeugleiste.",
+    OPT_compactStacks_TIP = "Mehrere Stapel desselben Gegenstands stehen auf einem Platz mit der Gesamtzahl (wie BetterBags „Compact“). Der Platz zeigt den größten Stapel (bei gleicher Größe den ersten): Klick, Anzahl wählen und Ziehen gelten für ihn, danach rückt der nächstgrößte nach; ein Rechtsklick gibt an Post, Handel, Bank und beim Händler alle Stapel weiter. Auch im Sortierknopf der Werkzeugleiste.",
 
     -- 1.5: Mehrfachauswahl
     SELECT_BUTTON = "Auswählen",
@@ -431,10 +433,45 @@ local de = {
     SELECT_SELLING = "Verkaufe %s …",
     SELECT_MAIL_FULL = "Der Brief ist voll – %d Stapel blieben in der Tasche.",
     SELECT_MAIL_FULL_ONE = "Der Brief ist voll – %d Stapel blieb in der Tasche.",
+    -- Zusammengefasste Stapel per Rechtsklick (Stacks.lua; %s = „2 Stapel“, %d = Stückzahl)
+    STACKS_WHAT = "Stapel weitergeben",
+    STACKS_TIP_mail = "Rechtsklick: alle %s in den Brief (%d Stück)",
+    STACKS_TIP_trade = "Rechtsklick: alle %s in den Handel (%d Stück)",
+    STACKS_TIP_bank = "Rechtsklick: alle %s in die Bank (%d Stück)",
+    STACKS_TIP_bag = "Rechtsklick: alle %s in die Tasche (%d Stück)",
+    STACKS_TIP_merchant = "Rechtsklick: alle %s verkaufen (%d Stück)",
+    -- STACKS_SPLIT_*: Wirkung von Umschalt+ bzw. Strg+Rechtsklick (%d Gesamtzahl), die Taste setzt Core.ClickText davor
+    STACKS_SPLIT_merchant = "Anzahl (bis %d) wählen, „Okay“ verkauft sie",
+    STACKS_SPLIT_mail = "Anzahl (bis %d) wählen, „Okay“ legt sie in den Brief",
+    STACKS_SPLIT_trade = "Anzahl (bis %d) wählen, „Okay“ legt sie in den Handel",
+    STACKS_SPLIT_bank = "Anzahl (bis %d) wählen, „Okay“ legt sie in die Bank",
+    STACKS_SPLIT_bag = "Anzahl (bis %d) wählen, „Okay“ legt sie in die Tasche",
+    STACKS_SPLIT_none = "Anzahl (bis %d) wählen, „Okay“ legt sie an den Mauszeiger",
+    STACKS_SPLIT_NO_SPACE = "Für eine Teilmenge braucht es einen freien Taschenplatz – die Anzahl bleibt, wo sie war.",
+    STACKS_SPLIT_MAIL_FULL = "Der Brief ist voll – die Anzahl bleibt, wo sie war.",
+    STACKS_SPLIT_TRADE_FULL = "Der Handel ist voll – die Anzahl bleibt, wo sie war.",
+    STACKS_BUILD_FAILED = "Zusammenlegen hat nicht geklappt – nichts weitergegeben. Die Stapel liegen noch da, vielleicht anders verteilt.",
+    STACKS_BUILD_BUSY = "ezBag legt gerade Stapel zusammen – bitte einen Moment warten.",
+    STACKS_HAND_LEFT = "Die Anzahl liegt zusammengelegt in der Tasche (am Mauszeiger hing schon etwas).",
+    STACKS_BUILD_NO_SPACE = "Zum Zusammenlegen fehlt ein freier Taschenplatz – nichts weitergegeben. Die Stapel liegen noch da, vielleicht anders verteilt.",
+    -- STACKS_ASK_*: %s Gegenstand, %d Gesamtzahl
+    STACKS_ASK_merchant = "Wie viele %s verkaufen? (1 bis %d)",
+    STACKS_ASK_mail = "Wie viele %s in den Brief legen? (1 bis %d)",
+    STACKS_ASK_trade = "Wie viele %s in den Handel legen? (1 bis %d)",
+    STACKS_ASK_bank = "Wie viele %s in die Bank legen? (1 bis %d)",
+    STACKS_ASK_bag = "Wie viele %s in die Tasche legen? (1 bis %d)",
+    STACKS_ASK_none = "Wie viele %s an den Mauszeiger nehmen? (1 bis %d)",
+    STACKS_ASK_INVALID = "Bitte eine ganze Zahl von 1 bis %d eingeben – nichts weitergegeben.",
+    STACKS_ASK_GONE = "Fenster oder Stapel haben sich inzwischen geändert – nichts weitergegeben.",
+    STACKS_ASK_LESS = "Es sind nur noch %d da – die gibt ezBag weiter.",
+    STACKS_TRADE_FULL = "Der Handel ist voll – %d Stapel blieben in der Tasche.",
+    STACKS_TRADE_FULL_ONE = "Der Handel ist voll – %d Stapel blieb in der Tasche.",
+    STACKS_MAIL_BUSY = "Es wird gerade angehängt oder nachgesandt – die übrigen Stapel bleiben in der Tasche.",
     HINT_CLASSIC_BANK = "Tipp: ClassicUI Forever kleidet die Bank in seinen Stil. Die Gruppierung läuft trotzdem; für ein ganz einheitliches Bild (Bank im Forever-Original wie die Tasche, Höhe passt genau) dort den Bank-Stil ausschalten und neu laden.",
 }
 
 local en = {
+    INTRO_FEATURES = "Bags and bank in groups, your own rules\nMarks for item level, junk and better\nSearch, sorting, profiles, moving items\nBags, bank and mail of all characters\nMerge equal stacks if you want",
     CAT_new = "New",
     CAT_books = "Books",
     CAT_quest = "Quest",
@@ -833,7 +870,7 @@ local en = {
 
     -- 1.5: combine identical items
     OPT_compactStacks = "Combine identical items",
-    OPT_compactStacks_TIP = "Several stacks of the same item share one slot showing the total (like BetterBags \"Compact\"). Click, right-click and drag act on the first stack; the next one moves up afterwards. Also in the toolbar's sort button.",
+    OPT_compactStacks_TIP = "Several stacks of the same item share one slot showing the total (like BetterBags \"Compact\"). The slot shows the largest stack (the first one if equal): click, choosing an amount and drag act on it, then the next largest moves up; a right-click passes on every stack at the mailbox, trade, bank and vendor. Also in the toolbar's sort button.",
 
     -- 1.5: multi-select
     SELECT_BUTTON = "Select",
@@ -859,6 +896,37 @@ local en = {
     SELECT_SELLING = "Selling %s ...",
     SELECT_MAIL_FULL = "The letter is full - %d stacks stayed in the bag.",
     SELECT_MAIL_FULL_ONE = "The letter is full - %d stack stayed in the bag.",
+    STACKS_WHAT = "Passing on stacks",
+    STACKS_TIP_mail = "Right-click: all %s into the letter (%d items)",
+    STACKS_TIP_trade = "Right-click: all %s into the trade (%d items)",
+    STACKS_TIP_bank = "Right-click: all %s into the bank (%d items)",
+    STACKS_TIP_bag = "Right-click: all %s into the bags (%d items)",
+    STACKS_TIP_merchant = "Right-click: sell all %s (%d items)",
+    STACKS_SPLIT_merchant = "choose an amount (up to %d), \"Okay\" sells it",
+    STACKS_SPLIT_mail = "choose an amount (up to %d), \"Okay\" puts it into the letter",
+    STACKS_SPLIT_trade = "choose an amount (up to %d), \"Okay\" puts it into the trade",
+    STACKS_SPLIT_bank = "choose an amount (up to %d), \"Okay\" puts it into the bank",
+    STACKS_SPLIT_bag = "choose an amount (up to %d), \"Okay\" puts it into the bags",
+    STACKS_SPLIT_none = "choose an amount (up to %d), \"Okay\" puts it on the cursor",
+    STACKS_SPLIT_NO_SPACE = "Part of a stack needs a free bag slot - the amount stays where it was.",
+    STACKS_SPLIT_MAIL_FULL = "The letter is full - the amount stays where it was.",
+    STACKS_SPLIT_TRADE_FULL = "The trade is full - the amount stays where it was.",
+    STACKS_BUILD_FAILED = "Combining the stacks did not work - nothing passed on. The stacks are still there, perhaps spread differently.",
+    STACKS_BUILD_BUSY = "ezBag is combining stacks right now - please wait a moment.",
+    STACKS_HAND_LEFT = "The amount lies combined in your bags (something was already on the cursor).",
+    STACKS_BUILD_NO_SPACE = "Combining the stacks needs a free bag slot - nothing passed on. The stacks are still there, perhaps spread differently.",
+    STACKS_ASK_merchant = "How many %s to sell? (1 to %d)",
+    STACKS_ASK_mail = "How many %s to put into the letter? (1 to %d)",
+    STACKS_ASK_trade = "How many %s to put into the trade? (1 to %d)",
+    STACKS_ASK_bank = "How many %s to put into the bank? (1 to %d)",
+    STACKS_ASK_bag = "How many %s to put into the bags? (1 to %d)",
+    STACKS_ASK_none = "How many %s to pick up on the cursor? (1 to %d)",
+    STACKS_ASK_INVALID = "Please enter a whole number from 1 to %d - nothing passed on.",
+    STACKS_ASK_GONE = "The window or the stacks have changed in the meantime - nothing passed on.",
+    STACKS_ASK_LESS = "Only %d are left - ezBag passes those on.",
+    STACKS_TRADE_FULL = "The trade is full - %d stacks stayed in the bag.",
+    STACKS_TRADE_FULL_ONE = "The trade is full - %d stack stayed in the bag.",
+    STACKS_MAIL_BUSY = "Items are already being attached or forwarded - the other stacks stay in the bag.",
     HINT_CLASSIC_BANK = "Tip: ClassicUI Forever dresses the bank in its own style. Grouping still works; for a fully uniform look (bank in the Forever original like the bag, exact height) turn off its bank style there and reload.",
 }
 

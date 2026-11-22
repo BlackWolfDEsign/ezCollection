@@ -168,7 +168,11 @@ end
 local function OnItemClick(button, mouse)
     if mouse == "RightButton" and IsAltKeyDown() and not IsShiftKeyDown() and not IsControlKeyDown() then
         ns.Groups.OpenItemMenu(button)
+        return
     end
+    -- Rechtsklick auf zusammengefasste Stapel: die übrigen Stapel folgen Blizzards einem; Umschalt+Rechtsklick bei
+    -- offenem Händler, Post, Handel oder Bank: ezBags Anzahl-Feld, „Annehmen“ gibt die Anzahl weiter (Stacks.lua)
+    ns.Stacks.OnItemClick(view, button, mouse)
 end
 
 local function HookButton(button)
@@ -987,7 +991,7 @@ function Layout.Grip() return grip end
 function Layout.View() return view end
 
 local function CanRelayoutNow(frame)
-    return ns.Render.CanRelayout(frame, resizing)
+    return ns.Render.CanRelayout(frame, resizing, view)
 end
 
 local OnHolderUpdate = ns.Render.DeferredUpdate(function() return dirty end, function()

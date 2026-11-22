@@ -56,6 +56,18 @@ local Core = ezCore
     Blizzards Anker, Breite und Ebene zurück (vor dem
     ersten Umbau gemerkt). Gestaltet ein anderes Addon die Minikarte (SexyMap; ezCores Funktionsschlüssel
     „minimapShape“), hält sich ezMap heraus.
+
+    Postsymbol oben rechts (eigener Schalter „minimapMailCorner“, ab Werk aus, wirkt mit und ohne kompakte Minikarte;
+    Spieltest des Nutzers vom 21.11.2026, wörtlich „Post-icon in die obere rechte ecke“, Antwort auf die Rückfrage
+    „Blizzards Post-Symbol, Minimap“): Blizzards Post- und Auftragssymbol (MinimapCluster.IndicatorFrame, 32 × 24,
+    Camelot/MinimapIndicatorFrameTemplate.xml) steht mit seiner rechten oberen Ecke an der rechten oberen Ecke der
+    Minikarte (Compact.MAIL_X, MAIL_Y; mit kompakter Minikarte höher und weiter rechts: MAIL_COMPACT_X, _Y). Dort ist außerhalb des Rings Platz: Blizzards Tag-und-Nacht-Anzeige endet
+    links davon (Camelot/Diel.lua: Mitte 55, 86, 42 breit, also bis x 76 bei Kartenrand 99), Blizzards Addon-Fach
+    liegt ohne kompakte Minikarte darüber (Camelot/AddonCompartment.xml: unter dem Kalender rechts am Kästchen, endet
+    an der Oberkante der Minikarte), mit kompakter Minikarte liegen Kalender und Fach tiefer auf dem Ring (30°).
+    Derselbe Merker wie oben (saved): Blizzards Lage wird einmal gemerkt, gleich wer zuerst umbaut; aus gibt die
+    kompakte Lage bzw. Blizzards Lage zurück. Blizzards MiniMapIndicatorFrame_UpdatePosition und SetHeaderUnderneath
+    setzen das Symbol neu – danach (außerhalb des Kampfes) wieder in die Ecke.
 ]]
 local Compact = {}
 ns.MinimapCompact = Compact
@@ -88,12 +100,30 @@ Compact.RING_RATIO = 42 / 32
 Compact.PANEL_BLOCKS = { "location", "clock" }
 Compact.PANEL_FRAMES = { "header", "coords", "clock" }      -- Schlüssel aus Parts: was ezPanel dann zeigt
 Compact.INDICATOR_ANGLE = 225   -- Postsymbol ohne Kästchen: unten links auf dem Ring
+-- Postsymbol oben rechts (Schalter minimapMailCorner): Versatz seiner rechten oberen Ecke zur rechten oberen Ecke der
+-- Minikarte. Ohne kompakte Minikarte 10 nach rechts, damit es rechts neben Blizzards Tag-und-Nacht-Anzeige und unter
+-- dem Addon-Fach bleibt (das hängt dann unter dem Kalender direkt über dieser Ecke).
+Compact.MAIL_X = 10
+Compact.MAIL_Y = 0
+-- Mit kompakter Minikarte höher und weiter rechts, schräg rechts über der Tag-und-Nacht-Anzeige: zweiter Spieltest vom
+-- 21.11.2026, Bildschirmfoto mit rotem Rechteck, wörtlich „eher an die position wo das viereck ist“. Gemessen am Bild
+-- (Maßstab: die Tag-und-Nacht-Anzeige, 42 breit): das Rechteck liegt etwa 20 höher und 12 weiter rechts als das
+-- Symbol mit MAIL_X/MAIL_Y. Kalender und Fach stehen dann tiefer auf dem Ring, die Ecke ist frei.
+Compact.MAIL_COMPACT_X = 22
+Compact.MAIL_COMPACT_Y = 20
+
+-- Versatz je nach Lage: compact = die kompakte Minikarte ist gebaut → x, y
+function Compact.MailOffset(compact)
+    if compact then return Compact.MAIL_COMPACT_X, Compact.MAIL_COMPACT_Y end
+    return Compact.MAIL_X, Compact.MAIL_Y
+end
 
 local active = false
 local problem                   -- warum zuletzt nicht umgebaut wurde (Statuszeile), nil: kein Problem
 local saved = {}                -- [Rahmen] = { points, width, level, scale } – Blizzards Lage vor dem ersten Umbau
 local rounds = {}               -- [Knopf] = { mask, border, masked = { [Textur] = true }, alpha = { [Textur] = Wert } }
 local inPanel = false           -- Ort und Uhr stehen auf ezPanels Leiste: Blizzards Kästchen ist verborgen
+local mailOn = false            -- Postsymbol steht oben rechts an der Minikarte (Schalter minimapMailCorner)
 local hiddenByUs = {}           -- [Rahmen] = true: von ezMap verborgen (nur das zeigt ezMap wieder)
 local lastCover                 -- zuletzt beim Umbau gemessene Überdeckung durch ezPanels Leiste (Compact.BarCover)
 
@@ -293,9 +323,46 @@ local function UnringParts(p)
     Unring(p.calendar)
 end
 
+-- Postsymbol oben rechts gewünscht? (eigener Schalter; nicht, solange ein anderes Addon die Minikarte gestaltet)
+function Compact.MailWanted()
+    return ns.Enabled("minimapMailCorner") and not Compact.Elsewhere()
+end
+function Compact.MailOn() return mailOn end
+
+-- Postsymbol mit seiner rechten oberen Ecke an die rechte obere Ecke der Minikarte, über den Ring (Spieltest
+-- 21.11.2026, wörtlich „Post-icon in die obere rechte ecke“). Blizzards Lage merkt Remember vorher (einmal).
+local function PlaceMail(p, compact)
+    if not (p.indicator and p.map) then return false end
+    Remember(p.indicator)
+    p.indicator:ClearAllPoints()
+    local x, y = Compact.MailOffset(compact)
+    p.indicator:SetPoint("TOPRIGHT", p.map, "TOPRIGHT", x, y)
+    if p.indicator.SetFrameLevel and p.map.GetFrameLevel then p.indicator:SetFrameLevel(p.map:GetFrameLevel() + 10) end
+    mailOn = true
+    return true
+end
+
+-- Postsymbol oben rechts aus (ohne kompakte Minikarte): Blizzards gemerkte Lage und Ebene zurück, Merker weg
+local function MailBack(p)
+    if p.indicator and saved[p.indicator] then
+        Restore(p.indicator)
+        saved[p.indicator] = nil
+    end
+    mailOn = false
+end
+
 -- Post- und Auftragssymbol an Blizzards eigenen Platz für „Lupe aus“ (MiniMapIndicatorFrame_UpdatePosition) links am
--- Kästchen; ist das Kästchen verborgen (Ort und Uhr in ezPanel), unten links auf den Ring
-local function PlaceIndicator(p)
+-- Kästchen; ist das Kästchen verborgen (Ort und Uhr in ezPanel), unten links auf den Ring; mit „Postsymbol oben
+-- rechts“ in die Ecke der Minikarte. compact: die kompakte Minikarte ist gebaut – nur dann ihr Platz; sonst gehört das
+-- Symbol Blizzard (Fund des code-reviewers vom 21.11.2026: nach Blizzards Aktualisierung im Kampf blieb es sonst am
+-- Platz der kompakten Minikarte stehen)
+local function PlaceIndicator(p, compact)
+    if Compact.MailWanted() and PlaceMail(p, compact) then return end
+    if not compact then
+        if mailOn then MailBack(p) end
+        return
+    end
+    mailOn = false
     if not (p.indicator and p.header) then return end
     if inPanel then
         OnRing(p, p.indicator, Compact.INDICATOR_ANGLE)
@@ -535,7 +602,7 @@ local function Build(p)
     OnRing(p, p.tracking, Compact.TRACKING_ANGLE)
     OnRing(p, p.calendar, Compact.CALENDAR_ANGLE)
     RingParts(p)
-    PlaceIndicator(p)
+    PlaceIndicator(p, true)
     if p.compartment and p.calendar then
         Remember(p.compartment)
         p.compartment:ClearAllPoints()
@@ -568,6 +635,7 @@ local function Undo(p)
     end
     UnringParts(p)
     wipe(saved)
+    mailOn = false
 end
 
 -- Warum gerade nicht umgebaut (Statuszeile, Spieltest 20.11.2026: der Umbau griff im Spiel nicht, ohne dass man sah,
@@ -606,6 +674,15 @@ function Compact.ApplyNow()
     else
         problem = nil
     end
+    -- Postsymbol oben rechts ohne kompakte Minikarte (mit ihr setzt Build es über PlaceIndicator); aus: Blizzards Lage
+    if not active then
+        if Compact.MailWanted() then
+            local ok, err = pcall(PlaceMail, p, false)
+            if not ok then ns.Error(err, "MinimapCompact.Mail") end
+        elseif mailOn then
+            MailBack(p)
+        end
+    end
     return true
 end
 
@@ -632,6 +709,16 @@ local function OnHeaderUnderneath()
         end
         wipe(saved)
         active = false
+        mailOn = false
+    else
+        -- nur das Postsymbol stand oben rechts (oder ein Rest davon): Blizzard hat es eben selbst gesetzt – Ebene
+        -- zurück, Lage beim nächsten Umbau frisch merken
+        local p = Parts()
+        if p and p.indicator then
+            if mailOn then RestoreSize(p.indicator) end
+            saved[p.indicator] = nil
+        end
+        mailOn = false
     end
     Compact.Apply()
 end
@@ -640,12 +727,26 @@ local function OnEditModeScale()
     if active then Compact.Apply() end
 end
 
--- Blizzard hängt das Postsymbol wieder an die Lupe, sobald sie erscheint: zurück an den Platz links am Kästchen
+-- Blizzard hängt das Postsymbol wieder an die Lupe, sobald sie erscheint: zurück an den Platz links am Kästchen bzw.
+-- in die Ecke oben rechts – nur außerhalb des Kampfes (Leitlinie 5), sonst danach. Steht nur das Postsymbol in der
+-- Ecke, ist Blizzards eben gesetzter Punkt (TOPRIGHT ersetzt den der Ecke) Blizzards neue Lage: als gemerkte Lage
+-- übernehmen, die Ebene bleibt die gemerkte (Hinweis des code-reviewers vom 21.11.2026)
+local function IndicatorNow()
+    if not (active or mailOn) then return end
+    local p = Parts()
+    if p then PlaceIndicator(p, active) end
+end
 local function OnIndicatorPosition()
-    if active then
+    if not (active or mailOn) then return end
+    if mailOn and not active then
         local p = Parts()
-        if p then PlaceIndicator(p) end
+        local entry = p and p.indicator and saved[p.indicator]
+        if entry and type(p.indicator.GetNumPoints) == "function" then
+            entry.points = {}
+            for i = 1, p.indicator:GetNumPoints() do entry.points[i] = { p.indicator:GetPoint(i) } end
+        end
     end
+    ns.AfterCombat(IndicatorNow, "minimapIndicator")
 end
 
 -- Blizzard schreibt einen neuen Ortsnamen (Minimap_Update) bzw. eine neue Uhrzeit (TimeManagerClockButton_Update):
@@ -689,7 +790,7 @@ ns.OnReady(function() Compact.Apply() end)
 -- danach noch einmal bauen, eine Bildschirmaktualisierung später – unabhängig davon, ob Blizzard dabei
 -- SetHeaderUnderneath ruft (Spieltest 20.11.2026: der Umbau vom Einloggen war im Spiel nicht zu sehen)
 local function Later()
-    if not ns.Enabled("minimapCompact") then return end
+    if not (ns.Enabled("minimapCompact") or ns.Enabled("minimapMailCorner")) then return end
     if C_Timer and C_Timer.After then
         C_Timer.After(0, function() ns.Try("MinimapCompact", Compact.Apply) end)
     else
@@ -705,7 +806,8 @@ ns.OnSettingChanged(function(key)
     if key == "minimapCompact" then
         if ns.Enabled("minimapCompact") then Compact.ArrangePanel() end      -- einmal: Ort und Uhr rechts in ezPanel
         Compact.Apply()
-    elseif key == "minimapSquare" and active then Compact.Apply() end    -- Kreis oder Kante des Quadrats
+    elseif key == "minimapSquare" and active then Compact.Apply()        -- Kreis oder Kante des Quadrats
+    elseif key == "minimapMailCorner" then Compact.Apply() end             -- Postsymbol oben rechts oder zurück
 end)
 ns.On("CVAR_UPDATE", function(_, name)
     if name == "minimapShowPlayerCoords" and active then Compact.Apply() end
@@ -743,4 +845,12 @@ ns.AddStatusLine(function()
     if active then return L.STATUS_COMPACT_ON end
     if ns.Enabled("minimapCompact") then return L.STATUS_COMPACT_WAITING end
     return nil
+end)
+
+ns.AddStatusLine(function()
+    if not ns.Enabled("minimapMailCorner") then return nil end
+    local other = Compact.Elsewhere()
+    if other then return L.STATUS_MAIL_OTHER:format(other) end
+    if mailOn then return L.STATUS_MAIL_ON end
+    return L.STATUS_MAIL_WAITING
 end)

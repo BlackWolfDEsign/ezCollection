@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Plündert schneller, ohne Pause\nItemlevel und „besser“ beim Plündern\nDasselbe beim Würfeln um Beute\nBeute-Verlauf mit Quelle, Zone und Gold\nMögliche Beute im Tooltip der Gegner",
     TITLE = "ezLoot",
     -- Addon-Fach und Befehl ohne Wort (Entscheidung 5 vom 18.11.2026): Linksklick bzw. „/ezl“ öffnet den Beute-Verlauf,
     -- Rechtsklick die Einstellungen; Zeilen, Hilfe-Kopf und Standardzeilen kommen aus ezCore
@@ -18,6 +20,7 @@ local de = {
         "  %s tooltip – Beute im Tooltip von Gegnern an/aus",
         "  %s gegenstand – „Beute bei dir“ im Tooltip von Gegenständen an/aus",
         "  %s herkunft – „Herkunft laut …“ im Tooltip von Gegenständen an/aus",
+        "  %s inhalt – „Inhalt bei dir“ im Tooltip geöffneter Behälter an/aus",
         "  %s hinweis – „noch nichts“ im Tooltip nie geplünderter Gegner an/aus",
         "  %s wert – „Wert je Tötung“ im Tooltip von Gegnern an/aus",
         "  %s kuerschnern – „Kürschnern: ab …“ im Tooltip von Gegnern an/aus",
@@ -98,6 +101,8 @@ local de = {
     STATUS_ITEMLOOT_OTHER = "Hinweis: %s zeigt im Tooltip von Gegenständen ebenfalls, woher sie kommen bzw. von wem sie fielen.",
     STATUS_ITEMORIGIN_ON = "Herkunft im Tooltip von Gegenständen („Herkunft laut …“, nur ohne eigene Beute): an.",
     STATUS_ITEMORIGIN_OFF = "Herkunft im Tooltip von Gegenständen: aus (%s herkunft).",
+    STATUS_ITEMCONTENTS_ON = "Inhalt im Tooltip von Behältern („Inhalt bei dir: n× geöffnet“): an.",
+    STATUS_ITEMCONTENTS_OFF = "Inhalt im Tooltip von Behältern: aus (%s inhalt).",
     STATUS_WORTH_ON = "Wert je Tötung im Tooltip von Gegnern: an (aus deiner Beute, ab %d |4Tötung:Tötungen;).",
     STATUS_WORTH_OFF = "Wert je Tötung im Tooltip von Gegnern: aus (%s wert; braucht auch %s tooltip).",
     STATUS_WORTH_OLD = "Wert je Tötung: Diese ezCore-Fassung rechnet ihn noch nicht – die Zeile fehlt, bis ezCore aktualisiert ist.",
@@ -157,6 +162,13 @@ local de = {
     OPT_npcSkin_TIP = "Das bringt dir: Im Tooltip eines Gegners steht, welche Kürschner-Fertigkeit er verlangt – „Kürschnern: ab 125, laut Client-Meldung“, in der Farbe für deine eigene Kürschnerei (rot: noch zu niedrig, dahinter dein Wert). ezCore lernt den Wert beim Kürschnern: aus Blizzards Meldung „Benötigt Kürschnerei (…)“, aus dem Tooltip und aus deinen Erfolgen („höchstens …, bei dir beobachtet“). Kennt ezCore noch nichts, aber der Gegner ist als kürschnerbar bekannt, steht eine Schätzung aus seiner Stufe da, als „geschätzt“ gekennzeichnet. Ohne Hinweis auf Kürschnern bleibt die Zeile weg.",
     OPT_itemOrigin = "Herkunft im Tooltip von Gegenständen",
     OPT_itemOrigin_TIP = "Das bringt dir: Hast du einen Gegenstand noch nicht selbst geplündert, nennt der Tooltip, woher er laut der Datenbank eines installierten Addons kommt – „Herkunft laut Questie: fällt von Junger Wolf (Wald von Elwynn)“, dazu Händler, Kisten oder Quests, je höchstens drei. Gilt für alle Gegenstände außer Rohstoffen (dort steht dieselbe Zeile schon bei ezCore) und – solange ezCraft läuft – Rezepten (dort steht „Erhältlich bei“). Ohne passendes Addon (heute Questie): keine Zeile.",
+    OPT_itemContents = "Inhalt im Tooltip von Behältern",
+    OPT_itemContents_TIP = "Das bringt dir: Zeigst du auf eine Schließkassette, eine Muschel, einen Sack aus einer Quest oder einen anderen Behälter, den du oder deine Twinks schon geöffnet habt, steht im Tooltip, was darin lag – „Inhalt bei dir: 5× geöffnet“, darunter die Gegenstände mit „3× bei 5 geöffneten“ (drei, mit Umschalt acht samt Menge und Gold). Eine Zählung, keine Dropchance – gezählt beim Öffnen von ezCores Datenbank („Datenbank: Erlebtes sammeln“). Darunter, was der Behälter laut Questie enthalten kann und bei dir noch nicht darin lag: „Kann enthalten (laut Questie, ohne Chance)“ – Questie kennt vor allem Quest-Gegenstände. Forever selbst hat keine Beutetabellen. Gilt auch für Kisten und Truhen in der Welt. Weder geöffnet noch bei Questie: keine Zeile.",
+    CONTENTS_HEAD = "Inhalt bei dir: %d× geöffnet",
+    CONTENTS_COUNT = "%d× bei %d geöffneten",
+    CONTENTS_SHIFT = "%s: mehr Inhalt",   -- %s = Core.L.CLICK_MOD_SHIFT („Umschalt“)
+    CONTENTS_LISTED = "Kann enthalten (%s, ohne Chance)",   -- %s = „laut Questie“ (Core.Sources.Label)
+    CONTENTS_SOURCE_UNKNOWN = "laut einer Addon-Datenbank",
     OPT_npcLootHint = "Hinweis bei nie geplünderten Gegnern",
     OPT_npcLootHint_TIP = "Das bringt dir: Bei einem angreifbaren Gegner, den du noch nie geplündert hast und zu dem keine Datenbank etwas weiß, steht „Beute bei dir: noch nichts – wächst mit jedem Plündern“ statt gar nichts – so weißt du, dass die Anzeige arbeitet. Mit Umschalt steht dabei, warum. Aus: Solche Gegner bekommen keine Zeile.",
 
@@ -214,6 +226,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Loots faster, without a pause\nItem level and “better” when looting\nThe same when rolling for loot\nLoot history with source, zone and gold\nPossible loot in the enemy tooltip",
     TITLE = "ezLoot",
     COMPARTMENT_MAIN = "open or close the loot history",
 
@@ -226,6 +239,7 @@ local en = {
         "  %s tooltip – loot in enemy tooltips on/off",
         "  %s item – \"Your loot\" in item tooltips on/off",
         "  %s origin – \"Origin according to …\" in item tooltips on/off",
+        "  %s contents – \"Contents for you\" in tooltips of opened containers on/off",
         "  %s hint – \"nothing yet\" in tooltips of enemies never looted on/off",
         "  %s worth – \"Worth per kill\" in enemy tooltips on/off",
         "  %s skin – \"Skinning: from …\" in enemy tooltips on/off",
@@ -258,6 +272,8 @@ local en = {
     STATUS_ITEMLOOT_OTHER = "Note: %s also shows in item tooltips where they come from or who dropped them.",
     STATUS_ITEMORIGIN_ON = "Origin in item tooltips (\"Origin according to …\", only without your own loot): on.",
     STATUS_ITEMORIGIN_OFF = "Origin in item tooltips: off (%s origin).",
+    STATUS_ITEMCONTENTS_ON = "Contents in container tooltips (\"Contents for you: opened n×\"): on.",
+    STATUS_ITEMCONTENTS_OFF = "Contents in container tooltips: off (%s contents).",
     STATUS_WORTH_ON = "Worth per kill in enemy tooltips: on (from your loot, from %d |4kill:kills; on).",
     STATUS_WORTH_OFF = "Worth per kill in enemy tooltips: off (%s worth; also needs %s tooltip).",
     STATUS_WORTH_OLD = "Worth per kill: this ezCore version does not calculate it yet – the line is missing until ezCore is updated.",
@@ -364,6 +380,13 @@ local en = {
     OPT_npcSkin_TIP = "What you get: an enemy's tooltip shows the skinning skill it needs – \"Skinning: from 125, according to the client message\", in the colour for your own skinning (red: still too low, followed by your skill). ezCore learns the value as you skin: from Blizzard's message \"Requires Skinning (…)\", from the tooltip and from your successes (\"at most …, seen by you\"). If ezCore knows nothing yet but the enemy is known to be skinnable, an estimate from its level is shown, marked \"estimated\". Without any sign of skinning there is no line.",
     OPT_itemOrigin = "Origin in item tooltips",
     OPT_itemOrigin_TIP = "What you get: for an item you have not looted yourself, the tooltip names where it comes from according to an installed addon's database – \"Origin according to Questie: dropped by Young Wolf (Elwynn Forest)\", plus vendors, containers or quests, at most three each. Works for all items except trade goods (ezCore already shows the same line there) and – while ezCraft runs – recipes (they show \"Available from\"). Without a matching addon (today Questie): no line.",
+    OPT_itemContents = "Contents in container tooltips",
+    OPT_itemContents_TIP = "What you get: when you point at a lockbox, a clam, a sack from a quest or another container you or your alts have already opened, the tooltip shows what was inside – \"Contents for you: opened 5×\", below it the items with \"3× in 5 opened\" (three, eight with Shift plus amount and gold). A count, not a drop chance – counted by ezCore's database when you open one (\"Database: collect what you experience\"). Below it, what the container may hold according to Questie that you have not found in it yet: \"May contain (according to Questie, no chance known)\" – Questie mostly knows quest items. Forever itself has no loot tables. Also works for chests in the world. Neither opened nor known to Questie: no line.",
+    CONTENTS_HEAD = "Contents for you: opened %d×",
+    CONTENTS_COUNT = "%d× in %d opened",
+    CONTENTS_SHIFT = "%s: more contents",
+    CONTENTS_LISTED = "May contain (%s, no chance known)",
+    CONTENTS_SOURCE_UNKNOWN = "according to an addon database",
     OPT_npcLootHint = "Note on enemies never looted",
     OPT_npcLootHint_TIP = "What you get: an attackable enemy that you have never looted and that no database knows shows \"Your loot: nothing yet – grows with every loot\" instead of nothing – so you know the display works. Hold Shift to see why. Off: such enemies get no line.",
 

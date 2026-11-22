@@ -3,6 +3,8 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "„Als Nächstes“ zeigt die nächste Aktion\nRotationen je Talentbaum, nach Ratgebern\nLeuchten an den Aktionsknöpfen\nCombo-Punkte, Schlagtimer, Kraft, DoTs\nSchaden und Heilung am Gruppenrahmen\nZusammenfassung nach dem Kampf auf Wunsch",
     TITLE = "ezCombat",
     -- Hauptfunktion: Linksklick im Addon-Fach und Befehl ohne Wort (Entscheidung 5, T18-3; vorher Rechtsklick); Hilfe:
     -- Kopf und Standard (Einstellungen, status, hilfe, zuruecksetzen) sagt ezCore, hier nur die eigenen Wörter (T18-20)
@@ -407,7 +409,9 @@ local de = {
     ROTATION_BOOK_AUTO_WOULD = "Würde nehmen: %s",
     ROTATION_BOOK_TOGGLE_TIP = "Rechtsklick: Schritt aus- oder einschalten (wie das Kästchen rechts).",
     -- Spickzettel (Entwurf A, Entscheidung des Nutzers vom 16.11.2026) und eigene Rotationen (RotationOwn.lua)
-    ROTATION_EASY_HEAD = "Deine Rotation: %s",
+    ROTATION_EASY_HEAD = "Deine Rotation",
+    ROTATION_EASY_COMPUTED = "Wie diese Rotation berechnet wurde",
+    ROTATION_EASY_COMPUTED_TIP = "Woher diese berechnete Rotation stammt: wann und für welche Talentverteilung sie berechnet wurde, welche Annahmen darin stecken, woher die Werte kommen und ob sie vorläufig ist.",
     ROTATION_EASY_CHOOSE_LABEL = "Passt sie nicht zu dir? Nimm eine andere.",
     ROTATION_EASY_CHOOSE = "Andere wählen",
     ROTATION_EASY_CHOOSE_CLOSE = "Liste schließen",
@@ -828,6 +832,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "“Next” shows your next action\nRotations per talent tree, based on guides\nGlows on the action buttons\nCombo points, swing timer, power, DoTs\nDamage and healing at the party frames\nSummary after combat if you want",
     TITLE = "ezCombat",
     MAIN_TEXT = "briefly preview every helper",
     CMD_HELP_OWN = {
@@ -1229,7 +1234,9 @@ local en = {
     ROTATION_BOOK_AUTO_WOULD = "Would use: %s",
     ROTATION_BOOK_TOGGLE_TIP = "Right-click: turn this step off or on (like the checkbox on the right).",
     -- Cheat sheet (draft A, the user's decision of 16.11.2026) and own rotations (RotationOwn.lua)
-    ROTATION_EASY_HEAD = "Your rotation: %s",
+    ROTATION_EASY_HEAD = "Your rotation",
+    ROTATION_EASY_COMPUTED = "How this rotation was computed",
+    ROTATION_EASY_COMPUTED_TIP = "Where this computed rotation comes from: when and for which talent build it was computed, which assumptions it makes, where the values come from and whether it is provisional.",
     ROTATION_EASY_CHOOSE_LABEL = "Doesn't suit you? Take another one.",
     ROTATION_EASY_CHOOSE = "Choose another",
     ROTATION_EASY_CHOOSE_CLOSE = "Close the list",

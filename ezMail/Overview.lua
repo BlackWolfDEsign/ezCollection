@@ -202,13 +202,12 @@ function Overview.ShowMenu(owner)
         -- MAIL-08: eine Zeile mit Quelle und ältestem Alter aller gezeigten Preise; je Brief steht sie im Tooltip
         local sourceLine = ns.Inbox.SourceText(Overview.SourceOf(shown))
         if sourceLine then Menu.Title(root, L.OV_VALUE_SOURCE:format(sourceLine)) end
-        -- Design-System 2.11: „Alle auswählen / Alle abwählen“ über den Briefen (ab drei); eine Auswahl für eine
+        -- Design-System 2.11: ein Haken „Alle“ über den Briefen (ab drei); eine Auswahl für eine
         -- Handlung (Öffnen), sie wird nicht gemerkt (2.12, Ausnahme)
         if selectable and #shown >= 3 then
             Menu.AllToggle(root, shown, function(entry) return ns.Inbox.IsSelected(entry.index) end,
                 function(entry, on) ns.Inbox.SetSelected(entry.index, on) end,
-                { onText = ezCore.Style.AllText(true), offText = ezCore.Style.AllText(false),
-                  onTip = L.OV_ALL_CHECK_TIP, offTip = L.OV_ALL_UNCHECK_TIP,
+                { onTip = L.OV_ALL_CHECK_TIP, offTip = L.OV_ALL_UNCHECK_TIP,
                   after = function() ns.Inbox.Refresh() end })
         end
         for _, entry in ipairs(shown) do

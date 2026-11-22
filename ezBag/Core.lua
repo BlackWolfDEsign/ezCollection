@@ -89,7 +89,7 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.CancelConfirm, Core.CombatNotice, Core.OptInOnce, Core.Ticker
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",
-    needs = { "scaffold", "OpenPanel", "BagList", "ItemClassName", "tourOwner", "CompartmentHandlers", "Plural",
+    needs = { "scaffold", "OpenPanel", "BagList", "ItemClassName", "tourOwner", "CompartmentHandlers", "Plural", "ClickText", "EmptyBagSlot", "AskNumber",
         "Junk.Sell", "Junk.SetRule", "ItemTooltip.AddCounts", "BagSpaceOf", "Menu.Tip", "OpenedOrDeferred",
         "Style.ColorText", "Style.Color", "Style.AllText", "Style.BUTTON", "Style.ICON", "Menu.AllToggle",
         -- Welle 17: Helfer und Texte, die ezCore ohne neue Versionsnummer bekam (tools/texte.lua, Regel 4)

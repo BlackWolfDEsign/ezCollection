@@ -62,10 +62,9 @@ ns.DEFAULTS = {
     sitPopupAway = "no",
     sitPopupRest = "no",
     sitPopupOther = "no",
-    sitToneCombat = false,
-    sitToneInstance = false,
+    -- Ton bei Flüstern nur noch abwesend (Entscheidung des Nutzers vom 21.11.2026: „Nur „Abwesend: Ton“ (Empfohlen)“);
+    -- die Schalter für Kampf, Dungeon und Stadt sind weg, gespeicherte Werte räumt ns.MigrateToneAway weg
     sitToneAway = false,
-    sitToneRest = false,
     sitAlarmCombat = false,   -- Empfehlung umgesetzt, Antwort offen: im Kampf klingeln ezChats Alarme nicht
     sitAlarmInstance = true,
     sitAlarmAway = true,
@@ -98,8 +97,8 @@ ns.AGREE = {
     historySay = "on", restore = "choice", shortChannels = "choice", noFade = "choice", arrowKeys = "on", replyInstance = "risk",
     replyRest = "risk", replyStrangers = "risk", alarmGuild = "choice", alarmOfficer = "choice",
     alarmParty = "choice", alarmRaid = "choice", alarmInstance = "choice", alarmSay = "choice",
-    alarmCommunity = "choice", spamBusy = "choice", sitToneCombat = "choice", sitToneInstance = "choice",
-    sitToneAway = "choice", sitToneRest = "choice", sitAlarmCombat = "choice", diagPlain = "choice",
+    alarmCommunity = "choice", spamBusy = "choice",
+    sitToneAway = "choice", sitAlarmCombat = "choice", diagPlain = "choice",
 }
 
 -- „Alles sichern“ (ezCore/Backup.lua) nimmt diese Einstellungen nicht mit: Stichwörter sind frei eingegebener Text
@@ -146,10 +145,7 @@ ns.TOGGLES = {
     { "alarmFlash", "blinken", "alarm", en = "flash" },
     { "spamFilter", "spam", "spam", en = "spam" },
     { "spamBusy", "spambeschaeftigt", "spam", en = "spambusy" },
-    { "sitToneCombat", "lagetonkampf", "situation", en = "sittonecombat" },
-    { "sitToneInstance", "lagetoninstanz", "situation", en = "sittoneinstance" },
     { "sitToneAway", "lagetonweg", "situation", en = "sittoneaway" },
-    { "sitToneRest", "lagetonstadt", "situation", en = "sittonecity" },
     { "sitAlarmCombat", "lagealarmkampf", "situation", en = "sitalertcombat" },
     { "sitAlarmInstance", "lagealarminstanz", "situation", en = "sitalertinstance" },
     { "sitAlarmAway", "lagealarmweg", "situation", en = "sitalertaway" },
@@ -254,7 +250,9 @@ Core.NewModule(ADDON, ns, {
         ns.MigrateWhisperOptIn(db)
         ns.MigrateSettings1911(db)
         ns.MigrateRestoreOff(db)
+        ns.MigrateRestoreOff2111(db)
         ns.MigratePopupAfter(db)
+        ns.MigrateToneAway(db)
     end,
     -- main: ohne Wort das Gesprächsfenster wie der Linksklick im Addon-Fach (Entscheidung 5); reset: „/ezchat
     -- zuruecksetzen“ fragt wie der Knopf (Core.SlashReset über page:AskReset; Gesamtreview T18-3, T18-20)
@@ -605,13 +603,28 @@ end
 -- Fenster sprangen auf, obwohl er aus war). values ist eine Kopie.
 function ns.ImportLegacy(values)
     if type(values) ~= "table" then return values end
+    -- „Verlauf beim Einloggen zeigen“ schaltet eine Sicherung nie ein (Entscheidung des Nutzers vom 21.11.2026:
+    -- „„Alles übernehmen“ soll das nicht aktiv einschalten“): ein gespeichertes „an“ fällt weg, der Schalter bleibt,
+    -- wie er ist; ein „aus“ wird übernommen. Als erster Schritt, damit ein Fehler weiter unten es nicht überspringt.
+    if values.restore == true then values.restore = nil end
     if values.openOnWhisper ~= nil then Adopt1911(values) end
     values.classColors, values.linkTooltip = nil, nil
+    for _, key in ipairs(ns.TONE_GONE) do values[key] = nil end   -- Ton nur noch abwesend (21.11.2026)
     -- „nach dem Kampf“ nur noch bei „Kampf: Fenster“ (ns.MigratePopupAfter)
     for _, key in ipairs({ "sitPopupInstance", "sitPopupAway", "sitPopupRest", "sitPopupOther" }) do
         if values[key] == "after" then values[key] = "yes" end
     end
     return values
+end
+
+-- Gemeinsamer Rumpf beider Umstellungen von „Verlauf beim Einloggen zeigen“ (je eigener Merker). → wie Core.MigrateOnce
+local function RestoreOff(db, flag)
+    if type(db) ~= "table" or type(db.settings) ~= "table" then return nil end
+    if type(db.migrated) ~= "table" then db.migrated = {} end
+    return Core.MigrateOnce(db.migrated, flag, function()
+        db.settings.restore = false
+        return true
+    end)
 end
 
 -- „Verlauf beim Einloggen zeigen“ ab Werk aus (Entscheidung des Nutzers vom 20.11.2026 auf die Frage nach dem Block
@@ -620,12 +633,16 @@ end
 -- db.migrated.restoreOff2011); wer es danach selbst einschaltet, behält es. → true, wenn die Umstellung lief (nil, wenn
 -- schon geschehen).
 function ns.MigrateRestoreOff(db)
-    if type(db) ~= "table" or type(db.settings) ~= "table" then return nil end
-    if type(db.migrated) ~= "table" then db.migrated = {} end
-    return Core.MigrateOnce(db.migrated, "restoreOff2011", function()
-        db.settings.restore = false
-        return true
-    end)
+    return RestoreOff(db, "restoreOff2011")
+end
+
+-- Noch einmal aus (Entscheidung des Nutzers vom 21.11.2026, Spieltest: alte Zeilen grau im allgemeinen Chat nach dem
+-- Login – „das sollte nicht im allg. chat nach dem login angeziegt werden“; Antwort „Einmal ausschalten (Empfohlen)“):
+-- Stände, die nach der ersten Umstellung wieder an waren (über „Allem zustimmen“ am Abend des 20.11.2026, als „restore“
+-- dort mit „on“ mitkam – 1e71b092 bis baf10ebd), stellt ezChat einmal auf aus (Merker db.migrated.restoreOff2111). Der Schalter bleibt; wer ihn danach
+-- einschaltet, behält ihn. → true, wenn die Umstellung lief (nil, wenn sie schon gelaufen ist)
+function ns.MigrateRestoreOff2111(db)
+    return RestoreOff(db, "restoreOff2111")
 end
 
 -- „nach dem Kampf“ gibt es nur noch bei „Kampf: Fenster“ (code-reviewer 20.11.2026): Dungeon, Abwesend und Stadt gelten
@@ -639,6 +656,19 @@ function ns.MigratePopupAfter(db)
         for _, key in ipairs({ "sitPopupInstance", "sitPopupAway", "sitPopupRest", "sitPopupOther" }) do
             if db.settings[key] == "after" then db.settings[key] = "yes" end
         end
+        return true
+    end)
+end
+
+-- Ton bei Flüstern nur noch abwesend (Entscheidung des Nutzers vom 21.11.2026): die gespeicherten Schalter der übrigen
+-- Lagen sind ohne Wirkung und werden einmal entfernt (Core.MigrateOnce, Merker db.migrated.toneAway2111). → true, wenn
+-- die Umstellung lief (nil, wenn schon geschehen).
+ns.TONE_GONE = { "sitToneCombat", "sitToneInstance", "sitToneRest" }
+function ns.MigrateToneAway(db)
+    if type(db) ~= "table" or type(db.settings) ~= "table" then return nil end
+    if type(db.migrated) ~= "table" then db.migrated = {} end
+    return Core.MigrateOnce(db.migrated, "toneAway2111", function()
+        for _, key in ipairs(ns.TONE_GONE) do db.settings[key] = nil end
         return true
     end)
 end

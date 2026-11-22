@@ -3,7 +3,12 @@ local L = ns.L
 local Core = ezCore
 
 --[[
-    Einkaufslisten (für alle Charaktere gleich, ezAuctionDB.lists):
+    Einkaufslisten – seit dem 21.11.2026 ezCores gemeinsame Listen (Core.Lists, ezCoreDB.lists; dieselben wie in ezCraft,
+    Entscheidung des Nutzers „Ein Speicher in ezCore (Empfohlen)“). Die Funktionen hier sind dünne Weiterleitungen mit
+    ezAuctions eigenen Feldern (Filter, Höchstpreis); ezAuctionDB.lists wird einmal übernommen (Lists.AdoptOld, Merker
+    ezAuctionDB.ezCoreDB.migrated.listsFromEzAuction) und bleibt als Rückfall liegen. Neu: hergestellte Gegenstände (entry.recipe) – gesucht
+    wird ihr fehlendes Material, mit entry.buy der Gegenstand selbst (Lists.SearchEntries).
+    Form wie bisher (für alle Charaktere gleich):
       { name = "Kräuter", items = { entry, … } }
     entry = { text = Suchbegriff bzw. Name, itemID = nil|Zahl, exact = true|nil, count = nil|Zahl,
               minLevel, maxLevel, quality, category, maxPrice = nil|… }   (Filter und Höchstpreis: AH-09, unten)
@@ -15,35 +20,30 @@ local Core = ezCore
     Listen mit Quelle (list.source) speichern keinen eigenen Stand, sondern werden aus ihrer Quelle neu gebaut –
     bei jeder Änderung der Quelle, beim Anmelden, beim Öffnen des Auktionshauses und vor jeder Suche:
       books    „Bibliotheksbücher“: fehlende Bücher dieses Charakters (ezCore.Collections, BOOKS_CHANGED)
-      ezCraft  „ezCraft“: was auf ezCrafts Einkaufsliste fehlt (ezCore.API("ezCraft").ShoppingList,
-               EZCRAFT_SHOPPING_CHANGED)
-    Angelegt wird eine solche Liste auf Wunsch (Knopf „+ Fehlende Bücher“ bzw. ezCrafts Knopf „An ezAuction“),
+    (Bis 21.11.2026 gab es die Quelle „ezCraft“ als Kopie von ezCrafts Einkaufsliste; sie ist jetzt eine gemeinsame
+    Liste mit Rezepten und wird beim Übernehmen übergangen.)
+    Angelegt wird eine solche Liste auf Wunsch (Knopf „+ Fehlende Bücher“),
     gelöscht wie jede andere; umbenannt bleibt sie die Liste ihrer Quelle.
 ]]
 
 local Lists = {}
 ns.Lists = Lists
 
-local function Changed() ns.Fire("LISTS_CHANGED") end
+local function Shared() return Core.Lists end
+
+-- Jede Änderung meldet ezCore (LISTS_CHANGED); ezAuction reicht sie als eigene Nachricht weiter (unten).
+local function Changed(list) Shared().Changed(list) end
 
 function Lists.All()
-    return ns.db and ns.db.lists or {}
+    return Shared() and Shared().All() or {}
 end
 
 function Lists.Find(name)
-    if type(name) ~= "string" then return nil end
-    local wanted = Core.Trim(name):lower()
-    for index, list in ipairs(Lists.All()) do
-        if type(list.name) == "string" and list.name:lower() == wanted then return list, index end
-    end
-    return nil
+    return Shared().Find(name)
 end
 
 function Lists.IndexOf(list)
-    for index, other in ipairs(Lists.All()) do
-        if other == list then return index end
-    end
-    return nil
+    return Shared().IndexOf(list)
 end
 
 local function Taken(name) return Lists.Find(name) ~= nil end
@@ -61,29 +61,17 @@ function Lists.UniqueName(base)
 end
 
 function Lists.Create(name)
-    local list = { name = Lists.UniqueName(name), items = {} }
-    table.insert(ns.db.lists, list)
-    Changed()
+    local list = Shared().Create(Lists.UniqueName(name))
     return list
 end
 
 -- Rückgabe: true und der neue Name, oder false, wenn der Name leer oder schon vergeben ist.
 function Lists.Rename(list, name)
-    name = Core.Trim(name or "")
-    if name == "" then return false end
-    local other = Lists.Find(name)
-    if other and other ~= list then return false end
-    list.name = name
-    Changed()
-    return true, name
+    return Shared().Rename(list, name)
 end
 
 function Lists.Delete(list)
-    local index = Lists.IndexOf(list)
-    if not index then return false end
-    table.remove(ns.db.lists, index)
-    Changed()
-    return true
+    return Shared().Delete(list)
 end
 
 -- itemID und Name aus einem Gegenstandslink („|Hitem:2589:…|h[Leinenstoff]|h“ oder „item:2589“).
@@ -101,78 +89,55 @@ local ItemNameOf = Core.ItemNameByID
 --   "|cff…|Hitem:2589…|h[Leinenstoff]|h|r" Link
 --   "Leinen" / "\"Leinenstoff\""           Suchbegriff / genau dieser Name
 --   { itemID = 2589, count = 20 } / { text = "Leinen", exact = true } / { name = "…" }
+--   { recipe = 2963, count = 2, buy = true }  hergestellter Gegenstand (ezCores Core.Lists)
 function Lists.NormalizeEntry(value)
-    local entry
-    if type(value) == "number" then
-        entry = { itemID = value }
-    elseif type(value) == "string" then
-        local id, name = Lists.ParseLink(value)
-        if id then
-            entry = { itemID = id, text = name }
-        else
-            local text = Core.Trim(value)
-            local quoted = text:match('^"(.+)"$')
-            if quoted then
-                entry = { text = Core.Trim(quoted), exact = true }
-            elseif text ~= "" then
-                entry = { text = text }
-            end
-        end
-    elseif type(value) == "table" then
-        local id = tonumber(value.itemID or value.id)
-        local text = value.text or value.name
-        if not id and type(value.link) == "string" then id, text = Lists.ParseLink(value.link) end
-        if id or (type(text) == "string" and Core.Trim(text) ~= "") then
-            entry = { itemID = id, text = type(text) == "string" and Core.Trim(text) or nil,
-                exact = value.exact and true or nil }
-            local count = tonumber(value.count or value.quantity)
-            if count and count > 0 then entry.count = math.floor(count) end
-            Lists.CleanFilters(value, entry)
-        end
-    end
-    if not entry then return nil end
-    if entry.itemID and not entry.text then entry.text = ItemNameOf(entry.itemID) end
-    if entry.text == "" then entry.text = nil end
-    if not entry.itemID and not entry.text then return nil end
-    return entry
+    return Shared().NormalizeEntry(value, Lists.CleanFilters)
 end
 
--- Derselbe Gegenstand ist derselbe Eintrag; ein Suchbegriff nur mit denselben Filtern („Erz“ in „Handwerkswaren“
--- und „Erz“ ohne Kategorie bleiben zwei Einträge).
-local function SameEntry(a, b)
-    if a.itemID or b.itemID then return a.itemID == b.itemID end
-    return (a.text or ""):lower() == (b.text or ""):lower() and (a.exact == b.exact)
-        and Lists.FilterKey(a) == Lists.FilterKey(b)
-end
-
--- Fügt einen Eintrag hinzu; derselbe Gegenstand bzw. Begriff wird zusammengelegt (Mengen addiert).
+-- Fügt einen Eintrag hinzu; derselbe Gegenstand bzw. Begriff wird zusammengelegt (Mengen addiert). Ein Suchbegriff
+-- ist nur mit denselben Filtern derselbe („Erz“ in „Handwerkswaren“ und „Erz“ ohne Kategorie bleiben zwei Einträge).
 -- Rückgabe: der Eintrag in der Liste, oder nil.
 function Lists.AddEntry(list, value)
-    local entry = Lists.NormalizeEntry(value)
-    if not (list and entry) then return nil end
-    list.items = list.items or {}
-    for _, existing in ipairs(list.items) do
-        if SameEntry(existing, entry) then
-            if entry.count then existing.count = (existing.count or 0) + entry.count end
-            existing.text = existing.text or entry.text
-            Changed()
-            return existing
-        end
-    end
-    table.insert(list.items, entry)
-    Changed()
-    return entry
+    return Shared().AddEntry(list, value, { extra = Lists.CleanFilters, key = Lists.FilterKey })
 end
 
 function Lists.RemoveEntry(list, index)
-    if not (list and list.items and list.items[index]) then return false end
-    table.remove(list.items, index)
-    Changed()
-    return true
+    return Shared().RemoveEntry(list, index)
 end
+
+-- Einträge zum Suchen: hergestellte Gegenstände als ihr fehlendes Material bzw. (buy) der Gegenstand selbst
+-- (ezCores Core.Lists.SearchEntries – über die ganze Liste gerechnet: dasselbe Material mehrerer Rezepte zählt
+-- zusammen, der Vorrat einmal; Review 21.11.2026); only (Index der Zeile) nur diese eine Zeile. Gemerkt je Liste, bis
+-- sich eine Liste oder der Bestand ändert, höchstens Lists.SEARCH_CACHE Sekunden (Buy.Wanted fragt je Ergebniszeile).
+Lists.SEARCH_CACHE = 2
+local searchCache = setmetatable({}, { __mode = "k" })
+function Lists.SearchEntries(list, only)
+    if type(list) ~= "table" then return {} end
+    if only ~= nil then
+        local entry = type(list.items) == "table" and list.items[only]
+        if not entry then return {} end
+        if entry.recipe then return Shared().SearchEntries({ items = { entry } }) end
+        return { entry }
+    end
+    local now = GetTime and GetTime() or 0
+    local cached = searchCache[list]
+    if not (cached and now - cached.at >= 0 and now - cached.at < Lists.SEARCH_CACHE) then
+        cached = { at = now, entries = Shared().SearchEntries(list) }
+        searchCache[list] = cached
+    end
+    local copy = {}   -- der Aufrufer darf die Folge ändern (Search.Start merkt sie sich)
+    for i, entry in ipairs(cached.entries) do copy[i] = entry end
+    return copy
+end
+function Lists.ForgetSearch() wipe(searchCache) end
 
 -- Suchbegriff für Blizzards Suche (Name des Gegenstands bzw. der Begriff).
 function Lists.SearchText(entry)
+    if entry.recipe and not entry.itemID then   -- hergestellt: Name des Produkts
+        local info = Shared().Recipe(entry.recipe)
+        local product = info and Core.Num(info.product)
+        return product and ItemNameOf(product) or entry.text or (info and info.name)
+    end
     if entry.itemID then
         local name = ItemNameOf(entry.itemID)
         if name then entry.text = name end
@@ -182,6 +147,11 @@ end
 
 -- Anzeige in der Liste: Name, „genau“, Menge.
 function Lists.EntryLabel(entry)
+    if entry.recipe then   -- hergestellt: Name aus dem Rezept, dazu woran gesucht wird (Material oder Gegenstand)
+        local text = Shared().Label(entry)
+        if entry.count then text = L.EDITOR_COUNT:format(entry.count) .. " " .. text end
+        return text .. " " .. (entry.buy and L.ENTRY_CRAFT_ITEM or L.ENTRY_CRAFT_MATERIAL)
+    end
     local text = entry.text or (entry.itemID and ("#" .. entry.itemID)) or "?"
     if entry.exact and not entry.itemID then text = ('"%s"'):format(text) end
     if entry.count then text = L.EDITOR_COUNT:format(entry.count) .. " " .. text end
@@ -346,7 +316,8 @@ function Lists.Migrate()
         if type(list) == "table" and type(list.items) == "table" then
             for index = #list.items, 1, -1 do
                 local entry = list.items[index]
-                if type(entry) ~= "table" or (not Core.Num(entry.itemID) and type(entry.text) ~= "string") then
+                if type(entry) ~= "table" or (not Core.Num(entry.itemID) and type(entry.text) ~= "string"
+                    and not Core.Num(entry.recipe)) then
                     table.remove(list.items, index)
                     changed = changed + 1
                 else
@@ -492,7 +463,7 @@ end
 -- schon „fehlt noch n“. Rückgabe: true/false und die Menge.
 function Lists.Covers(entry, list, have)
     local need = type(entry) == "table" and Core.Num(entry.count) or nil
-    if not (need and list ~= nil and Lists.SourceOf(list) == nil and Core.Num(have)) then return false, need end
+    if not (need and list ~= nil and not Lists.CountIsMissing(list) and Core.Num(have)) then return false, need end
     return have >= need, need
 end
 
@@ -505,7 +476,7 @@ end
 -- extra (Tooltip der Ergebniszeile, AH-11): { info = schon gezählter Bestand, place = Ort hinter „hast …“,
 -- warned = true (dann fehlt „genug da“, weil die Warnung vor Doppelkauf folgt) }.
 function Lists.StockText(entry, list, extra)
-    if list ~= nil and Lists.SourceOf(list) ~= nil then return nil end
+    if list ~= nil and Lists.CountIsMissing(list) then return nil end
     local info = type(extra) == "table" and type(extra.info) == "table" and extra.info or nil
     local chars, guilds
     if info then chars, guilds = info.chars, info.guilds else chars, guilds, info = Lists.Stock(entry) end
@@ -583,32 +554,9 @@ function Lists.MissingBooks()
     return missing
 end
 
--- Was auf ezCrafts Einkaufsliste fehlt (ezCore.API("ezCraft").ShoppingList → { [itemID] = Anzahl }), als Einträge
--- { itemID, count, text } nach Name; nil, solange ezCraft nicht läuft.
-function Lists.CraftEntries()
-    local api = Core.API("ezCraft")
-    local map = api and Core.Call(api.ShoppingList)
-    if type(map) ~= "table" then return nil end
-    local entries = {}
-    for item, count in pairs(map) do
-        local itemID, n = Core.ItemID(item), Core.Num(count)
-        if itemID and n and n > 0 then
-            entries[#entries + 1] = { itemID = itemID, count = math.ceil(n), text = ItemNameOf(itemID) }
-        end
-    end
-    -- nach Name; noch nicht geladene Namen ans Ende, dann nach itemID
-    table.sort(entries, function(a, b)
-        if (a.text ~= nil) ~= (b.text ~= nil) then return a.text ~= nil end
-        if a.text and a.text ~= b.text then return a.text < b.text end
-        return a.itemID < b.itemID
-    end)
-    return entries
-end
-
 -- Quellen in fester Reihenfolge: key, Name der Liste, Einträge (nil = Quelle fehlt gerade).
 Lists.SOURCES = {
     { key = "books", name = function() return L.LIST_BOOKS end, entries = function() return Lists.MissingBooks() end },
-    { key = "ezCraft", name = function() return L.LIST_CRAFT end, entries = function() return Lists.CraftEntries() end },
 }
 
 function Lists.Source(key)
@@ -649,10 +597,47 @@ function Lists.AdoptByName()
     return adopted
 end
 
+-- Einmal: ezAuctions alte Listen (ezAuctionDB.lists) in ezCores gemeinsame Listen; die alte Tabelle bleibt liegen.
+-- Die frühere Kopie „ezCraft“ (Quelle ezCraft) wird übergangen – ezCraft bringt seine Liste selbst (mit Rezepten).
+-- → Zahl übernommener Listen
+-- Merker ezCoreDB.migrated.listsFromEzAuction – im selben Speicher wie die Listen (Review 21.11.2026). Vorher bekommt
+-- eine alte Kopie „Bibliotheksbücher“ ohne Kennung ihre Quelle (wie AdoptByName, nur in der alten Tabelle); danach
+-- gilt die Übernahme über den Namen als gelaufen – sie fände sonst später Listen aus ezCraft.
+Lists.ADOPT_FLAG = "listsFromEzAuction"
+function Lists.AdoptOld()
+    local db, core = ns.db, Core.db
+    if not (db and type(db.ui) == "table" and Shared() and type(core) == "table") then return 0 end
+    if type(core.migrated) ~= "table" then core.migrated = {} end
+    return Core.MigrateOnce(core.migrated, Lists.ADOPT_FLAG, function()
+        local old = type(db.lists) == "table" and db.lists or {}
+        if not db.ui.sourcesAdopted then
+            local hasBooks = false
+            for _, list in ipairs(old) do if type(list) == "table" and list.source == "books" then hasBooks = true end end
+            for _, list in ipairs(old) do
+                if not hasBooks and type(list) == "table" and list.source == nil and type(list.name) == "string"
+                    and list.name:lower() == L.LIST_BOOKS:lower() then
+                    list.source, hasBooks = "books", true
+                end
+            end
+            db.ui.sourcesAdopted = true
+        end
+        return (Shared().Adopt(old, { extra = Lists.CleanFilters, key = Lists.FilterKey,
+            skip = function(list) return list.source == "ezCraft" end }))
+    end) or 0
+end
+
 -- Quelle einer Liste (key) oder nil.
 function Lists.SourceOf(list)
     if type(list) ~= "table" or not Lists.Source(list.source) then return nil end
     return list.source
+end
+
+-- Ist die Menge der Einträge schon „fehlt noch n“ (nicht gegen den Bestand aller Charaktere zu rechnen)? Listen mit
+-- Quelle und die vorübergehende Suchliste aus ezCrafts Knopf „Auktionshaus“ (API.SearchItems, list.temporary: Menge =
+-- Bedarf minus Tasche). Vorher rechneten „genug da“ und die Warnung vor Doppelkauf dort gegen alle Charaktere
+-- (Hinweis der ezCraft-Session vom 21.11.2026).
+function Lists.CountIsMissing(list)
+    return Lists.SourceOf(list) ~= nil or (type(list) == "table" and list.temporary == true)
 end
 
 -- Liste einer Quelle neu bauen (create = true legt sie an, aber nie leer). Rückgabe: Liste, Anzahl der Einträge.
@@ -715,7 +700,8 @@ function Lists.Export(lists)
                 -- übernimmt den Eintrag ohne sie – darum bleibt es Fassung 1.
                 entries[#entries + 1] = { i = Core.Num(entry.itemID), t = entry.text, x = entry.exact and true or nil,
                     c = Core.Num(entry.count), l = entry.minLevel, h = entry.maxLevel, q = entry.quality,
-                    m = entry.maxPrice, k = Lists.CleanCategory(entry.category) }
+                    m = entry.maxPrice, k = Lists.CleanCategory(entry.category),
+                    r = Core.Num(entry.recipe), b = entry.buy and true or nil }   -- hergestellt (Core.Lists, 21.11.2026)
             end
         end
         out[#out + 1] = { n = list.name, e = entries }
@@ -744,7 +730,7 @@ function Lists.Import(text)
                 if type(e) == "table" then
                     local entry = Lists.NormalizeEntry({ itemID = PositiveInt(e.i), text = Cut(e.t, Lists.TEXT_LETTERS),
                         exact = e.x == true or nil, count = PositiveInt(e.c), minLevel = e.l, maxLevel = e.h,
-                        quality = e.q, maxPrice = e.m, category = e.k })
+                        quality = e.q, maxPrice = e.m, category = e.k, recipe = PositiveInt(e.r), buy = e.b == true })
                     if entry then items[#items + 1] = entry end
                 end
             end
@@ -808,6 +794,37 @@ function ns.API.AddShoppingList(name, items, replace)
     return list.name, added
 end
 
+-- Eine Liste im Reiter „Kaufen“ wählen (ezCraft „Im AH suchen“): nur bei offenem Auktionshaus. search = true sucht
+-- sie gleich (Wunsch des Nutzers vom 21.11.2026: „der button auktionshaus muss bei geöffneten auktionshaus direkt die
+-- gegenstände suchen“) – wie Blizzards „Suchen“ bei gewählter Liste (Buy.StartList: ein Klick, ohne Haltezeit).
+-- → true, wenn gewählt (bzw. die Suche begonnen hat)
+function ns.API.ShowList(name, search)
+    local list = Lists.Find(name)
+    if not (list and ns.Buy and ns.AuctionHouseShown and ns.AuctionHouseShown()) then return false end
+    if search then
+        ns.Buy.StartList(list)
+        return ns.Buy.active == list
+    end
+    return ns.Buy.Select(list)
+end
+
+-- Einträge sofort suchen, ohne eine Liste zu speichern (ezCrafts Knopf „Auktionshaus“ am Rezept; Entscheidung des
+-- Nutzers vom 21.11.2026 „Nein, sofort suchen (Empfohlen)“): name steht in Blizzards Ergebnisleiste, items wie bei
+-- AddShoppingList (auch { recipe = …, count = … } – dann das fehlende Material). Nur bei offenem Auktionshaus.
+-- → true, wenn gesucht wird; sonst false, Grund ("closed" – Auktionshaus zu, "empty" – keine Einträge, "busy" – Blizzards
+-- Suche gerade nicht möglich, etwa der Reiter eines fremden Addons vorn)
+function ns.API.SearchItems(name, items)
+    if not (ns.Search and ns.AuctionHouseShown and ns.AuctionHouseShown()) then return false, "closed" end
+    local list = { name = type(name) == "string" and name or L.TITLE, items = {}, temporary = true }
+    for _, value in ipairs(type(items) == "table" and items or {}) do
+        local entry = Core.Lists.NormalizeEntry(value)
+        if entry then list.items[#list.items + 1] = entry end
+    end
+    if #list.items == 0 then return false, "empty" end
+    if ns.Search.Start(list) == true then return true end
+    return false, "busy"
+end
+
 -- Namen und Größe aller Einkaufslisten: { { name = …, count = … }, … }
 function ns.API.ShoppingLists()
     local result = {}
@@ -817,11 +834,17 @@ function ns.API.ShoppingLists()
     return result
 end
 
--- Listen mit Quelle folgen ihr: Buch gefunden oder abgegeben, ezCrafts Einkaufsliste geändert, anderer Charakter,
--- Auktionshaus geöffnet (gekauftes Material liegt inzwischen in der Post).
+-- Listen mit Quelle folgen ihr: Buch gefunden oder abgegeben, anderer Charakter, Auktionshaus geöffnet. ezCrafts
+-- Listen sind seit dem 21.11.2026 dieselben (Core.Lists) – sie brauchen keine Kopie mehr.
 Core.Listen("BOOKS_CHANGED", function() Lists.UpdateSource("books", false) end, ADDON)
-Core.Listen("EZCRAFT_SHOPPING_CHANGED", function() Lists.UpdateSource("ezCraft", false) end, ADDON)
+-- Jede Änderung einer gemeinsamen Liste (auch aus ezCraft): ezAuctions eigene Nachricht für Editor und Kategorien
+Core.Listen("LISTS_CHANGED", function()
+    Lists.ForgetSearch()
+    ns.Fire("LISTS_CHANGED")
+end, ADDON)
+Core.Listen("INVENTORY_CHANGED", function() Lists.ForgetSearch() end, ADDON)   -- Material gekauft: weniger fehlt
 ns.OnReady(function()
+    Lists.AdoptOld()
     Lists.Migrate()
     Lists.AdoptByName()
     Lists.UpdateSources()
@@ -841,7 +864,11 @@ function Lists.EntryWithCount(itemID, prefer)
     if not itemID then return nil end
     local function Look(list)
         for _, entry in ipairs(type(list) == "table" and type(list.items) == "table" and list.items or {}) do
-            if type(entry) == "table" and entry.itemID == itemID and Core.Num(entry.count) then return entry end
+            if type(entry) == "table" and entry.itemID == itemID and Core.Num(entry.count) and not entry.recipe then return entry end
+        end
+        -- Material hergestellter Gegenstände (Menge = was noch fehlt)
+        for _, entry in ipairs(Lists.SearchEntries(list)) do
+            if entry.fromRecipe and entry.itemID == itemID and Core.Num(entry.count) then return entry end
         end
         return nil
     end
@@ -860,7 +887,7 @@ function Lists.Need(itemID, prefer)
     local entry, list = Lists.EntryWithCount(itemID, prefer)
     if not entry then return nil end
     local count = Core.Num(entry.count)
-    if Lists.SourceOf(list) ~= nil then
+    if Lists.CountIsMissing(list) or entry.fromRecipe then
         return { need = count, count = count, entry = entry, list = list, source = true }
     end
     local info = Lists.StockOf(itemID)

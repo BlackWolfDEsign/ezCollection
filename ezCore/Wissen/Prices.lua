@@ -861,7 +861,11 @@ Prices.WEEKS_MAX = 26
 -- Sicherung auf aus, verschwand die Münze unsichtbar überall), worthGross (Nr. 4, jetzt fest: ohne gemessene Gebühr
 -- rechnet die Marke brutto und sagt es) und weeks (Nr. 51, „0 Wochen“ in der Auswahl heißt aus) sind weg; ihre alten
 -- Werte übernimmt Prices.MigrateWorthPlaces einmal. worthBag gilt auch an ezBags Plätzen (Nr. 50/58: ein Schalter).
-Core.OwnDefaults("priceOpts", { weeksMax = Prices.WEEKS_MAX, worthPct = 20, worthMerchant = true, worthBag = false })
+-- monthsMax: Monatspunkte (Entscheidung des Nutzers vom 21.11.2026, „Beides bauen“ – Monatsansicht und Vergrößern-Pfeil
+-- im Seitenteil „Markt“; unten bei den Monatspunkten).
+Prices.MONTHS_MAX = 24
+Core.OwnDefaults("priceOpts", { weeksMax = Prices.WEEKS_MAX, monthsMax = Prices.MONTHS_MAX, worthPct = 20,
+    worthMerchant = true, worthBag = false })
 
 Prices.WEEKS_STEPS = { 0, 4, 8, 13, 26 }
 -- eingestellte Wochenzahl (Auswahl in den Einstellungen; 0 = keine Wochenpunkte). Seit dem Wegfall des Schalters
@@ -908,17 +912,34 @@ Fold = function(entry, d)
     if qty and qty > (Core.Num(p.qty) or 0) then p.qty = qty end
 end
 
--- Wochen vor der Grenze verwerfen (die angefangene zählt mit)
+local FoldWeek, TrimMonths   -- Monatspunkte (unten)
+
+-- Wochen vor der Grenze verwerfen (die angefangene zählt mit) – mit Monatspunkten (Prices.MonthsMax() > 0) werden sie
+-- vorher zu ihrem Monat verdichtet. Die angefangene Woche wird dafür erst abgeschlossen, sobald sie keine Tage mehr
+-- bekommt (der älteste verbliebene Tagespunkt liegt in einer späteren Woche); bis dahin bleibt sie offen und
+-- Prices.Weeks zeigt sie nicht (Befund des Reviews: bei wenigen behaltenen Wochen – Stufe 4 – fiel sonst jede Woche
+-- tageweise in Bruchstücken in ihren Monat).
 TrimWeeks = function(entry, today)
     local first = WeekOf(today) - Prices.WeeksMax() + 1
+    local months = Prices.MonthsMax() > 0
+    if type(entry.wp) == "table" and (Core.Num(entry.wp.w) or 0) < first then
+        if not months then
+            entry.wp = nil
+        else
+            local d = entry.days
+            local oldest = type(d) == "table" and Core.Num(d[1])
+            if not oldest or WeekOf(oldest) ~= entry.wp.w then FinishWeek(entry) end
+        end
+    end
     local wk = entry.wk
     if type(wk) == "table" then
         while #wk >= NCOLW and (Core.Num(wk[1]) or 0) < first do
+            if months then FoldWeek(entry, wk) end
             for _ = 1, NCOLW do table.remove(wk, 1) end
         end
         if #wk == 0 then entry.wk = nil end
     end
-    if type(entry.wp) == "table" and (Core.Num(entry.wp.w) or 0) < first then entry.wp = nil end
+    if months then TrimMonths(entry, today) end
 end
 
 -- → { { week, day, time, low, high, median, quantity, days, open } … } älteste zuerst; open = angefangene Woche.
@@ -937,10 +958,137 @@ function Prices.Weeks(item)
         if w then Add(w, Col(wk[i + 1]), Col(wk[i + 2]), Col(wk[i + 3]), Col(wk[i + 4]), Core.Num(wk[i + 5]) or 0) end
     end
     local p = entry.wp
-    if type(p) == "table" and Core.Num(p.w) and type(p.lows) == "table" and #p.lows > 0 then
+    -- eine angefangene Woche vor der Grenze (für die Monate offen gehalten, TrimWeeks) zeigt sie nicht
+    local first = WeekOf((Prices.Day(Now()))) - Prices.WeeksMax() + 1
+    if type(p) == "table" and Core.Num(p.w) and p.w >= first and type(p.lows) == "table" and #p.lows > 0 then
         local lo = math.huge
         for _, v in ipairs(p.lows) do if v < lo then lo = v end end
         Add(p.w, lo, Core.Num(p.hi) or lo, Median(p.lows), Core.Num(p.qty) or 0, #p.lows, true)
+    end
+    return out
+end
+
+---------------------------------------------------------------------------
+-- Monatspunkte des Beobachteten (Entscheidung des Nutzers vom 21.11.2026: „Beides bauen“ – auf die Frage „wird der
+-- markt graph über wochen monate und gar jahre nicht zu sehr gestaucht? … vergrößern pfeil wie bei der karte?“)
+---------------------------------------------------------------------------
+-- Wochen, die aus Prices.WeeksMax() fallen, werden zu Kalendermonaten verdichtet statt verworfen – höchstens
+-- Prices.MonthsMax() Monate (ab Werk 24, Auswahl „Preisverlauf: Monate behalten“; 0 = aus, die Wochen fallen dann wie
+-- bisher weg). So zeigt jede Ansicht (Tage, Wochen, Monate) ein festes Fenster, und der Graph wird nie gestaucht.
+-- Ablage am Satz: entry.mo = Zahlenreihe mit NCOLM Werten je Monat (monat, tief, hoch, median, menge, tage), entry.mp =
+-- der angefangene Monat { m, meds = { Wochen-Median … }, lo, hi, qty, n = Tage } (höchstens 6 Wochen; eine Woche kommt
+-- erst abgeschlossen hinein, TrimWeeks). Der Median
+-- eines Monats ist der Median seiner Wochen-Mediane (eine Näherung – von einer Woche hält ezCore nur den Median).
+-- Monat = Jahr * 12 + Monat - 1 (Prices.MonthOf); eine Woche gehört zum Monat ihres Donnerstags (wie die
+-- Kalenderwoche zu ihrem Jahr). Ein Satz ohne mo liest sich wie bisher.
+local NCOLM = 6
+-- Prices.MONTHS_MAX (24) steht oben bei den Vorgaben von priceOpts
+Prices.MONTHS_STEPS = { 0, 6, 12, 24 }
+
+function Prices.MonthsMax()
+    local n = Core.Num(Core.OwnSetting("priceOpts", "monthsMax")) or Prices.MONTHS_MAX
+    return math.max(0, math.min(Prices.MONTHS_MAX, floor(n)))
+end
+
+-- Kalendermonat eines Tags (Tag 0 = 1.1.1970, wie Prices.Day) ohne date(): Umrechnung Tage → Jahr/Monat nach dem
+-- gregorianischen Kalender. → monat (Jahr * 12 + Monat - 1), jahr, monat (1–12); nil ohne Zahl.
+function Prices.MonthOf(day)
+    day = Core.Num(day)
+    if not day then return nil end
+    local z = floor(day) + 719468
+    local era = floor(z / 146097)
+    local doe = z - era * 146097
+    local yoe = floor((doe - floor(doe / 1460) + floor(doe / 36524) - floor(doe / 146096)) / 365)
+    local doy = doe - (365 * yoe + floor(yoe / 4) - floor(yoe / 100))
+    local mp = floor((5 * doy + 2) / 153)
+    local m = mp < 10 and mp + 3 or mp - 9
+    local y = yoe + era * 400 + (m <= 2 and 1 or 0)
+    return y * 12 + m - 1, y, m
+end
+
+-- Monat einer Woche aus Prices.WeekOf: der Monat ihres Donnerstags (wie die Kalenderwoche zu ihrem Jahr). Die Regel
+-- steht nur hier (Leitlinie 2; ezAuctions Monatsansicht fragt sie ab). nil ohne Zahl.
+function Prices.MonthOfWeek(week)
+    week = Core.Num(week)
+    if not week then return nil end
+    return (Prices.MonthOf(floor(week) * 7))
+end
+
+-- erster Tag eines Monats aus Prices.MonthOf (Umkehrung). nil ohne Zahl.
+function Prices.MonthStart(month)
+    month = Core.Num(month)
+    if not month then return nil end
+    month = floor(month)
+    local y, m = floor(month / 12), month % 12 + 1
+    if m <= 2 then y = y - 1 end
+    local era = floor(y / 400)
+    local yoe = y - era * 400
+    local doy = floor((153 * ((m + 9) % 12) + 2) / 5)
+    local doe = yoe * 365 + floor(yoe / 4) - floor(yoe / 100) + doy
+    return era * 146097 + doe - 719468
+end
+
+local function FinishMonth(entry)
+    local p = entry.mp
+    entry.mp = nil
+    if type(p) ~= "table" or not Core.Num(p.m) or type(p.meds) ~= "table" or #p.meds == 0 then return end
+    local mo = type(entry.mo) == "table" and entry.mo or {}
+    entry.mo = mo
+    local lo = Core.Num(p.lo) or Median(p.meds)
+    mo[#mo + 1], mo[#mo + 2], mo[#mo + 3] = p.m, lo, math.max(Core.Num(p.hi) or lo, lo)
+    mo[#mo + 1], mo[#mo + 2], mo[#mo + 3] = Median(p.meds), Core.Num(p.qty) or 0, Core.Num(p.n) or 0
+end
+
+-- die älteste Woche (wk[1] …) in ihren Monat übernehmen, bevor sie fällt
+FoldWeek = function(entry, wk)
+    local w, med = Core.Num(wk[1]), Col(wk[4])
+    if not (w and med) then return end
+    local m = Prices.MonthOfWeek(w)
+    if type(entry.mp) == "table" and entry.mp.m ~= m then FinishMonth(entry) end
+    local p = type(entry.mp) == "table" and entry.mp or { m = m, meds = {}, qty = 0, n = 0 }
+    entry.mp = p
+    local lo, hi = Col(wk[2]) or med, Col(wk[3]) or med
+    p.meds[#p.meds + 1] = med
+    p.lo = math.min(Core.Num(p.lo) or lo, lo)
+    p.hi = math.max(Core.Num(p.hi) or hi, hi)
+    local qty = Col(wk[5])
+    if qty and qty > (Core.Num(p.qty) or 0) then p.qty = qty end
+    p.n = (Core.Num(p.n) or 0) + (Core.Num(wk[6]) or 0)
+end
+
+-- Monate vor der Grenze verwerfen (der angefangene zählt mit)
+TrimMonths = function(entry, today)
+    local first = Prices.MonthOf(today) - Prices.MonthsMax() + 1
+    local mo = entry.mo
+    if type(mo) == "table" then
+        while #mo >= NCOLM and (Core.Num(mo[1]) or 0) < first do
+            for _ = 1, NCOLM do table.remove(mo, 1) end
+        end
+        if #mo == 0 then entry.mo = nil end
+    end
+    if type(entry.mp) == "table" and (Core.Num(entry.mp.m) or 0) < first then entry.mp = nil end
+end
+
+-- → { { month, year, monthOfYear, day (erster Tag), time, low, high, median, quantity, days, weeks, open } … } älteste
+-- zuerst; open = angefangener Monat (weeks = so viele Wochen stecken darin). Leer bei Prices.MonthsMax() == 0.
+function Prices.Months(item)
+    local entry = EntryOf(item)
+    local out = {}
+    if type(entry) ~= "table" or Prices.MonthsMax() == 0 then return out end
+    local mo = type(entry.mo) == "table" and entry.mo or {}
+    local function Add(m, lo, hi, med, qty, n, weeks, open)
+        local day = Prices.MonthStart(m)
+        out[#out + 1] = { month = m, year = floor(m / 12), monthOfYear = m % 12 + 1, day = day, time = day * DAY,
+            low = lo, high = hi, median = med, quantity = qty, days = n, weeks = weeks, open = open or nil }
+    end
+    for i = 1, #mo - NCOLM + 1, NCOLM do
+        local m = Core.Num(mo[i])
+        if m then Add(m, Col(mo[i + 1]), Col(mo[i + 2]), Col(mo[i + 3]), Col(mo[i + 4]), Core.Num(mo[i + 5]) or 0) end
+    end
+    local p = entry.mp
+    if type(p) == "table" and Core.Num(p.m) and type(p.meds) == "table" and #p.meds > 0 then
+        local med = Median(p.meds)
+        Add(p.m, Core.Num(p.lo) or med, Core.Num(p.hi) or med, med, Core.Num(p.qty) or 0, Core.Num(p.n) or 0, #p.meds, true)
     end
     return out
 end
@@ -1257,23 +1405,35 @@ function Prices.ScanYields()
     return Core.WhoHandles and Core.WhoHandles("auctionScan") or nil
 end
 
+-- Rückgabe: true – oder false, Grund und bei "unsupported" die genaue Ursache (Spielbefund vom 21.11.2026: ezAuction
+-- meldete „lehnt dieser Client ab“, obwohl Forevers Client alle Aufrufe hat – Gethe/wow-ui-source, Zweig forever,
+-- AuctionHouseDocumentation.lua): "api" (Aufruf fehlt), "db"/"realm"/"readonly"/"store" (keine beschreibbare
+-- Preisablage: ezCore fehlt die Ablage, Realm oder Fraktion unbekannt, Ablage einer neueren Fassung, sonst), "call" und
+-- Blizzards Fehlertext als vierter Wert.
 function Prices.Scan(opts)
     local AH = C_AuctionHouse
-    if not (AH and AH.ReplicateItems and AH.GetNumReplicateItems and AH.GetReplicateItemInfo) then return false, "unsupported" end
+    if not (AH and AH.ReplicateItems and AH.GetNumReplicateItems and AH.GetReplicateItemInfo) then return false, "unsupported", "api" end
     if not isOpen then return false, "closed" end
     if scanning then return false, "busy" end
     -- Rücksicht vor der Sperrzeit: läuft ein anderes Addon, startet ezCore von selbst nie – auch nicht nach der Sperrzeit
     if type(opts) == "table" and opts.auto and Prices.ScanYields() then return false, "other" end
     if Prices.ScanReadyIn() > 0 then return false, "wait" end
-    local store = Store(true)
-    if not store then return false, "unsupported" end
+    local store, area = Store(true)
+    if not store then
+        local M = Market()
+        local why = ((not M or not Core.Call(M.Root)) and "db") or (area == nil and "realm") or (M.Readonly and Core.Call(M.Readonly) == true and "readonly") or "store"
+        -- Grund "realm": was der Client liefert, als vierter Wert (Spielbefund vom 21.11.2026; Keys.MarketWhy)
+        local Keys = Core.DB and Core.DB.Keys
+        local detail = why == "realm" and Keys and Keys.MarketWhy and Core.Call(Keys.MarketWhy) or nil
+        return false, "unsupported", why, detail
+    end
     local run = NewRun(0, true)
     scanning = run
-    local ok = pcall(AH.ReplicateItems)
+    local ok, err = pcall(AH.ReplicateItems)
     if not ok then
         -- W-52: kein Zeitpunkt gemerkt – Blizzard hat nichts angenommen, also auch nichts zu warten
         scanning = nil
-        return false, "unsupported"
+        return false, "unsupported", "call", tostring(err)
     end
     SetScanAt(Now())
     -- W-52: Bleibt Blizzards Liste aus, hängt „Erfasse …“ sonst bis zum Schließen. Kommt sie später doch,
@@ -1678,6 +1838,7 @@ local userUntil, ownDepth, pumpPlanned = 0, 0, false
 -- Ende der Haltezeit nach Blizzards Favoriten-Abfrage (AUTO_HOLD), getrennt von userUntil (USER_HOLD): Ein Klick
 -- beendet nur die Haltezeit nach einer eigenen Suche, Blizzards Liste bleibt ihrer Anzeige (Gegenprüfung Welle 23b).
 local autoUntil, autoPlanned = 0, false
+local clickPlanned = false   -- eigener Wiederholungs-Zeitgeber für einen Klick-Auftrag bei gedrosseltem Nachrichtensystem
 local userListeners = {}
 
 -- Läuft gerade eine Haltezeit (eigene Suche oder Blizzards Favoriten-Abfrage)?
@@ -1770,7 +1931,22 @@ Pump = function()
         end
         if not at then Plan(wait) return end
     end
-    if not Ready() then Plan() return end
+    if not Ready() then
+        -- Ein Klick innerhalb der Haltezeit: der schon geplante Lauf käme erst an ihrem Ende (Plan ist dann belegt);
+        -- eigener Zeitgeber im Takt von RETRY (Befund des Reviews vom 21.11.2026, wie autoPlanned oben)
+        if wait > 0 then
+            if not clickPlanned then
+                clickPlanned = true
+                C_Timer.After(Queue.RETRY, function()
+                    clickPlanned = false
+                    Pump()
+                end)
+            end
+        else
+            Plan()
+        end
+        return
+    end
     if wait > 0 then userUntil = Core.Uptime() end
     local job = table.remove(waiting, at)
     current, job.token, job.startedAt = job, (job.token or 0) + 1, Core.Uptime()
@@ -2385,7 +2561,7 @@ Prices.WORTH_PCT_STEPS = { 10, 20, 30, 50, 75, 100, 150, 200 }
 -- eingefügte Texte (Core.ImportAll, Gegenprüfung zu T6-2): Anteil und Wochen nur im Bereich der Auswahl
 Core.OwnRules("priceOpts", { limits = {
     worthPct = { Prices.WORTH_PCT_STEPS[1], Prices.WORTH_PCT_STEPS[#Prices.WORTH_PCT_STEPS] },
-    weeksMax = { 0, Prices.WEEKS_MAX } } })
+    weeksMax = { 0, Prices.WEEKS_MAX }, monthsMax = { 0, Prices.MONTHS_MAX } } })
 function Prices.WorthPercent()
     local pct = Core.Num(Core.OwnSetting("priceOpts", "worthPct")) or 20
     return math.max(0, math.min(1000, pct))
@@ -2619,6 +2795,18 @@ function Prices.AddSettings(page)
             if t and n then t.weeksMax = math.max(0, math.min(Prices.WEEKS_MAX, n)) end
         end, { default = Prices.WEEKS_MAX, varType = Settings and Settings.VarType and Settings.VarType.Number,
             tooltip = L.OPT_priceWeeksMax_TIP:format(Prices.WATCH_DAYS or 30, Prices.WEEKS_MAX) })
+        -- Monatspunkte (21.11.2026): „0“ heißt keine – ältere Wochen fallen dann wie bisher weg
+        page:ProxyDropdown("priceMonthsMax", function()
+            local list = {}
+            for _, v in ipairs(Prices.MONTHS_STEPS) do
+                if v <= Prices.MONTHS_MAX then list[#list + 1] = { v, tostring(v) } end
+            end
+            return list
+        end, function() return Prices.MonthsMax() end, function(v)
+            local t, n = Core.OwnSettings("priceOpts"), Core.Num(v)
+            if t and n then t.monthsMax = math.max(0, math.min(Prices.MONTHS_MAX, n)) end
+        end, { default = Prices.MONTHS_MAX, varType = Settings and Settings.VarType and Settings.VarType.Number,
+            tooltip = L.OPT_priceMonthsMax_TIP:format(Prices.MONTHS_MAX) })
     end
     if type(page.Button) == "function" then
         page:Button(L.PRICES_BROWSE_LABEL, L.PRICES_BROWSE_BUTTON, function()

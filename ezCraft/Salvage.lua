@@ -22,6 +22,8 @@ local Data = ns.Data
       Klick       je Zeile ein Symbol „Entzaubern“: ein Klick entzaubert genau diesen Gegenstand über ezCores sicheren
                   Knopf (Core.SecureButton, Abschnitt „Entzaubern per Klick“ unten; nur außerhalb des Kampfes, CRAFT-09)
       Marke       „lohnt sich zu entzaubern“ am Taschenplatz über ezCores Platzmarken (Schalter salvageMark, CRAFT-10)
+      Nachfrage   kommt ein lohnender Gegenstand neu in die Tasche: Blizzards Rückfrage „Entzaubern / Nein / Niemals“
+                  (Sal.Ask, Abschnitt „Nachfrage beim Erhalt“ unten; Schalter salvageAsk, Entscheidung vom 21.11.2026)
       bei dir     zweite Stufe (EC-52): was beim Entzaubern bei dir wirklich herauskam (Sal.Own, ezCores Entdecker-
                   Datenbank Core.Drops.Salvage) – je Material „· bei dir 3×“, dazu „bei dir 5× entzaubert“; NEBEN der
                   Tabelle, die bis zum Abgleich „ungeprüft“ bleibt. Der erwartete Wert rechnet weiter mit der Tabelle
@@ -362,7 +364,7 @@ end
 
 ---------------------------------------------------------------------------
 -- Marke „lohnt sich zu entzaubern“ am Taschenplatz (CRAFT-10; Entscheidungsfrage 3 vom 13.11.2026: Liste plus
--- Marke an der Tasche, kein aufspringendes Fenster). Angemeldet bei ezCores Platzmarken (Core.SlotMarks, Frage 18 –
+-- Marke an der Tasche; die Nachfrage kam am 21.11.2026 dazu – Abschnitt „Nachfrage beim Erhalt“). Angemeldet bei ezCores Platzmarken (Core.SlotMarks, Frage 18 –
 -- Empfehlung umgesetzt, Antwort offen): mit ezBag zeichnet ezBag sie, ohne ezBag ezCore an Blizzards Taschen.
 -- Gezeigt wird sie nur, wenn der gespielte Charakter entzaubern kann, nur in den Taschen (nicht in der Bank) und nur
 -- für Gegenstände, die auch die Liste vorschlagen würde. Schalter salvageMark.
@@ -494,6 +496,7 @@ end
 
 local function OnLeaveSecure()
     GameTooltip_Hide()
+    if armed and armed.sticky then return end   -- über der Nachfrage bleibt er liegen, bis sie zu ist
     Sal.Disarm()
 end
 
@@ -502,6 +505,7 @@ local function PreClick()
     local ok, why = false, "gone"
     if entry then ok, why = Sal.SlotHolds(entry) end
     if ok and Sal.PlayerBusy() then ok, why = false, "casting" end
+    if armed then armed.refused = not ok and why or nil end
     if not ok and secure then
         secure:SetAction(nil)   -- dieser Klick tut nichts (außerhalb des Kampfes wirkt das sofort)
         ns.Print(why == "casting" and L.SALVAGE_CLICK_CASTING or why == "busy" and L.SALVAGE_CLICK_BUSY
@@ -510,7 +514,16 @@ local function PreClick()
 end
 
 local function PostClick()
-    Sal.Disarm()                -- ein Klick, ein Gegenstand: für den nächsten neu auf das Symbol zeigen
+    local was = armed
+    -- Über der Nachfrage (sticky): hat der Klick nichts getan, weil gerade ein Zauber läuft oder der Platz gesperrt
+    -- ist, bleibt der Knopf liegen und wird neu belegt – der nächste Klick versucht es wieder.
+    if was and was.sticky and (was.refused == "casting" or was.refused == "busy") and not Core.InCombat() then
+        was.refused = nil
+        if secure then secure:SetAction({ type = "macro", macrotext = Sal.MacroText(was.entry) }) end
+        return
+    end
+    Sal.Disarm(true)            -- ein Klick, ein Gegenstand: für den nächsten neu auf das Symbol zeigen
+    if was and type(was.onDone) == "function" then Core.Try(ADDON, "Entzaubern onDone", was.onDone, was.refused or "clicked") end
     if ns.Panel and ns.Panel.RefreshSoon then ns.Panel.RefreshSoon() end
 end
 
@@ -532,14 +545,18 @@ local function SecureHandle()
 end
 
 -- Legt den sicheren Knopf über anchor (das Symbol der Zeile) und belegt ihn mit dem Makro für entry.
+-- opts (frei): sticky = true – beim Verlassen mit der Maus bleibt er liegen (Knopf „Entzaubern“ der Nachfrage);
+-- onDone(ergebnis) nach dem Klick: "clicked" (entzaubert), "gone" (nicht mehr da), bei sticky sonst nichts.
 -- → true | false, Grund ("combat", "unknown" – der Charakter kann nicht entzaubern, "missing" – kein sicherer Knopf)
-function Sal.Arm(anchor, entry)
+function Sal.Arm(anchor, entry, opts)
     if not (anchor and entry and entry.bag and entry.slot) then return false, "invalid" end
     if Core.InCombat() then return false, "combat" end
     if not Sal.CanDisenchant() then return false, "unknown" end
+    -- liegt er über der Nachfrage, bleibt er dort, bis sie beantwortet ist (eine Zeile des Seitenteils wartet)
+    if armed and armed.sticky and not (opts and opts.sticky) then return false, "asking" end
     local handle = SecureHandle()
     if not handle then return false, "missing" end
-    armed = { entry = entry, anchor = anchor }
+    armed = { entry = entry, anchor = anchor, sticky = opts and opts.sticky == true or nil, onDone = opts and opts.onDone }
     handle:SetAction({ type = "macro", macrotext = Sal.MacroText(entry) })
     handle:Anchor(function(frame)
         frame:ClearAllPoints()
@@ -552,7 +569,9 @@ function Sal.Arm(anchor, entry)
 end
 
 -- Entschärfen: Makro leeren, verstecken, vom Symbol lösen. Außerhalb des Kampfes sofort; im Kampf ist er schon gelöst.
-function Sal.Disarm()
+-- Über der Nachfrage (sticky) nur mit force – das Seitenteil ruft Disarm bei jedem Auffrischen.
+function Sal.Disarm(force)
+    if armed and armed.sticky and not force then return end
     local was = armed
     armed = nil
     if not secure or Core.InCombat() then return end
@@ -566,7 +585,269 @@ function Sal.SecureButton() return secure end
 
 -- Kampfbeginn: Die Sperre greift erst nach dem Ereignis – jetzt lösen, damit das Seitenteil ungeschützt bleibt
 -- (ein geschützter Rahmen, der an einem Rahmen verankert ist, schützt diesen im Kampf mit).
-ns.On("PLAYER_REGEN_DISABLED", function() Sal.Disarm() end)
+ns.On("PLAYER_REGEN_DISABLED", function() Sal.Disarm(true) end)
+
+---------------------------------------------------------------------------
+-- Nachfrage beim Erhalt (Entscheidung des Nutzers vom 21.11.2026, hebt Entscheidung 3 vom 13.11.2026 auf: „soll fragen
+-- ob es entzaubert werden soll und ich muss mit button zustimmen, ablehnen oder niemals drücken können“; Auswahl „Nur
+-- wenn es sich lohnt (Empfohlen)“). Kommt ein Gegenstand neu in die Taschen, bei dem Entzaubern mehr bringt als Händler
+-- und Auktion (Sal.Worth – dieselbe Regel wie die Marke am Platz), fragt Blizzards Rückfrage-Fenster (eigener Eintrag
+-- in StaticPopupDialogs, Leitlinie 5):
+--   „Entzaubern“  darüber liegt der sichere Knopf (Sal.Arm mit sticky): ein Klick entzaubert genau diesen Gegenstand
+--   „Nein“        nur diesmal (Esc ebenso)
+--   „Niemals“     ignorieren (Sal.Ignore; „Ignorierte zurück“ im Reiter „Entzaubern“ holt ihn wieder)
+-- Neu heißt: mehr Stück dieser itemID in den Taschen als beim letzten Lesen (Ask.Scan) – nach itemID, nicht nach Link:
+-- der Link ändert sich mit Stufe, Spezialisierung, Verzauberung (Review 21.11.2026). Beim ersten Lesen nach dem Anmelden
+-- gilt alles Vorhandene als gesehen; Umräumen ändert die Zahl nicht. Was bei offener Bank, Post, beim Händler, Handel
+-- oder Auktionshaus in die Taschen kommt, gilt als gesehen (dort holst du es selbst – keine Frage), ebenso kurz nach dem
+-- Schließen, nach einem Ladebildschirm und nach einem Wechsel der Ausrüstung (das abgelegte Teil rutscht in die Tasche).
+-- Teile eines Ausrüstungssets fragt ezCraft nie. Im Kampf wartet die Frage (Ask.fighting, PLAYER_REGEN_ENABLED fragt
+-- weiter); beginnt ein Kampf, während sie offen ist, schließt ezCraft sie und fragt danach wieder. Schalter salvageAsk.
+---------------------------------------------------------------------------
+
+Sal.POPUP = "EZCRAFT_SALVAGE_ASK"
+local Ask = { queue = {} }
+Sal.Ask = Ask
+
+-- Fenster, bei denen Gegenstände ohne Beute in die Taschen kommen (Enum.PlayerInteractionType, Namen wie im Client)
+local QUIET_TYPES = { "TradePartner", "Merchant", "Banker", "GuildBanker", "MailInfo", "Auctioneer", "AccountBanker",
+    "VoidStorageBanker", "ItemUpgrade" }
+local quiet = {}
+Ask.SETTLE = 2   -- Sekunden nach Schließen, Ladebildschirm oder Ausrüstungswechsel, in denen Neues als gesehen gilt
+
+local function Now() return Core.Uptime() end   -- Laufzeit der Sitzung (ezCore)
+
+-- Eine Weile nichts fragen, nur merken (Ausrüstungswechsel, Fenster geschlossen, Ladebildschirm)
+function Ask.Settle(seconds) Ask.quietUntil = Now() + (seconds or Ask.SETTLE) end
+
+function Ask.Active()
+    return ns.Enabled("salvageAsk") and Sal.Available() and Sal.CanDisenchant()
+end
+
+function Ask.Quiet() return next(quiet) ~= nil or Now() < (Ask.quietUntil or 0) end
+
+local function QuietType(kind)
+    local enum = Enum and Enum.PlayerInteractionType
+    if type(enum) ~= "table" or Core.IsSecret(kind) then return nil end
+    for _, name in ipairs(QUIET_TYPES) do
+        if enum[name] ~= nil and enum[name] == kind then return name end
+    end
+    return nil
+end
+Ask.QuietType = QuietType
+
+function Ask.SetQuiet(name, on) quiet[name] = on and true or nil end
+
+-- Taschen lesen; neue Stück eines entzauberbaren Gegenstands, die sich lohnen, kommen in die Reihe. → Anzahl neu gereiht
+function Ask.Scan()
+    local counts, slots, where = {}, {}, {}
+    Core.ForEachBagItem(function(bag, slot, item)
+        local itemID = Num(Plain(item.itemID))
+        if not itemID then return end
+        local link = Plain(item.hyperlink)
+        if type(link) ~= "string" then link = nil end
+        local key = itemID
+        counts[key] = (counts[key] or 0) + 1
+        local list = slots[key]
+        if not list then
+            list = {}
+            slots[key] = list
+        end
+        list[#list + 1] = { bag = bag, slot = slot, itemID = itemID, link = link }
+        where[bag .. ":" .. slot] = itemID
+    end, "sell")
+    local seen, before = Ask.seen, Ask.where or EMPTY
+    Ask.seen, Ask.where = counts, where
+    if not seen or Ask.Quiet() or not Ask.Active() then return 0 end   -- erstes Lesen, Bank/Post/… offen, aus
+    local added = 0
+    for key, n in pairs(counts) do
+        local more = n - (seen[key] or 0)
+        if more > 0 then
+            -- welches Stück neu ist: zuerst die Plätze, auf denen vorher nicht dieser Gegenstand lag
+            local fresh, old = {}, {}
+            for _, s in ipairs(slots[key]) do
+                if before[s.bag .. ":" .. s.slot] == key then old[#old + 1] = s else fresh[#fresh + 1] = s end
+            end
+            for _, s in ipairs(old) do fresh[#fresh + 1] = s end
+            for i = 1, more do
+                if Ask.Offer(fresh[i]) then added = added + 1 end
+            end
+        end
+    end
+    if added > 0 then Ask.Next() end
+    return added
+end
+
+-- Einen Platz prüfen und einreihen: entzauberbar, nicht ausgeschlossen (ignoriert, ezBags Schloss, laut ezGear besser),
+-- und Entzaubern lohnt sich. → true, wenn eingereiht
+function Ask.Offer(s)
+    if not (s and s.itemID) then return false end
+    if Excluded(s.itemID, s.link, s.bag, s.slot) or Ask.InSet(s.bag, s.slot) then return false end
+    local info = Sal.Info(s.link or s.itemID)
+    if not (info and Sal.Worth(info)) then return false end
+    for _, e in ipairs(Ask.queue) do
+        if e.bag == s.bag and e.slot == s.slot then return false end
+    end
+    Ask.queue[#Ask.queue + 1] = { bag = s.bag, slot = s.slot, itemID = s.itemID, link = s.link,
+        name = Data.ItemName(s.itemID), icon = Data.ItemIcon(s.itemID), info = info }
+    return true
+end
+
+-- Gehört der Gegenstand zu einem Ausrüstungsset (Blizzards C_Container.GetContainerItemEquipmentSetInfo)?
+function Ask.InSet(bag, slot)
+    local get = C_Container and C_Container.GetContainerItemEquipmentSetInfo
+    if type(get) ~= "function" then return false end
+    return Plain(Call(get, bag, slot)) == true
+end
+
+-- Text der Frage: Symbol und Name, darunter „Entzaubern? ≈ 1s 20k (Händler 40k · Auktion 80k)“
+function Ask.Text(entry)
+    local info = entry.info or EMPTY
+    local name = entry.link or entry.name or ("item:" .. tostring(entry.itemID))
+    local head = entry.icon and ("|T%s:20|t %s"):format(tostring(entry.icon), name) or name
+    local value = info.value and L.SALVAGE_VALUE:format(Core.Money(info.value)) or L.SALVAGE_PRICE_UNKNOWN
+    local beside = {}
+    if info.vendor then beside[#beside + 1] = L.SALVAGE_VENDOR:format(Core.Money(info.vendor)) end
+    if info.auction then beside[#beside + 1] = L.SALVAGE_AUCTION:format(Core.Money(info.auction)) end
+    if #beside > 0 then value = value .. " (" .. table.concat(beside, " · ") .. ")" end
+    return L.SALVAGE_ASK:format(head, value)
+end
+
+-- Die nächste Frage zeigen (eine zur Zeit; im Kampf nach dem Kampf). → true, wenn sie jetzt offen ist
+function Ask.Next()
+    if Ask.open then return false end
+    if not Ask.Active() then
+        wipe(Ask.queue)
+        return false
+    end
+    if Core.InCombat() or Ask.fighting then return false end   -- PLAYER_REGEN_ENABLED fragt weiter
+    while #Ask.queue > 0 do
+        local entry = table.remove(Ask.queue, 1)
+        if not Sal.IsIgnored(entry.itemID) and Sal.SlotHolds(entry) then
+            Ask.open = entry
+            local dialog = StaticPopup_Show(Sal.POPUP, Ask.Text(entry), nil, entry)
+            if dialog then return true end
+            -- Blizzard zeigt gerade keinen Dialog (tot, alle Plätze belegt): wieder vorn einreihen, später versuchen
+            Ask.open = nil
+            table.insert(Ask.queue, 1, entry)
+            if C_Timer and C_Timer.After then C_Timer.After(5, Ask.Next) end
+            return false
+        end
+    end
+    return false
+end
+
+-- Antwort merken: "clicked" (entzaubert), "gone" (lag nicht mehr dort), "no", "never" (ignorieren)
+function Ask.Answer(entry, answer)
+    if not entry or entry.answered then return end
+    entry.answered = answer
+    if answer == "never" then
+        Sal.Ignore(entry.itemID)
+        ns.Print(L.SALVAGE_ASK_NEVER_DONE:format(entry.link or entry.name or "?"))
+    end
+end
+
+-- Blizzards Knopf 1 des Dialogs (Forever: dialog:GetButton1(); ältere Clients: dialog.button1)
+local function Button1(dialog)
+    if type(dialog) ~= "table" then return nil end
+    if type(dialog.GetButton1) == "function" then return dialog:GetButton1() end
+    return dialog.button1
+end
+Ask.Button1 = Button1
+
+function Ask.OnShow(dialog, entry)
+    if not entry then return end
+    local ok, why = Sal.Arm(Button1(dialog), entry, { sticky = true, onDone = function(result)
+        Ask.Answer(entry, result == "gone" and "gone" or "clicked")
+        StaticPopup_Hide(Sal.POPUP, entry)
+    end })
+    entry.armed = ok
+    entry.armFail = not ok and why or nil
+end
+
+-- „Entzaubern“ ohne darübergelegten sicheren Knopf (fehlt, Kampf): nichts entzaubert, die Meldung sagt warum
+function Ask.OnAccept(entry)
+    if not entry then return end
+    if Core.InCombat() or entry.armFail == "combat" then
+        Core.CombatNotice(ns, L.SALVAGE_WHAT)
+    else
+        ns.Print(L.SALVAGE_ASK_FAILED)
+    end
+    Ask.Answer(entry, "no")
+end
+
+function Ask.OnHide(entry)
+    if Ask.open == entry then Ask.open = nil end
+    local armedNow = Sal.Armed()
+    if armedNow and armedNow.entry == entry then Sal.Disarm(true) end
+    if entry and not entry.answered then
+        if entry.requeue then
+            entry.requeue = nil
+            table.insert(Ask.queue, 1, entry)
+        else
+            entry.answered = "no"
+        end
+    end
+    if #Ask.queue > 0 and C_Timer and C_Timer.After then C_Timer.After(0.3, Ask.Next) end
+end
+
+StaticPopupDialogs[Sal.POPUP] = {
+    text = "%s",
+    button1 = L.SALVAGE_ASK_YES,
+    button2 = NO or CANCEL,   -- Blizzards Wort (Einheit T18-22)
+    button3 = L.SALVAGE_ASK_NEVER,
+    timeout = 0,
+    whileDead = false,
+    hideOnEscape = true,
+    preferredIndex = 3,
+    OnShow = function(dialog, entry) Core.Try(ADDON, "Entzaubern fragen", Ask.OnShow, dialog, entry) end,
+    OnAccept = function(_, entry) Ask.OnAccept(entry) end,
+    OnCancel = function(_, entry) Ask.Answer(entry, "no") end,
+    OnAlt = function(_, entry) Ask.Answer(entry, "never") end,
+    OnHide = function(_, entry) Core.Try(ADDON, "Entzaubern fragen", Ask.OnHide, entry) end,
+}
+
+-- Kampfbeginn bei offener Frage: schließen und nach dem Kampf wieder fragen (der sichere Knopf ist schon gelöst).
+-- Ask.fighting, weil die Kampfsperre beim Ereignis selbst noch nicht gilt (Core.InCombat wäre noch false).
+ns.On("PLAYER_REGEN_DISABLED", function()
+    Ask.fighting = true
+    local entry = Ask.open
+    if not entry then return end
+    entry.requeue = true
+    StaticPopup_Hide(Sal.POPUP, entry)
+end)
+ns.On("PLAYER_REGEN_ENABLED", function()
+    Ask.fighting = nil
+    if #Ask.queue > 0 then Ask.Next() end
+end)
+
+Ask.ScanSoon = Core.Throttle(function() Ask.Scan() end, 0.5, ADDON)
+ns.On("BAG_UPDATE_DELAYED", function() Ask.ScanSoon() end)
+ns.OnReady(function() Ask.Scan() end)   -- erstes Lesen: alles Vorhandene gilt als gesehen
+ns.On("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", function(_, kind)
+    local name = QuietType(kind)
+    if name then quiet[name] = true end
+end)
+ns.On("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", function(_, kind)
+    local name = QuietType(kind)
+    if not name then return end
+    quiet[name] = nil
+    Ask.Settle()   -- ein Kauf oder Postanhang kommt manchmal erst nach dem Schließen in die Tasche
+    Ask.Scan()     -- das jetzt Vorhandene als gesehen merken
+end)
+-- Ladebildschirm: ein verpasstes FRAME_HIDE hielte sonst für immer still
+ns.On("PLAYER_ENTERING_WORLD", function()
+    wipe(quiet)
+    Ask.Settle()
+end)
+-- Ausrüstung gewechselt: das abgelegte Teil rutscht in die Tasche – keine Frage dafür
+ns.On("PLAYER_EQUIPMENT_CHANGED", function() Ask.Settle() end)
+ns.OnSettingChanged(function(key)
+    if (key == "salvageAsk" or key == nil) and not ns.Enabled("salvageAsk") then
+        wipe(Ask.queue)
+        if Ask.open then StaticPopup_Hide(Sal.POPUP, Ask.open) end
+    end
+end)
 
 -- Status (/ezcraft status): ob der Entzauber-Wert gezeigt wird, wer ihn sonst zeigt, wie viel ignoriert ist.
 ns.AddStatusLine(function()

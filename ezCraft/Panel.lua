@@ -1,11 +1,17 @@
 local ADDON, ns = ...
 local L = ns.L
+
+-- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
+-- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
+-- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
+ns.FEATURE_STEPS = { "recipe.buttons", false, "recipe.buttons", "side.tabs", "recipe.buttons" }
 local Core = ezCore
 local Data = ns.Data
 
 --[[
-    ezCraft als Seitenteil mit Pfeil am Berufefenster (ProfessionsFrame aus Blizzard_Professions, Forever/Camelot) –
-    Entscheidung des Nutzers vom 14.11.2026 „Seitenteil mit Pfeil (Empfohlen)“ (CRAFT-01, FP-13). Vorher (1.5 bis
+    ezCraft als Seitenteil am Berufefenster (ProfessionsFrame aus Blizzard_Professions, Forever/Camelot) –
+    Entscheidung des Nutzers vom 14.11.2026 „Seitenteil mit Pfeil (Empfohlen)“ (CRAFT-01, FP-13); seit dem zweiten
+    Spieltest vom 21.11.2026 klappt es ein Symbol-Reiter im Seitenreiter-Stapel auf und zu statt des Pfeils. Vorher (1.5 bis
     Welle 5) saß ezCraft im Rezeptfeld unter Blizzards Zutaten, mit Knopfspalte und Seitenreitern; im Spieltest
     überlappten Auctionators Zeilen die Überschrift und die Knöpfe hingen über Blizzards Seitenreitern.
 
@@ -15,22 +21,24 @@ local Data = ns.Data
                                        Professions1Tab … 7Tab – sie ragen über den rechten Rand hinaus
       Seitenreiter-Stapel              ebenfalls rechts außen (Core.CreateSideTab, Reiter anderer Module)
 
-    Aufbau (nur eigene Rahmen; nichts in Blizzards Tabellen, nur HookScript; Blizzards Rezeptfeld bleibt unberührt):
+    Aufbau (nur eigene Rahmen; nichts in Blizzards Tabellen, nur HookScript; im Rezeptfeld nur ezCrafts Kostenzeile und
+    die Knöpfe „Auf die Liste“ und „Auktionshaus“ – Schematic.lua, seit dem 21.11.2026):
       Seitenteil         Core.NewSidePanel(ProfessionsFrame): Kind des Berufefensters (kein Rahmen unter UIParent),
                          angedockt rechts außen mit Abstand SIDE_GAP – so bleiben Blizzards Reiter und der
                          Seitenreiter-Stapel frei; ohne Platz wechselt ezCore die Seite oder legt es innen darüber
                          (dann sagt das Seitenteil es). Blizzards Vorlage InsetFrameTemplate, dazu der Hintergrund des
                          offenen Berufs aus dem Rezeptfeld (nur gelesen).
-      Pfeil-Knopf        von ezCore: zu = oben außen am Berufefenster, offen = in der äußeren oberen Ecke des
-                         Seitenteils; Zustand in ezCraftDB.window.open, Tooltip, /ezcraft fenster
-      Reiterzeile        oben im Seitenteil: Rezept, Einkaufsliste, Fehlend, Abklingzeiten, Entzaubern (Symbole mit
-                         Tooltip); der gewählte nochmal, das X oder ein Rezept in Blizzards Liste führt zum Rezept
-      Inhalt             je Reiter (Rezept: Material aller Twinks, herstellbar, Kosten, Skill-Farben, Abklingzeit,
-                         wer es herstellen kann); scrollt
+      Symbol-Reiter      Core.CreateSideTab im Seitenreiter-Stapel unten rechts, wie die Reiter der anderen Module;
+                         eingedrückt, solange das Seitenteil offen ist; Zustand in ezCraftDB.window.open, Tooltip,
+                         /ezcraft fenster. Der Pfeil von Core.NewSidePanel bleibt verborgen.
+      Ansichten          Listen (Grundansicht, beim Öffnen des Berufefensters immer), Fehlend, Abklingzeiten,
+                         Entzaubern – je ein Symbol-Reiter; ein zweiter Klick auf den gewählten oder das X schließt.
+                         Die Ansicht „Rezept“ ging am 21.11.2026 in Blizzards Rezeptbereich auf (Schematic.lua; Wunsch
+                         des Nutzers: „der rest aus dem ezcraft rezepte ist uninteressant“); Inhalt scrollt
       Seite „Berufe“     dasselbe Seitenteil auch auf Blizzards Seite „Berufe“ (BookPage, Taste K; Schalter bookPanel,
-                         Entscheidung des Nutzers Nr. 22 vom 16.11.2026) – ohne die Reiter „Rezept“ und „Fehlend“
-      Knopfleiste        unten: „Auf die Liste“, „Anfordern“, „Im AH suchen“ – Blizzards Vorlage der Herstellen-Knöpfe;
-                         je Ansicht die passenden Knöpfe („Leeren“, „Neu lesen“, „Ignorierte zurück“)
+                         Entscheidung des Nutzers Nr. 22 vom 16.11.2026) – ohne den Reiter „Fehlend“
+      Knopfleiste        unten, je Ansicht die passenden Knöpfe („Im AH suchen“, „Anfordern“, „Leeren“, „Neu lesen“,
+                         „Ignorierte zurück“) – Blizzards Vorlage der Herstellen-Knöpfe
 
     Gewählt wird über Blizzards Nachricht „ProfessionsRecipeListMixin.Event.OnRecipeSelected“ (EventRegistry), die Menge
     liest ezCraft aus Blizzards Feld „Herstellen“ (CreateMultipleInputBox) – nur lesen, nichts setzen.
@@ -40,23 +48,38 @@ local Panel = {}
 ns.Panel = Panel
 
 local ROW_H = 18
-local TAB_KEYS = { "recipe", "shopping", "missing", "cooldowns", "salvage" } -- Reiterzeile; „recipe“ ist die Grundansicht
+-- Symbol-Reiter; „shopping“ (Listen) ist die Grundansicht. Die Ansicht „Rezept“ ging am 21.11.2026 in Blizzards
+-- Rezeptbereich auf (Schematic.lua; Wunsch des Nutzers: „das Rezepte von ezCraft soll direkt in das original blizz
+-- anzeige rezept gebaut werden … standardmäßig sollen dann die ezcraft listen beim berufe angezigt werden“).
+local TAB_KEYS = { "shopping", "missing", "cooldowns", "salvage" }
 local VIEW_ICONS = {
-    recipe = "Interface\\Icons\\Trade_BlackSmithing",
     shopping = "Interface\\Icons\\INV_Misc_Note_01",
     missing = "Interface\\Icons\\INV_Scroll_03",
     cooldowns = "Interface\\Icons\\INV_Misc_PocketWatch_01",
     salvage = "Interface\\Icons\\INV_Enchant_Disenchant",
 }
 local TICK = 30                     -- Restzeiten alle 30 Sekunden auffrischen
-local BUTTON_W, BUTTON_H, BUTTON_GAP = 98, 22, 6
-Panel.SIDE_W = 320                  -- Breite des Seitenteils: drei Knöpfe zu 98 nebeneinander
+-- Knöpfe aus ezCore (Core.PANEL_BUTTONS: 22 hoch, 14 vom Rand, 6 dazwischen – Entscheidung des Nutzers vom 21.11.2026
+-- „6 für alle“, vorher 4); WITHDRAW_GAP: senkrechte Luft zwischen der Knopfreihe und „Aus der Bank holen“ (ezCrafts
+-- eigene, nicht der waagrechte Abstand aus ezCore)
+local BUTTON_H, WITHDRAW_GAP = Core.PANEL_BUTTONS.height, 6
+local BUTTON_X, BUTTON_SPACE, BUTTON_Y = Core.PANEL_BUTTONS.left, Core.PANEL_BUTTONS.space, Core.PANEL_BUTTONS.bottom
+-- Breite wie ezTalents Seitenteile (Entscheidung des Nutzers vom 21.11.2026: „460 wie ezTalent“); ist neben dem
+-- Berufefenster weniger Platz, wird es schmaler bis SIDE_MIN (drei Knöpfe je Reihe wie ezTalent ab 300) – rechts zuerst,
+-- reicht es dort nicht, links; erst wenn beide Seiten zu schmal sind, legt ezCore es innen über das Fenster (FitWidth).
+Panel.SIDE_W = Core.PANEL_SIZE.width
+Panel.SIDE_MIN = 300
+Panel.SCREEN_MARGIN = Core.PANEL_SIZE.margin   -- Luft zum Bildschirmrand (ezCore, wie ezTalent)
 Panel.SIDE_GAP = 46                 -- Abstand zum Berufefenster: Blizzards Berufe-Reiter und der Seitenreiter-Stapel
                                     -- ragen rechts außen bis rund 44 über den Rand (LargeSideTabButtonTemplate)
-local TAB_SIZE, TAB_GAP = 30, 6     -- Reiterzeile oben im Seitenteil
-local TOP_ROOM = 32                 -- oben frei für Überschrift und Pfeil (Core.SIDEPANEL_ARROW_ROOM = 30)
-local CONTENT_TOP = 98              -- Inhalt unter Reiterzeile und Überschrift der Ansicht
-local CONTENT_BOTTOM = 40           -- über der Knopfleiste
+local VIEW_TOP = Core.PANEL_TOP or 30   -- Inhalt unter Blizzards Titelleiste (gemeinsamer Rahmen, Core.PanelLook)
+local HEAD_H = 46                   -- Ansicht „Listen“: Kopf mit Listenwahl (22), 4 Luft, Eingabefeld (20)
+local BUTTONS_TOP = BUTTON_Y + BUTTON_H   -- Oberkante der Knopfreihe über der Unterkante
+-- Kopf, Kasten und Liste wie in ezTalent (Auftrag des Nutzers vom 21.11.2026: „gleiches design und formatierung“) –
+-- die Maße kommen aus ezCore (Core.PANEL_LIST), ein Ort für alle Seitenteile.
+local LOOK = Core.PANEL_LIST
+local ROW_FONT = { header = LOOK.fonts.section, item = LOOK.fonts.entry, text = LOOK.fonts.detail,
+    sub = LOOK.fonts.sub, detail = LOOK.fonts.detail }
 
 local ui = { buttons = {}, tabs = {}, ticking = false, elapsed = 0 }
 local selectedRecipeID
@@ -85,19 +108,20 @@ local function CraftingShown()
 end
 
 -- Entscheidung des Nutzers vom 16.11.2026 (Nr. 22, vorläufig nach Empfehlung): das Seitenteil auch auf der Seite
--- „Berufe“, mit Schalter bookPanel (ab Werk an). Dort gibt es kein gewähltes Rezept: die Reiter „Rezept“ und „Fehlend“
--- fehlen, Einkaufsliste, Abklingzeiten und Entzaubern bleiben.
+-- „Berufe“, mit Schalter bookPanel (ab Werk an). Dort gibt es kein gewähltes Rezept: der Reiter „Fehlend“ fehlt,
+-- Listen, Abklingzeiten und Entzaubern bleiben.
 local function OnBook()
     return ns.Enabled("bookPanel") and not CraftingShown() and Visible(Professions()) and Visible(BookPage())
 end
 Panel.OnBook = OnBook
 
-local function RGB(stage) return Data.StageRGB(stage) end
-
 local function Colored(text, colorObj)
     if colorObj and colorObj.WrapTextInColorCode then return colorObj:WrapTextInColorCode(text) end
     return text
 end
+
+Panel.SchematicForm = SchematicForm   -- Blizzards Rezeptbereich (Schematic.lua)
+Panel.CraftingShown = CraftingShown
 
 -- Menge aus Blizzards Feld „Herstellen“ (nur lesen).
 function Panel.Quantity()
@@ -115,7 +139,7 @@ end
 
 -- Ansichten, die sich abschalten lassen (oder ohne ezCore-Teil fehlen).
 local function TabAvailable(key)
-    if (key == "recipe" or key == "missing") and OnBook() then return false end
+    if key == "missing" and OnBook() then return false end
     if key == "missing" then return ns.Enabled("missingTab") end
     if key == "cooldowns" then return ns.Enabled("cooldownTab") and Data.HasCooldowns() end
     -- „Entzaubern“ nur, wenn der Charakter es kann (und ezCore die Tabelle hat)
@@ -123,9 +147,10 @@ local function TabAvailable(key)
     return true
 end
 
+-- Gewählte Ansicht; ohne Wahl, abgeschaltet oder das gemerkte „recipe“ von vor dem 21.11.2026: die Listen.
 local function Tab()
-    local tab = ns.db and ns.db.window.tab or "recipe"
-    if not TabAvailable(tab) then tab = OnBook() and "shopping" or "recipe" end   -- Seite „Berufe“: Einkaufsliste
+    local tab = ns.db and ns.db.window.tab or "shopping"
+    if tab == "recipe" or not TabAvailable(tab) then tab = "shopping" end
     return tab
 end
 
@@ -168,6 +193,9 @@ local ROW_ICONS = {
         "Interface\\Buttons\\ButtonHilight-Square" },
     -- „Nächste Fundorte“ (SAM-24): Blizzards Kartensymbol; der Klick öffnet die Weltkarte über ezMap
     map = { "Interface\\Icons\\INV_Misc_Map_01", "Interface\\Icons\\INV_Misc_Map_01",
+        "Interface\\Buttons\\ButtonHilight-Square" },
+    -- Rezept auf einer Liste: im Auktionshaus den Gegenstand selbst kaufen (Münze farbig) oder das Material (grau)
+    buy = { "Interface\\Icons\\INV_Misc_Coin_01", "Interface\\Icons\\INV_Misc_Coin_01",
         "Interface\\Buttons\\ButtonHilight-Square" },
 }
 
@@ -228,8 +256,15 @@ local function NewRow()
     return row
 end
 
--- Neue Zeile; kind: "header", "text" (umbricht), "item" (Symbol links, Werte rechts).
+-- Neue Zeile; kind: "header", "text" (umbricht), "item" (Eintrag: Symbol links, Werte rechts), "sub" (Unterzeile
+-- eines Eintrags, grau), "detail" (Einzelheiten, eingerückt). Zwischen zwei Einträgen (item, text) liegt LOOK.entryGap;
+-- Unterzeile und Einzelheiten hängen ohne Luft am Eintrag darüber.
 local function Row(kind, height)
+    if (kind == "item" or kind == "text") and (cur.last == "item" or cur.last == "text" or cur.last == "sub"
+        or cur.last == "detail") then
+        cur.cursorY = cur.cursorY + LOOK.entryGap
+    end
+    cur.last = kind
     cur.used = cur.used + 1
     local row = cur.rows[cur.used]
     if not row then
@@ -241,20 +276,25 @@ local function Row(kind, height)
     row.icon:Hide()
     row.left:SetText("")
     row.right:SetText("")
-    row.left:SetFontObject(kind == "header" and "GameFontNormal" or "GameFontHighlightSmall")
-    local r, g, b = Core.Style.Color("highlight")   -- Blizzards Weiß (HIGHLIGHT_FONT_COLOR, Design-System 2.5)
-    row.left:SetTextColor(r, g, b)   -- nur drei Werte: der vierte von Style.Color ist das Farbobjekt, nicht Alpha
+    row.left:SetFontObject(ROW_FONT[kind] or ROW_FONT.text)
+    -- Gold für Überschriften, Grau für Unterzeilen, sonst Blizzards Weiß (Design-System 2.5)
+    Core.Style.SetTextColor(row.left, kind == "header" and "normal" or kind == "sub" and "disabled" or "highlight")
     row.left:ClearAllPoints()
     row.right:ClearAllPoints()
+    row.icon:ClearAllPoints()
+    row.icon:SetPoint("LEFT", row, "LEFT", LOOK.entryIndent, 0)
     if kind == "item" then
         row.left:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
         row.left:SetPoint("RIGHT", row.right, "LEFT", -4, 0)
         row.right:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     else
-        row.left:SetPoint("TOPLEFT", row, "TOPLEFT", 4, -2)
+        -- Unterzeile unter dem Namen (hinter dem Symbol), Einzelheiten 14, Text wie ein Eintrag, Überschrift am Rand
+        local x = kind == "sub" and LOOK.entryIndent + 20 or kind == "detail" and LOOK.detailIndent
+            or kind == "header" and 4 or LOOK.entryIndent
+        row.left:SetPoint("TOPLEFT", row, "TOPLEFT", x, -2)
         row.left:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     end
-    row.left:SetWordWrap(kind == "text")
+    row.left:SetWordWrap(kind == "text" or kind == "detail" or kind == "sub")
     row:ClearAllPoints()
     row:SetPoint("TOPLEFT", cur.content, "TOPLEFT", 0, -cur.cursorY)
     row:SetPoint("RIGHT", cur.content, "RIGHT", 0, 0)
@@ -268,7 +308,7 @@ local function Advance(row, extra)
 end
 
 local function Header(text)
-    if cur.cursorY > 0 then cur.cursorY = cur.cursorY + 6 end
+    if cur.cursorY > 0 then cur.cursorY = cur.cursorY + LOOK.sectionGap end
     local row = Row("header", 20)
     row.left:SetText(text)
     Advance(row)
@@ -281,6 +321,29 @@ local function Text(text, r, g, b)
     if r then row.left:SetTextColor(r, g, b) end
     local height = (row.left.GetStringHeight and row.left:GetStringHeight()) or 0
     row:SetHeight(math.max(ROW_H, height + 4))
+    Advance(row)
+    return row
+end
+
+-- Unterzeile eines Eintrags (höchstens eine, grau) bzw. Einzelheiten (eingerückt, umbrechend; grey: grau).
+local function Sub(text)
+    local row = Row("sub")
+    row.left:SetText(text)
+    local height = (row.left.GetStringHeight and row.left:GetStringHeight()) or 0
+    row:SetHeight(math.max(14, height + 2))   -- ein langer Fundort bricht um statt abgeschnitten zu werden
+    Advance(row)
+    return row
+end
+
+local function Detail(text, grey)
+    local row = Row("detail")
+    row.left:SetText(text)
+    if grey then
+        row.left:SetFontObject(ROW_FONT.sub)
+        Core.Style.SetTextColor(row.left, "disabled")
+    end
+    local height = (row.left.GetStringHeight and row.left:GetStringHeight()) or 0
+    row:SetHeight(math.max(14, height + 2))
     Advance(row)
     return row
 end
@@ -299,7 +362,7 @@ end
 
 local function BeginRows(target)
     cur = target
-    cur.used, cur.cursorY = 0, 0
+    cur.used, cur.cursorY, cur.last = 0, 0, nil
 end
 
 local function EndRows()
@@ -422,271 +485,144 @@ end
 -- AH-32: Der Gewinn rechnet nach Auktionsgebühr (Prices.Net über Data.Profit); kennt ezCore den Anteil des Hauses
 -- noch nicht, heißt er „Gewinn brutto“ und eine Zeile sagt „Gebühr noch unbekannt“. Quelle und Alter stehen grau
 -- darunter (Leitlinie 11): ältester Materialpreis, Preis des Ergebnisses, Gebühr mit „zuletzt gemessen am …“.
-local function ValueRows(recipe, quantity, cost)
-    local profit = Data.Profit(recipe, quantity, cost)
-    if not profit then return nil end
+-- Panel.CostLines(rows, recipe, quantity) → { { text, grey = true|nil }, … }, cost, profit, other – dieselben Zeilen für
+-- die Ansicht „Listen“ (CostRows) und den Tooltip der Kostenzeile in Blizzards Rezeptbereich (Schematic.lua).
+function Panel.CostLines(rows, recipe, quantity)
+    local lines = {}
+    local function Add(text, grey) lines[#lines + 1] = { text = text, grey = grey or nil } end
+    if not (ns.Enabled("costs") and Data.HasPrices()) or #(rows or {}) == 0 then return lines end
     local Money = Core.Money
-    if profit.kind == "net" then
-        if profit.profit then
-            Text(L.PANEL_VALUE_NET:format(Money(profit.gross), Money(profit.net), Money(profit.profit, nil, true)))
-        else
-            Text(L.PANEL_VALUE_NET_ONLY:format(Money(profit.gross), Money(profit.net)))
-        end
-    elseif profit.profit then
-        Text(L.PANEL_VALUE_PROFIT:format(Money(profit.gross), Money(profit.profit, nil, true)))
-    else
-        Text(L.PANEL_VALUE:format(Money(profit.gross)))
-    end
-    return profit
-end
-
-local function CostRows(rows, recipe, quantity)
-    if not (ns.Enabled("costs") and Data.HasPrices()) or #rows == 0 then return end
     local cost = Data.Cost(rows)
     local other = recipe and Data.CraftCostOther()
     if other then
-        if cost.missing > 0 then Text(L.PANEL_COST_MISSING_ONLY:format(Core.Money(cost.missing))) end
-        Text(L.PANEL_COST_OTHER:format(other), 0.6, 0.6, 0.6)
-        return
+        if cost.missing > 0 then Add(L.PANEL_COST_MISSING_ONLY:format(Money(cost.missing))) end
+        Add(L.PANEL_COST_OTHER:format(other), true)
+        return lines, cost, nil, other
     end
     if cost.unknown == #rows then
-        Text(L.PANEL_COST_NONE, 0.6, 0.6, 0.6)
-        return
+        Add(L.PANEL_COST_NONE, true)
+        return lines, cost
     end
-    local text = L.PANEL_COST:format(Core.Money(cost.total))
-    if cost.missing > 0 and cost.missing < cost.total then text = text .. "  " .. L.PANEL_COST_MISSING:format(Core.Money(cost.missing)) end
-    Text(text)
-    if cost.unknown > 0 then Text(L.PANEL_COST_UNKNOWN:format(cost.unknown), 0.6, 0.6, 0.6) end
-    local profit = recipe and ValueRows(recipe, quantity, cost)
-    local source = Data.CostSource(cost)
-    if source then Text(L.PANEL_COST_SOURCE:format(source), 0.6, 0.6, 0.6) end
+    local text = L.PANEL_COST:format(Money(cost.total))
+    if cost.missing > 0 and cost.missing < cost.total then text = text .. "  " .. L.PANEL_COST_MISSING:format(Money(cost.missing)) end
+    Add(text)
+    if cost.unknown > 0 then Add(L.PANEL_COST_UNKNOWN:format(cost.unknown), true) end
+    local profit = recipe and Data.Profit(recipe, quantity, cost)
     if profit then
-        if profit.source then Text(L.PANEL_VALUE_SOURCE:format(profit.source), 0.6, 0.6, 0.6) end
         if profit.kind == "net" then
-            local fee = L.PANEL_FEE:format(Core.Money(profit.fee))
-            if profit.feeStand then fee = fee .. " (" .. profit.feeStand .. ")" end
-            Text(fee, 0.6, 0.6, 0.6)
+            if profit.profit then
+                Add(L.PANEL_VALUE_NET:format(Money(profit.gross), Money(profit.net), Money(profit.profit, nil, true)))
+            else
+                Add(L.PANEL_VALUE_NET_ONLY:format(Money(profit.gross), Money(profit.net)))
+            end
+        elseif profit.profit then
+            Add(L.PANEL_VALUE_PROFIT:format(Money(profit.gross), Money(profit.profit, nil, true)))
         else
-            Text(L.PANEL_FEE_UNKNOWN, 0.6, 0.6, 0.6)
+            Add(L.PANEL_VALUE:format(Money(profit.gross)))
+        end
+    end
+    local source = Data.CostSource(cost)
+    if source then Add(L.PANEL_COST_SOURCE:format(source), true) end
+    if profit then
+        if profit.source then Add(L.PANEL_VALUE_SOURCE:format(profit.source), true) end
+        if profit.kind == "net" then
+            local fee = L.PANEL_FEE:format(Money(profit.fee))
+            if profit.feeStand then fee = fee .. " (" .. profit.feeStand .. ")" end
+            Add(fee, true)
+        else
+            Add(L.PANEL_FEE_UNKNOWN, true)
         end
         -- Welle 23, A3: Anzahlung (zählt nicht zum Gewinn, sie kommt beim Verkauf zurück – verloren nur bei Ablauf)
         if profit.deposit then
-            local deposit = L.PANEL_DEPOSIT:format(Core.Money(profit.deposit))
+            local deposit = L.PANEL_DEPOSIT:format(Money(profit.deposit))
             if profit.depositStand then deposit = deposit .. " (" .. profit.depositStand .. ")" end
-            Text(deposit, 0.6, 0.6, 0.6)
+            Add(deposit, true)
         end
     end
+    return lines, cost, profit
 end
 
-local function StageRows(recipe)
-    local otherStages = ns.Enabled("skillStages") and Data.SkillStagesOther()
-    if otherStages then
-        -- Rücksicht: SkillUp Forever o. Ä. zeigt die Skill-Farben schon – ezCraft nennt es nur.
-        Text(L.PANEL_STAGES_OTHER:format(otherStages), 0.6, 0.6, 0.6)
-        return
-    end
-    if not ns.Enabled("skillStages") then return end
-    local stages = Data.SkillStages(recipe)
-    local row = Row("item")
-    row.left:SetText(L.PANEL_STAGES)
-    row.right:SetText(Data.StagesText(stages))
-    row.tip = function(tooltip)
-        tooltip:SetText(L.PANEL_STAGES)
-        local approx = false
-        for _, stage in ipairs(Data.STAGES) do
-            local value = stages[stage]
-            local text = "?"
-            if value and stages.approx[stage] then
-                text, approx = L.STAGE_FROM_APPROX:format(value), true
-            elseif value then
-                text = L.STAGE_FROM:format(value)
-            end
-            -- Quelle je Stufe (Leitlinie 11, Welle 26): laut Client, bei dir beobachtet, laut Berufefenster, gerechnet
-            local src = Data.StageSource(stages, stage)
-            if src then text = text .. " " .. Core.Grey("(" .. src .. ")") end
-            tooltip:AddDoubleLine(L["STAGE_" .. stage], text, RGB(stage))
-        end
-        if stages.current then
-            tooltip:AddLine(L.STAGE_NOW:format(L["STAGE_" .. stages.current]), RGB(stages.current))
-        elseif recipe.live and recipe.learned == false then
-            -- nicht gelernt (Welle 26): die Farbe nach dem Lernen aus den Grenzen und deiner Fertigkeit
-            -- Lernstufe nur, wenn sie genau ist (Lehrer, Rezept-Gegenstand, „lernbar ab“ laut Client); eine nur
-            -- beobachtete ist höchstens zu hoch und ergibt weder den roten Satz noch „gelernt wäre es orange“
-            local W = ns.Where
-            local rank = W and W.Rank()
-            local learn, rough
-            if W and W.Skill and W.List then learn, rough = W.Skill(recipe.recipeID, W.List(recipe.recipeID)) end
-            if rough then learn = nil end
-            local at, from = Data.StageAt(stages, rank, learn)
-            if at == "low" then
-                ns.TipLine(tooltip, L.STAGE_IF_LEARNED_LOW:format(rank, from), "bad", true)
-            elseif at then
-                tooltip:AddLine(L.STAGE_IF_LEARNED:format(L["STAGE_" .. at], rank), RGB(at))
-            end
-        end
-        -- Abweichung zwischen Beobachtung bzw. Berufefenster und Client-Tabelle: als Hinweis, nicht still überschrieben
-        for _, line in ipairs(Data.StageConflicts(stages)) do ns.TipLine(tooltip, line, "warn", true) end
-        if stages.sourceText then ns.TipLine(tooltip, L.STAGE_CLIENT_SOURCE:format(stages.sourceText), "hint", true) end
-        if approx then ns.TipLine(tooltip, L.STAGE_APPROX, "hint", true) end
-        if stages.computed and stages.computed.green then ns.TipLine(tooltip, L.STAGE_COMPUTED_GREEN, "hint", true) end
-        if not Data.HasStageData(stages) or not stages.yellow then
-            ns.TipLine(tooltip, L.STAGE_LEARNING, "hint", true)
-        end
-    end
-    Advance(row)
+-- Kosten der ganzen Liste: ein eigener Block unter dem Material (Luft wie zwischen Einträgen, dann eingerückt wie
+-- Einzelheiten in ezTalent) – nicht als Einzelheit nur des letzten Materials zu lesen (Review 21.11.2026)
+local function CostRows(rows)
+    local lines = Panel.CostLines(rows)
+    if #lines > 0 and cur.used > 0 then cur.cursorY = cur.cursorY + LOOK.entryGap end
+    for _, line in ipairs(lines) do Detail(line.text, line.grey) end
 end
 
--- Chance auf einen Fertigkeitspunkt (Welle 15b, Filter.lua): „Fertigkeitspunkt: etwa 40 % (gelb, berechnet)“, im
--- Tooltip der Zeile die Quelle der Zahl. Nur bei Rezepten aus dem offenen Fenster (die Farbe nennt nur der Client).
-local function ChanceRow(recipe)
-    if not (recipe.live and ns.Skill) then return end
-    local c = ns.Skill.Chance(recipe, ns.Where.Rank())
-    local text = ns.Skill.ChanceText(c)
-    if not text then return end
-    local row = Text(text, RGB(c.color == "white" and "gray" or c.color))
-    local src = ns.Skill.SourceText(c)
-    row.tip = function(tooltip)
-        tooltip:SetText(L.CHANCE_HEAD)
-        ns.TipLine(tooltip, text, "highlight", true)
-        if src then ns.TipLine(tooltip, src, "hint", true) end
-    end
-end
-
--- Kartenknopf an einer Fundort-Zeile: öffnet Blizzards Weltkarte am Ort (Where.Show, auf Wunsch mit Wegpunkt)
-local function PlaceButton(row, e)
-    local zone = Core.MapName(e.map) or "?"
-    local tip = L.WHERE_SHOW_TIP:format(e.name or "?", zone)
-    if ns.Enabled("recipeWaypoint") then tip = tip .. "\n" .. L.WHERE_SHOW_TIP_WAY end
-    local button = RowButton(row, 1, "map", tip, function() ns.Where.Show(e) end, function(self)
-        Core.ShowTip(self, L.WHERE_SHOW, self.tip)
+-- Umschalter an einem Rezept der Liste: im Auktionshaus Material (ab Werk, Münze grau) oder den Gegenstand selbst
+-- (Münze farbig) suchen – Entscheidung des Nutzers vom 21.11.2026 „muss beides möglichsein primär aber material“.
+local function BuyButton(row, slot, index, entry)
+    local button = RowButton(row, slot, "buy", entry.buy and L.SHOP_BUY_ITEM_TIP or L.SHOP_BUY_MATERIAL_TIP, function() ns.Shopping.ToggleBuy(index) end, function(self)
+        Core.ShowTip(self, entry.buy and L.SHOP_BUY_ITEM or L.SHOP_BUY_MATERIAL,
+            entry.buy and L.SHOP_BUY_ITEM_TIP or L.SHOP_BUY_MATERIAL_TIP)
     end)
-    row.left:ClearAllPoints()
-    row.left:SetPoint("TOPLEFT", row, "TOPLEFT", 4, -2)
-    row.left:SetPoint("RIGHT", button, "LEFT", -4, 0)
-    -- schmaler geworden: lange Zeilen brechen jetzt öfter um – Höhe neu und die folgenden Zeilen nachrücken (die Zeile
-    -- kommt gerade aus Text(), ist also die zuletzt eingerechnete)
-    if cur and row.left.GetStringHeight then
-        local before = row:GetHeight()
-        local height = math.max(ROW_H, row.left:GetStringHeight() + 4)
-        if height ~= before then
-            row:SetHeight(height)
-            cur.cursorY = cur.cursorY + height - before
-        end
-    end
+    local normal = button.GetNormalTexture and button:GetNormalTexture()
+    if normal and normal.SetDesaturated then normal:SetDesaturated(not entry.buy) end
     return button
 end
-Panel.PlaceButton = PlaceButton
 
--- Abschnitt „Woher“ bei nicht gelernten Rezepten (Welle 15b): Fundorte aus ezCores Knowledge.RecipeWhere, je Zeile
--- mit Quelle; die Zeile mit dem besten Ort trägt den Kartenknopf „Auf der Karte zeigen“.
-local function WhereRows(recipe)
-    if recipe.learned ~= false or not ns.Enabled("recipeWhere") or not ns.Where.Available() then return end
-    local list = ns.Where.List(recipe.recipeID)
-    Header(L.WHERE_HEAD)
-    if #list == 0 then
-        Text(L.WHERE_NONE, 0.7, 0.7, 0.7)
-        return
-    end
-    local best = ns.Where.Best(list)
-    local shown = 0
-    for _, e in ipairs(list) do
-        if shown >= ns.Where.MAX_LINES then break end
-        local line = ns.Where.Line(e)
-        if line then
-            shown = shown + 1
-            local row = Text(line, e.gone and 0.6 or 0.9, e.gone and 0.6 or 0.9, e.gone and 0.6 or 0.9)
-            if e == best then PlaceButton(row, e) end
-            row.tip = function(tooltip)
-                tooltip:SetText(L.WHERE_HEAD)
-                for _, other in ipairs(list) do
-                    local text = ns.Where.Line(other)
-                    if text then ns.TipLine(tooltip, text, "highlight", true) end
-                end
-            end
+-- Tooltip einer Zeile der Liste: Gegenstand (Blizzards Tooltip), dazu Art und Suchweg im Auktionshaus.
+local function EntryTip(entry)
+    return function(tooltip)
+        if entry.itemID and tooltip.SetItemByID then
+            tooltip:SetItemByID(entry.itemID)
+        else
+            tooltip:SetText(ns.Shopping.Name(entry))
+        end
+        if entry.recipe then
+            ns.TipLine(tooltip, entry.buy and L.SHOP_ENTRY_RECIPE_ITEM or L.SHOP_ENTRY_RECIPE, "hint", true)
+        elseif not entry.itemID then
+            ns.TipLine(tooltip, L.SHOP_ENTRY_TERM, "hint", true)
         end
     end
-    -- „… und 3 weitere (Tooltip der Zeile)“ – Core.More plus Zusatz (Welle 23; vorher eigener Text WHERE_MORE_LINES)
-    if #list > shown then Text(Core.More(#list - shown) .. " " .. L.WHERE_MORE_HINT, 0.6, 0.6, 0.6) end
-    if not best then Text(L.WHERE_NO_PLACE, 0.6, 0.6, 0.6) end
-end
-Panel.WhereRows = WhereRows
-
--- Ansicht „Rezept“ im Seitenteil: Name und Symbol zeigt Blizzard schon, ezCraft ergänzt, was dort fehlt.
-local function ShowRecipe()
-    local recipe = Data.Recipe(Panel.SelectedRecipeID())
-    if not recipe then
-        Text(L.PANEL_NO_RECIPE, 0.7, 0.7, 0.7)
-        return nil
-    end
-    local quantity = Panel.Quantity()
-    Header(quantity > 1 and L.PANEL_MATERIAL_QTY:format(quantity) or L.PANEL_MATERIAL)
-    local rows, craftable = Data.Materials(recipe, quantity)
-    if #rows == 0 then
-        Text(L.PANEL_NO_MATERIAL, 0.7, 0.7, 0.7)
-    else
-        MaterialRows(rows)
-        Text(L.PANEL_CRAFTABLE:format(craftable.bags, craftable.all), 0.9, 0.9, 0.9)
-        CostRows(rows, recipe, quantity)
-    end
-
-    cur.cursorY = cur.cursorY + 4
-    StageRows(recipe)
-    ChanceRow(recipe)
-    WhereRows(recipe)
-    -- „Abklingzeit: du 29m, Mira bereit“ – fertige stehen da, bis der Twink das nächste Mal eingelesen wird
-    local cooldowns = Data.RecipeCooldowns(recipe.recipeID, true)
-    if #cooldowns > 0 then
-        local parts = {}
-        for _, e in ipairs(cooldowns) do
-            local left = e.ready and Colored(L.CD_READY, GREEN_FONT_COLOR) or Core.Duration(e.left, true)
-            parts[#parts + 1] = L.CD_PART:format(Data.CharLabel(e.char), left)
-            if not e.ready then ui.ticking = true end
-        end
-        Text(L.PANEL_COOLDOWN:format(table.concat(parts, ", ")), 1, 0.82, 0)
-    end
-
-    Header(L.PANEL_CRAFTERS)
-    local crafters = Data.Crafters(recipe)
-    if crafters and #crafters > 0 then
-        Text(Data.CrafterNames(crafters))
-    end
-    if not Data.CraftersKnown() then
-        Text(L.PANEL_CRAFTERS_WAIT, 0.6, 0.6, 0.6)
-    elseif not crafters or #crafters == 0 then
-        Text(L.PANEL_CRAFTERS_NONE, 0.7, 0.7, 0.7)
-    end
-
-    local incoming = ns.Shipments.Incoming()
-    if #incoming > 0 then
-        Header(L.PANEL_INCOMING)
-        for _, s in ipairs(incoming) do Text(ns.Shipments.Describe(s)) end
-    end
-    return recipe, rows
 end
 
+-- Ansicht „Listen“: Einträge der gewählten Liste (Rezepte und Gegenstände) mit −/+/x, bei Rezepten der Umschalter
+-- Material/Gegenstand; darunter das Material mit Bestand und Kosten, dann die angeforderten Sendungen.
 local function ShowShopping()
-    local entries = ns.Shopping.Entries()
-    if #entries == 0 then
+    local list = ns.Shopping.Selected()
+    local entries = list and list.items or {}
+    if not list then
+        Text(L.LIST_NONE_PANEL, 0.7, 0.7, 0.7)
+    elseif #entries == 0 then
         Text(L.SHOP_EMPTY_PANEL, 0.7, 0.7, 0.7)
     else
+        local editable = Core.Lists.Editable(list)
+        if not editable then Text(L.LIST_SOURCE_PANEL, 0.7, 0.7, 0.7) end
         Header(L.PANEL_SHOP_RECIPES)
-        for _, entry in ipairs(entries) do
-            local row = ItemRow(ns.Shopping.Icon(entry), L.SHOP_LINE_RECIPE:format(entry.count, ns.Shopping.Name(entry)), "")
-            local id = entry.id
-            RowButton(row, 1, "remove", L.SHOP_REMOVE_TIP, function() ns.Shopping.Remove(id) end)
-            RowButton(row, 2, "plus", L.SHOP_PLUS_TIP, function() ns.Shopping.SetCount(id, entry.count + 1) end)
-            local minus = RowButton(row, 3, "minus", L.SHOP_MINUS_TIP, function() ns.Shopping.SetCount(id, entry.count - 1) end)
+        for index, entry in ipairs(entries) do
+            local row = ItemRow(ns.Shopping.Icon(entry), ns.Shopping.EntryText(entry), "")
+            row.tip = EntryTip(entry)
+            local last
+            if editable then
+                RowButton(row, 1, "remove", L.SHOP_REMOVE_TIP, function() ns.Shopping.RemoveEntry(index) end)
+                last = RowButton(row, 2, "plus", L.SHOP_PLUS_TIP, function() ns.Shopping.SetEntryCount(index, (entry.count or 0) + 1) end)
+                -- „−“ nur mit Menge (ein Gegenstand ohne Menge wird mit x entfernt)
+                if entry.count then
+                    last = RowButton(row, 3, "minus", L.SHOP_MINUS_TIP, function()
+                        ns.Shopping.SetEntryCount(index, entry.count - 1)
+                    end)
+                end
+                if entry.recipe then last = BuyButton(row, 4, index, entry) end
+            end
             row.left:ClearAllPoints()
             row.left:SetPoint("LEFT", row.icon, "RIGHT", 4, 0)
-            row.left:SetPoint("RIGHT", minus, "LEFT", -4, 0)
+            if last then
+                row.left:SetPoint("RIGHT", last, "LEFT", -4, 0)
+            else
+                row.left:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+            end
         end
-        Header(L.PANEL_MATERIAL)
         local totals = ns.Shopping.Totals()
-        for _, row in ipairs(totals) do
-            row.status = row.stock.bags >= row.need and "bags" or (row.missing == 0 and "have" or "missing")
+        if #totals > 0 then
+            Header(L.PANEL_MATERIAL)
+            for _, row in ipairs(totals) do
+                row.status = row.stock.bags >= row.need and "bags" or (row.missing == 0 and "have" or "missing")
+            end
+            MaterialRows(totals)
+            CostRows(totals)
         end
-        MaterialRows(totals)
-        CostRows(totals)
     end
 
     local shipments = ns.Shipments.All()
@@ -726,7 +662,7 @@ local function ShowMissing()
             row.right:ClearAllPoints()
             row.right:SetPoint("RIGHT", button, "LEFT", -4, 0)
         end
-        if first then Text("   " .. first, 0.6, 0.6, 0.6) end
+        if first then Sub(first) end   -- eine Unterzeile: der erste Fundort
         row.tip = function(tooltip)
             tooltip:SetText(entry.name)
             if skill then ns.TipLine(tooltip, L.WHERE_SKILL_LINE:format(skill), "normal") end
@@ -773,7 +709,7 @@ local function ShowCooldowns()
             end
         end
     end
-    cur.cursorY = cur.cursorY + 6
+    cur.cursorY = cur.cursorY + LOOK.sectionGap - LOOK.entryGap   -- Hinweise als eigener Block (12 Luft)
     Text(L.CD_HINT, 0.6, 0.6, 0.6)
     ui.ticking = #groups > 0
 end
@@ -794,7 +730,9 @@ local function DisenchantButton(row, entry)
         if Core.InCombat() then
             Core.CombatNotice(ns, L.SALVAGE_WHAT)   -- ein Satz zur Kampfsperre (T18-1)
         else
-            Sal.Arm(self, entry)   -- der sichere Knopf liegt jetzt darüber; der nächste Klick entzaubert
+            -- der sichere Knopf liegt jetzt darüber; der nächste Klick entzaubert – außer eine Nachfrage ist offen
+            local _, why = Sal.Arm(self, entry)
+            if why == "asking" then ns.Print(L.SALVAGE_CLICK_ASKING) end
         end
     end, Enter)
     button.entry = entry
@@ -830,7 +768,7 @@ local function ShowSalvage()
         end
     end
     if skipped > 0 then Text(L.SALVAGE_SKIPPED:format(skipped), 0.6, 0.6, 0.6) end
-    cur.cursorY = cur.cursorY + 6
+    cur.cursorY = cur.cursorY + LOOK.sectionGap - LOOK.entryGap   -- Hinweise als eigener Block (12 Luft)
     Text(Core.L.SALVAGE_UNVERIFIED, 0.6, 0.6, 0.6)
     Text(L.SALVAGE_HOW:format(L.SALVAGE_TITLE), 0.6, 0.6, 0.6)
 end
@@ -865,30 +803,10 @@ local function RequestNeeds(needs, note)
     if restCount > 0 then ns.Print(L.SHIP_REST:format(ns.Shipments.ItemsText(rest))) end
 end
 
-local function UpdateButtons(tab, recipe, rows)
-    if tab == "recipe" then
-        SetButton(1, L.BTN_ADD_SHOPPING, function()
-            local r = Data.Recipe(Panel.SelectedRecipeID())
-            local ok, count = ns.Shopping.Add(r, Panel.Quantity())
-            if ok then ns.Print(L.SHOP_ADDED:format(r.name, count)) end
-        end, L.BTN_ADD_SHOPPING_TIP, recipe ~= nil and #(recipe.reagents or {}) > 0)
-        local needs = rows and Data.MissingInBags(rows) or {}
-        SetButton(2, L.BTN_REQUEST, function()
-            local r = Data.Recipe(Panel.SelectedRecipeID())
-            local current = Data.Materials(r, Panel.Quantity())
-            RequestNeeds(Data.MissingInBags(current), r and r.name)
-        end, L.BTN_REQUEST_TIP, next(needs) ~= nil)
-        local auction = ns.Shopping.AuctionFunction() ~= nil
-        local lacking = false
-        for _, row in ipairs(rows or {}) do
-            if row.missing > 0 then lacking = true end
-        end
-        SetButton(3, L.BTN_AUCTION, function()
-            ns.Shopping.SendRecipeToAuction(Data.Recipe(Panel.SelectedRecipeID()), Panel.Quantity())
-        end, auction and L.BTN_AUCTION_RECIPE_TIP or L.BTN_AUCTION_MISSING_TIP, auction and lacking)
-    elseif tab == "shopping" then
+local function UpdateButtons(tab)
+    if tab == "shopping" then
         local hasList = #ns.Shopping.Entries() > 0
-        local auction = ns.Shopping.AuctionFunction() ~= nil
+        local auction = Core.API("ezAuction") ~= nil
         SetButton(1, L.BTN_AUCTION, function() ns.Shopping.SendToAuction() end,
             auction and L.BTN_AUCTION_TIP or L.BTN_AUCTION_MISSING_TIP, hasList and auction)
         SetButton(2, L.BTN_REQUEST, function() RequestNeeds(ns.Shopping.BagNeeds(), L.SHIP_SHOPPING_NOTE) end,
@@ -923,21 +841,25 @@ end
 -- Rundgang mit Erklärblasen (Core.NewTour): beim ersten Öffnen des Berufefensters die wichtigsten Funktionen.
 -- Eine Blase nach der anderen; was gerade nicht zu sehen ist (Seitenteil zu, andere Ansicht, Fenster zu), kommt
 -- später dran. Eigene Schlüssel für das Seitenteil (Welle 6): wer den Rundgang von 1.5 kannte, sieht den neuen einmal.
--- Die Seite der Blasen richtet sich nach der Seite des Seitenteils (SetTourSides): der Pfeil nach außen, der Inhalt
+-- Die Seite der Blasen richtet sich nach der Seite des Seitenteils (SetTourSides): der Symbol-Reiter darüber, der Inhalt
 -- zum Berufefenster hin, Knöpfe und Reiter innerhalb des Seitenteils.
 ---------------------------------------------------------------------------
 
-local function OnRecipeView(widget)
-    return function() return Tab() == "recipe" and widget() or nil end
-end
-
 local TOUR_STEPS = {
-    { key = "side.arrow", target = function() return ui.side and ui.side.arrow end, text = L.TOUR_ARROW, side = "right" },
-    { key = "side.material", target = OnRecipeView(function() return ui.target and ui.target.scroll end), text = L.TOUR_MATERIAL, side = "left" },
-    { key = "side.shopping", target = OnRecipeView(function() return ui.buttons[1] end), text = L.TOUR_SHOPPING, side = "above" },
-    { key = "side.request", target = OnRecipeView(function() return ui.buttons[2] end), text = L.TOUR_REQUEST, side = "above" },
+    -- Schlüssel bleibt „side.arrow“ (gemerkte Blasen); Ziel sind die Symbol-Reiter (Panel.SideTab)
+    { key = "side.arrow", target = function() return Panel.SideTab() end, text = L.TOUR_ARROW },   -- Seite: SetTourSides
+    -- Knöpfe „Auf die Liste“ und „Auktionshaus“ in Blizzards Rezeptbereich (Schematic.lua, seit dem 21.11.2026 statt
+    -- der Blasen zur Ansicht „Rezept“: side.material, side.shopping, side.request); neuer Schlüssel, damit jeder sie sieht
+    { key = "recipe.buttons", target = function()
+        local button = ns.Schematic and ns.Schematic.AddButton()
+        return button and button:IsVisible() and button or nil
+    end, text = L.TOUR_SHOPPING, side = "above" },
     -- Seite „Berufe“ (Nr. 22): dort gibt es kein „Rezept“ und keine Rückkehr dorthin, von denen TOUR_TABS spricht
-    { key = "side.tabs", target = function() return not OnBook() and ui.tabs.shopping or nil end, text = L.TOUR_TABS, side = "below" },
+    { key = "side.tabs", target = function()
+        -- erst bei offenem Seitenteil (wie die übrigen Blasen; die erste zeigt schon auf die Symbole)
+        local tab = not OnBook() and ui.side and ui.side:IsOpen() and ui.tabs.shopping
+        return tab and tab:IsVisible() and tab or nil
+    end, text = L.TOUR_TABS, side = "left" },
 }
 
 -- Gemerkt wird in ezCraftDB.hints (wie bisher); den Speicher stellt ezCores Rundgang-Starter (owner, field).
@@ -950,10 +872,10 @@ Panel.tour = Core.NewTour({
 
 local function SetTourSides()
     local left = ui.side and ui.side.side == "left"
-    -- offen sitzt der Pfeil in der äußeren Ecke des Seitenteils: die Blase darunter, sonst ragte sie aus dem Bildschirm
-    local open = ui.side and ui.side:IsOpen()
-    TOUR_STEPS[1].side = open and "below" or (left and "left" or "right")
-    TOUR_STEPS[2].side = left and "right" or "left"
+    -- die Symbol-Reiter stehen rechts außen am Berufefenster: die Blase darüber (rechts daneben läge sie auf dem
+    -- offenen Seitenteil)
+    TOUR_STEPS[1].side = "above"
+    TOUR_STEPS[3].side = left and "right" or "left"   -- „side.tabs“: zum Seitenteil hin
 end
 
 -- off: ezCraft im Berufefenster abgeschaltet (Schalter „panel“) – dann keine Blase.
@@ -971,27 +893,42 @@ end
 -- Aufbau
 ---------------------------------------------------------------------------
 
+-- Ansicht wählen und das Seitenteil öffnen (Symbol-Reiter, Rundgang, Prüfungen).
 local function SelectTab(key)
     if not ns.db then return end
     ns.db.window.tab = key
-    Panel.Refresh()
+    if ui.side and not ui.side:IsOpen() then
+        ui.side:Open()        -- onToggle zeichnet neu
+    else
+        Panel.Refresh()
+    end
+end
+Panel.SelectTab = SelectTab
+
+-- Klick auf einen Symbol-Reiter: öffnet das Seitenteil mit dieser Ansicht; ein zweiter Klick auf den gewählten
+-- schließt es (wie ezTalents Reiter).
+function Panel.ClickTab(key)
+    Core.PlaySound("IG_CHARACTER_INFO_TAB")
+    if ui.side and ui.side:IsOpen() and Tab() == key then
+        ui.side:Close()
+        return false
+    end
+    SelectTab(key)
+    return true
 end
 
--- Reiterzeile im Seitenteil: ein abgeschalteter Reiter hinterlässt keine Lücke, der gewählte ist gedrückt.
-local function UpdateTabs()
-    local current, x, shown = Tab(), 10, 0
+-- Symbol-Reiter: nur die verfügbaren Ansichten (ein abgeschalteter hinterlässt keine Lücke – ezCores Stapel rückt
+-- nach), der gewählte ist bei offenem Seitenteil eingedrückt. on: ezCraft ist gerade zu sehen.
+local function UpdateTabs(on)
+    local current, open, shown = Tab(), ui.side and ui.side:IsOpen(), 0
     for _, key in ipairs(TAB_KEYS) do
         local tab = ui.tabs[key]
-        local visible = TabAvailable(key)
+        local visible = on and TabAvailable(key)
         tab:SetShown(visible)
-        tab:SetChecked(key == current)
-        if visible then
-            tab:ClearAllPoints()
-            tab:SetPoint("TOPLEFT", ui.side, "TOPLEFT", x, -TOP_ROOM - 2)
-            x = x + TAB_SIZE + TAB_GAP
-            shown = shown + 1
-        end
+        if visible then shown = shown + 1 end
     end
+    -- eingedrückt: der Reiter des offenen Seitenteils – eine Regel für alle Module (Core.CheckSideTabs)
+    Core.CheckSideTabs(ui.tabs, (on and open and TabAvailable(current)) and current or nil)
     local count = ns.Shopping and #ns.Shopping.Entries() or 0
     if ui.tabs.shopping.Count then ui.tabs.shopping.Count:SetText(count > 0 and count or "") end
     return shown
@@ -1014,33 +951,65 @@ local function SyncViewArt()
     end
 end
 
-local function CreateTabs(side)
-    for _, key in ipairs(TAB_KEYS) do
-        local tab = CreateFrame("CheckButton", nil, side)
-        tab:SetSize(TAB_SIZE, TAB_SIZE)
-        tab.Icon = tab:CreateTexture(nil, "ARTWORK")
-        tab.Icon:SetAllPoints()
-        tab.Icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+-- Blizzards Berufe-Reiter rechts am Berufefenster (Forever/Camelot: ProfessionsOverviewTab, Professions1Tab …
+-- 7Tab; je nach Zahl der Berufe verschieden viele) – gelesen, nie verändert.
+local function BlizzardTabs(pf)
+    local tabs = {}
+    local function Add(tab)
+        if type(tab) == "table" and type(tab.IsShown) == "function" and tab:IsShown() then tabs[#tabs + 1] = tab end
+    end
+    Add(rawget(_G, "ProfessionsOverviewTab") or Core.Peek(pf, "ProfessionsOverviewTab") or Core.Peek(pf, "OverviewTab"))
+    for i = 1, 9 do Add(rawget(_G, "Professions" .. i .. "Tab") or Core.Peek(pf, "Professions" .. i .. "Tab")) end
+    return tabs
+end
+Panel.BlizzardTabs = BlizzardTabs
+
+-- Lage des ersten Symbol-Reiters (von oben): Panel.TAB_GAP unter dem untersten Berufe-Reiter von Blizzard; ohne
+-- bekannte Lage nach ihrer Zahl (Blizzards Reiter beginnen bei y −60, je rund 50 hoch); ohne Berufe-Reiter ezCores
+-- Standard. → y
+function Panel.TabStart(pf)
+    local tabs = BlizzardTabs(pf)
+    if #tabs == 0 then return Core.SideTabs.TOP end
+    local top = Core.Num(Core.Call(Core.Peek(pf, "GetTop"), pf))
+    local lowest
+    for _, tab in ipairs(tabs) do
+        local bottom = Core.Num(Core.Call(Core.Peek(tab, "GetBottom"), tab))
+        if top and bottom and (not lowest or bottom - top < lowest) then lowest = bottom - top end
+    end
+    if lowest then return math.floor(lowest - Panel.TAB_GAP) end
+    return Panel.BLIZZARD_TAB_TOP - #tabs * Panel.BLIZZARD_TAB_STEP - Panel.TAB_GAP
+end
+Panel.TAB_GAP = 12
+Panel.BLIZZARD_TAB_TOP, Panel.BLIZZARD_TAB_STEP = -60, 50
+
+-- Symbol-Reiter unter Blizzards Berufe-Reiter rücken (beim Zeigen, bei anderem Beruf).
+function Panel.PlaceTabs()
+    local pf = Professions()
+    if not (pf and ui.tabs.shopping) then return nil end
+    local start = Panel.TabStart(pf)
+    Core.SideTabs.SetStart(pf, "top", start)
+    return start
+end
+
+-- Ansichten als Symbol-Reiter im Seitenreiter-Stapel des Berufefensters (Spieltest vom 21.11.2026: „ezcraft soll
+-- direkt die symbole dort anhängen“ – wie ezTalents Vorlagen, Auswirkungen, Twinks). Vorher eine Reiterzeile oben im
+-- Seitenteil und ein einzelner Reiter „ezCraft.side“ zum Auf- und Zuklappen; beides ersetzen diese Reiter.
+local function CreateTabs(pf)
+    for index, key in ipairs(TAB_KEYS) do
+        local tab = Core.CreateSideTab(pf, { key = "ezCraft." .. key, order = index * 10, from = "top", owner = ADDON })
         Core.SetIcon(tab.Icon, nil, VIEW_ICONS[key])
-        tab:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-        tab:SetCheckedTexture("Interface\\Buttons\\CheckButtonHilight", "ADD")
-        tab.Count = tab:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-        tab.Count:SetPoint("BOTTOMRIGHT", -1, 2)
         tab.key = key
-        tab:SetScript("OnClick", function(self)
-            Core.PlaySound("IG_CHARACTER_INFO_TAB")
-            -- nochmal klicken führt zurück zum Rezept (auf der Seite „Berufe“ gibt es keins)
-            local back = not OnBook() and (Tab() == self.key or self.key == "recipe")
-            SelectTab(back and "recipe" or self.key)
-        end)
+        tab:SetScript("OnClick", function(self) Panel.ClickTab(self.key) end)
         tab:SetScript("OnEnter", function(self)
-            local body = L["TAB_" .. key .. "_TIP"]
-            if key ~= "recipe" and not OnBook() then body = body .. "\n\n" .. L.VIEW_TAB_CLICK end
-            Core.ShowTip(self, L["TAB_" .. key], body)
+            local open = ui.side and ui.side:IsOpen() and Tab() == key
+            Core.ShowTip(self, L["TAB_" .. key], L["TAB_" .. key .. "_TIP"] .. "\n\n" .. (open and L.TAB_CLICK_CLOSE or L.TAB_CLICK_OPEN),
+                "ANCHOR_RIGHT")
         end)
         tab:SetScript("OnLeave", GameTooltip_Hide)
+        tab:Hide()
         ui.tabs[key] = tab
     end
+    Panel.PlaceTabs()
 end
 
 local function CreateButtons(side)
@@ -1051,11 +1020,11 @@ local function CreateButtons(side)
             ok, button = pcall(CreateFrame, "Button", "ezCraftButton" .. index, side, "UIPanelButtonTemplate")
             if not (ok and button) then button = CreateFrame("Button", "ezCraftButton" .. index, side) end
         end
-        button:SetSize(BUTTON_W, BUTTON_H)
+        button:SetHeight(BUTTON_H)   -- Breite: LayoutButtons (folgt der Breite des Seitenteils)
         if index == 1 then
-            button:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 8, 10)
+            button:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", BUTTON_X, BUTTON_Y)
         else
-            button:SetPoint("LEFT", ui.buttons[index - 1], "RIGHT", BUTTON_GAP, 0)
+            button:SetPoint("LEFT", ui.buttons[index - 1], "RIGHT", BUTTON_SPACE, 0)
         end
         button:SetScript("OnEnter", function(self)
             if self.tip then Core.ShowTip(self, self:GetText() or "", self.tip, "ANCHOR_TOP") end
@@ -1065,15 +1034,15 @@ local function CreateButtons(side)
         button:Hide()
         ui.buttons[index] = button
     end
-    -- „Aus der Bank holen (n)“ (NEU-01): eigene Zeile über der Knopfleiste, nur im Reiter „Einkaufsliste“ bei offener
+    -- „Aus der Bank holen (n)“ (NEU-01): eigene Zeile über der Knopfleiste, nur in der Ansicht „Listen“ bei offener
     -- Bank bzw. Gildenbank und laufendem ezBag (UpdateWithdraw)
     local ok, wide = pcall(CreateFrame, "Button", "ezCraftWithdrawButton", side, "SharedButtonSmallTemplate")
     if not (ok and wide) then
         ok, wide = pcall(CreateFrame, "Button", "ezCraftWithdrawButton", side, "UIPanelButtonTemplate")
         if not (ok and wide) then wide = CreateFrame("Button", "ezCraftWithdrawButton", side) end
     end
-    wide:SetSize(3 * BUTTON_W + 2 * BUTTON_GAP, BUTTON_H)
-    wide:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 8, 10 + BUTTON_H + BUTTON_GAP)
+    wide:SetHeight(BUTTON_H)
+    wide:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", BUTTON_X, BUTTON_Y + BUTTON_H + WITHDRAW_GAP)
     wide:SetScript("OnClick", function() ns.Shopping.Withdraw() end)
     wide:SetScript("OnEnter", function(self) Panel.WithdrawTip(self) end)
     wide:SetScript("OnLeave", GameTooltip_Hide)
@@ -1103,22 +1072,74 @@ function Panel.WithdrawTip(owner)
 end
 
 -- Knopf „Aus der Bank holen (n)“ zeigen oder verstecken; der Inhalt weicht ihm nach oben.
+-- → Oberkante des Knopfbereichs über der Unterkante des Seitenteils
 local function UpdateWithdraw(tab)
     local wide = ui.withdraw
-    if not wide then return end
+    if not wide then return BUTTONS_TOP end
     local show = tab == "shopping" and ns.Shopping.CanWithdraw()
-    local bottom = CONTENT_BOTTOM
     if show then
         local _, rows = ns.Shopping.FromBank()
         wide:SetText(L.BTN_WITHDRAW:format(#rows))
         wide:SetEnabled(#rows > 0)
         wide:Show()
-        bottom = CONTENT_BOTTOM + BUTTON_H + BUTTON_GAP
-    else
-        wide:Hide()
+        return BUTTONS_TOP + WITHDRAW_GAP + BUTTON_H
     end
-    ui.target.scroll:SetPoint("BOTTOMRIGHT", ui.side, "BOTTOMRIGHT", -28, bottom)
+    wide:Hide()
+    return BUTTONS_TOP
 end
+
+-- Drei Knöpfe gleich breit über die Breite des Seitenteils, „Aus der Bank holen“ über alle drei.
+local function LayoutButtons(width)
+    local w = math.floor((width - 2 * BUTTON_X - 2 * BUTTON_SPACE) / 3)
+    for _, button in ipairs(ui.buttons) do button:SetWidth(w) end
+    if ui.withdraw then ui.withdraw:SetWidth(3 * w + 2 * BUTTON_SPACE) end
+    return w
+end
+
+-- Breite nach dem Platz neben dem Berufefenster: SIDE_W, bei weniger Platz bis SIDE_MIN schmaler (wie ezTalents
+-- UI.Place). Rechts zuerst; reicht es dort nicht einmal für SIDE_MIN, zählt der Platz links (dorthin legt ezCores
+-- Core.Dock das Teil dann). Unbekannter Platz (Fenster noch nicht gesetzt): SIDE_W. Ändert sich die Breite, dockt
+-- ezCore neu an (nur der eigene, ungeschützte Rahmen; ein geschützter Teil daran müsste nach dem Kampf warten).
+-- → die Breite
+function Panel.FitWidth()
+    local side, pf = ui.side, Professions()
+    if not (side and pf) then return Panel.SIDE_W end
+    local function Room(where)
+        local room = Core.DockRoom(side, pf, where, Panel.SIDE_GAP)
+        return room and math.floor(room - Panel.SCREEN_MARGIN) or nil
+    end
+    local width, room = Panel.SIDE_W, Room("right")
+    if room and room < Panel.SIDE_MIN then
+        local left = Room("left")
+        if left and left > room then room = left end
+    end
+    width = Core.PanelWidth(room, width, Panel.SIDE_MIN) or Panel.SIDE_MIN   -- Regel aus ezCore
+    if side:GetWidth() ~= width then
+        side:SetWidth(width)
+        side:Place()
+    end
+    LayoutButtons(width)
+    return width
+end
+
+-- Blizzards inneren Kasten zwischen Kopf (bzw. Titelleiste) und Knöpfe legen, die Liste in den Kasten – wie ezTalent
+-- (Core.PanelInset; vorher lag die Liste frei, der Kasten fest bei 60 unter dem Rand quer unter dem Kopf).
+-- → der Kasten oder nil (Vorlage ohne Inset: die Liste wie früher frei unter dem Kopf)
+local function LayoutList(withHead, buttonsTop)
+    local side, scroll = ui.side, ui.target.scroll
+    local below = withHead and side.ListHead or VIEW_TOP
+    local inset = Core.PanelInset(side, below, buttonsTop + LOOK.buttonGap, { left = LOOK.headLeft, gap = LOOK.headGap })
+    scroll:ClearAllPoints()
+    if inset then
+        scroll:SetPoint("TOPLEFT", inset, "TOPLEFT", LOOK.insetLeft, -LOOK.insetTop)
+        scroll:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -LOOK.insetRight, LOOK.insetTop)
+    else
+        scroll:SetPoint("TOPLEFT", side, "TOPLEFT", 10, -(withHead and VIEW_TOP + HEAD_H or VIEW_TOP))
+        scroll:SetPoint("BOTTOMRIGHT", side, "BOTTOMRIGHT", -28, buttonsTop + LOOK.buttonGap)
+    end
+    return inset
+end
+Panel.LayoutList = LayoutList
 
 local function OnTick(_, elapsed)
     if not ui.ticking then return end
@@ -1129,61 +1150,215 @@ local function OnTick(_, elapsed)
     end
 end
 
--- Das Seitenteil (Core.NewSidePanel): Überschrift, Reiterzeile, Überschrift der Ansicht mit X, Inhalt, Knopfleiste.
+---------------------------------------------------------------------------
+-- Kopf der Ansicht „Listen“ (Spieltest vom 21.11.2026: „ich muss listen anlegen, umbenennenund löschen können und
+-- auch items oder herstellungsgegenstände hinzufügen können, am besten wie original blizz mit shift linke maustaste
+-- auf icon in suche einfügen“): Listenwahl, Neu, Umbenennen, Löschen; Eingabefeld „Hinzufügen“ mit Knopf. Jede
+-- Funktion hat ihren sichtbaren Knopf (Leitlinie 3); Shift-Klick geht in das Feld, solange es den Fokus hat.
+---------------------------------------------------------------------------
+
+local HEAD_ICONS = {
+    new = "Interface\\PaperDollInfoFrame\\Character-Plus",
+    rename = "Interface\\Buttons\\UI-GuildButton-PublicNote-Up",
+    delete = "Interface\\Buttons\\UI-GroupLoot-Pass-Up",
+    add = "Interface\\Buttons\\UI-PlusButton-Up",
+}
+
+-- Symbolknöpfe im Kopf „Listen“ (Neu, Umbenennen, Löschen): HEAD_ICON groß, Abstand wie die Knopfreihe unten
+-- (Core.PANEL_BUTTONS.space – Entscheidung des Nutzers vom 21.11.2026 „6 für alle“, auch für den Kopf: „perfekt, ja
+-- behebe das noch“; vorher 4). Die Listenwahl links endet einen Abstand vor dem ersten Symbolknopf.
+local HEAD_ICON = 20
+local function HeadButton(parent, key, title, tip, onClick)
+    local button = CreateFrame("Button", nil, parent)
+    button:SetSize(HEAD_ICON, HEAD_ICON)
+    button:SetNormalTexture(HEAD_ICONS[key])
+    button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+    button:SetScript("OnClick", function(self)
+        Core.PlaySound("IG_MAINMENU_OPTION_CHECKBOX_ON")
+        onClick(self)
+    end)
+    button:SetScript("OnEnter", function(self) Core.ShowTip(self, title, tip, "ANCHOR_TOP") end)
+    button:SetScript("OnLeave", GameTooltip_Hide)
+    if button.SetMotionScriptsWhileDisabled then button:SetMotionScriptsWhileDisabled(true) end
+    return button
+end
+
+-- Menü „Liste wählen“: alle Listen (gewählte mit Punkt) und „Neue Liste …“. Ohne Blizzards Menü: nächste Liste.
+function Panel.PickList(owner)
+    local lists = Core.Lists and Core.Lists.All() or {}
+    local current = ns.Shopping.Selected()
+    local opened = Core.Menu.Open(owner, function(root)
+        Core.Menu.Title(root, L.LIST_PICK)
+        for _, list in ipairs(lists) do
+            Core.Menu.Radio(root, ("%s (%d)"):format(list.name, #(list.items or {})),
+                function() return ns.Shopping.Selected() end, function(value) ns.Shopping.Select(value) end, list)
+        end
+        Core.Menu.Divider(root)
+        Core.Menu.Button(root, L.LIST_NEW, function() ns.Shopping.AskCreate() end)
+    end)
+    if opened or #lists == 0 then return opened end
+    local index = 1
+    for i, list in ipairs(lists) do
+        if list == current then index = i % #lists + 1 end
+    end
+    return ns.Shopping.Select(lists[index])
+end
+
+-- Gegenstand, Link oder Rezept aus dem Eingabefeld übernehmen. → Eintrag oder nil
+function Panel.AddFromInput(value)
+    local entry = ns.Shopping.AddItem(Panel.LinkEntry(value) or value)
+    if entry and ui.listInput then ui.listInput:SetText("") end
+    return entry
+end
+
+-- Shift-Klick auf das Ergebnis-Symbol des gewählten Rezepts: der hergestellte Gegenstand (Rezept), sonst nil – dann
+-- zählt der Gegenstand selbst (Material, gekaufte Ware).
+function Panel.LinkEntry(link)
+    if type(link) ~= "string" or not Core.Lists then return nil end
+    local itemID = Core.Lists.ParseLink(link)
+    local recipeID = itemID and CraftingShown() and Panel.SelectedRecipeID()
+    local recipe = recipeID and Data.Recipe(recipeID)
+    if recipe and recipe.product == itemID then return { recipe = recipeID, count = 1 } end
+    return nil
+end
+
+-- Shift-Klick (ezCores Core.OnInsertLink): nur, solange das Feld „Hinzufügen“ den Fokus hat – wie Blizzards Suchfeld.
+local function OnInsertLink(link)
+    local input = ui.listInput
+    if not (input and input:IsVisible() and input:HasFocus()) then return false end
+    local entry = Panel.AddFromInput(link)
+    if entry then ns.Print(L.LIST_ADDED:format(ns.Shopping.Name(entry), ns.Shopping.Selected().name)) end
+    return entry ~= nil
+end
+
+local function CreateListHead(side)
+    local head = CreateFrame("Frame", nil, side)
+    head:SetPoint("TOPLEFT", side, "TOPLEFT", LOOK.headLeft, -VIEW_TOP)
+    head:SetPoint("TOPRIGHT", side, "TOPRIGHT", -LOOK.headLeft, -VIEW_TOP)
+    head:SetHeight(HEAD_H)
+    local ok, pick = pcall(CreateFrame, "Button", nil, head, "SharedButtonSmallTemplate")
+    if not (ok and pick) then
+        ok, pick = pcall(CreateFrame, "Button", nil, head, "UIPanelButtonTemplate")
+        if not (ok and pick) then pick = CreateFrame("Button", nil, head) end
+    end
+    pick:SetHeight(BUTTON_H)
+    pick:SetPoint("TOPLEFT", head, "TOPLEFT", 0, 0)
+    pick:SetPoint("RIGHT", head, "RIGHT", -(3 * HEAD_ICON + 3 * BUTTON_SPACE), 0)
+    pick:SetScript("OnClick", function(self) Panel.PickList(self) end)
+    pick:SetScript("OnEnter", function(self) Core.ShowTip(self, L.LIST_PICK, L.LIST_PICK_TIP, "ANCHOR_TOP") end)
+    pick:SetScript("OnLeave", GameTooltip_Hide)
+    head.pick = pick
+    head.delete = HeadButton(head, "delete", L.LIST_DELETE, L.LIST_DELETE_TIP, function() ns.Shopping.AskDelete() end)
+    head.delete:SetPoint("TOPRIGHT", head, "TOPRIGHT", 0, -1)
+    head.rename = HeadButton(head, "rename", L.LIST_RENAME, L.LIST_RENAME_TIP, function() ns.Shopping.AskRename() end)
+    head.rename:SetPoint("RIGHT", head.delete, "LEFT", -BUTTON_SPACE, 0)
+    head.new = HeadButton(head, "new", L.LIST_NEW, L.LIST_NEW_TIP, function() ns.Shopping.AskCreate() end)
+    head.new:SetPoint("RIGHT", head.rename, "LEFT", -BUTTON_SPACE, 0)
+    -- Eingabefeld „Hinzufügen“: Name, Link oder Shift-Klick auf Gegenstand, Rezept-Symbol oder Rezept
+    local okInput, input = pcall(CreateFrame, "EditBox", "ezCraftListInput", head, "InputBoxTemplate")
+    if not (okInput and input) then input = CreateFrame("EditBox", "ezCraftListInput", head) end
+    input:SetAutoFocus(false)
+    input:SetHeight(20)
+    input:SetPoint("TOPLEFT", pick, "BOTTOMLEFT", 6, -4)
+    input:SetPoint("RIGHT", head, "RIGHT", -28, 0)
+    input:SetScript("OnEnterPressed", function(self)
+        local text = self:GetText()
+        if Panel.AddFromInput(text) == nil and Core.Trim(text or "") ~= "" then ns.Print(L.LIST_ADD_FAILED) end
+        self:ClearFocus()
+    end)
+    input:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    input:SetScript("OnEnter", function(self) Core.ShowTip(self, L.LIST_INPUT, L.LIST_INPUT_TIP, "ANCHOR_TOP") end)
+    input:SetScript("OnLeave", GameTooltip_Hide)
+    input.hint = input:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    input.hint:SetPoint("LEFT", input, "LEFT", 2, 0)
+    input.hint:SetText(L.LIST_INPUT_HINT)
+    local function Hint() input.hint:SetShown((input:GetText() or "") == "" and not input:HasFocus()) end
+    input:SetScript("OnEditFocusGained", Hint)
+    input:SetScript("OnEditFocusLost", Hint)
+    input:SetScript("OnTextChanged", Hint)
+    head.add = HeadButton(head, "add", L.LIST_ADD, L.LIST_ADD_TIP, function()
+        local text = input:GetText()
+        if Core.Trim(text or "") == "" then
+            input:SetFocus()       -- leer: ins Feld, dann Shift-Klick oder tippen
+        elseif Panel.AddFromInput(text) == nil then
+            ns.Print(L.LIST_ADD_FAILED)
+        end
+    end)
+    head.add:SetPoint("LEFT", input, "RIGHT", 6, 0)
+    ui.listInput = input
+    Core.OnInsertLink(OnInsertLink, ADDON)
+    head:Hide()
+    return head
+end
+
+-- Kopf zeigen und füllen (nur in der Ansicht „Listen“). → true, wenn er zu sehen ist
+local function UpdateListHead(tab)
+    local head = ui.side.ListHead
+    local show = tab == "shopping"
+    head:SetShown(show)
+    if not show then
+        if ui.listInput and ui.listInput:HasFocus() then ui.listInput:ClearFocus() end
+        return false
+    end
+    local list = ns.Shopping.Selected()
+    head.pick:SetText(list and L.LIST_PICK_TEXT:format(list.name, #(list.items or {})) or L.LIST_PICK_NONE)
+    local editable = list ~= nil and Core.Lists.Editable(list)
+    head.rename:SetEnabled(editable)
+    head.delete:SetEnabled(list ~= nil)
+    head.add:SetEnabled(list == nil or editable)
+    ui.listInput:SetEnabled(list == nil or editable)
+    for _, b in ipairs({ head.rename, head.delete, head.add }) do
+        local t = b.GetNormalTexture and b:GetNormalTexture()
+        if t and t.SetDesaturated then t:SetDesaturated(not b:IsEnabled()) end
+    end
+    return true
+end
+
+-- Das Seitenteil (Core.NewSidePanel) im gemeinsamen Rahmen der Seitenteile (Core.PanelLook: Blizzards
+-- ButtonFrameTemplate, Titel = Ansicht, X schließt): Inhalt, Knopfleiste; in „Listen“ dazu der Kopf.
 local function CreateSide(pf)
     local side = Core.NewSidePanel(pf, {
-        name = "ezCraftSide", width = Panel.SIDE_W, gap = Panel.SIDE_GAP, owner = ADDON,
+        name = "ezCraftSide", width = Panel.SIDE_W, gap = Panel.SIDE_GAP, owner = ADDON, template = "ButtonFrameTemplate",
         store = ns.db and ns.db.window, key = "open", open = true,
         tip = L.SIDE_TITLE, tipBody = L.SIDE_ARROW_TIP,
         onToggle = function() Panel.Refresh() end,
         onPlaced = function() Panel.RefreshSoon() end,
     })
     if not side then return nil end
-    side.Art = side:CreateTexture(nil, "BACKGROUND", nil, 1)
-    side.Art:SetPoint("TOPLEFT", side, "TOPLEFT", 3, -3)
-    side.Art:SetPoint("BOTTOMRIGHT", side, "BOTTOMRIGHT", -3, 3)
+    Core.PanelLook(side, L.TITLE, { close = true, onClose = function() side:Close() end })
+    if type(side.CloseButton) == "table" then
+        side.CloseButton:SetScript("OnEnter", Core.TipScript(L.SIDE_CLOSE, L.SIDE_CLOSE_TIP))
+        side.CloseButton:SetScript("OnLeave", GameTooltip_Hide)
+    end
+    local inset = type(side.Inset) == "table" and side.Inset or side
+    side.Art = inset:CreateTexture(nil, "BACKGROUND", nil, 2)
+    side.Art:SetPoint("TOPLEFT", inset, "TOPLEFT", 3, -3)
+    side.Art:SetPoint("BOTTOMRIGHT", inset, "BOTTOMRIGHT", -3, 3)
     side.Art:SetAlpha(0.6)
     side.Art:Hide()
-    -- Überschrift „ezCraft“ in Blizzards Gold, mittig (links und rechts bleibt Platz für den Pfeil)
-    side.Title = CreateFrame("Button", nil, side)
-    side.Title:SetHeight(20)
-    side.Title:SetPoint("TOPLEFT", side, "TOPLEFT", Core.SIDEPANEL_ARROW_ROOM + 4, -8)
-    side.Title:SetPoint("TOPRIGHT", side, "TOPRIGHT", -Core.SIDEPANEL_ARROW_ROOM - 4, -8)
-    side.Title.Text = side.Title:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    side.Title.Text:SetPoint("CENTER", side.Title, "CENTER", 0, 0)
-    side.Title.Text:SetText(L.TITLE)
-    side.Title:SetScript("OnEnter", Core.TipScript(L.TITLE, L.SIDE_TITLE_TIP))
-    side.Title:SetScript("OnLeave", GameTooltip_Hide)
-    CreateTabs(side)
-    -- Überschrift der Ansicht mit feiner Linie, X führt zurück zum Rezept
-    -- Schrift wie Blizzards Rezept-Überschrift (OutputText inherits="GameFontHighlightMed2" in
-    -- Blizzard_ProfessionsTemplates/Blizzard_ProfessionsRecipeSchematicForm.xml, Zweig forever): Nachbild eines
-    -- Blizzard-Teils, darum außerhalb der Rollen von Core.Style.FONT (Design-System 2.4)
-    side.ViewTitle = side:CreateFontString(nil, "ARTWORK", "GameFontHighlightMed2")
-    side.ViewTitle:SetPoint("TOPLEFT", side, "TOPLEFT", 12, -TOP_ROOM - TAB_SIZE - 12)
-    side.Line = side:CreateTexture(nil, "ARTWORK")
-    side.Line:SetHeight(1)
-    side.Line:SetColorTexture(1, 0.82, 0, 0.3)
-    side.Line:SetPoint("TOPLEFT", side, "TOPLEFT", 10, -CONTENT_TOP + 6)
-    side.Line:SetPoint("TOPRIGHT", side, "TOPRIGHT", -10, -CONTENT_TOP + 6)
-    local ok, close = pcall(CreateFrame, "Button", nil, side, "UIPanelCloseButton")
-    side.ViewClose = ok and close or CreateFrame("Button", nil, side)
-    side.ViewClose:SetPoint("TOPRIGHT", side, "TOPRIGHT", -4, -TOP_ROOM - TAB_SIZE - 2)
-    side.ViewClose:SetScript("OnClick", function() SelectTab("recipe") end)
-    side.ViewClose:SetScript("OnEnter", Core.TipScript(L.VIEW_CLOSE, L.VIEW_CLOSE_TIP))
-    side.ViewClose:SetScript("OnLeave", GameTooltip_Hide)
+    side.ListHead = CreateListHead(side)
     ui.target = NewTarget(side)
-    ui.target.scroll:SetPoint("TOPLEFT", side, "TOPLEFT", 10, -CONTENT_TOP)
-    ui.target.scroll:SetPoint("BOTTOMRIGHT", side, "BOTTOMRIGHT", -28, CONTENT_BOTTOM)
     CreateButtons(side)
+    LayoutButtons(Panel.SIDE_W)
+    LayoutList(false, BUTTONS_TOP)
     -- Restzeiten (Abklingzeiten) laufen weiter, solange sie zu sehen sind.
     side:SetScript("OnUpdate", OnTick)
     -- Seitenteil zu: der sichere Knopf „Entzaubern“ darf nicht über einer unsichtbaren Zeile stehen bleiben.
     side:HookScript("OnHide", function() if ns.Salvage then ns.Salvage.Disarm() end end)
-    side.arrow:SetScript("OnEnter", function(self)
-        Core.ShowTip(self, ui.side:IsOpen() and L.SIDE_CLOSE or L.SIDE_OPEN, L.SIDE_ARROW_TIP)
-    end)
     return side
+end
+
+Panel.TAB_ICON = "Interface\\Icons\\Trade_BlackSmithing"   -- das Symbol von ezCraft (ezCraft.toc, IconTexture)
+
+-- Symbol-Reiter der gewählten Ansicht, sonst der erste sichtbare – solange zu sehen (Ziel des Rundgangs, Prüfungen).
+function Panel.SideTab()
+    local tab = ui.tabs[Tab()]
+    if tab and tab:IsVisible() then return tab end
+    for _, key in ipairs(TAB_KEYS) do
+        tab = ui.tabs[key]
+        if tab and tab:IsVisible() then return tab end
+    end
+    return nil
 end
 
 local function Create()
@@ -1192,9 +1367,12 @@ local function Create()
     if not (pf and CraftingPage()) then return false end
     ui.side = CreateSide(pf)
     if not ui.side then return false end
-    -- Blasen zu Teilen im Seitenteil schließen mit ihm (die zum Pfeil hängt am Berufefenster).
+    ui.side.arrow:Hide()
+    CreateTabs(pf)
+    -- Blasen zu Teilen im Seitenteil schließen mit ihm (die zu den Symbol-Reitern hängt am Berufefenster, die zu den
+    -- Knöpfen in Blizzards Rezeptbereich an diesem).
     for _, step in ipairs(TOUR_STEPS) do
-        if step.key ~= "side.arrow" then step.parent = ui.side end
+        if step.key ~= "side.arrow" and step.key ~= "side.tabs" and step.key ~= "recipe.buttons" then step.parent = ui.side end
     end
     return true
 end
@@ -1210,7 +1388,7 @@ end
 -- Ist ezCraft gerade im Berufefenster zu sehen (Seitenteil offen)?
 function Panel.IsOpen() return ui.side ~= nil and IsOn() and ui.side:IsOpen() end
 
--- Seitenteil auf- oder zuklappen (Pfeil, /ezcraft fenster). Ohne Berufefenster nur den Zustand merken.
+-- Seitenteil auf- oder zuklappen (Symbol-Reiter, /ezcraft fenster). Ohne Berufefenster nur den Zustand merken.
 -- → true, wenn es jetzt offen ist.
 function Panel.SetOpen(open)
     open = open and true or false
@@ -1253,13 +1431,15 @@ local function RearmUnderMouse(prev)
 end
 
 function Panel.Refresh()
+    if ns.Schematic then ns.Schematic.Refresh() end   -- Zeile und Knöpfe in Blizzards Rezeptbereich
     local side = ui.side
     if not side then return end
     -- Der sichere Knopf „Entzaubern“ gehört zu einer Zeile, die gleich neu belegt wird: erst lösen (CRAFT-09).
     local armedBefore = ns.Salvage and ns.Salvage.Armed()
     if ns.Salvage then ns.Salvage.Disarm() end
     local on = IsOn()
-    side.arrow:SetShown(on)
+    side.arrow:Hide()   -- seit dem 21.11.2026 die Symbol-Reiter (CreateTabs)
+    UpdateTabs(on)
     if not on then
         side:Hide()
         if ns.db then StartTour(true) end
@@ -1272,18 +1452,15 @@ function Panel.Refresh()
         return
     end
     local tab = Tab()
-    UpdateTabs()
     SyncViewArt()
-    side.ViewTitle:SetText(L["TAB_" .. tab])
-    side.ViewClose:SetShown(tab ~= "recipe" and not OnBook())
+    Core.PanelTitle(side, L["TAB_" .. tab])
+    Panel.FitWidth()
+    LayoutList(UpdateListHead(tab), UpdateWithdraw(tab))
     ui.ticking = false
-    local recipe, rows
     BeginRows(ui.target)
     -- Kein Platz neben dem Berufefenster: ezCore legt das Seitenteil innen darüber – das Seitenteil sagt es.
     if side.mode == "overlap" then Text(L.SIDE_OVERLAP, 1, 0.3, 0.3) end
-    if tab == "recipe" then
-        recipe, rows = ShowRecipe()
-    elseif tab == "shopping" then
+    if tab == "shopping" then
         ShowShopping()
     elseif tab == "cooldowns" then
         ShowCooldowns()
@@ -1294,8 +1471,7 @@ function Panel.Refresh()
         ShowMissing()
     end
     EndRows()
-    UpdateButtons(tab, recipe, rows)
-    UpdateWithdraw(tab)
+    UpdateButtons(tab)
     if ns.db then StartTour() end
 end
 
@@ -1324,7 +1500,10 @@ function Panel.Info() return ui.side end
 function Panel.View() return ui.side end
 function Panel.Buttons() return ui.buttons end
 function Panel.Tabs() return ui.tabs end
+function Panel.ListInput() return ui.listInput end
 function Panel.Tab() return Tab() end
+function Panel.Scroll() return ui.target and ui.target.scroll end
+function Panel.WithdrawButton() return ui.withdraw end
 function Panel.Rows()
     local target = ui.target
     if not target then return {}, 0 end
@@ -1335,7 +1514,8 @@ end
 -- Anbindung an Blizzards Berufefenster
 ---------------------------------------------------------------------------
 
--- Ein Rezept in Blizzards Liste gewählt: zurück zur Rezeptansicht. Das Rezept zählt als „zuletzt angesehen“ (sein
+-- Ein Rezept in Blizzards Liste gewählt: die Zeile und die Knöpfe in Blizzards Rezeptbereich folgen ihm (Schematic.lua;
+-- das Seitenteil bleibt bei seiner Ansicht – seit dem 21.11.2026 gibt es keine Rezeptansicht mehr). Das Rezept zählt als „zuletzt angesehen“ (sein
 -- Material meldet ezCraft bei ezCore zum Beobachten an, AH-39); Blizzards Stern (favorite) wird mitgemerkt. Ein
 -- fremdes Berufefenster (Link, Gilde, NPC-Werkbank) übergeht Data.NoteViewed selbst.
 local function OnRecipeSelected(_, recipeInfo)
@@ -1346,7 +1526,6 @@ local function OnRecipeSelected(_, recipeInfo)
         if type(favorite) ~= "boolean" then favorite = nil end
         Data.NoteViewed(id, favorite)
     end
-    if ns.db then ns.db.window.tab = "recipe" end
     RefreshSoon()
 end
 
@@ -1354,10 +1533,15 @@ local function Attach()
     local pf = Professions()
     if not pf or ui.side then return end
     if not Create() then return end
-    -- Beim Öffnen des Berufefensters immer das Rezept (eine Ansicht von vorhin passt selten zum neuen Beruf).
+    -- Beim Öffnen des Berufefensters immer die Listen (Wunsch des Nutzers vom 21.11.2026: „standardmäßig sollen dann
+    -- die ezcraft listen beim berufe angezigt werden“; eine Ansicht von vorhin passt selten zum neuen Beruf).
     pf:HookScript("OnShow", function()
-        if ns.db then ns.db.window.tab = "recipe" end
+        if ns.db then ns.db.window.tab = "shopping" end
+        Panel.PlaceTabs()
         Panel.Refresh()
+        -- Blizzard setzt seine Berufe-Reiter erst nach dem Zeigen: einen Frame später noch einmal darunter rücken
+        local timer = rawget(_G, "C_Timer")
+        if type(timer) == "table" and type(timer.After) == "function" then timer.After(0, Panel.PlaceTabs) end
     end)
     pf:HookScript("OnHide", Panel.Refresh)
     local page = CraftingPage()
@@ -1376,6 +1560,7 @@ local function Attach()
         EventRegistry:RegisterCallback("Professions.ProfessionSelected", function()
             selectedRecipeID = nil
             Data.InvalidateMissing()   -- anderer Beruf: andere Rezepte
+            Panel.PlaceTabs()
             RefreshSoon()
         end, ui)
     end
@@ -1386,8 +1571,10 @@ ns.OnReady(function()
     ns.WhenAddOnLoaded("Blizzard_Professions", Attach)
 end)
 
+-- Auch bei zugeklapptem Seitenteil, solange das Berufefenster ein Rezept zeigt: Kostenzeile und Knopf „Auktionshaus“
+-- im Rezeptbereich (Schematic.lua) folgen Bestand und Preisen (Review 21.11.2026).
 local function RefreshIfOpen()
-    if Panel.IsOpen() then RefreshSoon() end
+    if Panel.IsOpen() or (ns.Enabled("panel") and CraftingShown()) then RefreshSoon() end
 end
 
 ns.On("TRADE_SKILL_LIST_UPDATE", RefreshIfOpen)

@@ -2,6 +2,8 @@ local _, ns = ...
 
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 local de = {
+    -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
+    INTRO_FEATURES = "Chat bleibt über das Ausloggen hinaus\nReiter „Gespräche“ mit Suche\nAlarm oder stumm für jedes Gespräch\nFlüstern an Offline-Spieler wartet auf sie\nUngelesene Gespräche an der Freundesliste",
     -- Datum mit Jahr ohne Uhrzeit für die Tageszeile im Verlauf (die übrigen Formate kommen aus ezCore.DateText)
     DATE_YEAR = "%d.%m.%Y",
 
@@ -62,6 +64,7 @@ local de = {
     BAR_POST_COUNT = "%d Brief(e) bereit – Klick sendet",
     BAR_RIGHT_CLICK = "Rechtsklick: alle ezChat-Funktionen",
     VIEW_TAB = "Gespräche",
+    VIEW_ENTER = "Enter: %s anflüstern",
     VIEW_TITLE = "Offene Gespräche",
     VIEW_NONE = "Noch keine Gespräche",
     VIEW_BACK = "Zurück zum Chat",
@@ -320,7 +323,7 @@ local de = {
         "  %s diag – Diagnose für die Fehlersuche speichern (Namen unkenntlich; danach /reload); %s diag löschen entfernt sie",
         "  %s gilde | gruppe | fluestern | bnet | sagen | wiederherstellen | offline | chat | nachhaken | briefe | posteingang | community | auswahl | symbole | info | briefton – Funktion ein/aus",
         "  %s links | kopieren | kanalnamen | sichtbar | pfeiltasten | hervorheben | hervorhebton | blinken | alarmgilde | alarmoffiziere | alarmgruppe | alarmraid | alarminstanz | alarmsagen | alarmcommunity – Chatfenster und Alarme ein/aus",
-        "  %s spam | spambeschaeftigt | lageton… | lagealarm… (kampf, instanz, weg, stadt) | antwortkampf | antwortinstanz | antwortweg | antwortstadt | antwortfremde | tippen | ort – Spam-Filter, Verhalten je Lage, automatische Antwort, mit anderen ezChat-Nutzern teilen",
+        "  %s spam | spambeschaeftigt | lagetonweg | lagealarm… (kampf, instanz, weg, stadt) | antwortkampf | antwortinstanz | antwortweg | antwortstadt | antwortfremde | tippen | ort – Spam-Filter, Verhalten je Lage, automatische Antwort, mit anderen ezChat-Nutzern teilen",
         "  %s gefiltert – gefilterte Nachrichten im Gesprächsfenster zeigen",
         "Reiter „Gespräche“ rechts in der Reiterleiste des Chats: Gespräch wählen, das Chatfenster zeigt dann nur dieses.",
         "Symbole in der Knopfleiste am Chatfenster: Neues Gespräch, Gesprächsfenster, Offline-Nachrichten (Rechtsklick: alles).",
@@ -421,14 +424,8 @@ local de = {
     OPT_sitPopupRest_TIP = "Neues Flüstern in einer Stadt oder einem Gasthaus (Erholungsgebiet).",
     OPT_sitPopupOther = "Sonst: Fenster",
     OPT_sitPopupOther_TIP = "Neues Flüstern, wenn keine der Lagen oben zutrifft (unterwegs in der offenen Welt): das Gesprächsfenster sofort öffnen oder geschlossen lassen. Ab Werk „nicht öffnen“.",
-    OPT_sitToneCombat = "Kampf: Ton bei Flüstern",
-    OPT_sitToneCombat_TIP = "Im Kampf zusätzlich ezChats Alarm-Ton bei neuem Flüstern. Blizzards eigener Flüster-Ton bleibt, wie er ist.",
-    OPT_sitToneInstance = "Dungeon/Schlachtzug: Ton bei Flüstern",
-    OPT_sitToneInstance_TIP = "In Dungeon und Schlachtzug zusätzlich ezChats Alarm-Ton bei neuem Flüstern.",
     OPT_sitToneAway = "Abwesend: Ton bei Flüstern",
-    OPT_sitToneAway_TIP = "Abwesend (/afk, /dnd) zusätzlich ezChats Alarm-Ton und Blinken bei neuem Flüstern – damit du es vom Sofa aus hörst.",
-    OPT_sitToneRest = "Stadt/Gasthaus: Ton bei Flüstern",
-    OPT_sitToneRest_TIP = "In Stadt und Gasthaus zusätzlich ezChats Alarm-Ton bei neuem Flüstern.",
+    OPT_sitToneAway_TIP = "Abwesend (/afk, /dnd) zusätzlich ezChats Alarm-Ton und Blinken bei neuem Flüstern – damit du es vom Sofa aus hörst. Bist du im Kampf oder in Dungeon oder Schlachtzug, gilt diese Lage vor „Abwesend“; dort bleibt es bei Blizzards Flüster-Ton.",
     OPT_sitAlarmCombat = "Kampf: Alarme",
     OPT_sitAlarmCombat_TIP = "Während eines Kampfes dürfen ezChats Alarme klingeln (Kanäle, Partner mit „Alarm“, Hervorheben, Briefe). Ab Werk aus: im Kampf bleibt es still.",
     OPT_sitAlarmInstance = "Dungeon/Schlachtzug: Alarme",
@@ -489,6 +486,7 @@ local de = {
 }
 
 local en = {
+    INTRO_FEATURES = "Chat is kept beyond logging out\n“Conversations” tab with search\nAlert or mute for each conversation\nWhispers to offline players wait for them\nUnread conversations at the friends list",
     DATE_YEAR = "%m/%d/%Y",
 
     MAIN_TEXT = "open/close the conversation window",
@@ -545,6 +543,7 @@ local en = {
     BAR_POST_COUNT = "%d letter(s) ready – click to send",
     BAR_RIGHT_CLICK = "Right-click: all ezChat functions",
     VIEW_TAB = "Conversations",
+    VIEW_ENTER = "Enter: whisper %s",
     VIEW_TITLE = "Open conversations",
     VIEW_NONE = "No conversations yet",
     VIEW_BACK = "Back to chat",
@@ -787,7 +786,7 @@ local en = {
         "  %s diag – save diagnostics for troubleshooting (names masked; then /reload); %s diag clear removes them",
         "  %s guild | party | whisper | bnet | say | restore | offline | chat | retry | letters | inbox | community | selection | icons | info | lettersound – toggle a feature",
         "  %s links | copy | channelnames | visible | arrowkeys | highlight | highlightsound | flash | alertguild | alertofficer | alertparty | alertraid | alertinstance | alertsay | alertcommunity – toggle chat window features and alerts",
-        "  %s spam | spambusy | sittone… | sitalert… (combat, instance, away, city) | replycombat | replyinstance | replyaway | replycity | replystrangers | typing | zone – spam filter, behaviour per situation, automatic reply, sharing with other ezChat users",
+        "  %s spam | spambusy | sittoneaway | sitalert… (combat, instance, away, city) | replycombat | replyinstance | replyaway | replycity | replystrangers | typing | zone – spam filter, behaviour per situation, automatic reply, sharing with other ezChat users",
         "  %s filtered – show filtered messages in the conversation window",
         "\"Conversations\" tab on the right of the chat tab bar: pick a conversation and the chat window shows only that one.",
         "Icons in the chat window's button bar: New conversation, conversation window, offline messages (right-click: everything).",
@@ -887,14 +886,8 @@ local en = {
     OPT_sitPopupRest_TIP = "New whisper in a city or an inn (resting area).",
     OPT_sitPopupOther = "Otherwise: window",
     OPT_sitPopupOther_TIP = "New whisper when none of the situations above applies (out in the open world): open the conversation window at once or leave it closed. Default: do not open.",
-    OPT_sitToneCombat = "Combat: sound on whisper",
-    OPT_sitToneCombat_TIP = "In combat also play ezChat's alert sound on a new whisper. Blizzard's own whisper sound stays as it is.",
-    OPT_sitToneInstance = "Dungeon/raid: sound on whisper",
-    OPT_sitToneInstance_TIP = "In dungeons and raids also play ezChat's alert sound on a new whisper.",
     OPT_sitToneAway = "Away: sound on whisper",
-    OPT_sitToneAway_TIP = "While away (/afk, /dnd) also play ezChat's alert sound and flash on a new whisper – so you hear it from the sofa.",
-    OPT_sitToneRest = "City/inn: sound on whisper",
-    OPT_sitToneRest_TIP = "In cities and inns also play ezChat's alert sound on a new whisper.",
+    OPT_sitToneAway_TIP = "While away (/afk, /dnd) also play ezChat's alert sound and flash on a new whisper – so you hear it from the sofa. In combat or in a dungeon or raid, that situation comes before away, so only Blizzard's whisper sound plays there.",
     OPT_sitAlarmCombat = "Combat: alerts",
     OPT_sitAlarmCombat_TIP = "In combat ezChat's alerts may ring (channels, partners with \"Alert\", highlights, letters). Off by default: no sound disturbs you in combat.",
     OPT_sitAlarmInstance = "Dungeon/raid: alerts",

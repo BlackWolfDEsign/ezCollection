@@ -45,25 +45,26 @@ local Core = ezCore
       ezCore.Menu.Title(root, text)  .Divider(root)  .Button(root, text, fn)
       ezCore.Menu.Toggle(root, text, get, set)         Häkchen
       ezCore.Menu.Radio(root, text, get, set, value)   Auswahlpunkt
-          (was set zurückgibt, geht an Blizzards Menü: ezCore.Menu.Close() / .Refresh() / .KeepOpen())
+          (was set zurückgibt, geht an Blizzards Menü, aber nur eine MenuResponse: ezCore.Menu.Close() / .Refresh() /
+          .KeepOpen(); anderes fällt weg – set gibt nichts oder eine MenuResponse zurück, keine Zahlen)
+      ezCore.Menu.Answer(value) → value, wenn es eine MenuResponse ist, sonst nil (für eigene CreateCheckbox/-Radio)
       ezCore.Menu.Choice(root, label, options, get, set)   Untermenü „Sortierung: Name“ mit { { value, text } … }
       ezCore.Menu.SetAll(list, get, set, on, skip) → Anzahl geänderter Einträge
           alle Einträge einer Mehrfachauswahl an (on = true) bzw. aus; nur, was abweicht. list = Tabelle | fn() →
           Tabelle, get(eintrag) → an?, set(eintrag, an), skip(eintrag) → true: nicht mitschalten. Gesperrte Werte
           (Core.IsSecret) bleiben unberührt; ein Fehler in get oder skip lässt nur diesen Eintrag aus.
-      ezCore.Menu.AllToggle(root, list, get, set, opts) → Eintrag „an“, Eintrag „aus“ (nil, wo weggelassen)
-          Baustein „Alle auswählen / Alle abwählen“ für Menüs mit Mehrfachauswahl (Design-System: überall gleich).
-          Zwei schlichte Knöpfe wie Blizzards eigener Eintrag UNCHECK_ALL im Menü „Aufspüren“; der Klick ruft
-          Menu.SetAll und gibt Menu.Refresh() zurück (Blizzards Häkchen ziehen nach).
-          opts = { on = false (ohne „Alle auswählen“), off = false (ohne „Alle abwählen“), onText, offText
-                   (Standard: Core.Style.AllText – Blizzards CHECK_ALL / UNCHECK_ALL samt Schutz gegen Blizzards
-                   deutsches „Alle Auswählen“ für UNCHECK_ALL, sonst ezCores Text; leerer Text: kein Eintrag),
-                   onTip, offTip (Erklärzeile über Menu.Tip), skip = fn(eintrag), after = fn(anzahl, an),
-                   at = Stelle (über Blizzards root:Insert an dieser Stelle einfügen, z. B. direkt unter Blizzards
-                   eigenem Eintrag; ohne Insert oder MenuUtil.CreateButton wird angehängt),
+      ezCore.Menu.AllToggle(root, list, get, set, opts) → der Haken, zweimal (früher Eintrag „an“, Eintrag „aus“)
+          Baustein „Alle“ für Menüs mit Mehrfachauswahl (Design-System 2.11: überall gleich). Seit dem 21.11.2026 EIN
+          Haken (Entscheidung des Nutzers): angehakt, wenn alle Einträge an sind; ein Klick schaltet dann alle aus,
+          sonst (auch gemischt) alle an. Ruft Menu.SetAll und gibt Menu.Refresh() zurück (Blizzards Häkchen ziehen nach).
+          opts = { text (Standard: ezCores L.ALL_TOGGLE „Alle“; leerer Text: kein Eintrag), tip (sonst onTip und
+                   offTip als zwei Zeilen, sonst L.ALL_TOGGLE_TIP), skip = fn(eintrag), after = fn(anzahl, an),
                    wrap = fn(schalten) → Anzahl (läuft um das Schalten, z. B. einmal neu zeichnen; Welle 27),
-                   icons = true (Symbole Menu.ICON_ALL_ON / ICON_ALL_OFF vor den Einträgen) bzw. onIcon, offIcon
-                   (eigene Angabe; Fund des code-reviewers vor dem Merge, 17.11.2026: jeder Eintrag mit Symbol) }
+                   je Richtung statt dessen onList/offList, onSkip/offSkip, onAfter/offAfter, onWrap/offWrap,
+                   at = Stelle (über Blizzards root:Insert und MenuUtil.CreateCheckbox an dieser Stelle einfügen,
+                   z. B. direkt unter Blizzards eigenem Eintrag; sonst angehängt),
+                   veraltet und verträglich: on = false (nur aus), off = false (nur an) }
+      ezCore.Menu.AllOn(list, get, skip) → true, wenn alle gezählten Einträge an sind (Zustand des Hakens)
       ezCore.Menu.Tip(eintrag, titel, text, quelle)    Tooltip; quelle als graue Zeile (Welle 27)
       ezCore.Menu.Settings(root, ns, opts) → Eintrag „Einstellungen …“ mit Zahnrad (T18-8)
       ezCore.Menu.Dropdown(parent, breite, build, label) → Auswahlfeld (Blizzards Vorlage, sonst Knopf mit Menü;
@@ -493,13 +494,28 @@ function Menu.Tip(entry, title, text, source)
     return entry
 end
 
--- Was set zurückgibt, geht an Blizzards Menü (MenuResponse): Menu.Close(), Menu.Refresh(), Menu.KeepOpen().
+-- Was set zurückgibt, geht an Blizzards Menü, aber nur eine echte MenuResponse (Menu.Close(), Menu.Refresh(),
+-- Menu.KeepOpen()). Jeder andere Wert (etwa true/false des neuen Zustands) fällt weg: Blizzard nähme ihn als Antwort,
+-- frischte das Menü nicht auf, und der Haken zeigte den neuen Zustand nicht (Spielbefund vom 21.11.2026 am Haken
+-- „Minikarte von selbst herauszoomen“; Blizzard_Menu/Menu.lua, MenuManagerMixin:AttributeRespond).
+function Menu.Answer(value)
+    if value == nil then return nil end
+    local response = rawget(_G, "MenuResponse")
+    if type(response) ~= "table" then return nil end
+    for _, known in pairs(response) do
+        if known == value then return value end
+    end
+    return nil
+end
+
 function Menu.Toggle(root, text, get, set)
-    return root:CreateCheckbox(text, function() return get() and true or false end, function() return set(not get()) end)
+    return root:CreateCheckbox(text, function() return get() and true or false end,
+        function() return Menu.Answer(set(not get())) end)
 end
 
 function Menu.Radio(root, text, get, set, value)
-    return root:CreateRadio(text, function() return get() == value end, function() return set(value) end, value)
+    return root:CreateRadio(text, function() return get() == value end, function() return Menu.Answer(set(value)) end,
+        value)
 end
 
 local function Response(key)
@@ -521,8 +537,8 @@ function Menu.Choice(root, label, options, get, set)
     return sub
 end
 
--- „Alle auswählen / Alle abwählen“ (Wunsch des Nutzers vom 15.11.2026 abends zum Menü „Aufspüren“; Muster für das
--- Design-System). Beschreibung im Kopf der Datei.
+-- Haken „Alle“ (Wunsch des Nutzers vom 15.11.2026 abends zum Menü „Aufspüren“, damals „Alle auswählen / Alle
+-- abwählen“; seit dem 21.11.2026 ein Haken; Muster für das Design-System 2.11). Beschreibung im Kopf der Datei.
 local function MenuList(list)
     if type(list) == "function" then
         local ok, result = pcall(list)
@@ -552,76 +568,133 @@ function Menu.SetAll(list, get, set, on, skip)
     return changed
 end
 
-local function GlobalText(name)
-    local text = rawget(_G, name)
-    if Core.IsSecret(text) or type(text) ~= "string" or text == "" then return nil end
-    return text
+-- Seit dem 21.11.2026 EIN Haken statt zweier Knöpfe (Nutzer, wörtlich zum Menü „Aufspüren“: „alle abwählen alle
+-- anwählen kann auch einfach ein haken oder eben kein haken sein“; auf die Frage, ob alle anderen Menüs ebenfalls den
+-- einen Haken bekommen: „Yes, everywhere (Recommended)“). Angehakt, wenn alle Einträge an sind (ohne die, die skip
+-- beim Einschalten auslässt); ein Klick schaltet dann alle aus, sonst – auch bei gemischter Auswahl – alle an.
+-- Blizzards Menü-Haken kennen keinen Zustand „teilweise“ (Blizzard_Menu/MenuTemplates.lua: isSelected → wahr/falsch),
+-- gemischt steht er deshalb ohne Haken. Je Richtung eigene Angaben: onList/offList, onSkip/offSkip, onWrap/offWrap,
+-- onAfter/offAfter (sonst list, skip, wrap, after für beide). Veraltete Angaben bleiben verträglich: on = false
+-- (der Haken schaltet nur aus), off = false (nur an), beide false: kein Eintrag; onText/offText, icons, onIcon und
+-- offIcon gelten nicht mehr (der Haken zeigt den Zustand selbst).
+local function Direction(opts, key, on)
+    local value = opts[(on and "on" or "off") .. key]
+    if value == nil then value = opts[key:lower()] end
+    return value
 end
 
--- Wortlaut „Alle auswählen“ / „Alle abwählen“ an einer Stelle (Core.Style.AllText, Regel 2.11 des Design-Systems);
--- fehlt Core.Style, für „an“ Blizzards Text, für „aus“ nur ezCores Text (Blizzards UNCHECK_ALL heißt im deutschen
--- Client „Alle Auswählen“).
-local function AllText(on)
-    local style = Core.Style
-    if type(style) == "table" and type(style.AllText) == "function" then
-        local ok, text = pcall(style.AllText, on)
-        if ok then return text end
+-- Sind alle Einträge an, die beim Einschalten zählen? Ohne einen zählbaren Eintrag: nein. → true | false
+function Menu.AllOn(list, get, skip)
+    if type(get) ~= "function" then return false end
+    local any = false
+    for _, item in ipairs(MenuList(list)) do
+        local skipped = false
+        if type(skip) == "function" then
+            local ok, result = pcall(skip, item)
+            skipped = not ok or Core.IsSecret(result) or (result and true or false)
+        end
+        if not skipped then
+            local ok, current = pcall(get, item)
+            if ok and not Core.IsSecret(current) then
+                if not current then return false end
+                any = true
+            end
+        end
     end
+    return any
+end
+
+-- Wortlaut des einen Hakens: opts.text, sonst ezCores „Alle“ / „All“
+local function ToggleText(opts)
+    if opts.text ~= nil then return opts.text end
     local L = type(Core.L) == "table" and Core.L or {}
-    if on then return GlobalText("CHECK_ALL") or L.ALL_CHECK end
-    return L.ALL_UNCHECK
+    return L.ALL_TOGGLE
+end
+
+-- Erklärzeile: opts.tip, sonst ezCores Regel (L.ALL_TOGGLE_RULE) mit den eigenen Zeilen der Richtungen (onTip, offTip)
+-- darunter, ohne eigene Zeilen ezCores ganze Erklärung (L.ALL_TOGGLE_TIP). ezCores alte Zeilen ALL_CHECK_TIP und
+-- ALL_UNCHECK_TIP zählen nicht als eigene.
+local function ToggleTip(opts)
+    if opts.tip ~= nil then return opts.tip end
+    local L = type(Core.L) == "table" and Core.L or {}
+    local lines = {}
+    local function Own(text, generic)
+        if not Core.IsSecret(text) and type(text) == "string" and text ~= "" and text ~= generic then
+            lines[#lines + 1] = text
+        end
+    end
+    Own(opts.onTip, L.ALL_CHECK_TIP)
+    Own(opts.offTip, L.ALL_UNCHECK_TIP)
+    if #lines == 0 then return L.ALL_TOGGLE_TIP end
+    if type(L.ALL_TOGGLE_RULE) == "string" then table.insert(lines, 1, L.ALL_TOGGLE_RULE) end
+    return table.concat(lines, "\n")
 end
 
 function Menu.AllToggle(root, list, get, set, opts)
     opts = type(opts) == "table" and opts or {}
-    if type(root) ~= "table" then return nil, nil end
-    local at = type(opts.at) == "number" and opts.at or nil
-    local function Add(on, text, tip)
-        if Core.IsSecret(text) or type(text) ~= "string" or text == "" then return nil end
-        local function Click()
-            local n
-            if type(opts.wrap) == "function" then
-                -- opts.wrap(fn) läuft um das Schalten (z. B. einmal neu zeichnen statt je Eintrag) und gibt fn() zurück
-                local ok, result = pcall(opts.wrap, function() return Menu.SetAll(list, get, set, on, opts.skip) end)
-                if not ok then Core.Error(Core.name, result, "Menu.AllToggle") end
-                n = ok and tonumber(result) or 0
-            else
-                n = Menu.SetAll(list, get, set, on, opts.skip)
-            end
-            if type(opts.after) == "function" then
-                local ok, err = pcall(opts.after, n, on)
-                if not ok then Core.Error(Core.name, err, "Menu.AllToggle") end
-            end
-            return Menu.Refresh()
+    if type(root) ~= "table" or (opts.on == false and opts.off == false) then return nil, nil end
+    local text = ToggleText(opts)
+    if Core.IsSecret(text) or type(text) ~= "string" or text == "" then return nil, nil end
+    local onList = Direction(opts, "List", true) or list
+    local function IsAll() return Menu.AllOn(onList, get, Direction(opts, "Skip", true)) end
+    local function Switch(on)
+        local function Run()
+            return Menu.SetAll(Direction(opts, "List", on) or list, get, set, on, Direction(opts, "Skip", on))
         end
-        local entry
-        local util = rawget(_G, "MenuUtil")
-        if at and type(root.Insert) == "function" and type(util) == "table" and type(util.CreateButton) == "function" then
-            local ok, desc = pcall(util.CreateButton, text, Click)
-            if ok and type(desc) == "table" then
-                local okInsert, inserted = pcall(root.Insert, root, desc, at)
-                if okInsert then
-                    entry = type(inserted) == "table" and inserted or desc
-                    at = at + 1
-                end
-            end
-        end
-        entry = entry or Menu.Button(root, text, Click)
-        if tip then Menu.Tip(entry, text, tip) end
-        -- je Eintrag getrennt (kein a and b or c: sonst trüge „Alle auswählen“ mit nur offIcon dessen Bild)
-        local icon
-        if on then
-            icon = opts.onIcon or (opts.icons and Menu.ICON_ALL_ON) or nil
+        local n, failed
+        local wrap = Direction(opts, "Wrap", on)
+        if type(wrap) == "function" then
+            -- wrap(fn) läuft um das Schalten (z. B. einmal neu zeichnen statt je Eintrag) und gibt fn() zurück
+            local ok, result = pcall(wrap, Run)
+            if not ok then Core.Error(Core.name, result, "Menu.AllToggle") end
+            failed = not ok
+            n = ok and tonumber(result) or 0
         else
-            icon = opts.offIcon or (opts.icons and Menu.ICON_ALL_OFF) or nil
+            n = Run()
         end
-        if icon then Menu.Icon(entry, icon) end
-        return entry
+        local after = Direction(opts, "After", on)
+        if type(after) == "function" then
+            local ok, err = pcall(after, n, on)
+            if not ok then Core.Error(Core.name, err, "Menu.AllToggle") end
+        end
+        if failed then return nil end       -- Fehler beim Schalten: der Klick schaltet nichts weiter (Review 21.11.2026)
+        return n
     end
-    local onEntry, offEntry
-    if opts.on ~= false then onEntry = Add(true, opts.onText or AllText(true), opts.onTip) end
-    if opts.off ~= false then offEntry = Add(false, opts.offText or AllText(false), opts.offTip) end
-    return onEntry, offEntry
+    local function IsSelected() return IsAll() end
+    -- Lässt sich ein Eintrag nicht einschalten, erreicht der Haken „alle an“ nie: Hat der letzte Klick auf diesen Haken
+    -- eingeschaltet und „alle an“ trotzdem verfehlt (missed), schaltet der nächste aus; schaltet das Einschalten gar
+    -- nichts, schaltet derselbe Klick aus – sonst ließe sich die Auswahl über den Haken nie mehr leeren. Nimmt der
+    -- Nutzer nach „alle an“ einen Haken einzeln heraus, schaltet der nächste Klick wieder alle an (Review 21.11.2026).
+    local missed = false
+    local function SetSelected()
+        local all = IsAll()
+        if (all or missed) and opts.off ~= false then
+            Switch(false)
+            missed = false
+        elseif not all and opts.on ~= false then
+            local n = Switch(true)
+            missed = n ~= nil and not IsAll()
+            if n == 0 and opts.off ~= false then
+                Switch(false)
+                missed = false
+            end
+        elseif opts.off ~= false then Switch(false) end     -- nur „aus“ (on = false): schaltet aus, was noch an ist
+        return Menu.Refresh()
+    end
+    local entry
+    local at = type(opts.at) == "number" and opts.at or nil
+    local util = rawget(_G, "MenuUtil")
+    if at and type(root.Insert) == "function" and type(util) == "table" and type(util.CreateCheckbox) == "function" then
+        local ok, desc = pcall(util.CreateCheckbox, text, IsSelected, SetSelected)
+        if ok and type(desc) == "table" then
+            local okInsert, inserted = pcall(root.Insert, root, desc, at)
+            if okInsert then entry = type(inserted) == "table" and inserted or desc end
+        end
+    end
+    entry = entry or root:CreateCheckbox(text, IsSelected, SetSelected)
+    local tip = ToggleTip(opts)
+    if type(tip) == "string" and tip ~= "" then Menu.Tip(entry, text, tip) end
+    return entry, entry
 end
 
 ---------------------------------------------------------------------------

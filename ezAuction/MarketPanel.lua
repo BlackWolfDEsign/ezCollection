@@ -10,78 +10,79 @@ local Core = ezCore
     Inhalt für den gewählten Gegenstand – in „Kaufen“ die angeklickte Ergebniszeile, in „Verkaufen“ der Gegenstand im
     Verkaufsbereich (auch aus der Taschenliste):
       - Graph (Core.NewGraph): Linie der Tages-Tiefstpreise, blasses Band bis zum Höchst, Mengen-Balken am Fuß,
-        Hilfslinie Median, Händlerpreis gestrichelt; Tage ohne Erfassung bleiben Lücke; Tooltip je Tag mit Quelle;
+        Hilfslinie Median, Händlerpreis gestrichelt; Tage ohne Erfassung überbrückt die Linie gestrichelt (seit 21.11.2026); Tooltip je Tag mit Quelle;
         Fußzeile „deine Erfassungen, 9 Tage“. Wenige Punkte oder Abwandlungen: ein Hinweis statt des Graphs.
-        Rechts unter dem Graph der Knopf „Wochen“ / „Tage“ (V1, Welle 23; immer, seit der Einstellungs-Prüfung vom
-        19.11.2026 ohne eigenen Schalter): der Langzeit-Verlauf
-        in Kalenderwochen aus ezCores Wochenpunkten, gemerkt in ezAuctionDB.ui.marketWeeks.
+        Rechts unter dem Graph die Knöpfe „Tage“ · „Wochen“ · „Monate“ (V1, Welle 23: „Wochen“/„Tage“; seit dem
+        21.11.2026 drei Ansichten, Entscheidung des Nutzers „Beides bauen“): jede zeigt ein festes Fenster (14 Tage, bis
+        26 Wochen, bis 24 Monate aus ezCores Wochen- und Monatspunkten), so wird der Graph nie gestaucht; gemerkt in
+        ezAuctionDB.ui.marketWeeks bzw. marketView = "months". Oben in der Titelleiste neben dem Pfeil Blizzards Knopf
+        „Vergrößern“/„Verkleinern“ (MaximizeMinimizeButtonFrameTemplate, wie an der Weltkarte): breiteres Feld, größerer
+        Graph, gemerkt in ezAuctionDB.ui.marketBig.
       - Verfügbarkeit: „Gesehen an 9 von 12 erfassten Tagen“, übliche Menge (Market.Availability)
       - darunter Wochentag und Tageszeit (Entwurf 2b/2c, Frage 38) und „Entzaubern ≈ …“ (AUC-19, Schalter
         salvageCompare), Panel.MoreText
       - im Reiter Verkaufen darunter „Post: 2 Verkäufe, 3 Rückläufer“ (AH-28) und die Verkaufsempfehlung (AH-29,
         History.Advice), Panel.SellText – seit Welle 15
       - Hinweis gegen den Median mit Begründung und Quelle (Market.Judge, Market.SellAdvice; Schalter marketHint)
-      - im Reiter Verkaufen darunter die Taschenliste als zweiter Abschnitt (SellTab.lua, Sell.PlacePanel)
+      - immer rechts (Panel.SIDE); die Taschenliste ist seit dem 21.11.2026 ein eigenes Seitenteil links (SellTab.lua)
       - oben rechts auf der Höhe der Überschrift (links angedockt gegenüber dem Pfeil, rechts angedockt links neben
         ihm) der Knopf „Als Text kopieren“ (V5, Welle 24): Tage, Wochen und eigene Auktionen des Gegenstands als
         Tabelle in ezCores Kopierfeld (Market.CopyRows, Core.CopyAsText); Namen von Käufern und Verkäufern nur mit dem
         Häkchen im Kopierfeld (Frage E6). Ohne ezCores Kopierfeld kein Knopf.
-    Steht nur in Blizzards Reitern Kaufen und Verkaufen; in der Ansicht eines fremden Addons (ns.ModeName "other")
+    Steht in Blizzards Reitern Kaufen, Verkaufen und Auktionen (seit dem 21.11.2026); in der Ansicht eines fremden Addons (ns.ModeName "other")
     verschwinden Feld und Pfeil. Nur Anzeige – nichts wird gekauft, eingestellt oder eingetragen.
 ]]
 
 local Panel = {}
 ns.MarketPanel = Panel
 
-Panel.WIDTH = 260
-Panel.GRAPH_W, Panel.GRAPH_H = 224, 100
-Panel.BAG_TOP = 284     -- im Reiter Verkaufen beginnt hier die Taschenliste (zweiter Abschnitt), mindestens
-Panel.TEXT_TOP = 54 + Panel.GRAPH_H + 4     -- Beginn der Fußzeile unter dem Graph (Build)
-Panel.TEXT_GAPS = 6 + 6 + 6 + 8             -- Abstände Fußzeile/Zeilen/Weiteres/Hinweis und Rand vor der Taschenliste
+-- Breite wie alle Seitenteile (ns.PANEL_WIDTH, 460 – Entscheidung des Nutzers vom 21.11.2026 „Alle 460 wie ezTalent“;
+-- vorher 260); bei weniger Platz rechts schmaler bis ns.PANEL_MIN (Panel.FitWidth). Der Graph füllt die Breite bis auf
+-- 18 je Seite (4 Kasten + 14 Kopf-Einzug).
+local LOOK = ns.LOOK
+Panel.WIDTH = ns.PANEL_WIDTH
+Panel.GRAPH_INSET = 18
+-- GRAPH_W/GRAPH_W_BIG: Breite bei voller Wunschbreite (Ausgangswerte; gezeichnet wird nach der wirklichen Breite,
+-- Panel.GraphSize)
+Panel.GRAPH_W, Panel.GRAPH_H = Panel.WIDTH - 2 * Panel.GRAPH_INSET, 130
+-- vergrößert (Knopf in der Titelleiste, 21.11.2026): breiter und höher (seit dem Wechsel auf 460 von 420 auf 640)
+Panel.WIDTH_BIG = 640
+Panel.GRAPH_W_BIG, Panel.GRAPH_H_BIG = Panel.WIDTH_BIG - 2 * Panel.GRAPH_INSET, 210
+-- Seite des Felds: immer rechts, in allen Reitern (Entscheidung des Nutzers vom 21.11.2026, „Zwei Seitenteile“ – vorher
+-- wählte ezAuction die Seite nach dem Platz, und das Feld sprang zwischen Kaufen und Verkaufen). „Aus der Tasche“ ist
+-- seitdem ein eigenes Seitenteil links (SellTab.lua), nicht mehr ein Abschnitt in diesem Feld.
+Panel.SIDE = "right"
 
 local panel, graph, panelOpts
-local current = {}      -- [Ansicht "buy" | "sell"] = { itemID, itemKey, name, quality, price, offered }
+local current = {}      -- [Ansicht "buy" | "sell" | "auctions"] = { itemID, itemKey, name, quality, price, offered }
 
 -- Gibt es ezCores Bausteine (Seitenteil und Linien) und Blizzards Auktionsfenster?
 function Panel.Available()
     return type(Core.NewSidePanel) == "function" and type(Core.NewGraph) == "function" and AuctionHouseFrame ~= nil
 end
 
--- Soll das Seitenteil (samt Pfeil) jetzt dastehen? Nur in Blizzards Reitern Kaufen und Verkaufen.
+-- Soll das Seitenteil (samt Pfeil) jetzt dastehen? In Blizzards Reitern Kaufen, Verkaufen und Auktionen.
 function Panel.Wanted()
     if not (ns.ahReady and ns.Enabled("marketPanel") and Panel.Available() and ns.AuctionHouseShown()) then return false end
     local mode = ns.ModeName()
-    return mode == "buy" or mode == "sell"
+    -- in allen drei Reitern (zweiter Spieltest vom 21.11.2026: „sollte das markt fenster bei allen 3 reitern offen sein
+    -- und die entsprechenden infos liefern … bei Auktionen tab ist es nicht da“)
+    return mode == "buy" or mode == "sell" or mode == "auctions"
 end
 
--- Das offene Seitenteil im Reiter Verkaufen: dort sitzt die Taschenliste als zweiter Abschnitt. Sonst nil.
-function Panel.BagHost()
-    if panel and panel:IsOpen() and Panel.Wanted() and ns.ModeName() == "sell" then return panel end
-    return nil
-end
-
--- Beginn der Taschenliste im Reiter Verkaufen: mindestens BAG_TOP; bei langem Text (Bewertung, „guter Zeitpunkt“,
--- Quelle, Notiz zum Überlappen) unter dessen letzter Zeile – sonst läge er über Titel und Filter der Liste.
--- Ohne messbare Texthöhe bleibt es bei BAG_TOP.
-function Panel.BagTop()
-    if not panel then return Panel.BAG_TOP end
-    local used = Panel.TEXT_TOP + Panel.TEXT_GAPS
-    for _, fs in ipairs({ panel.footer, panel.lines, panel.more, panel.hint }) do
-        local height = fs.GetStringHeight and fs:GetStringHeight()
-        if type(height) ~= "number" then return Panel.BAG_TOP end
-        used = used + height
-    end
-    return math.max(Panel.BAG_TOP, math.ceil(used))
-end
-
--- Zugeklappt dockt im Reiter Verkaufen die Taschenliste auf derselben Seite an Blizzards Fenster wie das Feld; der
--- Pfeil rückt dann an ihren äußeren Rand, sonst läge er auf ihrem Rahmen und Filterfeld. Gesetzt über ezCores
+-- Steht die Taschenliste rechts (kein Platz links, oder Schalter „Seite der Taschenliste“) und ist das Feld zugeklappt,
+-- dockt sie direkt an Blizzards Fenster; der Pfeil rückt dann an ihren äußeren Rand, sonst läge er auf ihrem Rahmen
+-- und Filterfeld. Gesetzt über ezCores
 -- teil:SetArrowOffset (x = Abstand vom Fensterrand; platziert selbst neu, nur bei Änderung – Welle 23b, kam im selben
 -- Zweig wie Prices.Weekday aus needs); vorher schrieb ezAuction panelOpts.arrow.x selbst.
 function Panel.PlaceArrow()
     if not (panel and panelOpts) then return end
     local x = 0
-    if not panel:IsOpen() and ns.Sell.Docked() and panel.side == ns.Sell.Side() then x = ns.Sell.PanelWidth() end
+    if not panel:IsOpen() then
+        -- zugeklappt: außen an einem Seitenteil derselben Seite (Taschenliste beim Verkaufen, Einkaufsliste beim Kaufen)
+        if ns.Sell.Docked() and panel.side == ns.Sell.DockedSide() then x = ns.Sell.PanelWidth() + ns.PANEL_GAP end
+        if ns.Editor and ns.Editor.IsShown() and panel.side == ns.Editor.DockedSide() then x = ns.Editor.Width() + ns.PANEL_GAP end
+    end
     panel:SetArrowOffset(x)
 end
 
@@ -113,6 +114,26 @@ function Panel.SetBrowse(result)
     local info = ItemKeyInfo(itemKey)
     current.buy = { itemID = itemID, itemKey = itemKey, name = (info and Core.Plain(info.itemName)) or Core.ItemNameByID(itemID),
         quality = info and Core.Num(info.quality), price = Core.Num(result.minPrice), offered = Core.Num(result.totalQuantity) }
+    Panel.Refresh()
+    return true
+end
+
+-- Reiter „Auktionen“: die gewählte eigene Auktion bzw. das gewählte Gebot (Blizzards SetItemKey, SelectAuction und
+-- OnBidsListSearchResultSelected – nur gehört, Shared/Blizzard_AuctionHouseAuctionsFrame.lua, Zweig forever). price:
+-- Sofortkauf der Auktion (für den Hinweis gegen den Median), sonst nil.
+function Panel.SetAuctions(itemKey, price)
+    local itemID = type(itemKey) == "table" and Core.Num(itemKey.itemID)
+    if not itemID then
+        -- Blizzard hebt die Auswahl auf (SetItemKey(nil)): der Markt zeigt nicht weiter den vorigen Gegenstand
+        if itemKey == nil and current.auctions then
+            current.auctions = nil
+            Panel.Refresh()
+        end
+        return false
+    end
+    local info = ItemKeyInfo(itemKey)
+    current.auctions = { itemID = itemID, itemKey = itemKey, name = (info and Core.Plain(info.itemName)) or Core.ItemNameByID(itemID),
+        quality = info and Core.Num(info.quality), price = Core.Num(price) }
     Panel.Refresh()
     return true
 end
@@ -149,10 +170,12 @@ end
 -- Aufbau
 ---------------------------------------------------------------------------
 
+local texts = {}   -- Zeilen in voller Breite (Panel.Layout passt sie beim Vergrößern an)
 local function Text(template, point, rel, relPoint, x, y)
     local fs = panel:CreateFontString(nil, "OVERLAY", template)
     fs:SetPoint(point, rel, relPoint, x, y)
-    fs:SetWidth(Panel.WIDTH - 24)
+    fs:SetWidth(Panel.TextWidth())
+    texts[#texts + 1] = fs
     fs:SetJustifyH("LEFT")
     if fs.SetWordWrap then fs:SetWordWrap(true) end
     return fs
@@ -165,44 +188,98 @@ function Panel.ArrowTip()
 end
 
 local function Build()
-    panelOpts = { name = "ezAuctionMarket", width = Panel.WIDTH, store = ns.db.ui, key = "marketOpen", open = true,
-        side = ns.Sell.Side(), owner = ADDON, arrow = { x = 0 }, tip = L.MARKET_ARROW, tipBody = Panel.ArrowTip(),
+    panelOpts = { name = "ezAuctionMarket", width = Panel.FitWidth(), store = ns.db.ui, key = "marketOpen", open = true,
+        side = Panel.SIDE, gap = ns.PANEL_GAP, owner = ADDON, arrow = { x = 0 }, template = "ButtonFrameTemplate", tip = L.MARKET_ARROW, tipBody = Panel.ArrowTip(),
         onToggle = function()
             Panel.Refresh()
-            ns.Sell.UpdatePanel()
+            Panel.RedockLeft()
         end,
         onPlaced = function()
+            -- auch ezCores eigenes Neu-Andocken (Auktionshaus erscheint, wird verschoben oder größer) rechnet die Breite
+            -- neu (Befund des Reviews); bei Änderung dockt SetPanelWidth an und ruft dies hier noch einmal
+            if panel and Panel.FitWidth() ~= panel.fitWidth then
+                local _, changed = Panel.ApplyWidth()
+                if changed then return end
+            end
             Panel.Layout()
             Panel.Refresh()
+            -- Taschenliste und Einkaufsliste docken außen am Markt, wenn sie auf derselben Seite stehen: mitziehen,
+            -- wenn der Markt die Seite wechselt (kein Platz rechts) oder neu angedockt wird
+            Panel.RedockLeft()
         end }
     panel = Core.NewSidePanel(AuctionHouseFrame, panelOpts)
     if not panel then return end
-    local room = Core.SIDEPANEL_ARROW_ROOM or 30
-    panel.title = Text("GameFontNormal", "TOPLEFT", panel, "TOPLEFT", 12, -10)
-    panel.title:SetWidth(Panel.WIDTH - 24 - room)
-    panel.title:SetText(L.MARKET_TITLE)
-    panel.name = Text("GameFontHighlight", "TOPLEFT", panel.title, "BOTTOMLEFT", 0, -6)
-    graph = Core.NewGraph(panel, { width = Panel.GRAPH_W, height = Panel.GRAPH_H, owner = ADDON,
+    panel.fitWidth = panelOpts.width
+    -- derselbe Rahmen wie „Aus der Tasche“ (zweiter Spieltest vom 21.11.2026, Entscheidung „Wie „Aus der Tasche““):
+    -- Titel in Blizzards Titelleiste, der Pfeil sitzt in ihrer Ecke statt eines X
+    ns.PanelLook(panel, L.MARKET_TITLE)
+    -- Kopf wie ezTalent: der Name ab ns.PANEL_TOP, LOOK.headLeft vom Rand; darunter Blizzards innerer Kasten bis über
+    -- „Als Text kopieren“ (ns.PanelInset – ein zweizeiliger Name schiebt den Kasten mit, statt über seine Kante zu laufen)
+    panel.name = Text("GameFontHighlight", "TOPLEFT", panel, "TOPLEFT", LOOK.headLeft, -ns.PANEL_TOP)
+    panel.name:SetWidth(Panel.TextWidth())
+    panel.inset = ns.PanelInset(panel, panel.name, LOOK.headLeft, ns.BUTTON_Y + ns.TEXT_BUTTON_H + LOOK.buttonGap + 2)
+    local graphW, graphH = Panel.GraphSize()
+    graph = Core.NewGraph(panel, { width = graphW, height = graphH, owner = ADDON,
         tooltip = function(point)
+            if type(point) == "table" and point.month then return ns.Market.MonthTip(point) end
             if type(point) == "table" and point.week then return ns.Market.WeekTip(point) end
             return ns.Market.PointTip(point)
         end })
-    graph.frame:SetPoint("TOPLEFT", panel, "TOPLEFT", 18, -54)
+    if panel.inset then
+        graph.frame:SetPoint("TOPLEFT", panel.inset, "TOPLEFT", Panel.GRAPH_INSET - 4, -LOOK.headGap)
+    else
+        graph.frame:SetPoint("TOPLEFT", panel, "TOPLEFT", Panel.GRAPH_INSET, -54)
+    end
     local back = graph.frame:CreateTexture(nil, "BACKGROUND", nil, -8)
     back:SetAllPoints(graph.frame)
     back:SetColorTexture(0, 0, 0, 0.25)
     panel.empty = Text("GameFontDisable", "CENTER", graph.frame, "CENTER", 0, 0)
-    panel.empty:SetWidth(Panel.GRAPH_W - 8)
+    panel.empty:SetWidth(graphW - 8)
     panel.empty:SetJustifyH("CENTER")
     panel.footer = Text("GameFontDisableSmall", "TOPLEFT", graph.frame, "BOTTOMLEFT", -6, -4)
-    -- Umschalter Tage/Wochen (V1): rechts unter dem Graph auf der Höhe der Fußzeile; grau mit Grund im Tooltip, wenn es
-    -- für den Gegenstand keine Wochen gibt (Leitlinie 3 und 11)
-    panel.weeks = ns.TextButton(panel)
-    panel.weeks:SetPoint("TOPRIGHT", graph.frame, "BOTTOMRIGHT", 6, -3)
-    panel.weeks:SetMotionScriptsWhileDisabled(true)
-    panel.weeks:SetScript("OnClick", function() Panel.ToggleWeeks() end)
-    panel.weeks:SetScript("OnEnter", function(self) Core.ShowTip(self, self:GetText() or "", Panel.WeeksTip()) end)
-    panel.weeks:Hide()
+    -- Ansichten Tage · Wochen · Monate (V1; seit 21.11.2026 drei Knöpfe): rechts unter dem Graph auf der Höhe der
+    -- Fußzeile, die gezeigte weiß; grau mit Grund im Tooltip, wenn es für den Gegenstand keine gibt (Leitlinie 3 und 11)
+    local labels = { days = L.MARKET_DAYS_BUTTON, weeks = L.MARKET_WEEKS_BUTTON, months = L.MARKET_MONTHS_BUTTON }
+    local right = nil
+    for _, view in ipairs({ "months", "weeks", "days" }) do
+        local button = ns.TextButton(panel)
+        if right then
+            button:SetPoint("TOPRIGHT", right, "TOPLEFT", -8, 0)
+        else
+            button:SetPoint("TOPRIGHT", graph.frame, "BOTTOMRIGHT", 6, -3)
+        end
+        button:SetLabel(labels[view])
+        button.view = view
+        button:SetMotionScriptsWhileDisabled(true)
+        button:SetScript("OnClick", function() Panel.SetView(view) end)
+        button:SetScript("OnEnter", function(self) Core.ShowTip(self, labels[view], Panel.ViewTip(view)) end)
+        button:Hide()
+        panel[view] = button
+        right = button
+    end
+    -- die Fußzeile endet vor den Knöpfen und darf umbrechen (oben rechts angehängt, nicht „RIGHT“: das legte auch die
+    -- Höhe fest und schnitte die zweite Zeile ab – Befund des Reviews)
+    panel.footer:SetPoint("TOPRIGHT", panel.days, "TOPLEFT", -6, -1)
+    if panel.footer.SetWordWrap then panel.footer:SetWordWrap(true) end
+    -- Vergrößern/Verkleinern: Blizzards Vorlage der Weltkarte (MaximizeMinimizeButtonFrameTemplate); links neben dem
+    -- Pfeil in der Titelleiste, Lage in Panel.Layout. Fehlt die Vorlage im Client, gibt es den Knopf nicht.
+    local ok, maxMin = pcall(CreateFrame, "Frame", nil, panel, "MaximizeMinimizeButtonFrameTemplate")
+    if ok and maxMin and maxMin.SetOnMaximizedCallback and maxMin.SetOnMinimizedCallback then
+        panel.size = maxMin
+        maxMin:SetFrameLevel((panel:GetFrameLevel() or 1) + Core.SIDEPANEL_ARROW_LEVEL)
+        -- Blizzards Wörter: „Maximize“ = groß machen; der Knopf zeigt, was ein Klick tut (wie an der Weltkarte)
+        maxMin:SetOnMaximizedCallback(function() Panel.SetBig(true) end)
+        maxMin:SetOnMinimizedCallback(function() Panel.SetBig(false) end)
+        if Panel.IsBig() then maxMin:Maximize(true, true) else maxMin:Minimize(true, true) end
+        for key, tip in pairs({ MaximizeButton = { L.MARKET_BIG_TIP, L.MARKET_BIG_TIP_TEXT },
+            MinimizeButton = { L.MARKET_SMALL_TIP, L.MARKET_BIG_TIP_TEXT } }) do
+            local button = maxMin[key]
+            if button and button.HookScript then
+                button:HookScript("OnEnter", function(self) Core.ShowTip(self, tip[1], tip[2]) end)
+                button:HookScript("OnLeave", GameTooltip_Hide)
+            end
+        end
+    end
     panel.lines = Text("GameFontHighlightSmall", "TOPLEFT", panel.footer, "BOTTOMLEFT", 0, -6)
     -- Wochentag, Tageszeit (Entwurf 2b/2c) und „Entzaubern ≈ …“ (AUC-19) unter der Verfügbarkeit
     panel.more = Text("GameFontHighlightSmall", "TOPLEFT", panel.lines, "BOTTOMLEFT", 0, -6)
@@ -224,23 +301,101 @@ local function Build()
     panel.copy:Hide()
 end
 
--- Der Pfeil sitzt in der äußeren oberen Ecke des offenen Felds (Core.NewSidePanel): links angedockt rückt die
--- Überschrift um Core.SIDEPANEL_ARROW_ROOM nach rechts, rechts angedockt endet sie davor.
+-- Seit dem zweiten Spieltest vom 21.11.2026 steht der Titel in Blizzards Titelleiste und der Pfeil in ihrer Ecke: der
+-- Name darunter nutzt die volle Breite auf beiden Seiten, „Als Text kopieren“ sitzt unten rechts im Feld (vorher oben
+-- neben dem Pfeil, auf der Höhe der eigenen Überschrift).
 function Panel.Layout()
     if not panel then return end
-    local room = Core.SIDEPANEL_ARROW_ROOM or 30
-    local left = panel.side == "left"
-    panel.title:ClearAllPoints()
-    panel.title:SetPoint("TOPLEFT", panel, "TOPLEFT", left and (12 + room) or 12, -10)
-    -- der Name hängt unter der Überschrift: links angedockt um die Pfeil-Ecke schmaler, sonst ragte er über den
-    -- rechten Rand des Felds auf Blizzards Fenster
-    panel.name:SetWidth(Panel.WIDTH - 24 - (left and room or 0))
-    -- „Als Text kopieren“ oben rechts auf der Höhe der Überschrift: links angedockt gegenüber dem Pfeil, rechts
-    -- angedockt links neben ihm (oben links steht dann die Überschrift)
+    for _, fs in ipairs(texts) do
+        if fs ~= panel.footer then fs:SetWidth(Panel.TextWidth()) end   -- die Fußzeile hat zwei Anker
+    end
+    local graphW, graphH = Panel.GraphSize()
+    if graph then
+        if graph.SetSize then graph:SetSize(graphW, graphH) else graph.frame:SetSize(graphW, graphH) end
+    end
+    if panel.empty then panel.empty:SetWidth(graphW - 8) end
+    if panel.size then
+        -- neben dem Pfeil (Core.NewSidePanel: offen in der äußeren oberen Ecke, 24 breit, 4 vom Rand)
+        local left = panel.side == "left"
+        local corner = left and "TOPLEFT" or "TOPRIGHT"
+        panel.size:ClearAllPoints()
+        panel.size:SetPoint(corner, panel, corner, left and 28 or -28, -4)
+    end
     if panel.copy then
         panel.copy:ClearAllPoints()
-        panel.copy:SetPoint("TOPRIGHT", panel, "TOPRIGHT", left and -12 or -(12 + room), -10)
+        -- Textknopf rechts unten: 12 vom Rand (schmaler Textknopf, nicht der 14er-Rand der Knopfreihe), Höhe wie die
+        -- Knöpfe der Seitenteile (ns.BUTTON_Y aus ezCore) – der Kasten darüber rechnet mit demselben Wert
+        panel.copy:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -12, ns.BUTTON_Y)
     end
+end
+
+-- Vergrößert? (ezAuctionDB.ui.marketBig, gemerkt für das Konto)
+function Panel.IsBig()
+    return ns.db ~= nil and ns.db.ui.marketBig == true
+end
+
+-- Wunschbreite des Felds, je nachdem, ob vergrößert
+function Panel.Width()
+    return Panel.IsBig() and Panel.WIDTH_BIG or Panel.WIDTH
+end
+
+-- Breite nach dem Platz rechts neben dem Auktionshaus (ns.FitWidth: die Wunschbreite, sonst schmaler bis
+-- ns.PANEL_MIN; reicht es rechts nicht einmal dafür, zählt der Platz links – dorthin weicht ezCores Core.Dock aus).
+function Panel.FitWidth()
+    local wish = Panel.Width()
+    if not (panel and Core.DockRoom and AuctionHouseFrame) then return wish end
+    local room = Core.DockRoom(panel, AuctionHouseFrame, "right", ns.PANEL_GAP)
+    if room and room < ns.PANEL_MIN then
+        local left = Core.DockRoom(panel, AuctionHouseFrame, "left", ns.PANEL_GAP)
+        if left and left > room then room = left end
+    end
+    return ns.FitWidth(room, wish)
+end
+
+-- Breite gerade (nach dem Platz) und Breite der Zeilen (der Kopf-Einzug links und rechts)
+function Panel.CurrentWidth()
+    return panel and panel.fitWidth or Panel.Width()
+end
+
+function Panel.TextWidth()
+    return Panel.CurrentWidth() - 2 * LOOK.headLeft
+end
+
+-- Größe des Graphs: die Breite des Felds bis auf Panel.GRAPH_INSET je Seite, die Höhe je nachdem, ob vergrößert
+function Panel.GraphSize()
+    local width = Panel.CurrentWidth() - 2 * Panel.GRAPH_INSET
+    return width, Panel.IsBig() and Panel.GRAPH_H_BIG or Panel.GRAPH_H
+end
+
+-- Breite nach dem Platz setzen (ezCores panel:SetPanelWidth dockt bei Änderung neu an). → die Breite, geändert?
+function Panel.ApplyWidth()
+    if not panel then return Panel.Width(), false end
+    local width = Panel.FitWidth()
+    panel.fitWidth = width
+    if panel.SetPanelWidth then return width, panel:SetPanelWidth(width) end
+    local changed = panel:GetWidth() ~= width
+    panel:SetWidth(width)
+    return width, changed
+end
+
+-- Vergrößern/Verkleinern (Blizzards Knopf in der Titelleiste): neue Breite samt Platzprüfung und Andocken (ezCores
+-- panel:SetPanelWidth; die Seitenteile links docken über onPlaced neu an), Graph und Zeilen in der neuen Größe.
+-- → true, wenn geändert
+function Panel.SetBig(big)
+    if not ns.db then return false end
+    big = big and true or false
+    if Panel.IsBig() == big then return false end
+    ns.db.ui.marketBig = big or nil
+    if panel then
+        Panel.ApplyWidth()
+        if panel.size then
+            if big then panel.size:Maximize(true, true) else panel.size:Minimize(true, true) end
+        end
+        Panel.Layout()
+        Panel.Refresh()
+        Panel.RedockLeft()
+    end
+    return true
 end
 
 ---------------------------------------------------------------------------
@@ -248,6 +403,9 @@ end
 ---------------------------------------------------------------------------
 
 local function StatusText(status, count, weekly)
+    if weekly == "months" and status == "few" then
+        return Core.Plural(count or 0, L.MARKET_FEW_MONTHS_ONE, L.MARKET_FEW_MONTHS_MANY, ns.Market.GRAPH_MONTHS)
+    end
     if weekly and status == "few" then
         return Core.Plural(count or 0, L.MARKET_FEW_WEEKS_ONE, L.MARKET_FEW_WEEKS_MANY, ns.Market.GRAPH_WEEKS)
     end
@@ -370,47 +528,97 @@ function Panel.VariantLine(entry)
     return L.MARKET_VARIANT_LAST:format(ns.Money(info.min), ago)
 end
 
--- Tage oder Wochen (V1, Welle 23): die Wahl des Spielers, gemerkt für das Konto (ezAuctionDB.ui.marketWeeks).
-function Panel.ShowsWeeks()
-    return ns.db ~= nil and ns.db.ui.marketWeeks == true
+-- Tage, Wochen oder Monate (V1, Welle 23; Monate seit 21.11.2026): die Wahl des Spielers, gemerkt für das Konto
+-- (ezAuctionDB.ui.marketWeeks = Wochen wie bisher, marketView = "months" für Monate). → "days" | "weeks" | "months"
+function Panel.View()
+    if not ns.db then return "days" end
+    if ns.db.ui.marketView == "months" then return "months" end
+    return ns.db.ui.marketWeeks == true and "weeks" or "days"
 end
 
--- Knopf „Wochen“ / „Tage“: umschalten. → true, wenn umgeschaltet (keine Wochen: nichts)
-function Panel.ToggleWeeks()
-    if not ns.db then return false end
-    local button = panel and panel.weeks
-    if not Panel.ShowsWeeks() and button and button.why then return false end
-    ns.db.ui.marketWeeks = not Panel.ShowsWeeks() or nil
+function Panel.ShowsWeeks()
+    return Panel.View() == "weeks"
+end
+
+-- Ansicht wählen (Knöpfe „Tage“ · „Wochen“ · „Monate“). → true, wenn gewählt (gibt es sie nicht: nichts)
+function Panel.SetView(view)
+    if not ns.db or (view ~= "days" and view ~= "weeks" and view ~= "months") then return false end
+    local button = panel and panel[view]
+    if view ~= "days" and button and button.why then return false end
+    ns.db.ui.marketWeeks = view == "weeks" or nil
+    ns.db.ui.marketView = view == "months" and "months" or nil
     Panel.Refresh()
     return true
 end
 
--- Tooltip des Knopfs: was er zeigt bzw. warum es keine Wochen gibt (Leitlinie 11)
-function Panel.WeeksTip()
-    local button = panel and panel.weeks
-    local why = button and button.why
-    if Panel.ShowsWeeks() and not why then return L.MARKET_DAYS_TIP:format(ns.Market.Days()) end
+-- Tage ↔ Wochen umschalten (V1, Welle 23; bleibt für Aufrufer und Prüfungen). → true, wenn umgeschaltet
+function Panel.ToggleWeeks()
+    if not ns.db then return false end
+    return Panel.SetView(Panel.ShowsWeeks() and "days" or "weeks")
+end
+
+-- Grund ohne Wochen bzw. Monate als Satz (eine Stelle für beide Knöpfe); nil ohne bekannten Grund
+function Panel.WhyTip(why)
     if why == "off" then return L.MARKET_WEEKS_OFF:format(Core.L.OPT_priceWeeks or "?") end
     if why == "none" then return L.MARKET_WEEKS_NONE:format(Core.L.OPT_priceWeeksMax or "?") end
     if why == "variant" then return L.MARKET_WEEKS_VARIANT end
     if why == "mixed" then return L.MARKET_WEEKS_MIXED end
     if why == "unwatched" then return L.MARKET_WEEKS_UNWATCHED end
+    if why == "nomonths" then return L.MARKET_MONTHS_NONE:format(Core.L.OPT_priceMonthsMax or "?") end
+    return nil
+end
+
+-- Tooltip eines Ansichts-Knopfs: was er zeigt bzw. warum es sie nicht gibt (Leitlinie 11)
+function Panel.ViewTip(view)
+    local shown = Panel.View() == view and ("\n" .. Core.Grey(L.MARKET_VIEW_SHOWN)) or ""
+    if view == "days" then return L.MARKET_VIEW_DAYS_TIP:format(ns.Market.Days()) .. shown end
+    if view == "weeks" then
+        local why = panel and panel.weeks and panel.weeks.why
+        return why and (Panel.WhyTip(why) or "") or (Panel.WeeksTip() .. shown)
+    end
+    local why = panel and panel.months and panel.months.why
+    if why == "nomonths" then return Panel.WhyTip(why) or "" end
+    -- von den Wochen geerbte Gründe: erst der Satz, dass Monate aus Wochen entstehen (Befund des Reviews)
+    if why then return L.MARKET_MONTHS_FROM_WEEKS .. " " .. (Panel.WhyTip(why) or "") end
+    local prices = ns.Prices()
+    local max = prices and type(prices.MonthsMax) == "function" and Core.Num(Core.Call(prices.MonthsMax))
+        or (prices and Core.Num(prices.MONTHS_MAX)) or 0
+    return L.MARKET_MONTHS_TIP:format(max) .. shown
+end
+
+-- Tooltip des Knopfs „Wochen“: was er zeigt bzw. warum es keine Wochen gibt (Leitlinie 11). Seit es drei Knöpfe gibt
+-- (21.11.2026), sagt er immer, was die Wochen zeigen – zurück zu den Tagen führt der Knopf „Tage“.
+function Panel.WeeksTip()
+    local button = panel and panel.weeks
+    local why = button and button.why
+    local reason = why and Panel.WhyTip(why)
+    if reason then return reason end
     local prices = ns.Prices()
     local max = prices and type(prices.WeeksMax) == "function" and Core.Num(Core.Call(prices.WeeksMax)) or 26
     return L.MARKET_WEEKS_TIP:format(max)
 end
 
--- Knopf zum gewählten Gegenstand einrichten. → true, wenn der Graph Wochen zeigen soll.
+-- Knöpfe zum gewählten Gegenstand einrichten. → true, wenn der Graph Wochen zeigen soll (wie bisher); zweiter Wert:
+-- die Ansicht, die der Graph zeigt ("days" | "weeks" | "months"; fehlt die gewählte, gelten die Tage).
 function Panel.UpdateWeeks(entry, hasVariant)
     local button = panel and panel.weeks
-    if not button then return false end
-    local ok, why = ns.Market.WeeksAvailable(entry.itemID, hasVariant)
-    button.why = not ok and why or nil
-    local weekly = ok and Panel.ShowsWeeks()
-    button:SetLabel(weekly and L.MARKET_DAYS_BUTTON or L.MARKET_WEEKS_BUTTON)
-    button:SetEnabled(ok)
-    button:Show()
-    return weekly
+    if not button then return false, "days" end
+    local Market = ns.Market
+    local okW, whyW = Market.WeeksAvailable(entry.itemID, hasVariant)
+    local okM, whyM = Market.MonthsAvailable(entry.itemID, hasVariant)
+    button.why = not okW and whyW or nil
+    panel.months.why = not okM and whyM or nil
+    local view = Panel.View()
+    if (view == "weeks" and not okW) or (view == "months" and not okM) then view = "days" end
+    for _, key in ipairs({ "days", "weeks", "months" }) do
+        local b = panel[key]
+        b:SetEnabled(key == "days" or (key == "weeks" and okW) or (key == "months" and okM))
+        -- die gezeigte Ansicht weiß, die übrigen in Blizzards Gelb
+        if b.SetNormalFontObject then b:SetNormalFontObject(key == view and "GameFontHighlightSmall" or "GameFontNormalSmall") end
+        b.shown = key == view
+        b:Show()
+    end
+    return view == "weeks", view
 end
 
 function Panel.Refresh()
@@ -424,7 +632,7 @@ function Panel.Refresh()
     if not entry then
         panel.name:SetText("")
         graph:Clear()
-        panel.empty:SetText(mode == "sell" and L.MARKET_PICK_SELL or L.MARKET_PICK_BUY)
+        panel.empty:SetText(mode == "sell" and L.MARKET_PICK_SELL or mode == "auctions" and L.MARKET_PICK_AUCTIONS or L.MARKET_PICK_BUY)
         panel.empty:Show()
         panel.footer:SetText("")
         panel.lines:SetText("")
@@ -432,17 +640,22 @@ function Panel.Refresh()
         panel.hint:SetText(note or "")
         panel.watch:SetText("")
         panel.target:Hide()
+        panel.days:Hide()
         panel.weeks:Hide()
+        panel.months:Hide()
         Panel.UpdateCopy(nil)
-        Panel.Reflow()
         return
     end
     panel.name:SetText(ns.ColoredName(entry.name or ("#" .. entry.itemID), entry.quality))
     -- Abwandlung: mit dem Schlüssel samt Suffix fragen – dann Verlauf und Kennzahlen dieser Abwandlung (Welle 23)
     local hasVariant = Market.HasVariant(entry.itemKey)
-    local weekly = Panel.UpdateWeeks(entry, hasVariant)
+    local _, view = Panel.UpdateWeeks(entry, hasVariant)
+    local weekly = view ~= "days" and view or nil
     local points, opts, status, stats, count
-    if weekly then
+    if view == "months" then
+        points, opts, status, count = Market.MonthPoints(entry.itemID)
+        stats = Market.Stats(entry.itemID)
+    elseif view == "weeks" then
         points, opts, status, count = Market.WeekPoints(entry.itemID)
         stats = Market.Stats(entry.itemID)
     else
@@ -458,7 +671,9 @@ function Panel.Refresh()
         panel.empty:SetText(variant and (text .. "\n" .. variant) or text)
         panel.empty:Show()
     end
-    if count and count > 0 and weekly then
+    if count and count > 0 and view == "months" then
+        panel.footer:SetText(Core.Plural(count, L.MARKET_FOOTER_MONTHS_ONE, L.MARKET_FOOTER_MONTHS_MANY))
+    elseif count and count > 0 and weekly then
         panel.footer:SetText(Core.Plural(count, L.MARKET_FOOTER_WEEKS_ONE, L.MARKET_FOOTER_WEEKS_MANY))
     elseif count and count > 0 then
         panel.footer:SetText(Core.Plural(count, L.MARKET_FOOTER_ONE, L.MARKET_FOOTER_MANY))
@@ -476,7 +691,6 @@ function Panel.Refresh()
     panel.watch:SetText(watchText)
     panel.target:SetShown(canTarget)
     Panel.UpdateCopy(entry, hasVariant)
-    Panel.Reflow()
 end
 
 ---------------------------------------------------------------------------
@@ -530,33 +744,32 @@ function Panel.Copy()
         columns = ns.Market.CopyColumns(), rows = rows, anchor = panel, owner = ADDON })
 end
 
--- Nach jedem neuen Text: rückt die eingebettete Taschenliste nach, wenn sich der Beginn (Panel.BagTop) geändert hat.
-function Panel.Reflow()
-    local top = Panel.BagTop()
-    if top == panel.bagTop then return end
-    panel.bagTop = top
-    if ns.Sell.Reflow then ns.Sell.Reflow() end
-end
-
--- Seitenteil und Pfeil nach Ansicht und Schalter zeigen oder verbergen; danach sitzt die Taschenliste richtig.
+-- Seitenteil und Pfeil nach Ansicht und Schalter zeigen oder verbergen; danach dockt die Taschenliste neu an.
 function Panel.Update()
     if not Panel.Wanted() then
         if panel then
             panel:Hide()
             panel.arrow:Hide()
         end
-        if ns.Sell then ns.Sell.UpdatePanel() end
+        Panel.RedockLeft()
         return
     end
     if not panel then Build() end
     if not panel then return end
-    panelOpts.side = ns.Sell.Side()
+    panelOpts.side = Panel.SIDE
     panel.arrow:Show()
     panel:SetShown(panel:IsOpen())
+    Panel.ApplyWidth()
     panel:Place()
     Panel.Layout()
     Panel.Refresh()
-    ns.Sell.UpdatePanel()
+    Panel.RedockLeft()
+end
+
+-- Die linken Seitenteile (Taschenliste, Einkaufsliste) neu andocken: sie stehen außen am Markt, wenn kein Platz links ist.
+function Panel.RedockLeft()
+    if ns.Sell then ns.Sell.UpdatePanel() end
+    if ns.Editor and ns.Editor.Place then ns.Editor.Place() end
 end
 
 ---------------------------------------------------------------------------
@@ -569,6 +782,23 @@ ns.OnAuctionHouse(function()
     local later = ns.Throttle(function() Panel.Refresh() end, 0.1)
     for _, sell in ipairs({ frame.ItemSellFrame, frame.CommoditiesSellFrame }) do
         if sell and sell.UpdatePriceSelection then hooksecurefunc(sell, "UpdatePriceSelection", later) end
+    end
+    -- Reiter „Auktionen“: Zeile der Übersicht (SetItemKey), eigene Auktion (SelectAuction), Gebot
+    local auctions = frame.AuctionsFrame
+    if type(auctions) == "table" then
+        if type(auctions.SetItemKey) == "function" then
+            hooksecurefunc(auctions, "SetItemKey", function(_, itemKey) ns.Try("Market", Panel.SetAuctions, itemKey) end)
+        end
+        if type(auctions.SelectAuction) == "function" then
+            hooksecurefunc(auctions, "SelectAuction", function(_, result)
+                if type(result) == "table" then ns.Try("Market", Panel.SetAuctions, result.itemKey, result.buyoutAmount) end
+            end)
+        end
+        if type(auctions.OnBidsListSearchResultSelected) == "function" then
+            hooksecurefunc(auctions, "OnBidsListSearchResultSelected", function(_, bid)
+                if type(bid) == "table" then ns.Try("Market", Panel.SetAuctions, bid.itemKey, bid.buyoutAmount) end
+            end)
+        end
     end
     Panel.Update()
 end)

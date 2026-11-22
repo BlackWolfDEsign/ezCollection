@@ -30,7 +30,6 @@ local Data = ns.Data
 local Where = {}
 ns.Where = Where
 
-Where.MAX_LINES = 4      -- so viele Fundorte zeigt der Reiter „Rezept“ (der Tooltip der Zeile nennt alle)
 Where.TIP_MAX = 3        -- so viele „Erhältlich bei“-Zeilen im Tooltip eines Rezept-Gegenstands
 
 local Num, Plain, Call = Core.Num, Core.Plain, Core.Call

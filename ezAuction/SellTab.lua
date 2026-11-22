@@ -6,9 +6,9 @@ local Core = ezCore
     Reiter „Verkaufen“:
       - Taschenliste: alle Gegenstände der Tasche, die ins Auktionshaus dürfen, als angedockter Bereich neben
         Blizzards Fenster (Blizzard stellt das Auktionshaus an den linken Rand; „auto“ dockt links, wenn Platz
-        ist, sonst rechts). Klick legt den Gegenstand in Blizzards Verkaufsbereich (AuctionHouseFrame:SetPostItem) –
+        ist, sonst rechts außen am Markt). Klick legt den Gegenstand in Blizzards Verkaufsbereich (AuctionHouseFrame:SetPostItem) –
         erst mit Tor T1 „geht“; bis dahin hebt er die Zeile hervor und nennt Blizzards Weg (Rechtsklick in der Tasche).
-        Ist das Seitenteil „Markt“ offen, sitzt sie dort als zweiter Abschnitt unter dem Preisverlauf (Sell.PlacePanel).
+        Seit dem 21.11.2026 ein eigenes Seitenteil in voller Höhe links, der Markt steht rechts (Sell.PlacePanel).
       - Schalter „Nie unter dem Tief der erfassten Tage“ (floorTrend, ab Werk aus): hebt den Regelpreis auf das Tief
         aus Scan.Trend an, der Tooltip der Regel nennt den Grund.
       - Am Preisfeld: „Zuletzt: …“ (eigener letzter Preis) und „Regel: …“ (Menü: Blizzards Vorschlag, knapp
@@ -21,7 +21,7 @@ local Core = ezCore
       - „Nur vorschlagen, nichts eintragen“ (suggestOnly, AH-38): Preisregel und „Zuletzt“ schreiben nichts in Blizzards
         Felder, sondern zeigen „Vorschlag: …“ daneben
       - Netto-Zeile und Warnung bei Fehlpreis (AH-20), frei verankert unter Blizzards Einstellen-Knopf
-      - „Als Nächstes: …“ (AH-18) und Standard-Menge, -Dauer und Startgebot (AH-19, Menü am Pfeil neben „Zuletzt“) –
+      - „Als Nächstes“ (AH-18; golden in der Taschenliste – die Zeile „Nächster: …“ entfiel am 21.11.2026) und Standard-Menge, -Dauer und Startgebot (AH-19, Menü am Pfeil neben „Zuletzt“) –
         Tor T1 für den Verkaufsbereich hat kein Ergebnis (ns.T1): beides nur als Hinweis bzw. Vorschlag; mit „geht“
         legen sie über Blizzards SetPostItem, SetQuantity, SetDuration selbst ein
     Welle 15 (nur Anzeige, nie eine automatische Aktion):
@@ -37,10 +37,11 @@ local Core = ezCore
 local Sell = {}
 ns.Sell = Sell
 
-local panel, toggle
+local panel
 local state = setmetatable({}, { __mode = "k" })   -- [Verkaufsbereich] = { auto = true|nil, applied = Preis }
 local priceButtons = setmetatable({}, { __mode = "k" })
-local PANEL_WIDTH = 236
+local PANEL_WIDTH = ns.LEFT_PANEL_WIDTH   -- Wunschbreite wie alle Seitenteile (Core.lua; schmaler bei wenig Platz)
+local LOOK = ns.LOOK                      -- Maße und Schriften der Listen wie ezTalent (ezCores Core.PANEL_LIST)
 local ROW_HEIGHT = 30
 
 local function SellFrames()
@@ -280,22 +281,25 @@ local AddPriceLines = Sell.AddPriceLines
 local function BuildRow(row)
     row.icon = row:CreateTexture(nil, "ARTWORK")
     row.icon:SetSize(24, 24)
-    row.icon:SetPoint("LEFT", row, "LEFT", 4, 0)
+    -- Formatierung wie ezTalents Listen (21.11.2026): Eintrag eingerückt, Name in LOOK.fonts.entry, eine Unterzeile in
+    -- LOOK.fonts.sub
+    row.icon:SetPoint("LEFT", row, "LEFT", LOOK.entryIndent, 0)
     row.count = row:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
     row.count:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 1, 0)
-    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.name = row:CreateFontString(nil, "OVERLAY", LOOK.fonts.entry)
     row.name:SetPoint("TOPLEFT", row.icon, "TOPRIGHT", 6, -1)
     row.name:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     row.name:SetJustifyH("LEFT")
-    row.hint = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    row.hint = row:CreateFontString(nil, "OVERLAY", LOOK.fonts.sub)
     row.hint:SetPoint("BOTTOMLEFT", row.icon, "BOTTOMRIGHT", 6, 1)
     row.hint:SetPoint("RIGHT", row, "RIGHT", -4, 0)
     row.hint:SetJustifyH("LEFT")
     row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
-    -- AH-18: die nächste Zeile („Als Nächstes“) golden hinterlegt
+    -- AH-18: die nächste Zeile („Als Nächstes“) golden hinterlegt – der eine Auswahl-Hintergrund aller Seitenteile
+    -- (Gold mit LOOK.selectAlpha wie ezTalents gewählte Zeile; vorher 0,18)
     row.nextMark = row:CreateTexture(nil, "BACKGROUND")
     row.nextMark:SetAllPoints(row)
-    row.nextMark:SetColorTexture(1, 0.82, 0, 0.18)
+    row.nextMark:SetColorTexture(1, 0.82, 0, LOOK.selectAlpha)
     row.nextMark:Hide()
     -- AH-30: Stern „oben halten“ oben rechts (ezAuctions eigene Reihenfolge; Blizzards Zielmarke „Stern“, nicht
     -- Blizzards Favoriten-Stern des Auktionshauses – der Tooltip sagt es)
@@ -625,15 +629,9 @@ function Sell.LockToggleButton()
     return button ~= nil and button:IsVisible() and button or nil
 end
 
--- Seite: Blizzard stellt das Auktionshaus an den linken Rand, links ist dann kein Platz.
+-- Seite der Taschenliste: wie alle Seitenteile links (ns.LeftPanelSide in Core.lua).
 function Sell.Side()
-    local side = ns.S.sellListSide
-    if side == "left" or side == "right" then return side end
-    local left = AuctionHouseFrame:GetLeft()
-    local scale = AuctionHouseFrame:GetEffectiveScale() or 1
-    local uiScale = UIParent:GetEffectiveScale() or 1
-    if left and left * scale / uiScale > PANEL_WIDTH + 20 then return "left" end
-    return "right"
+    return ns.LeftPanelSide(panel, PANEL_WIDTH)
 end
 
 local function BuildPanel()
@@ -642,23 +640,27 @@ local function BuildPanel()
     panel = f
     f:SetWidth(PANEL_WIDTH)
     f:Hide()
-    if ButtonFrameTemplate_HidePortrait then pcall(ButtonFrameTemplate_HidePortrait, f) end
-    if ButtonFrameTemplate_HideButtonBar then pcall(ButtonFrameTemplate_HideButtonBar, f) end
-    if f.SetTitle then pcall(f.SetTitle, f, L.SELL_LIST_TITLE) end
-    if f.CloseButton then
-        f.CloseButton:SetScript("OnClick", function() Sell.SetPanelShown(false) end)
-        f.CloseButton:SetScript("OnEnter", function(self) Core.ShowTip(self, Core.Word("CLOSE"), L.SELL_LIST_CLOSE_TIP) end)
-        f.CloseButton:SetScript("OnLeave", GameTooltip_Hide)
-    end
+    -- Blizzards Fensterrahmen wie der Markt (ns.PanelLook), ohne eigenes „X“: ein- und ausblenden über den Knopf
+    -- „Taschenliste“ oben rechts im Reiter (Entscheidung vom 21.11.2026, „ohne Titel-X“)
+    ns.PanelLook(f, L.SELL_LIST_TITLE)
     local ok2, filter = pcall(CreateFrame, "EditBox", "ezAuctionSellListFilter", f, "SearchBoxTemplate")
     if not ok2 or not filter then filter = CreateFrame("EditBox", "ezAuctionSellListFilter", f, "InputBoxTemplate") end
-    filter:SetSize(PANEL_WIDTH - 36 - 22, 20)
-    filter:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -30)
+    -- Kopf wie ezTalent ab ns.PANEL_TOP, LOOK.headLeft vom Rand (Blizzards Suchfeld zeichnet 4 links vor seinem Feld);
+    -- rechts Platz für das Schloss – die Breite folgt dem Seitenteil
+    -- beide Anker oben (wie ezTalent, Befund des Reviews: „RIGHT“ am Seitenteil legte die Mitte des Felds auf dessen
+    -- Mitte – der Kasten darunter hätte erst in der unteren Hälfte begonnen)
+    filter:SetHeight(20)
+    filter:SetPoint("TOPLEFT", f, "TOPLEFT", LOOK.headLeft + 4, -ns.PANEL_TOP)
+    filter:SetPoint("TOPRIGHT", f, "TOPRIGHT", -(LOOK.headLeft + Core.Style.BUTTON.small + 4), -ns.PANEL_TOP)
     filter:SetAutoFocus(false)
     -- nur die fertige Liste filtern (Zwischenspeicher je Aufbau, T8-10)
     filter:HookScript("OnTextChanged", function() Sell.Refresh(true) end)
     if filter.Instructions then filter.Instructions:SetText(L.SELL_FILTER) end
-    filter:HookScript("OnEnter", function(self) Core.ShowTip(self, L.SELL_FILTER, L.SELL_FILTER_TIP) end)
+    -- neben Auctionator: wohin die Liste gehört (Beside.SellListLine; vorher am Knopf „Taschenliste“)
+    filter:HookScript("OnEnter", function(self)
+        local line = ns.Beside.SellListLine()
+        Core.ShowTip(self, L.SELL_FILTER, line and (L.SELL_FILTER_TIP .. "\n\n" .. line) or L.SELL_FILTER_TIP)
+    end)
     filter:HookScript("OnLeave", GameTooltip_Hide)
     f.filter = filter
     -- AH-30: Umschalter „Gesperrtes zeigen“ rechts neben dem Filter (Schloss; nur mit ezBag zu sehen)
@@ -675,42 +677,31 @@ local function BuildPanel()
     lock:Hide()
     f.lockToggle = lock
 
-    f.list = ns.NewScrollList(f, ROW_HEIGHT, InitRow)
-    f.list:SetPoints(10, -58, -8, 10)
+    -- die Liste in Blizzards innerem Kasten zwischen Kopf und Unterkante (wie ezTalent; ohne Kasten im Client wie vorher)
+    f.list = ns.NewScrollList(f, ROW_HEIGHT, InitRow, LOOK.entryGap)
+    f.inset = ns.PanelInset(f, filter, LOOK.headLeft + 4, ns.BUTTON_Y)
+    if f.inset then f.list:SetInside(f.inset) else f.list:SetPoints(10, -58, -8, 10) end
     f.empty = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    f.empty:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -70)
-    f.empty:SetPoint("RIGHT", f, "RIGHT", -16, 0)
+    if f.inset then
+        f.empty:SetPoint("TOPLEFT", f.inset, "TOPLEFT", LOOK.insetLeft + LOOK.entryIndent, -(LOOK.insetTop + 6))
+        f.empty:SetPoint("TOPRIGHT", f.inset, "TOPRIGHT", -LOOK.insetLeft, -(LOOK.insetTop + 6))
+    else
+        f.empty:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -70)
+        f.empty:SetPoint("RIGHT", f, "RIGHT", -16, 0)
+    end
     f.empty:SetText(L.SELL_LIST_EMPTY)
     f:SetScript("OnShow", function() Sell.Refresh() end)
 end
 
--- Tooltip des Knopfs „Taschenliste“. Neben Auctionator stehen unten zwei Reiter zum Verkaufen (Blizzards und
--- der des fremden Addons, deutsch gleich benannt): dann sagt der Tooltip, dass dieser Knopf zu Blizzards Reiter
--- gehört (Beside.lua; Frage 7 – in fremden Reitern ändert ezAuction nichts).
-function Sell.ToggleTip()
-    local line = ns.Beside.SellListLine()
-    return line and (L.SELL_LIST_TOGGLE_TIP .. "\n\n" .. line) or L.SELL_LIST_TOGGLE_TIP
+-- „Aus der Tasche“ steht beim Verkaufen immer (zweiter Spieltest vom 21.11.2026: „der Taschenliste button kann auch weg
+-- wen sich aus der tasche immer automatisch öffnet bzw immer angezeigt wird beim verkaufen wie markt fenster“) – der
+-- Knopf „Taschenliste“ zum Ein- und Ausblenden entfiel; abschalten geht über den Schalter sellList. Das Seitenteil,
+-- solange zu sehen (Ziel des Rundgangs).
+function Sell.PanelFrame()
+    return panel ~= nil and panel:IsVisible() and panel or nil
 end
 
--- Knopf „Taschenliste“ oben rechts im Reiter Verkaufen: Bereich ein- und ausblenden (Rechtsklick nur zusätzlich).
-local function BuildToggle()
-    toggle = CreateFrame("Button", nil, AuctionHouseFrame, "UIPanelButtonTemplate")
-    toggle:SetSize(130, 22)
-    toggle:SetPoint("TOPRIGHT", AuctionHouseFrame, "TOPRIGHT", -14, -34)
-    toggle:SetText(L.SELL_LIST_TOGGLE)
-    toggle:SetScript("OnClick", function()
-        Sell.SetPanelShown(not (panel and panel:IsShown()))
-    end)
-    toggle:SetScript("OnEnter", function(self) Core.ShowTip(self, L.SELL_LIST_TOGGLE, Sell.ToggleTip()) end)
-    toggle:SetScript("OnLeave", GameTooltip_Hide)
-    toggle:Hide()
-end
-
--- Knopf „Taschenliste“ bzw. Regel am Preisfeld, solange zu sehen (Ziele des Rundgangs).
-function Sell.ToggleButton()
-    return toggle ~= nil and toggle:IsVisible() and toggle or nil
-end
-
+-- Regel am Preisfeld, solange zu sehen (Ziel des Rundgangs).
 function Sell.RuleButton()
     for _, parts in pairs(priceButtons) do
         if parts.rule:IsVisible() then return parts.rule end
@@ -718,62 +709,30 @@ function Sell.RuleButton()
     return nil
 end
 
-function Sell.SetPanelShown(shown)
-    ns.db.ui.sellListHidden = not shown
-    Sell.UpdatePanel()
-end
-
--- Rahmen und Hintergrund der eigenen Vorlage: im Seitenteil „Markt“ ist die Taschenliste ein Abschnitt, kein
--- zweites Fenster (nur eigene Teile, Blizzards Fenster bleibt unberührt).
-local function ShowChrome(shown)
-    for _, key in ipairs({ "NineSlice", "Bg", "TopTileStreaks" }) do
-        local part = Core.Peek(panel, key)
-        if type(part) == "table" and part.SetShown then part:SetShown(shown) end
-    end
-end
-
--- Wo die Taschenliste sitzt: als zweiter Abschnitt im offenen Seitenteil „Markt“ (MarketPanel.BagHost, AUC-02)
--- oder wie bisher angedockt neben Blizzards Fenster (Seitenteil aus, zugeklappt oder ohne ezCores Bausteine).
--- Rückgabe: "market" | "dock".
+-- Wo die Taschenliste sitzt: als eigenes Seitenteil in voller Höhe, angedockt wie alle Seitenteile links
+-- (ns.PlaceLeftPanel in Core.lua). Rückgabe: Seite.
 function Sell.PlacePanel()
-    local market = ns.MarketPanel
-    local host = market and market.BagHost()
-    if host then
-        if panel:GetParent() ~= host then panel:SetParent(host) end
-        panel:ClearAllPoints()
-        panel:SetPoint("TOPLEFT", host, "TOPLEFT", 0, -market.BagTop())
-        panel:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", 0, 0)
-        ShowChrome(false)
-        panel.embedded = true
-        return "market"
-    end
-    if panel:GetParent() ~= AuctionHouseFrame then panel:SetParent(AuctionHouseFrame) end
-    ShowChrome(true)
-    panel:SetWidth(PANEL_WIDTH)
-    Core.Dock(panel, AuctionHouseFrame, { side = Sell.Side(), gap = 0 })
-    panel.embedded = false
-    return "dock"
+    return ns.PlaceLeftPanel(panel, PANEL_WIDTH)
 end
 
--- Eingebettet im Seitenteil „Markt“: neu setzen, wenn dessen Text länger oder kürzer geworden ist (MarketPanel.Reflow).
-function Sell.Reflow()
-    if panel and panel:IsShown() and panel.embedded then Sell.PlacePanel() end
+-- Seite, an der die Taschenliste zuletzt angedockt hat (nach der Platzprüfung; Sell.Side ist der Wunsch), oder nil.
+function Sell.DockedSide()
+    return panel ~= nil and panel.dockSide or nil
 end
 
--- Taschenliste zu sehen und neben Blizzards Fenster angedockt (nicht im Seitenteil)? Und ihre Breite dort.
-function Sell.Docked() return panel ~= nil and panel:IsShown() and not panel.embedded end
-function Sell.PanelWidth() return PANEL_WIDTH end
+-- Taschenliste zu sehen? Und ihre Breite.
+function Sell.Docked() return panel ~= nil and panel:IsShown() end
+function Sell.PanelWidth() return panel and panel.fitWidth or PANEL_WIDTH end   -- nach dem Platz (ns.PlaceLeftPanel)
 
 function Sell.UpdatePanel()
     local inSell = ns.ModeName() == "sell" and ns.AuctionHouseShown()
     local wanted = inSell and ns.Enabled("sellList")
-    if toggle then toggle:SetShown(wanted == true) end
-    if not wanted or ns.db.ui.sellListHidden then
+    if not wanted then
         if panel then panel:Hide() end
     else
         if not panel then BuildPanel() end
-        Sell.PlacePanel()
         panel:Show()
+        Sell.PlacePanel()
         Sell.Refresh()
     end
     -- der Pfeil des zugeklappten Seitenteils weicht der angedockten Liste aus (und kehrt zurück, wenn sie geht)
@@ -1176,9 +1135,9 @@ end
 --[[
     Alles hier ist Anzeige in eigenen, frei verankerten Teilen (nie als Layout-Kind in Blizzards Verkaufsbereich
     eingehängt): Vorschläge rechts unter dem jeweiligen Feld, die Warnmarke „!“ am Preisfeld, darunter im freien Raum
-    unter Blizzards Einstellen-Knopf die Warnzeile, die Netto-Zeile und „Als Nächstes: …“. Werte setzt ezAuction nur, wo
+    unter Blizzards Einstellen-Knopf die Warnzeile und die Netto-Zeile („Nächster: …“ entfiel am 21.11.2026). Werte setzt ezAuction nur, wo
     es das vor Welle 13 schon tat (Preisregel, „Zuletzt“ – abschaltbar mit suggestOnly) und, sobald Tor T1 für den
-    Verkaufsbereich „geht“ meldet (ns.SellSetsValues), für „Nächster“, Standard-Menge und -Dauer und das Startgebot.
+    Verkaufsbereich „geht“ meldet (ns.SellSetsValues), für den nächsten Gegenstand (postNext), Standard-Menge und -Dauer und das Startgebot.
 ]]
 
 local extras = setmetatable({}, { __mode = "k" })   -- [Verkaufsbereich] = eigene Teile
@@ -1205,39 +1164,8 @@ function Sell.PostValues(frame)
     return itemID, price, duration, math.max(1, qty)
 end
 
--- AH-20: Netto-Zeile aus ezCores Prices.Net. Unbekanntes heißt „noch unbekannt“, Gemerktes nennt, wann es gemessen
--- wurde. Die Anzahlung kommt beim Verkauf zurück, darum steht sie daneben und wird nicht abgezogen.
--- Rückgabe: Text, Netto-Tabelle – oder nil. Immer an seit der Einstellungs-Prüfung vom 19.11.2026 (Nr. 16).
-function Sell.NetText(frame)
-    local prices = ns.Prices()
-    if not (prices and type(prices.Net) == "function") then return nil end
-    local itemID, price, duration, qty = Sell.PostValues(frame)
-    if not (itemID and price and price > 0) then return nil end
-    local net = Core.Call(prices.Net, itemID, price, duration, qty)
-    if type(net) ~= "table" or type(net.bekannt) ~= "table" then return nil end
-    local function Stand(stand)
-        if type(stand) ~= "table" or stand.now or type(prices.StandText) ~= "function" then return nil end
-        return Core.Call(prices.StandText, stand)
-    end
-    local parts = {}
-    if net.bekannt.erloes and Core.Num(net.erloes) then
-        local text = L.SELL_NET:format(ns.Money(net.erloes))
-        local stand = Stand(net.stand and net.stand.anteil)
-        if stand then text = text .. " (" .. L.SELL_NET_FEE_STAND:format(stand) .. ")" end
-        parts[1] = text
-    else
-        parts[1] = L.SELL_NET_UNKNOWN:format(ns.Money(Core.Num(net.brutto) or price * qty))
-    end
-    if net.bekannt.anzahlung and Core.Num(net.anzahlung) then
-        local text = L.SELL_NET_DEPOSIT:format(ns.Money(net.anzahlung))
-        local stand = Stand(net.stand and net.stand.anzahlung)
-        if stand then text = text .. " (" .. stand .. ")" end
-        parts[2] = text
-    else
-        parts[2] = L.SELL_NET_DEPOSIT_UNKNOWN
-    end
-    return table.concat(parts, " · "), net
-end
+-- Die Netto-Zeile „Erlös ≈ … · Anzahlung …“ unter „Auktion erstellen“ (AH-20, Sell.NetText) entfiel im Spieltest vom
+-- 21.11.2026 („das rechteck ist doppelt und kann weg“): Blizzards „Einzahlen“ und „Gesamtpreis“ stehen direkt darüber.
 
 -- AH-20: Warnung bei Fehlpreis – weit unter dem Median (die EINE Bewertung aus AUC-04, Market.Judge mit dem einen
 -- Schwellen-Schalter bargainPercent; keine zweite Schwelle) oder der Händler zahlt mehr als der Erlös nach Gebühr.
@@ -1312,21 +1240,9 @@ function Sell.UpdateNext(groups)
     return nextGroup
 end
 
--- Knopf „Nächster“: mit Tor T1 „geht“ legt er den Gegenstand ein; in der Anzeige-Fassung sagt er, wo er steht.
-function Sell.NextClick()
-    local group = Sell.nextGroup
-    if not group then return false end
-    if ns.SellSetsValues() then
-        Sell.Pick(group)
-        return true
-    end
-    ns.Print(L.SELL_NEXT_T1:format(ns.ColoredName(group.name, group.quality)))
-    return false
-end
-
-function Sell.NextTip()
-    return ns.SellSetsValues() and L.SELL_NEXT_TIP_SET or L.SELL_NEXT_TIP_SHOW
-end
+-- Die Zeile „Nächster: …“ unter Blizzards Einstellen-Knopf (samt Sell.NextClick und Sell.NextTip) entfiel im vierten
+-- Spieltest vom 21.11.2026 („die info "Nächster: Leinenstoffballen" ist auch überflüssig“): der nächste steht golden
+-- in der Taschenliste, ein Klick auf die Zeile legt ihn ein, postNext legt ihn nach dem Einstellen ein.
 
 -- Nach dem Einstellen (AUCTION_HOUSE_AUCTION_CREATED): mit postNext und Tor T1 „geht“ den nächsten einlegen.
 -- Rückgabe: true, wenn das Einlegen vorgemerkt ist.
@@ -1366,12 +1282,12 @@ function Sell.SellFromBag(bag, slot)
 end
 ns.API.Sell = Sell.SellFromBag
 
--- Stehen abgeholte Rückläufer beim nächsten Besuch oben in der Taschenliste (AH-28)? true, wenn die Taschenliste an und
--- nicht zugeklappt ist und der Schalter auctionMail an ist – für ezMail (AH-33: dessen Tooltip nennt den Satz zur
+-- Stehen abgeholte Rückläufer beim nächsten Besuch oben in der Taschenliste (AH-28)? true, wenn die Taschenliste an
+-- (sie steht seit dem 21.11.2026 immer) und der Schalter auctionMail an ist – für ezMail (AH-33: dessen Tooltip nennt den Satz zur
 -- Taschenliste nur dann). Nur Auskunft, ohne offenes Auktionshaus gültig (Schalter gelten für jeden Besuch).
 function Sell.ReturnsListed()
     if not (ns.db and ns.S) then return false end
-    return ns.Enabled("sellList") == true and ns.Enabled("auctionMail") == true and not ns.db.ui.sellListHidden
+    return ns.Enabled("sellList") == true and ns.Enabled("auctionMail") == true
 end
 -- ezCore.API("ezAuction").ReturnsListed() → true | false (Welle 23; ezMail fragt sie seit Welle 15 ab)
 ns.API.ReturnsListed = Sell.ReturnsListed
@@ -1536,12 +1452,7 @@ local function BuildExtras(frame)
     x.warnMark:Hide()
     -- Zeilen im freien Raum unter Blizzards Einstellen-Knopf
     x.warn = Line(frame, "GameFontRedSmall")
-    x.net = Line(frame, "GameFontHighlightSmall")
-    x.next = ns.TextButton(frame)
-    x.next:SetScript("OnClick", function() Sell.NextClick() end)
-    x.next:SetScript("OnEnter", function(self) Core.ShowTip(self, L.SELL_NEXT_TITLE, Sell.NextTip()) end)
-    x.next:Hide()
-    for _, line in ipairs({ x.warn, x.net }) do line:SetWidth(320) end
+    x.warn:SetWidth(320)
     -- Pfeil an „Zuletzt“: Standard-Menge, -Dauer und Startgebot (AH-19)
     -- Pfeil aus ezCore (Core.Toolbar.ArrowButton, T18-13), Design-System 2.3 (bis Welle 22 14)
     x.menu = Core.Toolbar.ArrowButton(input, function(self) Sell.DefaultsMenu(self, frame) end, L.SELL_DEFAULT_TITLE,
@@ -1561,11 +1472,19 @@ local function SetText(line, text)
     line:SetShown(text ~= nil)
 end
 
--- Die Zeilen unter Blizzards Einstellen-Knopf untereinander, ohne Lücke für ausgeblendete.
+-- Die Zeilen unter Blizzards Einstellen-Knopf untereinander, ohne Lücke für ausgeblendete. Jede rückt um ihre wirkliche
+-- Höhe weiter (Spielbefund vom 21.11.2026: eine umgebrochene Zeile hat zwei). Seit dem 21.11.2026 steht dort nur noch
+-- die Warnung (Erlös und „Nächster“ entfielen); die Liste bleibt, damit eine weitere Zeile wieder richtig rückt.
+Sell.STACK_LINE = 14
+local function LineHeight(line)
+    local h = line.GetStringHeight and Core.Num(Core.Call(line.GetStringHeight, line))
+    if not h or h <= 0 then h = Core.Num(Core.Call(line.GetHeight, line)) end
+    return math.max(Sell.STACK_LINE, (h or 0) + 2)
+end
 local function Stack(frame, x)
     local anchor = Core.Peek(frame, "PostButton")
     local y = -4
-    for _, line in ipairs({ x.warn, x.net, x.next }) do
+    for _, line in ipairs({ x.warn }) do
         if line:IsShown() then
             line:ClearAllPoints()
             if type(anchor) == "table" then
@@ -1573,7 +1492,7 @@ local function Stack(frame, x)
             else
                 line:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 8, y)
             end
-            y = y - 14
+            y = y - LineHeight(line)
         end
     end
 end
@@ -1607,28 +1526,17 @@ function Sell.UpdateExtras(frame)
     else
         SetText(x.suggestBid, bid and bidShown ~= bid and L.SUGGEST_BID:format(ns.Money(bid)) or nil)
     end
-    -- Warnung und Netto (AH-20)
+    -- Warnung (AH-20)
     local warning = has and Sell.Warning(frame)
     x.warnText = warning and table.concat(warning, "\n") or nil
     SetText(x.warn, warning and warning[1] or nil)
     x.warnMark:SetShown(warning ~= nil and warning ~= false)
-    SetText(x.net, has and (Sell.NetText(frame)) or nil)
-    -- Als Nächstes (AH-18)
-    local nextGroup = ns.Enabled("nextItem") and Sell.nextGroup
-    if nextGroup then
-        local name = ns.ColoredName(nextGroup.name, nextGroup.quality)
-        x.next:SetLabel((ns.SellSetsValues() and L.SELL_NEXT_BUTTON or L.SELL_NEXT_HINT):format(name))
-        x.next:Show()
-    else
-        x.next:Hide()
-    end
     Stack(frame, x)
 end
 
 ---------------------------------------------------------------------------
 
 ns.OnAuctionHouse(function()
-    BuildToggle()
     local items, goods = SellFrames()
     for _, frame in ipairs({ items, goods }) do
         if frame then

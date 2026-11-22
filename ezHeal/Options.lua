@@ -2,7 +2,8 @@ local _, ns = ...
 local L = ns.L
 
 -- Einstellungen unter Esc → Optionen → AddOns → ezCollection → ezHeal (Seite von ezCore):
--- Allgemein (Blizzards Fenster „Klick-Zauber“ öffnen, weitere Einstiege an Blizzards Fenstern) → Klick-Belegung
+-- Allgemein (Blizzards Fenster „Klick-Zauber“ öffnen, weitere Einstiege an Blizzards Fenstern, am Zauberbuch
+-- andocken) → Klick-Belegung
 -- (Vorlage, Tasten wählen, Vorschau im Chat, Übernehmen, Zurück, Belegung vor dem ersten Übernehmen) → Makros
 -- (Heil-Makros für die Klasse anlegen, Vorschau im Chat, eigene Makros entfernen) → Profile
 -- (speichern, laden/teilen/löschen, einfügen) → Anzeige (eigene HoTs am Rahmen, Klick-Legende im Rahmen-Tooltip,
@@ -21,6 +22,8 @@ local function Register()
     page:Checkbox("entryGroup")
     page:Checkbox("entrySpellbook")
     page:Checkbox("entryMacro")
+    page:Checkbox("dockSpellbook", nil, { feature = "moveFrames" })   -- Blizzards Fenster rechts am Zauberbuch (Dock.lua)
+    page:Checkbox("pairSpellbook")   -- Zauberbuch und Klick-Zauber zusammen schließen (Dock.lua)
 
     page:Header(L.OPT_HEADER_BINDINGS)
     page:Dropdown("template", {

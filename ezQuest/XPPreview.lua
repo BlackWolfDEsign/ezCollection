@@ -22,13 +22,30 @@ local Core = ezCore
     aus ExpStatusBarTemplate (isExpBar). Die Container sind Systeme des Bearbeitungsmodus
     (EditModeStatusTrackingBar1/2SystemTemplate): ezQuest hängt nur an (Leitlinien 1 und 5) – ein eigener Rahmen ohne
     Maus als Kind der Leiste über ihrer Füllung (StatusBar), dazu hooksecurefunc(bar, "Update") und HookScript("OnEnter")
-    an Leiste und Erholungs-Marke (ExhaustionTick; die Zeilen kommen unter Blizzards Tooltip). Nichts wird verschoben,
-    nichts in Blizzards Tabellen geschrieben; gezeichnet wird mit Blizzards Füllung der Leiste (Atlas
-    UI-HUD-ExperienceBar-Fill-Experience, ExpBarOverrides.lua; Ausschnitt über Core.AtlasTexCoord) in Blizzards Questfarbe
-    (NORMAL_FONT_COLOR über Core.Style). Läuft auch im Kampf: nur eigene Texturen.
+    an Leiste und Erholungs-Marke (ExhaustionTick; die Zeilen kommen unter Blizzards Tooltip). Verschoben wird nur
+    Blizzards Erholungs-Marke (Lage, außerhalb des Kampfes, abschaltbar; Abschnitt „Blizzards Erholungs-Marke wandert
+    mit“), nichts in Blizzards Tabellen geschrieben; das Gold der Quests ist eine Fläche in Blizzards Questfarbe
+    (NORMAL_FONT_COLOR über Core.Style) – dieselbe Farbe wie die Farbprobe im Tooltip (Abschnitt „Gold als Fläche“), die
+    Erholung Blizzards eigener Streifen (Atlas UI-HUD-ExperienceBar-Fill-Prediction). Die eigenen Texturen laufen auch im
+    Kampf; die Marke rückt erst danach nach.
     Fremde Addons (Leitlinie 9): Die Vorschau ist ein Kind von Blizzards Leiste. Blendet ein Addon die Leiste aus oder
     ersetzt sie durch eine eigene, ist die Vorschau mit weg (kein zweiter Balken daneben); versetzt es Blizzards Leiste,
     wandert die Vorschau mit. /ezq status nennt den Fall „Leiste nicht zu sehen“.
+
+    Erholung nach den Quests (Spieltest 21.11.2026, wörtlich „der Balken "bis zur Marke reicht deine ..." ist garnicht
+    sichtbar. bzw hinter den anderen neuen. ist das logisch? so wie blizzard seine ep berechnet/vergibt?“; Entscheidung
+    des Nutzers vom 21.11.2026 „Erholung nach den Quests“, ROADMAP-Index): Blizzards Erholungs-Streifen
+    (ExhaustionLevelFillBar, ARTWORK -1 der Leiste selbst) liegt unter der Füllung und damit unter ezQuests Rahmen – das
+    Gold deckte ihn zu. Blizzards Rechnung (Shared/ExpBar.lua ExhaustionTickMixin:UpdateTickPosition): die Erholung
+    (GetXPExhaustion) ist ein Vorrat ab deinem Stand, nur Monster-EP verbrauchen ihn (doppelt), Quest-EP nicht – nach der
+    Abgabe steht die Leiste weiter und der Vorrat beginnt dort. Darum zeichnet ezQuest einen eigenen Streifen in
+    Blizzards Farbe (Atlas UI-HUD-ExperienceBar-Fill-Prediction) ab dem Ende der fertigen Quests über das blasse Gold;
+    das blasse Gold ist rechts vom Blau zu sehen und endet bei Stand + alle Quests; reicht es nur bis ins Blau, verdeckt
+    das Blau es (den schmalen Streifen „alle Quests“ unter
+    dem Blau gibt es nicht mehr: Entscheidung des Nutzers vom 22.11.2026 „weglassen“, ROADMAP-Index). Reihenfolge
+    (unten → oben): blass alle Quests, Erholung, kräftig fertige Quests. XP.Segments rechnet die
+    Stücke einmal für Leiste und Legende. Blizzards Marke rückt ans Ende des Blaus (Abschnitt „Blizzards Erholungs-Marke
+    wandert mit“); mit Schalter aus bleibt sie, wo Blizzard sie setzt, und die Legende sagt das.
 ]]
 
 local XP = {}
@@ -37,9 +54,22 @@ ns.XPPreview = XP
 local Num = Core.Num
 
 XP.ATLAS = "UI-HUD-ExperienceBar-Fill-Experience"
-XP.ALPHA_DONE = 0.8     -- fertige Quests: hell
+--[[ Gold als Fläche. Spieltests 21./22.11.2026 mit Bildschirmfotos: „siehe tooltip das ist nicht das kräftige“ (die
+    entsättigte, gold getönte Erfahrungs-Füllung wirkte oliv, gemessen etwa RGB 99/83/7), nach #657 „hat sich gar nichts
+    getan“ und nach #662 „jetzt stimmen die farben nicht mehr mit dem tooltip überein“ (Blizzards gelbe Füllung der
+    Ruf-Leiste, UI-HUD-ExperienceBar-Fill-Reputation-Faction-Yellow, hat Scheiben-Ränder; über SetAtlas wie über ihre
+    Datei zeigte das Stück auf der Leiste etwas anderes als die Farbprobe, zuletzt blau, gemessen etwa 77/107/216).
+    Gleich aussehen können Leiste und Farbprobe sicher nur mit derselben Farbe: eine Fläche in Blizzards Questfarbe,
+    kräftig voll deckend, blass mit weniger Deckkraft; die Farbprobe ist dieselbe Fläche (XP.Swatch). ]]
+XP.ALPHA_DONE = 1       -- fertige Quests: kräftig, voll deckend
 XP.ALPHA_ALL = 0.35     -- alle Quests im Log: blass
 XP.MIN_WIDTH = 0.5      -- schmalere Stücke (Bildpunkte) bleiben verborgen
+XP.ATLAS_RESTED = "UI-HUD-ExperienceBar-Fill-Rested"
+XP.ATLAS_PREDICTION = "UI-HUD-ExperienceBar-Fill-Prediction"   -- Blizzards Erholungs-Streifen (ExpBar.xml)
+XP.ATLAS_PIP = "UI-HUD-ExperienceBar-Frame-Pip"                -- Blizzards Erholungs-Marke (ExpBar.xml)
+XP.REST_FALLBACK = { 0.25, 0.4, 0.85 }                         -- Fläche, falls der Client den Atlas nicht kennt
+XP.LAYERS = { "all", "rest", "done" }                          -- Schichten von unten nach oben (Sub-Ebene = Index)
+XP.LAYER_ALPHA = { all = XP.ALPHA_ALL, rest = 1, done = XP.ALPHA_DONE }
 
 local overlays = {}     -- [Blizzards Leiste] = eigener Rahmen
 local order = {}        -- dieselben Rahmen in Reihenfolge (für Tests und Status)
@@ -78,27 +108,58 @@ function XP.Active()
     return not Core.XPBlocked()
 end
 
-local function Texture(frame, sub, alpha)
-    local tex = frame:CreateTexture(nil, "ARTWORK", nil, sub)
-    local ok, set = pcall(tex.SetAtlas, tex, XP.ATLAS)
-    local r, g, b = Core.Style.Color("normal")
-    if not ok or set == false then
-        tex:SetColorTexture(r, g, b)          -- Atlas unbekannt: Blizzards Questfarbe als Fläche
-    else
-        tex:SetDesaturated(true)
-        tex:SetVertexColor(r, g, b)
-    end
-    tex:SetAlpha(alpha)
-    tex:Hide()
-    return tex
+-- Atlas setzen → true, wenn der Client ihn kennt
+local function TrySetAtlas(tex, atlas)
+    if not Core.AtlasExists(atlas) then return false end
+    local ok, set = pcall(tex.SetAtlas, tex, atlas)
+    return ok and set ~= false
 end
 
--- ein Stück der Vorschau: ab dem Stand der Leiste bis zum Stand nach gain weiteren EP (höchstens bis zum Ende)
-local function Place(frame, tex, xp, max, gain, width)
-    local from = math.min(1, math.max(0, xp / max))
-    local to = math.min(1, (xp + (gain or 0)) / max)
+-- Textur auf ezQuests Rahmen: Gold als Fläche in Blizzards Questfarbe (wie die Farbprobe) oder Blizzards
+-- Erholungs-Streifen (ohne den Atlas eine blaue Fläche)
+local function Texture(frame, sub, alpha, rest)
+    local tex = frame:CreateTexture(nil, "ARTWORK", nil, sub)
+    tex:SetAlpha(alpha)
+    tex:Hide()
+    if rest and TrySetAtlas(tex, XP.ATLAS_PREDICTION) then
+        tex.ezAtlas = XP.ATLAS_PREDICTION
+        return tex
+    end
+    local r, g, b
+    if rest then
+        r, g, b = XP.REST_FALLBACK[1], XP.REST_FALLBACK[2], XP.REST_FALLBACK[3]
+    else
+        r, g, b = Core.Style.Color("normal")
+    end
+    tex:SetColorTexture(r, g, b)
+    tex.ezAtlas = nil
+    return tex
+end
+XP.Texture = Texture    -- für die Prüfungen der Rückfälle
+
+-- Stücke der Leiste in EP { Anfang, Ende } (Ende über max heißt „bis zum Rand“) → { done, all, rest }, je nil,
+-- wenn es das Stück nicht gibt. Erholung ab dem Ende der fertigen Quests (Quest-EP verbrauchen keine Erholung); beginnt
+-- sie erst auf der nächsten Stufe, steht sie nicht auf dieser Leiste; ohne Quest-EP (all 0) zeichnet nur Blizzard sie
+-- (nichts deckt dann seinen Streifen).
+function XP.Segments(xp, max, done, all, left)
+    local out = {}
+    if not (xp and max and max > 0) then return out end
+    done, all = done or 0, all or 0
+    if done > 0 then out.done = { xp, xp + done } end
+    if all > 0 then out.all = { xp, xp + all } end
+    if left and left > 0 and all > 0 and xp + done < max then
+        out.rest = { xp + done, xp + done + left }
+    end
+    return out
+end
+
+-- ein Stück der Vorschau (EP von seg[1] bis seg[2], höchstens bis zum Ende)
+local function Place(frame, tex, seg, max, width)
+    if not seg then tex:Hide() return end
+    local from = math.min(1, math.max(0, seg[1] / max))
+    local to = math.min(1, seg[2] / max)
     local w = (to - from) * width
-    if not gain or gain <= 0 or w < XP.MIN_WIDTH then
+    if w < XP.MIN_WIDTH then
         tex:Hide()
         return
     end
@@ -108,9 +169,16 @@ local function Place(frame, tex, xp, max, gain, width)
     tex:SetWidth(w)
     -- nur dieser Ausschnitt der Füllung: SetTexCoord rechnet gegen die ganze Datei, darum über den Bereich des Atlas
     -- (Core.AtlasTexCoord, Gegenprüfung I1); ohne Angaben des Clients bleibt das ganze Atlas-Stück gestreckt
-    local l, r, t, b = Core.AtlasTexCoord(XP.ATLAS, from, to, 0, 1)
-    if l then tex:SetTexCoord(l, r, t, b) end
+    if tex.ezAtlas then
+        local l, r, t, b = Core.AtlasTexCoord(tex.ezAtlas, from, to, 0, 1)
+        if l then tex:SetTexCoord(l, r, t, b) end
+    end
     tex:Show()
+end
+
+-- Blizzards Erholungs-Vorrat (GetXPExhaustion) → EP oder nil
+local function RestLeft()
+    return Num(Core.Call(rawget(_G, "GetXPExhaustion")))
 end
 
 -- Lage der Vorschau auf einer Leiste neu setzen (nach Update der Leiste, neuer Größe, neuer Summe)
@@ -121,12 +189,111 @@ function XP.Layout(frame)
     local xp = Num(Core.Call(rawget(_G, "UnitXP"), "player"))
     local max = Num(Core.Call(rawget(_G, "UnitXPMax"), "player"))
     if not (sums and width and width > 0 and xp and max and max > 0) or not XP.Active() then
-        frame.all:Hide()
-        frame.done:Hide()
+        for _, key in ipairs(XP.LAYERS) do frame[key]:Hide() end
+        XP.PlaceTick(frame)
         return
     end
-    Place(frame, frame.all, xp, max, sums.all, width)
-    Place(frame, frame.done, xp, max, sums.done, width)
+    local seg = XP.Segments(xp, max, sums.done, sums.all, RestLeft())
+    for _, key in ipairs(XP.LAYERS) do
+        Place(frame, frame[key], seg[key], max, width)
+    end
+    XP.PlaceTick(frame)
+end
+
+---------------------------------------------------------------------------
+-- Blizzards Erholungs-Marke wandert mit (Spieltest 21.11.2026, wörtlich „der marker stimmt nicht mehr mit dem balken
+-- überein“; Entscheidung des Nutzers vom 21.11.2026 „Ja, Marke mitwandern“, ROADMAP-Index). Blizzard setzt die Marke
+-- (ExhaustionTick) in ExhaustionTickMixin:UpdateTickPosition auf Stand + Erholung (Shared/ExpBar.lua); ezQuest setzt
+-- sie danach (hooksecurefunc) ans Ende des blauen Stücks, also um die fertigen Quests weiter. Leitlinie 4/5: nur die
+-- Lage, nur außerhalb des Kampfes (im Kampf bleibt Blizzards Lage, danach über ns.AfterCombat), abschaltbar
+-- (xpTickFollow), Blizzards eigene Lage als Ausgang: ohne fertige Quests, mit Schalter aus oder ohne Vorschau setzt
+-- ezQuest die Marke einmal dorthin zurück, wo Blizzard sie hätte (XP.BlizzardTick rechnet UpdateTickPosition nach),
+-- und rührt sie danach nicht mehr an.
+---------------------------------------------------------------------------
+
+-- Wohin die Marke gehört → Anteil der Leiste (Ende des blauen Stücks) | false (Erholung beginnt erst auf der nächsten
+-- Stufe: keine Marke auf dieser Leiste) | nil (Blizzards Lage)
+function XP.TickTarget()
+    if not (ns.Enabled("xpTickFollow") and XP.Active() and sums and (sums.done or 0) > 0) then return nil end
+    local xp = Num(Core.Call(rawget(_G, "UnitXP"), "player"))
+    local max = Num(Core.Call(rawget(_G, "UnitXPMax"), "player"))
+    local left = RestLeft()
+    if not (xp and max and max > 0 and left and left > 0) then return nil end
+    local seg = XP.Segments(xp, max, sums.done, sums.all, left)
+    if seg.rest then return seg.rest[2] / max end
+    if xp + sums.done >= max then return false end
+    return nil
+end
+
+-- Blizzards Rand-Regel der Marke (KeyValue hideAtBarEdge in ExpBar.xml): zu sehen nur zwischen 1 % und 99 %
+local function TickShown(tick, ratio)
+    if Core.Peek(tick, "hideAtBarEdge") == true then return ratio >= 0.01 and ratio <= 0.99 end
+    return true
+end
+
+local function TickOffsetY()
+    return Num(rawget(_G, "EXHAUSTION_TICK_OFFSET_Y")) or 0
+end
+
+-- Blizzards eigene Lage der Marke, wie ExhaustionTickMixin:UpdateTickPosition sie setzt (Rückweg)
+function XP.BlizzardTick(bar, tick, width)
+    local xp = Num(Core.Call(rawget(_G, "UnitXP"), "player"))
+    local max = Num(Core.Call(rawget(_G, "UnitXPMax"), "player"))
+    local left = RestLeft()
+    if not (left and left > 0 and xp and max and max > 0) or Core.XPBlocked() then
+        tick:Hide()
+        return
+    end
+    local ratio = math.max((xp + left) / max, 0)
+    tick:SetShown(TickShown(tick, ratio))
+    local x = math.max(ratio * width, 0)
+    tick:ClearAllPoints()
+    if x > width and Core.Call(rawget(_G, "ShouldRestedXpBarDisplayWhenOverflowing")) ~= true then return end
+    tick:SetPoint("CENTER", bar, "LEFT", math.min(x, width), TickOffsetY())
+end
+
+-- Marke an einer Leiste setzen (nach Blizzards UpdateTickPosition und nach jedem Layout der Vorschau)
+function XP.PlaceTick(frame)
+    local owner = type(frame) == "table" and frame.bar or nil
+    local tick = owner and Core.Peek(owner, "ExhaustionTick") or nil
+    if type(tick) ~= "table" or type(tick.SetPoint) ~= "function" then return end
+    local target = XP.TickTarget()
+    if target == nil and not frame.tickMoved then return end      -- Blizzards Lage, nie angefasst: nichts tun
+    if Core.InCombat() then
+        frame.tickPending = true
+        ns.AfterCombat(function() ns.Try("XPPreviewTick", XP.PlaceTick, frame) end, frame.tickKey)
+        return
+    end
+    frame.tickPending = nil
+    -- Bezug wie Blizzard: die Eltern der Marke (self:GetParent() in UpdateTickPosition)
+    local okP, bar = pcall(tick.GetParent, tick)
+    if not okP or type(bar) ~= "table" then bar = owner end
+    local okW, width = pcall(bar.GetWidth, bar)
+    width = okW and Num(width) or nil
+    if not (width and width > 0) then return end
+    if target == nil then
+        frame.tickMoved = nil
+        XP.BlizzardTick(bar, tick, width)
+        return
+    end
+    frame.tickMoved = true
+    if target == false then
+        tick:Hide()
+        return
+    end
+    tick:ClearAllPoints()
+    tick:SetShown(TickShown(tick, target))
+    -- über die Stufe hinaus wie Blizzard: ohne ShouldRestedXpBarDisplayWhenOverflowing kein Anker
+    if target > 1 and Core.Call(rawget(_G, "ShouldRestedXpBarDisplayWhenOverflowing")) ~= true then return end
+    tick:SetPoint("CENTER", bar, "LEFT", math.min(target, 1) * width, TickOffsetY())
+end
+
+-- Wartet eine Marke auf das Ende des Kampfes (steht also gerade auf Blizzards Lage)?
+function XP.TickPending()
+    for _, frame in ipairs(order) do
+        if frame.tickPending then return true end
+    end
+    return false
 end
 
 -- Blizzards Leiste hat neu gezeichnet (neue EP, Stufe, Größe): die Summen frisch lesen, damit eine gerade abgegebene
@@ -145,12 +312,13 @@ function XP.Attach(bar)
     frame:SetAllPoints(base)
     local okLevel, level = pcall(base.GetFrameLevel, base)
     if okLevel and Num(level) then frame:SetFrameLevel(level + 1) end
-    frame.all = Texture(frame, 1, XP.ALPHA_ALL)
-    frame.done = Texture(frame, 2, XP.ALPHA_DONE)
+    for i, key in ipairs(XP.LAYERS) do frame[key] = Texture(frame, i, XP.LAYER_ALPHA[key], key == "rest") end
     frame:SetScript("OnSizeChanged", function(self) ns.Try("XPPreviewLayout", XP.Layout, self) end)
     frame:SetScript("OnShow", function(self) ns.Try("XPPreviewLayout", XP.Layout, self) end)
     overlays[bar] = frame
     order[#order + 1] = frame
+    frame.bar = bar
+    frame.tickKey = "XPPreviewTick" .. #order
     if type(bar.Update) == "function" then
         hooksecurefunc(bar, "Update", function() ns.Try("XPPreviewLayout", XP.OnBarUpdate, frame) end)
     end
@@ -160,6 +328,9 @@ function XP.Attach(bar)
     local tick = Core.Peek(bar, "ExhaustionTick")
     if type(tick) == "table" and type(tick.HookScript) == "function" then
         tick:HookScript("OnEnter", function() ns.Try("XPPreviewTip", XP.AddToTip, GameTooltip) end)
+    end
+    if type(tick) == "table" and type(tick.UpdateTickPosition) == "function" then
+        hooksecurefunc(tick, "UpdateTickPosition", function() ns.Try("XPPreviewTick", XP.PlaceTick, frame) end)
     end
     XP.Layout(frame)
     return frame
@@ -201,8 +372,7 @@ function XP.Overlays() return order end
 ---------------------------------------------------------------------------
 
 XP.SWATCH_W, XP.SWATCH_H = 22, 10
-XP.ATLAS_RESTED = "UI-HUD-ExperienceBar-Fill-Rested"
-XP.ATLAS_PREDICTION = "UI-HUD-ExperienceBar-Fill-Prediction"
+XP.PIP_W = 8            -- Farbprobe der Marke (Blizzards Marke ist 10 × 14)
 XP.INDENT = "    "      -- Einzug der Zeile „nach Abgabe …“ unter ihrer Summe
 
 -- Farbprobe: Blizzards Atlas → „|A…|a“; ohne Atlas eine Fläche in r, g, b (0–1) mit Deckkraft alpha über dem dunklen
@@ -215,10 +385,13 @@ function XP.Swatch(atlas, r, g, b, alpha)
         C(r), C(g), C(b))
 end
 
-local function GoldSwatch(alpha)
+-- Farbprobe des Golds: dieselbe Fläche wie auf der Leiste (Blizzards Questfarbe), blass mit derselben Deckkraft über dem
+-- dunklen Grund
+function XP.GoldSwatch(alpha)
     local r, g, b = Core.Style.Color("normal")
-    return XP.Swatch(nil, r, g, b, alpha)
+    return XP.Swatch(nil, r, g, b, type(alpha) == "number" and alpha or 1)
 end
+local GoldSwatch = XP.GoldSwatch
 
 -- „nach Abgabe …“ einer Summe (Höchststufe bzw. Stufengrenze eines Probe-Kontos über Core.XPLevelCap: dort bleibt die
 -- Stufe stehen, die Erfahrung wird gesammelt) → Text oder nil, geschätzt
@@ -240,45 +413,66 @@ local function AddSum(lines, swatch, fmt, count, gain, level, xp, max)
     return estimated
 end
 
--- Blizzards Erholung: GetRestState() → 1 erholt (Füllung Fill-Rested), sonst normal (Fill-Experience).
--- Streifen (ExhaustionLevelFillBar, Shared/ExpBar.lua ExhaustionTickMixin:UpdateTickPosition): nur mit
--- GetXPExhaustion() > 0; reicht die Erholung über die Stufe hinaus, zeigt Blizzard ihn nur mit
--- ShouldRestedXpBarDisplayWhenOverflowing() – dann bis zum Rand und ohne Marke (ab 99 %). → erholt, Streifen
--- (nil | "tick" bis zur Marke | "over" über die Stufe hinaus)
-function XP.RestInfo()
+-- Erholung, wie ezQuest sie auf der Leiste zeichnet (eine Rechnung über XP.Segments). Blizzard: GetRestState() → 1
+-- erholt (Füllung Fill-Rested), sonst normal (Fill-Experience); Vorrat GetXPExhaustion(). Der Streifen beginnt nach den
+-- fertigen Quests (done, all: Standard die letzte Summe) und reicht höchstens bis zum Rand.
+-- → erholt, Streifen (nil | "tick" endet auf dieser Stufe | "over" reicht über die Stufe hinaus | "next" beginnt nach der
+-- Abgabe erst auf der nächsten Stufe), Blizzards Marke steht woanders (fertige Quests und Blizzard zeigt sie:
+-- hideAtBarEdge, 1 % bis 99 %; Shared/ExpBar.lua ExhaustionTickMixin:UpdateTickPosition)
+function XP.RestInfo(done, all)
     local state = Num(Core.Call(rawget(_G, "GetRestState")))
-    local left = Num(Core.Call(rawget(_G, "GetXPExhaustion")))
-    local band
-    if left and left > 0 then
-        local xp = Num(Core.Call(rawget(_G, "UnitXP"), "player"))
-        local max = Num(Core.Call(rawget(_G, "UnitXPMax"), "player"))
-        local ratio = (xp and max and max > 0) and (xp + left) / max or 0
-        if ratio > 1 then
-            if Core.Call(rawget(_G, "ShouldRestedXpBarDisplayWhenOverflowing")) == true then band = "over" end
-        elseif ratio > 0.99 then
-            band = "over"
-        else
-            band = "tick"
-        end
+    local left = RestLeft()
+    local xp = Num(Core.Call(rawget(_G, "UnitXP"), "player"))
+    local max = Num(Core.Call(rawget(_G, "UnitXPMax"), "player"))
+    if done == nil then done = sums and sums.done or 0 end
+    if all == nil then all = sums and sums.all or 0 end
+    local band, tickElsewhere
+    local seg = XP.Segments(xp, max, done, all, left)
+    if seg.rest then
+        band = seg.rest[2] > max and "over" or "tick"
+    elseif left and left > 0 and xp and max and max > 0 and done > 0 and xp + done >= max then
+        band = "next"
     end
-    return state == 1, band
+    if band and done > 0 then
+        local blizz = (xp + left) / max
+        tickElsewhere = blizz >= 0.01 and blizz <= 0.99
+    end
+    return state == 1, band, tickElsewhere == true
 end
 local RestInfo = XP.RestInfo
 
--- Legende der Leiste: deine Erfahrung (Blizzards Füllung je nach Erholung), Streifen bis zur Marke, ezQuests Gold
+XP.REST_TEXT = { tick = "XPP_LEG_REST", over = "XPP_LEG_REST", next = "XPP_LEG_REST_NEXT" }
+
+-- Legende der Leiste in der Reihenfolge auf der Leiste: deine Erfahrung (Blizzards Füllung je nach Erholung),
+-- ezQuests Gold kräftig, Erholung ab dort (Blizzards Farbe), Blizzards Marke (wenn sie woanders steht), Gold blass
 function XP.Legend()
-    local rested, band = RestInfo()
+    local done = sums and sums.done or 0
+    local rested, band, tickElsewhere = RestInfo(done)
     local out = { { L.XPP_LEGEND_HEAD, "normal", gap = true } }
     if rested then
         out[#out + 1] = { XP.Swatch(XP.ATLAS_RESTED) .. " " .. L.XPP_LEG_XP_RESTED, "highlight" }
     else
         out[#out + 1] = { XP.Swatch(XP.ATLAS) .. " " .. L.XPP_LEG_XP, "highlight" }
     end
-    if band then
-        out[#out + 1] = { XP.Swatch(XP.ATLAS_PREDICTION) .. " " .. (band == "over" and L.XPP_LEG_REST_OVER or L.XPP_LEG_REST),
-            "highlight" }
-    end
     out[#out + 1] = { GoldSwatch(XP.ALPHA_DONE) .. " " .. L.XPP_LEG_DONE, "highlight" }
+    if band then
+        local text = L[XP.REST_TEXT[band]]
+        if band ~= "next" and done > 0 then text = L.XPP_LEG_REST_AFTER end
+        if band == "over" then text = text .. L.XPP_LEG_REST_OVER end
+        out[#out + 1] = { XP.Swatch(XP.ATLAS_PREDICTION) .. " " .. text, "highlight" }
+    end
+    -- Blizzards Marke: wandert sie mit (XP.TickTarget), steht sie am Ende des Blaus; sonst am Stand ohne Abgabe
+    local target = XP.TickTarget()
+    if XP.TickPending() then target = nil end   -- im Kampf steht sie noch auf Blizzards Lage
+    local tickText
+    if type(target) == "number" then
+        if target >= 0.01 and target <= 0.99 then tickText = L.XPP_LEG_TICK_MOVED end
+    elseif target == nil and tickElsewhere then
+        tickText = L.XPP_LEG_TICK
+    end
+    if tickText then
+        out[#out + 1] = { ("|A:%s:%d:%d|a"):format(XP.ATLAS_PIP, XP.SWATCH_H, XP.PIP_W) .. " " .. tickText, "highlight" }
+    end
     out[#out + 1] = { GoldSwatch(XP.ALPHA_ALL) .. " " .. L.XPP_LEG_ALL, "highlight" }
     return out
 end
@@ -383,5 +577,5 @@ ns.OnReady(function()
 end)
 
 ns.OnSettingChanged(function(key)
-    if key == "xpPreview" then ns.Try("XPPreview", XP.Refresh) end
+    if key == "xpPreview" or key == "xpTickFollow" then ns.Try("XPPreview", XP.Refresh) end
 end)

@@ -128,6 +128,21 @@ function Core.AskText(prompt, current, callback, maxLetters)
     return StaticPopup_Show("EZCORE_TEXT", prompt, nil, current)
 end
 
+-- Zahl abfragen (Blizzards Rückfrage-Fenster mit Eingabefeld, über Core.AskText): callback(n) nach „Annehmen“, n ganz
+-- und zwischen min und max (beide eingeschlossen). Leer, keine ganze Zahl oder außerhalb: callback kommt nicht, dafür
+-- onInvalid(text), wenn gesetzt. current: Vorschlag im Feld. Erster Nutzer: ezBags Anzahl über mehrere Stapel (21.11.2026).
+function Core.AskNumber(prompt, current, min, max, callback, onInvalid)
+    min, max = tonumber(min) or 1, tonumber(max) or 1
+    return Core.AskText(prompt, current ~= nil and tostring(current) or "", function(text)
+        local n = type(text) == "string" and tonumber(text:match("^%s*(%d+)%s*$")) or nil
+        if n and n >= min and n <= max then
+            callback(n)
+        elseif type(onInvalid) == "function" then
+            onInvalid(text)
+        end
+    end, math.max(1, #tostring(math.floor(max))))
+end
+
 -- Ja/Nein: callback() nur bei „Ja“. opts.alert = true: mit Warnsymbol; opts.accept: Text des Ja-Knopfs (z. B. DELETE);
 -- opts.onCancel(grund): bei „Nein“ oder Esc ("no"), wenn eine neue Frage desselben Dialogs diese ersetzt ("replaced")
 -- oder Core.CancelConfirm sie schließt ("closed"); opts.owner: Modul für die Fehlerliste, falls onCancel wirft.
@@ -801,11 +816,14 @@ function Core.CreateSideTab(parent, opts)
     return tab
 end
 
+-- Größe eines Seitenreiters (quadratisch): eine Stelle auch für Teile, die neben dem Reiter-Stapel andocken (ezHeal).
+Core.SIDETAB_SIZE = 32
+
 -- Nur der Knopf (intern; Module rufen Core.CreateSideTab).
 function Core.BuildSideTab(parent)
     local ok, tab = pcall(CreateFrame, "CheckButton", nil, parent, "RightSideTabTemplate")
     if not ok or not tab then tab = CreateFrame("CheckButton", nil, parent) end
-    tab:SetSize(32, 32)
+    tab:SetSize(Core.SIDETAB_SIZE, Core.SIDETAB_SIZE)
     if not tab.Icon then
         local border = tab:CreateTexture(nil, "BORDER")
         border:SetTexture("Interface\\SpellBook\\SpellBook-SkillLineTab")
@@ -817,10 +835,66 @@ function Core.BuildSideTab(parent)
         tab.Icon:SetTexCoord(0.03125, 0.96875, 0.03125, 0.96875)
         tab:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     end
+    -- Eingedrückt (SetChecked) leuchtet der Rand; ohne Blizzards eigene Markierung die von ezCore (Core.SetCheckedGlow)
+    if Core.Call(Core.Peek(tab, "GetCheckedTexture"), tab) == nil then
+        Core.SetCheckedGlow(tab, tab.Icon)
+    end
     tab.Count = tab:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
     tab.Count:SetPoint("BOTTOMRIGHT", -1, 2)
     tab:SetScript("OnLeave", GameTooltip_Hide)
     return tab
+end
+
+--[[
+    Markierung „eingedrückt“ für einen Symbol-Knopf (CheckButton): Blizzards Leuchtrand CheckButtonHilight, gemischt
+    mit „ADD“. Spieltest vom 21.11.2026 („das ausgewählte menü im icon schwarz“): SetCheckedTexture(pfad, "ADD") nimmt
+    keinen Mischmodus an – die Textur lag normal gemischt über dem Symbol, und ihr schwarzer Grund deckte es ab. Darum
+    eine eigene Textur mit SetBlendMode("ADD"), auch noch einmal nach dem Setzen. region: Fläche (Standard der Knopf).
+    → die Textur oder nil
+]]
+function Core.SetCheckedGlow(button, region)
+    if type(button) ~= "table" or type(button.SetCheckedTexture) ~= "function" or type(button.CreateTexture) ~= "function" then
+        return nil
+    end
+    local glow = button:CreateTexture(nil, "OVERLAY")
+    glow:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+    glow:SetAllPoints(type(region) == "table" and region or button)
+    Core.Call(glow.SetBlendMode, glow, "ADD")
+    button:SetCheckedTexture(glow)
+    local set = Core.Call(Core.Peek(button, "GetCheckedTexture"), button)
+    if type(set) == "table" then Core.Call(set.SetBlendMode, set, "ADD") end
+    button.checkedGlow = glow
+    return glow
+end
+
+-- Lage des ersten Reiters eines Stapels nachträglich setzen (z. B. unter Blizzards eigenen Reitern, deren Zahl sich
+-- ändert – ezCraft am Berufefenster) und neu anordnen. → true, wenn sich etwas änderte
+function SideTabs.SetStart(anchor, from, start)
+    from = from == "bottom" and "bottom" or "top"
+    start = tonumber(start)
+    if type(anchor) ~= "table" then return false end
+    local stack = Stack(anchor, from, true)
+    if not stack or stack.start == start then return false end
+    stack.start = start
+    SideTabs.Layout(anchor, from)
+    return true
+end
+
+-- Gewählten Seitenreiter markieren: der Reiter mit dem Schlüssel current ist eingedrückt (goldener Leuchtrand,
+-- Core.SetCheckedGlow), alle anderen nicht; current nil: keiner. Eine Regel für alle Module mit Seitenreitern
+-- (Spieltest 21.11.2026, ezTalent: „das ausgewählte menü wird nicht hervorgehoben (goldener rahmen wie bei ezcraft)“ –
+-- „sollte ein geteilte fuunktion in ezcore sein? wegen ssot und dry“). tabs: { Schlüssel → Reiter }. → Zahl der markierten
+function Core.CheckSideTabs(tabs, current)
+    local n = 0
+    if type(tabs) ~= "table" then return n end
+    for key, tab in pairs(tabs) do
+        if type(tab) == "table" and type(tab.SetChecked) == "function" then
+            local on = current ~= nil and key == current
+            tab:SetChecked(on)
+            if on then n = n + 1 end
+        end
+    end
+    return n
 end
 
 -- Klick-Skript für einen Seitenreiter: Häkchen sofort wieder lösen, dann fn.
@@ -990,7 +1064,8 @@ Core.Listen("FRAME_MOVED", RedockFollowers, Core.name)
       opts.tip, tipBody Tooltip des Pfeils (Standard: „Seitenteil öffnen“ / „Seitenteil schließen“)
     Das Feld: teil:Open(), teil:Close(), teil:Toggle(), teil:IsOpen(), teil:Place() → seite, art; teil.arrow (Knopf),
     teil:SetArrowOffset(x, y) → geändert? (A27, Welle 23b: Lage des zugeklappten Pfeils wie opts.arrow.x/y, platziert
-    neu), teil:GetArrowOffset() → x, y;
+    neu), teil:GetArrowOffset() → x, y; teil:SetPanelWidth(breite) → geändert? (neue Breite samt Platzprüfung, dockt
+    neu an – ezAuctions Vergrößern-Pfeil am „Markt“, 21.11.2026);
     teil.side, teil.mode ("beside" | "overlap" – bei "overlap" zeigt das Modul seinen Hinweis), teil.arrowAt
     ("outside" | "inside" | "panel" | "fixed"). Auch das geschlossene Feld wird angedockt (nur Anker): so stehen Seite
     und Pfeil schon vor dem ersten Öffnen richtig und wandern mit; opts.onPlaced kommt nur bei offenem Feld.
@@ -1086,6 +1161,15 @@ function Core.NewSidePanel(parent, opts)
         if changed then self:Place() end
         return changed
     end
+    -- Breite ändern: opts.width gilt auch für die Platzprüfung beim Andocken (Core.Dock width). → true bei Änderung
+    function panel:SetPanelWidth(width)
+        width = Core.Num(width)
+        if not width or width <= 0 or (opts.width or Core.SIDEPANEL_WIDTH) == width then return false end
+        opts.width = width
+        self:SetWidth(width)
+        self:Place()
+        return true
+    end
     -- y ab Werk wie in Refresh: 0 bei festem Punkt (opts.arrow.point), sonst -30 (Gegenprüfung Welle 23b)
     function panel:GetArrowOffset() return arrowOpts.x or 0, arrowOpts.y or (arrowOpts.point and 0 or -30) end
 
@@ -1103,6 +1187,158 @@ function Core.NewSidePanel(parent, opts)
     panel.side, panel.mode = opts.side == "left" and "left" or "right", "beside"
     Set(open, true)
     return panel
+end
+
+--[[
+    Gemeinsamer Rahmen der Seitenteile an Blizzards Fenstern (Spieltest vom 21.11.2026: „sich ebenfalls den rahmen
+    teilen“ – ezAuction „Aus der Tasche“, „Markt“ und Einkaufsliste, ezTalents Seitenteile, ezCraft am Berufefenster):
+    Blizzards ButtonFrameTemplate ohne Bildnis, Titel in Blizzards Titelleiste. f muss auf ButtonFrameTemplate beruhen
+    (fehlt die Vorlage im Client, bleibt es beim leeren Rahmen).
+      opts.close      true: Blizzards X bleibt (opts.onClose ersetzt dann seinen Klick, z. B. panel:Close() eines
+                      Core.NewSidePanel); sonst ist es verborgen (ein- und ausblenden über Knopf, Reiter oder Pfeil)
+      opts.buttonBar  true: Blizzards Knopfleiste unten bleibt; sonst ist sie verborgen
+    Der Inhalt beginnt Core.PANEL_TOP unter der Oberkante (unter der Titelleiste). → f
+]]
+Core.PANEL_TOP = 30
+function Core.PanelLook(f, title, opts)
+    if type(f) ~= "table" then return nil end
+    opts = type(opts) == "table" and opts or {}
+    Core.Call(rawget(_G, "ButtonFrameTemplate_HidePortrait"), f)
+    if not opts.buttonBar then Core.Call(rawget(_G, "ButtonFrameTemplate_HideButtonBar"), f) end
+    if title ~= nil then Core.PanelTitle(f, title) end
+    local close = Core.Peek(f, "CloseButton")
+    if type(close) == "table" then
+        if opts.close then
+            close:Show()
+            if type(opts.onClose) == "function" then
+                close:SetScript("OnClick", function() opts.onClose(f) end)
+            end
+        else
+            close:Hide()
+        end
+    end
+    return f
+end
+
+--[[
+    Blizzards inneren Kasten (Inset) eines Seitenteils aus Core.PanelLook zwischen Kopf und Knöpfe legen.
+    ButtonFrameTemplate setzt ihn fest von 60 unter der Oberkante bis 26 über der Unterkante (Gethe/wow-ui-source,
+    Zweig forever, Blizzard_SharedXML/Mainline/SharedUIPanelTemplates.xml: Inset TOPLEFT 4/−60, BOTTOMRIGHT −6/26) –
+    ein Kopf mit wechselnder Zeilenzahl liefe quer über seine obere Kante, Knöpfe in mehreren Reihen über die untere
+    (Spieltest 21.11.2026, ezTalent: „der kopfbereich muss noch formatiert werden, sieht alles seltsam aus“).
+      below   Bereich, unter dem der Kasten beginnt (sein unterer Rand), oder Zahl: Abstand unter der Oberkante von f
+      bottom  Abstand der Unterkante des Kastens über der Unterkante von f (Standard 26 wie Blizzard mit Knopfleiste;
+              ohne Knopfleiste – Core.PanelLook ohne buttonBar – selbst angeben)
+      opts.x  bei below als Bereich: waagrechter Abstand des Kastens zum linken Rand von below (Standard: so, dass der
+              Kasten wie bei Blizzard 4 vom Rand von f steht, wenn below selbst opts.left vom Rand steht)
+      opts.left  Abstand von below zum linken Rand von f (für den Standard von opts.x)
+      opts.gap   Luft unter below (Standard Core.PANEL_INSET_GAP)
+    → der Kasten oder nil (Vorlage ohne Inset)
+]]
+Core.PANEL_INSET_GAP = 6
+Core.PANEL_INSET_LEFT, Core.PANEL_INSET_RIGHT, Core.PANEL_INSET_BOTTOM = 4, 6, 26
+-- Maße einer Liste im Seitenteil, gleich in allen Modulen (Auftrag des Nutzers vom 21.11.2026 an ezTalent, auch für
+-- ezCraft und ezAuction: „gleiches design und formatierung“; Werte wie ezTalent seit PR 630):
+--   headLeft/headGap  Kopf 14 vom Rand, Luft 8 zwischen Kopf und Kasten (opts.left/opts.gap von Core.PanelInset)
+--   insetLeft/insetTop/insetRight  Liste im Kasten: 6 links, 6 oben und unten, 24 rechts (Bildlaufleiste)
+--   buttonGap  Luft zwischen Kasten und oberster Knopfreihe
+--   entryGap/sectionGap  5 zwischen Einträgen, 12 über einer Überschrift (ab dem vorigen Eintrag)
+--   entryIndent/detailIndent  Eintrag 6 eingerückt, aufgeklappte Einzelheiten 14
+--   fonts  Überschrift (section), Eintrag (entry), Unterzeile (sub), Einzelheiten (detail)
+--   selectAlpha  Hintergrund der gewählten Zeile: Gold mit Alpha 0,15
+-- Nur lesen – ein Modul schreibt hier nichts hinein.
+Core.PANEL_LIST = {
+    headLeft = 14, headGap = 8, insetLeft = 6, insetTop = 6, insetRight = 24, buttonGap = 4,
+    entryGap = 5, sectionGap = 12, entryIndent = 6, detailIndent = 14, selectAlpha = 0.15,
+    fonts = { section = "GameFontNormal", entry = "GameFontHighlight", sub = "GameFontDisableSmall",
+        detail = "GameFontHighlightSmall" },
+}
+--[[
+    Breite und Knöpfe der Seitenteile, gleich in allen Modulen (ezTalent, ezCraft, ezAuction; Befund aus dem Review vom
+    21.11.2026: jedes Modul rechnete die Breite und führte die Knopfmaße selbst – Entscheidung des Nutzers „Ja, hier
+    machen“, zum Abstand zwischen den Knöpfen „6 für alle“; vorher ezTalent und ezCraft 4, ezAuction 6).
+      Core.PANEL_SIZE    width: Wunschbreite (460, Entscheidungen „Alle 460“), min: schmaler nicht (240),
+                         margin: Luft zum Bildschirmrand (4)
+      Core.PANEL_BUTTONS height 22, left 14 vom Rand, space 6 zwischen zwei Knöpfen nebeneinander, bottom 10 über der
+                         Unterkante
+    Nur lesen – ein Modul schreibt hier nichts hinein.
+]]
+Core.PANEL_SIZE = { width = 460, min = 240, margin = 4 }
+Core.PANEL_BUTTONS = { height = 22, left = 14, space = 6, bottom = 10 }
+
+-- Breite eines Seitenteils aus dem freien Platz: die Wunschbreite, wenn genug da ist (room nil = Lage unbekannt gilt als
+-- genug), sonst der Platz (abgerundet), solange er mindestens min ist. wish/min ohne Angabe aus Core.PANEL_SIZE.
+-- → Breite, oder nil = nicht einmal min passt (das Modul entscheidet dann: innen legen, andere Seite, min erzwingen)
+function Core.PanelWidth(room, wish, min)
+    wish = Core.Num(wish) or Core.PANEL_SIZE.width
+    min = Core.Num(min) or Core.PANEL_SIZE.min
+    room = Core.Num(room)
+    if room == nil or room >= wish then return wish end
+    if room >= min then return math.floor(room) end
+    return nil
+end
+
+function Core.PanelInset(f, below, bottom, opts)
+    local inset = type(f) == "table" and Core.Peek(f, "Inset")
+    if type(inset) ~= "table" or type(inset.SetPoint) ~= "function" then return nil end
+    opts = type(opts) == "table" and opts or {}
+    bottom = Core.Num(bottom) or Core.PANEL_INSET_BOTTOM
+    inset:ClearAllPoints()
+    if type(below) == "table" then
+        local x = Core.Num(opts.x) or (Core.PANEL_INSET_LEFT - (Core.Num(opts.left) or Core.PANEL_INSET_LEFT))
+        inset:SetPoint("TOPLEFT", below, "BOTTOMLEFT", x, -(Core.Num(opts.gap) or Core.PANEL_INSET_GAP))
+    else
+        inset:SetPoint("TOPLEFT", f, "TOPLEFT", Core.PANEL_INSET_LEFT, -(Core.Num(below) or 60))
+    end
+    inset:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -Core.PANEL_INSET_RIGHT, bottom)
+    return inset
+end
+
+-- Titel eines Seitenteils aus Core.PanelLook setzen (Blizzards SetTitle der Vorlage). → true, wenn gesetzt
+function Core.PanelTitle(f, title)
+    local set = Core.Peek(f, "SetTitle")
+    if type(set) ~= "function" then return false end
+    return (pcall(set, f, title))
+end
+
+--[[
+    Shift-Klick auf einen Gegenstand oder ein Rezept (Blizzards Link-Einfügen) für eigene Eingabefelder – wie Blizzards
+    Suchfeld: Hat ein eigenes Feld den Fokus, bekommt es den Link (ezCraft „Gegenstand hinzufügen“). Ein Haken für alle
+    (hooksecurefunc auf ChatFrameUtil.InsertLink bzw. ChatEdit_InsertLink, nur nachgelagert, Leitlinie 5); ruft
+    Blizzard beide auf, zählt derselbe Link innerhalb von 0,2 s nur einmal.
+      Core.OnInsertLink(fn, owner) – fn(link) → true, wenn das Modul den Link übernommen hat (dann fragt ezCore die
+      übrigen Zuhörer nicht mehr). → true, wenn angemeldet
+]]
+local linkListeners, linkHooked, lastLink, lastLinkTime = {}, false, nil, nil
+
+local function OnInsertLink(link)
+    if Core.IsSecret(link) or type(link) ~= "string" or link == "" then return end
+    local now = type(GetTime) == "function" and GetTime() or 0
+    if link == lastLink and lastLinkTime and now - lastLinkTime < 0.2 then return end
+    lastLink, lastLinkTime = link, now
+    for _, entry in ipairs(linkListeners) do
+        local ok, taken = pcall(entry.fn, link)
+        if not ok then
+            Core.Error(entry.owner or Core.name, taken, "OnInsertLink")
+        elseif taken == true then
+            return
+        end
+    end
+end
+Core.HandleInsertLink = OnInsertLink   -- für Prüfungen und Module ohne Blizzards Link-Einfügen
+
+function Core.OnInsertLink(fn, owner)
+    if type(fn) ~= "function" then return false end
+    linkListeners[#linkListeners + 1] = { fn = fn, owner = owner }
+    if not linkHooked and type(hooksecurefunc) == "function" then
+        linkHooked = true
+        local util = rawget(_G, "ChatFrameUtil")
+        if type(util) == "table" and type(util.InsertLink) == "function" then
+            hooksecurefunc(util, "InsertLink", OnInsertLink)
+        end
+        if type(rawget(_G, "ChatEdit_InsertLink")) == "function" then hooksecurefunc("ChatEdit_InsertLink", OnInsertLink) end
+    end
+    return true
 end
 
 -- Position nach Bildschirm-Viertel (vorher ezBag): so wächst ein Fenster in die richtige Richtung.

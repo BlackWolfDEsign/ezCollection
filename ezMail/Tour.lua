@@ -1,6 +1,11 @@
 local _, ns = ...
 local L = ns.L
 
+-- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
+-- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
+-- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
+ns.FEATURE_STEPS = { "select", "filter", { "book", "quick" }, false, "history" }
+
 --[[
     Rundgang mit Erklärblasen (Abschlussrunde „Tooltip-Guide“, Entscheidung des Nutzers 13.11.2026):
     Beim ersten Öffnen des Postfensters zeigt ezMail nacheinander Blasen zu den wichtigsten Funktionen,
@@ -25,6 +30,8 @@ local STEPS = {
         target = function() return ns.Overview.Tab() end },
     { key = "history", area = "InboxFrame", side = "right", text = L.TOUR_HISTORY,
         target = function() return ns.History.Tab() end },
+    { key = "book", area = "SendMailFrame", side = "right", text = L.TOUR_BOOK,
+        target = function() return ns.Send.BookButton() end },
     { key = "quick", area = "SendMailFrame", side = "right", text = L.TOUR_QUICK,
         target = function() return ns.QuickAttach.FirstTab() end },
     { key = "wire", area = "SendMailFrame", side = "above", text = L.TOUR_WIRE,

@@ -73,6 +73,9 @@ ns.DEFAULTS = {
     -- Quest-Erfahrung als Vorschau auf Blizzards Erfahrungsleiste (XPPreview.lua; Feature I1 des Gesamtreviews vom
     -- 18.11.2026): reine Anzeige, darum ab Werk an
     xpPreview = true,
+    -- Blizzards Erholungs-Marke rückt um die fertigen Quests weiter (XPPreview.lua; Entscheidung des Nutzers vom
+    -- 21.11.2026 „Ja, Marke mitwandern“): nur Lage, außerhalb des Kampfes, abschaltbar
+    xpTickFollow = true,
     -- Angenommene Quests automatisch teilen (Share.lua; Wunsch des Nutzers vom 18.11.2026, wörtlich „feature: quest
     -- automatisch teilen“): sendet ohne Klick an die Mitspieler, darum ab Werk aus, mit Hinweis an der Questverfolgung
     -- (Grundsatz des Nutzers vom 17.11.2026, Entscheidung 2 vom 18.11.2026)
@@ -339,6 +342,7 @@ function ns.StatusLines()
     local menu = ns.QuestId and ns.QuestId.StatusLine and ns.QuestId.StatusLine()
     if menu then lines[#lines + 1] = menu end
     Line(L.OPT_xpPreview, "xpPreview")
+    Line(L.OPT_xpTickFollow, "xpTickFollow")
     local bar = ns.XPPreview and ns.XPPreview.StatusLine()
     if bar then lines[#lines + 1] = bar end
     if ns.Items and ns.Items.Count then lines[#lines + 1] = L.STATUS_ITEMS:format(ns.Items.Count()) end

@@ -142,7 +142,7 @@ end
 function block:OnMenu(root)
     local cfg = self.cfg
     local sources = root:CreateButton(L.ALERTS_SOURCES)
-    -- „Alle auswählen / Alle abwählen“ über den Quellen (Design-System 2.11; gemerkt wie jeder Haken)
+    -- Haken „Alle“ über den Quellen (Design-System 2.11; gemerkt wie jeder Haken)
     ns.MenuAllToggle(sources, Sources(), function(def) return ns.AlertSourceEnabled(def.id) end,
         function(def, on) ns.SetAlertSourceEnabled(def.id, on) end)
     for _, def in ipairs(Sources()) do

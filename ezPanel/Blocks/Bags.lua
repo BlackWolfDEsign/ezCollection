@@ -26,7 +26,6 @@ local block = ns.RegisterBlock({
         mode = "free",         -- free | used
         special = false,       -- Spezialtaschen mitzählen
         alert = true,
-        alts = true,
     },
     hints = { L.BAGS_HINT_LEFT },
 })
@@ -138,7 +137,7 @@ function block:OnTooltip(tooltip)
         end
     end
 
-    if cfg.alts then
+    if ns.TipAlts() then
         local first = true
         for _, e in ipairs(ns.Characters()) do
             -- Nie erfasste Charaktere (etwa aus dem Titan-Import, auch gelöschte) bleiben weg wie in den anderen
@@ -174,7 +173,7 @@ function block:OnMenu(root)
     bar:CreateDivider()
     ns.MenuCheck(bar, L.BAGS_COUNT_SPECIAL, cfg, "special", self)
     ns.MenuCheck(root, L.BAGS_ALERT, cfg, "alert", self)
-    ns.MenuCheck(root, L.TIP_SHOW_ALTS, cfg, "alts", self)
+    ns.MenuTipAlts(root, self)
     if ns.ezBag.Active() then
         root:CreateDivider()
         root:CreateButton(L.BAGS_EZBAG_SETTINGS, function() ns.ezBag.OpenSettings() end)

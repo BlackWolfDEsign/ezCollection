@@ -180,6 +180,7 @@ Tooltip.ORDER = {
     quest = 70,         -- Questgegenstand (ezQuest)
     gathering = 80,     -- Fundorte (ezCore, Gathering.lua)
     loot = 85,          -- eigene Beute je Gegenstand (ezLoot; Welle 23c, A28)
+    contents = 86,      -- Inhalt geöffneter Behälter (ezLoot, Contents.lua; 22.11.2026)
 }
 -- Plätze im Einheiten-Tooltip (UnitTooltip.lua, Tooltip.AddUnitSection); die eingebauten Zeilen stehen davor.
 Tooltip.UNIT_ORDER = {
@@ -274,6 +275,7 @@ Tooltip.OnSpellTooltip = OnSpellTooltip
 Tooltip.OBJECT_ORDER = {
     default = 50,
     quest = 55,         -- Quest-Fortschritt (ezQuest)
+    contents = 60,      -- Inhalt geöffneter Kisten und Truhen (ezLoot, Contents.lua; 22.11.2026)
 }
 
 local objectSections = {}

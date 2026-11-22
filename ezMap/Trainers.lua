@@ -6,6 +6,9 @@ local Core = ezCore
 -- Quelle für alle Module, seit Welle 2; vorher ezMapDB.trainers, von ezCore einmal übernommen). ezMap bietet sie
 -- im Kartenmenü und im Menü „Aufspüren“ als Ziel für Blizzards Markierung an. Keine mitgelieferten Daten und keine
 -- eigenen Kartensymbole: Questie zeigt alle Lehrer auf der Karte (Questie-Menü → Stadtbewohner).
+-- Seit dem 22.11.2026 (Entscheidung des Nutzers: „Ja, Questie zuerst“, dazu „und noch waffenmeister“) kommen die
+-- Lehrer deines Kontinents laut Questie dazu (Core.Npcs.List mit questie = Trainers.QuestieMaps(); nur zur Laufzeit,
+-- nichts gespeichert; ein besuchter Lehrer geht vor). Waffenmeister bleiben Art „other“ mit weapon = true.
 -- Der Schalter „trainers“ entscheidet nur noch, ob ezMap sie anbietet – gemerkt wird in ezCore immer.
 local Trainers = {}
 ns.Trainers = Trainers
@@ -45,29 +48,76 @@ function Trainers.Learn()
     return Npcs.Learn("trainer")
 end
 
--- Gemerkte Lehrer mit Koordinaten, die zu diesem Charakter passen (Kopien), sortiert nach Zone und Name.
--- kind = "class" (eigene Klasse) | "profession" | "pet" (Tierausbilder) | "other" | nil (alle).
-function Trainers.List(kind)
+-- Karten, für die Questie Lehrer und Händler liefern soll: deine Zone zuerst, dann die Zonen deines Kontinents
+-- (Core.Map.Zones). map = statt deines Standorts diese Karte (ezMap-Knopf der Weltkarte: die gezeigte Karte; eine
+-- Kontinentkarte bringt ihre Zonen, die Weltkarte fällt auf deinen Standort zurück).
+-- → Liste der Karten oder nil (Position bzw. Karte unbekannt)
+function Trainers.QuestieMaps(map)
+    local mapID = ns.Num(map)
+    -- Weltkarte (und darüber): kein Kontinent gezeigt – wie bisher dein Standort
+    local info = mapID and Core.Map.Info(mapID)
+    local mapType = type(info) == "table" and ns.Num(info.mapType) or nil
+    if mapID and mapType and mapType < 2 then mapID = nil end
+    mapID = mapID or ns.PlayerPosition()
+    if not mapID then return nil end
+    local maps = {}
+    info = Core.Map.Info(mapID)
+    mapType = type(info) == "table" and ns.Num(info.mapType) or nil
+    local zone = (mapType == nil or mapType >= 3) and Core.Map.Parent(mapID, "Zone") or nil
+    if zone then maps[1] = zone end
+    local continent = Core.Map.Parent(mapID, "Continent")
+    for _, z in ipairs(continent and Core.Map.Zones(continent) or {}) do maps[#maps + 1] = z.map end
+    return maps
+end
+
+-- Lehrer mit Koordinaten, die zu diesem Charakter passen (Kopien), sortiert nach Zone und Name: besuchte (alle
+-- Kontinente) und laut Questie (dein Kontinent). kind = "class" (eigene Klasse) | "profession" | "pet"
+-- (Tierausbilder) | "other" | "weapon" (Waffenmeister, Art „other“) | nil (alle). opts.visited = nur besuchte (Liste
+-- im Chat, Blätter des Baums – sonst wechselten sie mit Kontinent und Questie); opts.map = laut Questie für den
+-- Kontinent dieser Karte statt deines Standorts (ezMap-Knopf der Weltkarte).
+-- → Liste, wartet (true, solange Questie noch liest)
+function Trainers.List(kind, opts)
     local list = {}
-    for _, t in ipairs(Npcs.List({ kind = "trainer", located = true, fits = true })) do
+    local maps = not (opts and opts.visited) and Trainers.QuestieMaps(opts and opts.map) or nil
+    local all, pending = Npcs.List({ kind = "trainer", located = true, fits = true, questie = maps })
+    for _, t in ipairs(all) do
         Facade(t)
-        if kind == nil or t.kind == kind then list[#list + 1] = t end
+        if kind == nil or t.kind == kind or (kind == "weapon" and t.weapon) then list[#list + 1] = t end
     end
-    return list
+    return list, pending == true
+end
+
+-- Quelle eines Eintrags für die graue Zeile im Tooltip: „laut Questie“ bzw. „von dir besucht“ (ezCore)
+function Trainers.Source(t)
+    return Npcs.SourceLabel(t)
 end
 
 local function WorldPos(mapID, x, y) return ns.WorldPos(mapID, x, y) end
 
--- Nächster gemerkter Lehrer auf demselben Kontinent (Kopie mit .distance in Metern) oder nil.
-function Trainers.Nearest(kind)
+-- Nächster Lehrer auf demselben Kontinent (Kopie mit .distance in Metern) oder nil. list = schon gelesene Liste
+-- (Trainers.List(); das Menü liest sie sonst je „Nächster …“ neu – Fund des code-reviewers vom 22.11.2026).
+function Trainers.Nearest(kind, list)
+    -- ohne Kontinent (Instanz) nicht erst lesen, wie vor dem Umbau (Fund des code-reviewers vom 22.11.2026)
+    if not Trainers.PositionKnown() then return nil end
+    if not list then return Trainers.NearestOf((Trainers.List(kind))) end
+    local wanted = {}
+    for _, t in ipairs(list) do
+        if kind == nil or t.kind == kind or (kind == "weapon" and t.weapon) then wanted[#wanted + 1] = t end
+    end
+    return Trainers.NearestOf(wanted)
+end
+
+-- Nächster Eintrag einer Liste auf deinem Kontinent (der Eintrag bekommt .distance in Metern) oder nil – für die
+-- Lehrer und die weiteren Stadtbewohner im Menü „Aufspüren“ (Gastwirt …, MapButton.FillRole; 22.11.2026)
+function Trainers.NearestOf(list)
     local mapID, x, y = ns.PlayerPosition()
-    if not mapID then return nil end
+    if not mapID or type(list) ~= "table" then return nil end
     local continent, px, py = WorldPos(mapID, x, y)
     if not continent then return nil end
     local best
-    for _, t in ipairs(Trainers.List(kind)) do
+    for _, t in ipairs(list) do
         local c, tx, ty = WorldPos(t.map, t.x, t.y)
-        if c == continent then
+        if c and c == continent then
             local d = math.sqrt((tx - px) ^ 2 + (ty - py) ^ 2)
             if not best or d < best.distance then
                 best = t
@@ -115,14 +165,26 @@ function Trainers.Count()
     return Npcs.Count("trainer")
 end
 
+-- Nur besuchte (der Chat ist keine Liste für alle Lehrer des Kontinents laut Questie)
 function Trainers.PrintList()
-    local list = Trainers.List()
+    local list = Trainers.List(nil, { visited = true })
     if #list == 0 then return ns.Print(L.TRAINER_LIST_EMPTY) end
     ns.Print(L.TRAINER_LIST:format(#list))
     for _, t in ipairs(list) do
         ns.Print(("  %s – %s %s"):format(Trainers.Label(t), ns.MapName(t.map), ns.CoordText(t.x, t.y)))
     end
 end
+
+-- Nach dem Anmelden einmal anstoßen, damit Questie seinen Index schon gelesen hat, wenn du das Menü öffnest (in
+-- Scheiben, außerhalb des Kampfes; ohne QuestieDB antwortet ezCore sofort mit „missing“).
+Trainers.WARM_DELAY = 15
+ns.OnReady(function()
+    local timer = rawget(_G, "C_Timer")
+    if type(timer) ~= "table" or type(timer.After) ~= "function" then return end
+    timer.After(Trainers.WARM_DELAY, function()
+        if ns.Tree and ns.Tree.Any and ns.Tree.Any("trainers") then ns.Try("TrainersWarm", Trainers.List) end
+    end)
+end)
 
 -- Vergisst alle Lehrer in ezCores NPC-Wissen (ein NPC, der auch Händler ist, bleibt als Händler).
 function Trainers.Forget()

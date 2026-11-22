@@ -203,6 +203,137 @@ function Chat.Tell(convo, noteFrame)
     if fn then pcall(fn, ns.TellName(convo.name), chatFrame) end
 end
 
+---------------------------------------------------------------------------
+-- Flüsterziel der Gesprächsansicht (Spieltest 21.11.2026: „ich muss diese person seperat anflüstern“)
+---------------------------------------------------------------------------
+-- Blizzards Flüster-Eingabe (SendTell) stellt nur den Chattyp, nicht den „klebenden“ Typ: Esc, ein Klick daneben
+-- oder das Schließen der Zeile (Deactivate → ResetChatTypeToSticky) setzt sie zurück auf Sagen. Die Ansicht stellt
+-- darum mit Blizzards eigenen Methoden der Eingabezeile (ChatFrameEditBoxBaseMixin, Forever-Quelle
+-- Blizzard_ChatFrameBase/Shared/ChatFrameEditBox.lua; so auch ChatFrameUtil.SendBNetTell und ReplyTell) Chattyp,
+-- klebenden Typ und Ziel auf den Partner – wie Blizzards Flüster-Reiter im Stil „IM“ (FCF_OpenTemporaryWindow).
+-- Der Stand davor wird gemerkt und beim Zurück zum Chat wiederhergestellt, solange die Zeile noch auf das
+-- Gespräch zeigt; hat der Spieler im Gespräch selbst gewechselt (/g, /2 …), bleibt seine Wahl.
+-- Die Zeile wird nur gestellt, nie aus Addon-Code geöffnet: Blizzards OpenChat/ActivateChat schreibt dabei die
+-- globalen Merker ACTIVE_CHAT_EDIT_BOX und LAST_ACTIVE_CHAT_EDIT_BOX, und aus Addon-Code geschrieben bleiben sie
+-- befleckt bis /reload – jedes spätere Enter des Spielers liest sie (taint.log des Nutzers vom 21.11.2026). Enter
+-- öffnet die Zeile dann wie gewohnt, schon mit „Flüstert an …“ (der Kopf der Ansicht sagt es: L.VIEW_ENTER). Ob
+-- die aus Addon-Code gestellten Attribute Blizzards Senden beflecken, kann das Log nicht zeigen – offen in der
+-- Roadmap (docs/roadmap/ezChat.md, „Taint des Flüsterziels“).
+local tellSaved   -- { box, chatType, stickyType, tellTarget, set = { chatType, target } } oder nil
+
+-- Die Eingabezeile, die Blizzard zum Schreiben nimmt (Stil „klassisch“: die des Hauptfensters, „IM“: die des
+-- gezeigten Fensters); nil, wenn sie die Methoden nicht hat.
+local TELL_METHODS = { "GetChatType", "SetChatType", "GetStickyType", "SetStickyType", "GetTellTarget",
+    "SetTellTarget", "UpdateHeader" }
+local function SendBox(chatFrame)
+    local choose = ChatFrameUtil and ChatFrameUtil.ChooseBoxForSend
+    if not choose then return nil end
+    local ok, box = pcall(choose, chatFrame)
+    if not ok or type(box) ~= "table" then return nil end
+    for _, method in ipairs(TELL_METHODS) do
+        if type(box[method]) ~= "function" then return nil end
+    end
+    return box
+end
+
+-- Chattyp und Ziel für das Gespräch: Spieler „WHISPER“ an den Namen, den der Client braucht (ns.TellName);
+-- Battle.net-Freunde „BN_WHISPER“ an den Kontonamen, Titel-Freunde wie bei Blizzard an ihre Figur
+-- (ChatFrameUtil.SendBNetTell). nil, wenn der Battle.net-Partner kein Freund (mehr) ist.
+local function TellOf(convo)
+    if not convo.bn then return "WHISPER", ns.TellName(convo.name) end
+    local _, _, accountName = ns.BNFind(convo.name)
+    if not accountName then return nil end
+    local title = ChatFrameUtil and ChatFrameUtil.GetCharacterWhisperTargetIfTitleFriend
+    if title then
+        local ok, character = pcall(title, accountName)
+        if ok and type(character) == "string" and character ~= "" then return "WHISPER", character end
+    end
+    return "BN_WHISPER", accountName
+end
+
+-- Blizzards Eingabezeile zurück auf den gemerkten Stand (Ansicht geschlossen, anderes Fenster, Partner ohne Ziel).
+-- Rückgabe: true, wenn zurückgestellt wurde.
+function Chat.RestoreTell()
+    local saved = tellSaved
+    tellSaved = nil
+    if not saved or not saved.set then return false end
+    local box, set = saved.box, saved.set
+    local ok, sticky, target = pcall(function() return box:GetStickyType(), box:GetTellTarget() end)
+    if not ok or sticky ~= set.chatType or target ~= set.target then return false end   -- der Spieler hat gewechselt
+    -- Geschlossene Zeile: Chattyp = klebender Typ wie bei Blizzard (ClearChat); ein flüchtiger Typ von damals
+    -- (Schreien, Antwort an einen Dritten) gilt nur in einer gerade offenen Zeile weiter.
+    local util = ChatFrameUtil
+    local chatType = saved.chatType
+    if not (util and util.GetActiveWindow and util.GetActiveWindow() == box) then chatType = saved.stickyType end
+    ok = pcall(function()
+        box:SetTellTarget(saved.tellTarget)
+        box:SetStickyType(saved.stickyType)
+        box:SetChatType(chatType)
+        box:UpdateHeader()
+    end)
+    return ok
+end
+
+-- Blizzards Eingabezeile auf das Gespräch stellen (Chattyp, klebender Typ, Ziel). chatFrame: das gezeigte
+-- Chatfenster. Beim Wechsel zwischen Gesprächen bleibt der Stand vor dem ersten gemerkt.
+-- Rückgabe: true, wenn gestellt; false (Zeile unverändert bzw. auf den alten Stand zurück) sonst.
+function Chat.SetTellTarget(convo, chatFrame)
+    local box = SendBox(chatFrame)
+    local chatType, target = TellOf(convo)
+    if tellSaved and (not box or not chatType or tellSaved.box ~= box) then Chat.RestoreTell() end
+    if not box or not chatType then return false end
+    if not tellSaved then
+        local ok, before = pcall(function()
+            return { box = box, chatType = box:GetChatType(), stickyType = box:GetStickyType(),
+                tellTarget = box:GetTellTarget() }
+        end)
+        if not ok then return false end
+        tellSaved = before
+    end
+    local ok, err = pcall(function()
+        box:SetTellTarget(target)
+        box:SetChatType(chatType)
+        box:SetStickyType(chatType)
+        box:UpdateHeader()
+    end)
+    if not ok then   -- halb gestellt: zurück auf den gemerkten Stand (gilt als „noch auf das Gespräch“)
+        ns.Error(err)   -- nicht stumm: ohne Ziel müsste der Spieler wieder selbst anflüstern
+        local saved = tellSaved
+        pcall(function()
+            saved.set = { chatType = box:GetStickyType(), target = box:GetTellTarget() }
+        end)
+        Chat.RestoreTell()
+        return false
+    end
+    tellSaved.set = { chatType = chatType, target = target }
+    return true
+end
+
+-- Das gestellte Flüsterziel, solange die Zeile noch darauf zeigt (für den Hinweis „Enter: … anflüstern“), sonst nil.
+function Chat.TellTarget()
+    local saved = tellSaved
+    if not saved or not saved.set then return nil end
+    local ok, sticky, target = pcall(function() return saved.box:GetStickyType(), saved.box:GetTellTarget() end)
+    if not ok or sticky ~= saved.set.chatType or target ~= saved.set.target then return nil end
+    return target
+end
+
+-- Gezeigtes Gespräch nachführen (Chat-Ansicht bei jeder Änderung und beim Wechsel des gezeigten Fensters):
+-- hat das Gespräch einen neuen Namen (Conv.Fix ergänzt den Nachnamen, Conv.Rename legt zusammen) oder nimmt
+-- Blizzard eine andere Eingabezeile (Stil „IM“), wird die Zeile neu gestellt – nur, solange sie noch auf das
+-- Gespräch zeigt; die eigene Wahl des Spielers bleibt. Rückgabe: true, wenn neu gestellt.
+function Chat.KeepTell(convo, chatFrame)
+    local saved = tellSaved
+    if not saved or not saved.set then return false end
+    local box = SendBox(chatFrame)
+    if box and box ~= saved.box then return Chat.SetTellTarget(convo, chatFrame) end
+    local chatType, target = TellOf(convo)
+    if chatType == saved.set.chatType and target == saved.set.target then return false end
+    local ok, sticky, current = pcall(function() return saved.box:GetStickyType(), saved.box:GetTellTarget() end)
+    if not ok or sticky ~= saved.set.chatType or current ~= saved.set.target then return false end
+    return Chat.SetTellTarget(convo, chatFrame)
+end
+
 -- Gespräch beginnen: in der Gesprächsansicht des Chatfensters (Auswahl in der
 -- Reiterleiste), sonst direkt im Chat mit dem älteren Verlauf grau darüber.
 function Chat.Start(target, bn)

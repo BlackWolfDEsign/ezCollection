@@ -598,12 +598,11 @@ function Bars.OpenMenu(id, owner)
     Menu.Open(owner or Bars.Frame(id), function(root)
         Menu.Title(root, L.BAR_TITLE_N:format(index))
         local options = Bars.Options()
-        -- „Alle auswählen / Alle abwählen“ über den Emotes (Design-System 2.11, ezCores Baustein; gemerkt in
+        -- Haken „Alle“ über den Emotes (Design-System 2.11, ezCores Baustein; gemerkt in
         -- data.emotes wie jeder einzelne Haken). Die Leiste wird nur einmal neu gesetzt, nicht je Emote.
         Menu.AllToggle(root, options, function(option) return data.emotes[option.entry.id] == true end,
             function(option, on) Bars.SetEmote(data, option.entry.id, on, true) end,
-            { onText = Core.Style.AllText(true), offText = Core.Style.AllText(false), onTip = Core.L.ALL_CHECK_TIP, offTip = Core.L.ALL_UNCHECK_TIP,
-              after = function(changed) if changed > 0 then Bars.PlaceAll() end end })
+            { after = function(changed) if changed > 0 then Bars.PlaceAll() end end })
         for _, option in ipairs(options) do
             local emote = option.entry.id
             Menu.Toggle(root, ("|T%s:16:16|t %s"):format(tostring(ns.EntryIcon(option.entry)), Label(option)),

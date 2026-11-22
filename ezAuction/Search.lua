@@ -144,11 +144,60 @@ function Search.FilterFlags(entry)
     return filters
 end
 
+-- Blizzards Filterknopf, nur gelesen (Shared/Blizzard_AuctionHouseSearchBar.lua, Zweig forever: CalculateFiltersArray,
+-- GetLevelRange): die Filter-Kennungen und Stufen, die der Spieler dort gewählt hat. Seit dem zweiten Spieltest vom
+-- 21.11.2026 sucht eine Einkaufsliste mit Blizzards Filter (Entscheidung „Wie eine Kategorie (Empfohlen)“ auf „unsere
+-- einkaufliste sollte genauso wie die anderen menüpunkte über suche und filter funktionieren“). → flags, min, max
+function Search.BlizzardFilters()
+    local bar = AuctionHouseFrame and AuctionHouseFrame.SearchBar
+    local button = bar and bar.FilterButton
+    if type(button) ~= "table" then return {}, nil, nil end
+    local flags = button.CalculateFiltersArray and Core.Call(button.CalculateFiltersArray, button)
+    local low, high
+    if button.GetLevelRange then low, high = Core.Call(button.GetLevelRange, button) end
+    low, high = Core.Num(low), Core.Num(high)
+    return type(flags) == "table" and flags or {}, (low and low > 0) and low or nil, (high and high > 0) and high or nil
+end
+
+-- Filter des Eintrags und Blizzards Filter zusammen: Qualitäten als Schnittmenge, wenn beide welche nennen (sonst die
+-- vorhandenen), alle übrigen Kennungen zusammen. → neue Liste
+function Search.MergeFilters(own, blizzard)
+    local enum = Enum and Enum.AuctionHouseFilter
+    local quality = {}
+    if type(enum) == "table" then
+        for _, name in pairs(Search.QUALITY_FLAGS) do if enum[name] then quality[enum[name]] = true end end
+    end
+    local function Split(list)
+        local q, other, any = {}, {}, false
+        for _, flag in ipairs(list or {}) do
+            if quality[flag] then q[flag], any = true, true else other[#other + 1] = flag end
+        end
+        return q, other, any
+    end
+    local ownQ, ownOther, ownAny = Split(own)
+    local bQ, bOther, bAny = Split(blizzard)
+    local out, seen = {}, {}
+    local function Add(flag) if not seen[flag] then seen[flag] = true out[#out + 1] = flag end end
+    for _, flag in ipairs(ownOther) do Add(flag) end
+    for _, flag in ipairs(bOther) do Add(flag) end
+    for _, flag in ipairs(own or {}) do
+        if ownQ[flag] and (not bAny or bQ[flag]) then Add(flag) end
+    end
+    if not ownAny then
+        for _, flag in ipairs(blizzard or {}) do if bQ[flag] then Add(flag) end end
+    end
+    return out
+end
+
 -- Eigene Abfrage-Tabelle für C_AuctionHouse.SendBrowseQuery (nie Blizzards Filtertabelle): Text, Stufen, Filter,
--- Kategorie (als Kopie) und Blizzards Sortierung.
+-- Kategorie (als Kopie) und Blizzards Sortierung; dazu Blizzards Filterknopf (Search.BlizzardFilters): Stufen als
+-- engster Bereich beider.
 function Search.QueryFor(entry, term)
-    local query = { searchString = term, sorts = Search.Sorts(), filters = Search.FilterFlags(entry) }
+    local flags, low, high = Search.BlizzardFilters()
+    local query = { searchString = term, sorts = Search.Sorts(), filters = Search.MergeFilters(Search.FilterFlags(entry), flags) }
     query.minLevel, query.maxLevel = entry.minLevel, entry.maxLevel
+    if low and (not query.minLevel or low > query.minLevel) then query.minLevel = low end
+    if high and (not query.maxLevel or high < query.maxLevel) then query.maxLevel = high end
     local filters = entry.category and entry.category.filters
     if filters then
         query.itemClassFilters = {}
@@ -174,6 +223,9 @@ local function Show(shown)
     end
     if Search.UpdateBar then Search.UpdateBar() end
 end
+
+-- Keine eigene Ansicht mehr (Knopf „Zurücksetzen“, BuyTab.lua): Filterzeile weg, wartende Sammelsuche fallen gelassen.
+function Search.ClearShown() Show(nil) end
 
 -- Eintrag der gezeigten Liste, der diesen Treffer gefunden hat (für „über Höchstpreis“, Bestand); sonst nil.
 function Search.EntryFor(itemKey)
@@ -204,17 +256,15 @@ function Search.Start(list, only)
     if not (list and C_AuctionHouse and C_AuctionHouse.SendBrowseQuery) then return false end
     if not ns.AuctionHouseShown() or Foreign() then return false end
     if Search.running then Search.Cancel(true) end
-    local entries = {}
-    for index, entry in ipairs(list.items or {}) do
-        if only == nil or index == only then entries[#entries + 1] = entry end
-    end
+    -- hergestellte Gegenstände als ihr fehlendes Material bzw. der Gegenstand selbst (ezCores Core.Lists)
+    local entries = Lists().SearchEntries(list, only)
     if #entries == 0 then
         if only == nil then ns.Print(L.LIST_EMPTY:format(list.name)) end
         return false
     end
     ns.ShowBrowseResults()
     Search.running = { list = list, entries = entries, index = 0, total = #entries, keys = {}, seen = {}, found = {},
-        single = only ~= nil, entryOf = {} }
+        single = only ~= nil, entryOf = {}, click = true }
     if only == nil then Search.results[list] = nil end
     Show({ kind = "list", list = list, entryOf = Search.running.entryOf, text = ListBarText(list, entries) })
     Changed()
@@ -240,8 +290,11 @@ end
 -- Einen Eintrag senden – als Auftrag in ezCores Warteschlange (AH-37, Rang „modul“, Schlüssel „ezAuction.list“),
 -- ohne sie im eigenen Takt. Die Frist je Paket hält Search.Await; der Auftrag selbst darf alle Pakete abwarten.
 function Search.Send(run, index, entry, term)
+    -- click: eine Liste sucht nur ein Klick des Spielers („Suchen“, Eingabetaste, Zeile im Editor) – sie wartet die
+    -- Haltezeit nach Blizzards eigener Suche nicht ab (ezCore A23; sonst 10 s Pause nach der Eingabetaste). Nach einem
+    -- Eingriff des Spielers mitten in der Liste (Sortieren: Search.Resort, Search.UserCut) wartet sie wieder.
     local job = { name = "list", text = L.QUEUE_LIST:format(run.list.name or "?"),
-        timeout = TIMEOUT * (Search.MAX_PAGES + 2) }
+        timeout = TIMEOUT * (Search.MAX_PAGES + 2), click = run.click == true }
     job.start = function()
         if Search.running ~= run or run.index ~= index then
             ns.JobDone(job)
@@ -284,6 +337,7 @@ end
 function Search.UserCut(run, job)
     if Search.running ~= run or run.job ~= job then return false end
     run.waiting = false
+    run.click = false   -- der Spieler hat eingegriffen: ab jetzt mit Haltezeit
     run.index = run.index - 1
     Search.Next()
     return true
@@ -445,8 +499,11 @@ function Search.Item(value)
     ns.UserQuery()
     ns.ShowBrowseResults()
     local query = Search.QueryFor(entry, term)
-    Show({ kind = "item", term = term, query = query })   -- ohne Filterzeile; gemerkt für Search.Resort
+    local shown = { kind = "item", term = term, query = query }   -- ohne Filterzeile; gemerkt für Search.Resort
+    Show(shown)
+    -- noch eingereiht, aber die Ansicht ist schon eine andere (z. B. „Zurücksetzen“, BuyTab.lua): nicht mehr senden
     ns.WhenThrottleReady(function()
+        if Search.shown ~= shown then return end
         if ns.AuctionHouseShown() and not Foreign() then pcall(C_AuctionHouse.SendBrowseQuery, query) end
     end)
     return true, term
@@ -455,9 +512,35 @@ end
 -- ezCore.API("ezAuction").Search(item) → true, Suchbegriff | false, Grund (siehe Search.Item)
 ns.API.Search = Search.Item
 
+-- Nach Blizzards eigener Abfrage etwas starten (Eingabetaste mit gewählter Einkaufsliste, BuyTab.lua): erst, wenn ihre
+-- Antwort da ist – sonst zählte sie als Antwort auf den ersten Listeneintrag (Befund des Reviews vom 21.11.2026);
+-- bleibt sie aus, nach ANSWER_WAIT Sekunden. Ein neuer Aufruf ersetzt den alten.
+Search.ANSWER_WAIT = 3
+local afterAnswer
+local function RunAfterAnswer()
+    local pending = afterAnswer
+    afterAnswer = nil
+    if pending then ns.Try("AfterAnswer", pending.fn) end
+end
+function Search.AfterBlizzardAnswer(fn)
+    local pending = { fn = fn }
+    afterAnswer = pending
+    C_Timer.After(Search.ANSWER_WAIT, function()
+        if afterAnswer == pending then RunAfterAnswer() end
+    end)
+end
+function Search.CancelAfterAnswer() afterAnswer = nil end
+
 -- Antwort der Übersicht: zuerst merken, ob ein gezeigter Auftrag (Search.SendShown) schon gesendet war – beendet die
 -- Listensuche hier ihren letzten Eintrag, startet ihre Sammelsuche, und deren Antwort kommt erst später.
 local function OnBrowseAnswer(failed)
+    -- Blizzards Antwort ist da: Wartendes im nächsten Bild starten (nach ezCores eigener Auswertung der Antwort)
+    if afterAnswer and not (Search.running and Search.running.waiting) then
+        local pending = afterAnswer
+        C_Timer.After(0, function()
+            if afterAnswer == pending then RunAfterAnswer() end
+        end)
+    end
     local shown = Search.showJob
     local wasSent = shown ~= nil and shown.sent
     if Search.running and Search.running.waiting then Search.OnResults(failed) end
@@ -466,8 +549,8 @@ end
 ns.On("AUCTION_HOUSE_BROWSE_RESULTS_UPDATED", function() OnBrowseAnswer(false) end)
 ns.On("AUCTION_HOUSE_BROWSE_RESULTS_ADDED", function() OnBrowseAnswer(false) end)
 ns.On("AUCTION_HOUSE_BROWSE_FAILURE", function() OnBrowseAnswer(true) end)
-ns.Listen("AH_CLOSED", function() Search.Cancel(true) end)
-ns.Listen("AH_HIDE", function() Search.Cancel(true) end)
+ns.Listen("AH_CLOSED", function() Search.Cancel(true) Search.CancelAfterAnswer() end)
+ns.Listen("AH_HIDE", function() Search.Cancel(true) Search.CancelAfterAnswer() end)
 -- Ansicht eines fremden Addons (Core.lua, ns.ForeignView): dessen Suchen liefen sonst in die Listensuche hinein.
 ns.Listen("AH_MODE", function(mode)
     if mode == "other" then
@@ -687,15 +770,17 @@ function Search.Replay(item)
     if not item then return false, "item" end
     if Search.running then Search.Cancel(true) end
     ns.UserQuery()
-    if ns.Editor then ns.Editor.Close() end
+    if ns.Buy and ns.Buy.Select then ns.Buy.Select(nil) end
     ns.ShowBrowseResults()
     SetBoxText(item.text)
     local filters = Search.RecentFilterText(item)
     local query = Search.RecentQuery(item)
-    Show({ kind = "recent", term = item.text, query = query,
-        text = filters and L.FILTERBAR_RECENT:format(Search.RecentLabel(item)) or nil })
+    local shown = { kind = "recent", term = item.text, query = query,
+        text = filters and L.FILTERBAR_RECENT:format(Search.RecentLabel(item)) or nil }
+    Show(shown)
     Search.Remember(item)
     ns.WhenThrottleReady(function()
+        if Search.shown ~= shown then return end   -- inzwischen zurückgesetzt oder ersetzt
         if ns.AuctionHouseShown() and not Foreign() then pcall(C_AuctionHouse.SendBrowseQuery, query) end
     end)
     Changed()
@@ -808,6 +893,7 @@ function Search.Resort()
         if not run.waiting then return false end
         local done = run.job
         run.waiting = false
+        run.click = false   -- der Spieler hat sortiert: ab jetzt mit Haltezeit (Search.Send)
         run.index = run.index - 1
         Search.Next()
         ns.JobDone(done)
@@ -1117,20 +1203,24 @@ end)
 -- Eigene Suche des Spielers (Suchfeld, Kategorien, Favoriten) geht vor; sie kommt in den Suchverlauf, und die
 -- Filterzeile verschwindet (jetzt gilt wieder Blizzards Filterknopf).
 ns.OnAuctionHouse(function()
-    local function PlayerSearch()
+    -- kind: nil (Suchfeld, Kategorie) oder "favorites" – nie aus Blizzards Argumenten (SendBrowseQuery übergibt nach
+    -- dem Suchtext die Stufen, Befund des Reviews vom 21.11.2026)
+    local function PlayerSearch(searchString, kind)
         local run = Search.running
         if run and run.ownQuery then return end
         if run then Search.Cancel() end
         Show(nil)
+        -- gewählte Einkaufsliste: Eingabetaste im leeren Suchfeld sucht sie, sonst ist sie abgewählt (BuyTab.lua)
+        if ns.Buy and ns.Buy.OnBlizzardSearch then ns.Try("ListSearch", ns.Buy.OnBlizzardSearch, searchString, kind) end
     end
     if AuctionHouseFrame.SendBrowseQuery then
-        hooksecurefunc(AuctionHouseFrame, "SendBrowseQuery", PlayerSearch)
+        hooksecurefunc(AuctionHouseFrame, "SendBrowseQuery", function(_, searchString) PlayerSearch(searchString, nil) end)
         hooksecurefunc(AuctionHouseFrame, "SendBrowseQuery", function(_, searchString, minLevel, maxLevel, filters)
             ns.Try("RecentSearch", Search.RecordPlayerSearch, searchString, minLevel, maxLevel, filters)
         end)
     end
     if AuctionHouseFrame.QueryAll then hooksecurefunc(AuctionHouseFrame, "QueryAll", function(_, context)
-        if AuctionHouseSearchContext and context == AuctionHouseSearchContext.AllFavorites then PlayerSearch() end
+        if AuctionHouseSearchContext and context == AuctionHouseSearchContext.AllFavorites then PlayerSearch(nil, "favorites") end
     end) end
     -- Spaltenkopf der Ergebnisliste: Blizzard wiederholt seine eigene Suche, ezAuction danach die gezeigte
     if AuctionHouseFrame.SetBrowseSortOrder then
