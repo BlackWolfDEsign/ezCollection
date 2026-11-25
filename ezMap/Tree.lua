@@ -60,7 +60,10 @@ Tree.ROOT = { id = "all", children = {
         } },
         { id = "vendors", children = { { key = "vendorTargets" }, { key = "repairTargets" } } },
     } },
-    { id = "gather", children = { { key = "gatherHerb" }, { key = "gatherOre" }, { key = "gatherFish" } } },
+    -- gatherShip (ezData, 22.11.2026): dieselben Arten zusätzlich aus Beiträgen anderer Spieler; nur im Baum, solange
+    -- ezData geladen ist (Gather.ShipReady)
+    { id = "gather", children = { { key = "gatherHerb" }, { key = "gatherOre" }, { key = "gatherFish" },
+        { key = "gatherShip", hidden = function() return not (ns.Gather and ns.Gather.ShipReady()) end } } },
     { id = "discover", children = {
         { id = "explorer", children = { { key = "gatherChest" }, { key = "bookTargets" } } },
     } },

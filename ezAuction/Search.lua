@@ -949,7 +949,8 @@ local Capture = {}
 Search.Capture = Capture
 Capture.RESTORE_DELAY = 0.5   -- so lange nach dem letzten Auftrag warten, ob ein weiterer folgt
 Capture.RESTORE_TRIES = 20    -- … höchstens so oft, solange noch Aufträge warten
-Capture.STOP_SECONDS = 30     -- nach „Abbrechen“: so lange wird jeder weitere Schritt derselben Erfassung abgebrochen
+Capture.STOP_SECONDS = 30     -- nach „Abbrechen“ mit einem ezCore ohne Filter in Queue.Cancel (älter als Welle 23b): so
+                              -- lange wird jeder weitere Schritt derselben Erfassung gleich nach seinem Start abgebrochen
 
 local captureBar
 
@@ -1036,6 +1037,7 @@ function Capture.End()
     local view = Capture.before
     Capture.active, Capture.before, Capture.stopUntil = false, nil, nil
     Capture.UpdateBar()
+    if ns.Upgrade then ns.Upgrade.RedecorateSoon() end     -- „Nur Verbesserungen“ gilt wieder, auch ohne neue Abfrage
     return Capture.Restore(view)
 end
 
@@ -1048,7 +1050,8 @@ function Capture.OnChanged()
             local mode = ns.ModeName()
             Capture.before = mode == "buy" and Capture.ViewNow() or nil
         end
-        -- nach „Abbrechen“: der nächste Schritt hat seine Abfrage schon gesendet – gleich danach abbrechen
+        -- nach „Abbrechen“ ohne Filter in Queue.Cancel: der nächste Schritt hat seine Abfrage schon gesendet – gleich
+        -- danach abbrechen
         if Capture.stopUntil and GetTime() < Capture.stopUntil then
             local key = owner.key
             C_Timer.After(0, function() Capture.CancelKey(key) end)
@@ -1066,13 +1069,29 @@ function Capture.CancelKey(key)
     return false
 end
 
--- Knopf „Abbrechen“: den laufenden Schritt abbrechen und jeden weiteren derselben Erfassung, der in den nächsten
--- Capture.STOP_SECONDS startet. Rückgabe: true, wenn etwas abgebrochen wurde.
+-- Filter für ezCores Queue.Cancel (A24, Welle 23b): alle Schritte einer Erfassung – ezCores Auffrischung über die
+-- Vorsilbe „refresh:“ (Sammelabfragen und Einzelsuchen, Rang „module“ oder „capture“, nie „user“), dazu alles mit dem
+-- Rang „capture“ (z. B. die Kategorien einer Übersicht, „browse:cat:…“). „Abbrechen“ beendet beide, wie vorher die Frist.
+Capture.FILTERS = { { prefix = "refresh:" }, { rank = "capture" } }
+
+-- Knopf „Abbrechen“: den laufenden Schritt und alle wartenden Schritte der Erfassungen streichen (Queue.Cancel mit
+-- Filter). Kennt ezCore den Filter nicht (älter als Welle 23b, Queue.Cancel streicht dann nichts), wie vorher: den
+-- laufenden Schritt abbrechen und jeden weiteren, der in den nächsten Capture.STOP_SECONDS startet. Rückgabe: true,
+-- wenn etwas abgebrochen wurde.
 function Capture.Cancel()
     local owner = Capture.Owner()
     if not owner then return false end
-    Capture.stopUntil = GetTime() + Capture.STOP_SECONDS
-    Capture.CancelKey(owner.key)
+    local queue = ns.Queue()
+    local n = 0
+    if queue and type(queue.Cancel) == "function" then
+        for _, filter in ipairs(Capture.FILTERS) do n = n + (Core.Num(Core.Call(queue.Cancel, filter)) or 0) end
+    end
+    if n > 0 then
+        Capture.stopUntil = nil
+    else
+        Capture.stopUntil = GetTime() + Capture.STOP_SECONDS
+    end
+    Capture.CancelKey(owner.key)   -- läuft der Schritt noch (Herkunft „bulk“/„category“ ohne passenden Filter), dann ihn
     ns.Print(L.CAPTURE_CANCELLED)
     Capture.UpdateBar()
     return true

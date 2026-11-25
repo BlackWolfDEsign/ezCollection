@@ -26,6 +26,8 @@ local AREA_TOP = SEARCH_Y + 20 + 2  -- erste Gruppe gleich unter dem Suchfeld
 local TOP_TRIM = 28                 -- Ersatz, solange die Tasche noch keine Position hat
 
 local bagFrame, holder, view, toolbar
+local rholder, rview          -- Abschnitt Reagenzientasche (Reagent.lua): Fläche im Reagenzien-Fenster, eigene Ansicht
+local sectionFrame            -- Blizzards Reagenzien-Fenster, dessen Plätze ezBag zuletzt im Abschnitt angeordnet hat
 local installed = false
 local hiddenByUs = setmetatable({}, { __mode = "k" })
 local overlays = setmetatable({}, { __mode = "k" })
@@ -170,16 +172,17 @@ local function OnItemClick(button, mouse)
         ns.Groups.OpenItemMenu(button)
         return
     end
-    -- Rechtsklick auf zusammengefasste Stapel: die übrigen Stapel folgen Blizzards einem; Umschalt+Rechtsklick bei
-    -- offenem Händler, Post, Handel oder Bank: ezBags Anzahl-Feld, „Annehmen“ gibt die Anzahl weiter (Stacks.lua)
-    ns.Stacks.OnItemClick(view, button, mouse)
+    -- Rechtsklick auf zusammengefasste Stapel: die übrigen Stapel folgen Blizzards einem; Umschalt+Klick (Blizzards
+    -- Teilen-Taste, links wie rechts): ezBags Anzahl-Feld, „Okay“ gibt die Anzahl ins offene Fenster oder an den Mauszeiger (Stacks.lua)
+    ns.Stacks.OnItemClick(ns.Render.ViewOf(button) or view, button, mouse)
 end
 
-local function HookButton(button)
+-- v: Ansicht des Knopfs (ohne Angabe die Tasche; der Abschnitt Reagenzientasche hat eine eigene)
+local function HookButton(button, v)
+    ns.Render.HookHover(button, v or view)
     if clickHooked[button] then return end
     clickHooked[button] = true
     button:HookScript("OnClick", OnItemClick)
-    ns.Render.HookHover(button, view)
 end
 
 ---------------------------------------------------------------------------
@@ -396,8 +399,9 @@ Layout.ApplyPosition = ApplyPosition
 
 -- Einzelne Taschenfenster an ihre gespeicherten Plätze (je Taschen-ID).
 local function ApplyBagFrames()
+    local section = ns.Reagent and ns.Reagent.Current()
     for frame in pairs(bagFrameMovers) do
-        local id = frame:IsShown() and frame:GetID()
+        local id = frame:IsShown() and frame ~= section and frame:GetID()
         local pos = id and ezCore.StoredPosition(ns.BagFrameKey(id))
         if pos and pos.point and frame ~= moving then
             SetQuadrantPos(frame, pos)
@@ -409,6 +413,21 @@ end
 local function AfterBlizzardAnchors()
     ApplyPosition()
     ApplyBagFrames()
+    -- Blizzard hat das Reagenzien-Fenster wieder in seine eigene Spalte gesetzt: zurück in den Abschnitt. Läuft das
+    -- gerade während eines eigenen Anordnens (Layout.Reposition → BlizzardAnchors), gleich danach.
+    if ns.Reagent and ns.Reagent.Current() and bagFrame and bagFrame:IsShown() then
+        lastSignature = nil
+        if applying then
+            C_Timer.After(0, function()
+                if bagFrame:IsShown() then
+                    lastSignature = nil
+                    Layout.Apply(bagFrame, true)
+                end
+            end)
+        else
+            Layout.Apply(bagFrame, true)
+        end
+    end
 end
 
 -- Blizzard die Tasche wieder selbst anordnen lassen (nur mit fertigem Zwischenspeicher).
@@ -719,13 +738,13 @@ function ns.GroupsFromSlots(slots, allowNew)
 
         local groupKey = key
         if key == "empty" then
-            local family = families[bag]
-            if family == nil then
-                family = select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0
-                families[bag] = family
+            local special = families[bag]
+            if special == nil then
+                special = ezCore.IsSpecialBag(bag)
+                families[bag] = special
             end
             -- Spezialtaschen (Köcher, Seelentasche, Berufstaschen) bekommen ihr eigenes "Frei".
-            if family ~= 0 then groupKey = "empty:" .. bag end
+            if special then groupKey = "empty:" .. bag end
         end
 
         local group = byKey[groupKey] or ns.Render.NewGroup(groups, byKey, key, groupKey)
@@ -746,10 +765,10 @@ function ns.GroupsFromSlots(slots, allowNew)
     return groups
 end
 
-local function BuildGroups(buttons)
+local function BuildGroups(buttons, v)
     local slots = {}
     for i, button in ipairs(buttons) do
-        HookButton(button)
+        HookButton(button, v)
         slots[i] = { button = button, bag = button:GetBagID(), slot = button:GetID(), locked = IsExtended(button) }
     end
     return ns.GroupsFromSlots(slots, true)
@@ -802,6 +821,90 @@ local function FitSearchBox(frameWidth)
 end
 
 -- Abstand von der Unterkante der Tasche bis zu Blizzards Ankerpunkt (über dem Geldfeld).
+-- Abschnitt Reagenzientasche: Gruppen aus Blizzards Reagenzien-Fenster, getrennt von der Tasche angeordnet (eigene
+-- Gruppen, eigenes Sortieren, Zusammenfassen und „Frei“) → { frame, buttons, out, contentH, height } oder nil
+local function BuildSection(cols, w, h, sp, searching)
+    local R = ns.Reagent
+    local frame = R and R.Wanted() and R.Frame() or nil
+    if not frame then return nil end
+    local buttons = R.Buttons(frame)
+    if #buttons == 0 then return nil end
+    if not rholder then
+        rholder = CreateFrame("Frame", nil, frame)
+        rview = ns.Render.NewView(rholder, "reagent")   -- eigener Zuklapp-Merker; beim Weitergeben wie die Tasche
+        view.linked = { rview }                           -- „Auswählen“ und Umlagern-Pfeile auch im Abschnitt
+    end
+    if rholder:GetParent() ~= frame then rholder:SetParent(frame) end
+    rholder:SetAllPoints(frame)
+    rholder:SetFrameLevel(frame:GetFrameLevel() + 1)
+    rholder:Show()
+    rview.focus = view and view.focus or nil
+    local out = ns.Render.Flow(BuildGroups(buttons, rview), { cols = cols, w = w, h = h, spX = sp, spY = sp },
+        { viewKey = "reagent", searching = searching })
+    local contentH = math.max(out.totalH - out.bottomHalf, 0)
+    return { frame = frame, buttons = buttons, out = out, contentH = contentH, height = R.SECTION_H + contentH }
+end
+
+-- Abschnitt aufheben: Plätze wieder sichtbar, Fenster sieht aus wie Blizzards. reopen: Blizzard soll das noch offene
+-- Fenster selbst neu anordnen (Schalter oder Gruppierung aus) – einmal zu und wieder auf, aus Blizzards laufendem Aufruf
+-- herausgelöst (C_Timer). Im Kampf wird nichts aufgehoben, solange das Fenster zu sehen ist: Die Plätze hängen an der
+-- Tasche und zerfielen sonst bis zum Kampfende; das Fenster wird ganz unsichtbar (Reagent.HideForCombat), nach dem Kampf
+-- wird aufgehoben (und neu geöffnet bzw. geschlossen).
+local ReleaseSection
+ReleaseSection = function(reopen, afterCombat)
+    local R = ns.Reagent
+    local frame = sectionFrame
+    if frame and frame:IsShown() and ns.InCombat() then
+        R.HideForCombat(frame)
+        -- Markier-Knöpfe und Gruppen-Titel des Abschnitts weder anklickbar noch mitgezählt
+        if rview then
+            ns.Transfer.ClearMarks(rview.entries)
+            rview:HideAll()
+        end
+        if rholder then rholder:Hide() end
+        ns.AfterCombat(function()
+            if not (bagFrame and bagFrame:IsShown() and not Layout.Blocked() and R.Wanted()) then
+                ReleaseSection(reopen, afterCombat)
+            else
+                R.ShowAfterCombat()
+                lastSignature = nil
+                Layout.Apply(bagFrame, true)
+            end
+            if afterCombat then afterCombat() end
+        end, "ezBag.reagentSection")
+        return true
+    end
+    if rview then
+        for _, entry in ipairs(rview.entries) do
+            if entry.button then ns.Render.SetDimmed(entry.button, false) end
+        end
+        ns.Transfer.ClearMarks(rview.entries)
+        rview:HideAll()
+    end
+    if rholder then rholder:Hide() end
+    sectionFrame = nil
+    if not frame then
+        if R then R.Release() end
+        return false
+    end
+    for _, button in ipairs(R.Buttons(frame)) do
+        Reveal(button)
+        ns.SetFreeCount(button, nil)
+        ns.SetStackTotal(button, nil)
+        ns.SetItemMarks(button)   -- ohne Abschnitt zeichnet ezBag am Einzelfenster keine Marken
+    end
+    R.Release()
+    if reopen and frame:IsShown() then
+        C_Timer.After(0, function()
+            if ns.InCombat() or not frame:IsShown() then return end
+            ezCore.ClosePanel("reagentBag", nil, true)
+            ezCore.OpenPanel("reagentBag", nil, true)
+        end)
+    end
+    return true
+end
+Layout.ReleaseSection = ReleaseSection
+
 local function AnchorFromBottom(frame, rel, relPoint, ay)
     local fb = frame:GetBottom()
     local ry
@@ -821,6 +924,8 @@ local function DoLayout(frame, fromBlizzard)
     local groups = BuildGroups(buttons)
     local out = ns.Render.Flow(groups, { cols = cols, w = w, h = h, spX = sp, spY = sp },
         { viewKey = "bag", searching = searching })
+    local section = BuildSection(cols, w, h, sp, searching)
+    local sectionH = section and section.height or 0
 
     -- Breite: wie Blizzard, nur mit unserer Spaltenzahl.
     local newWidth = cols * w + (cols - 1) * sp + pad
@@ -832,17 +937,21 @@ local function DoLayout(frame, fromBlizzard)
     local fromBottom = AnchorFromBottom(frame, rel, relPoint, ay)
     local newHeight
     if fromBottom then
-        newHeight = AREA_TOP + contentH + fromBottom
+        newHeight = AREA_TOP + contentH + sectionH + fromBottom
     else
-        newHeight = BlizzardBaseHeight(frame) - gridH + contentH - TOP_TRIM
+        newHeight = BlizzardBaseHeight(frame) - gridH + contentH + sectionH - TOP_TRIM
     end
     newHeight = math.max(newHeight, 120)
     local sizeChanged = math.abs((frame:GetHeight() or 0) - newHeight) > 0.5
         or math.abs((frame:GetWidth() or 0) - newWidth) > 0.5
 
     local signature = ns.Render.Signature(out, cols)
+    if section then
+        signature = signature .. "|reagent|" .. ns.Render.Signature(section.out, cols) .. ns.Reagent.HeaderText()
+    end
     if not fromBlizzard and not sizeChanged and signature == lastSignature then
         UpdateOverlays(frame)
+        if section then UpdateOverlays(section.frame) end
         return
     end
     lastSignature = signature
@@ -852,12 +961,13 @@ local function DoLayout(frame, fromBlizzard)
 
     -- left/top: Abstand von der linken oberen Ecke des Layouts. Die rechte untere
     -- Ecke des Layouts liegt einen halben Abstand neben Blizzards Ankerpunkt.
+    -- Mit Abschnitt Reagenzientasche liegt die Tasche um dessen Höhe weiter oben.
     local width, totalH = out.width, out.totalH
     local rightHalf = sp - math.floor(sp / 2)
     local function Place(region, left, top, ew, eh)
         region:ClearAllPoints()
         region:SetPoint("BOTTOMRIGHT", rel, relPoint, ax + rightHalf - (width - left - ew),
-            ay - out.bottomHalf + (totalH - top - eh))
+            ay - out.bottomHalf + sectionH + (totalH - top - eh))
     end
 
     view:Draw(out, Place, function(entry, shown, left, top, g)
@@ -875,13 +985,82 @@ local function DoLayout(frame, fromBlizzard)
     end)
     view:ApplyDim()
     UpdateOverlays(frame)
+
+    if section then
+        -- Abschnitt unten: Trennlinie mit Überschrift, darunter die Gruppen der Reagenzientasche (eigene Ansicht)
+        local rout = section.out
+        local rwidth, rtotalH = rout.width, rout.totalH
+        local function RPlace(region, left, top, ew, eh)
+            region:ClearAllPoints()
+            region:SetPoint("BOTTOMRIGHT", rel, relPoint, ax + rightHalf - (rwidth - left - ew),
+                ay - rout.bottomHalf + (rtotalH - top - eh))
+        end
+        sectionFrame = section.frame
+        ns.Reagent.Attach(section.frame, frame, {
+            holder = holder,
+            keep = { [rholder] = true },
+            PlaceRect = function(region)
+                region:SetPoint("BOTTOMRIGHT", rel, relPoint, ax + rightHalf, ay - rout.bottomHalf)
+                region:SetPoint("TOPLEFT", rel, relPoint, ax + rightHalf - rwidth, ay - rout.bottomHalf + rtotalH)
+            end,
+            PlaceHeader = function(region)
+                region:ClearAllPoints()
+                region:SetSize(rwidth, ns.Reagent.SECTION_H)
+                region:SetPoint("BOTTOMRIGHT", rel, relPoint, ax + rightHalf, ay + section.contentH)
+            end,
+        })
+        rview:Draw(rout, RPlace, function(entry, shown, left, top, g)
+            local button = entry.button
+            ns.SetFreeCount(button, nil)
+            if shown then
+                RPlace(button, left, top, w, h)
+                Reveal(button)
+                if g.compressed then ns.SetFreeCount(button, g.count) end
+                ns.SetStackTotal(button, entry.stackTotal)
+            else
+                Conceal(button, rholder)
+                ns.SetStackTotal(button, nil)
+            end
+        end)
+        rview:ApplyDim()
+        UpdateOverlays(section.frame)
+        Layout.QueueSectionSync()
+        if ns.Select.IsActive(view) then ns.Select.Refresh(view) end
+    else
+        ReleaseSection(false)
+    end
+
     if searching then
-        C_Timer.After(0, function() view:ExtendSearch(BagItemSearchBox:GetText()) end)
+        C_Timer.After(0, function()
+            view:ExtendSearch(BagItemSearchBox:GetText())
+            if rview and rview.out then rview:ExtendSearch(BagItemSearchBox:GetText()) end
+        end)
     end
     if toolbar then toolbar:Update() end
     ns.Transfer.Refresh()
 
     if sizeChanged and not fromBlizzard then Layout.Reposition() end
+end
+
+-- Grau im Abschnitt abgleichen, sobald Blizzard nach Aufräumen, Verschieben, Suchen oder Tragen fertig ist (einmal je
+-- Bild): Blizzards Grau ohne Grund zurücknehmen (Reagent.SyncGrey) und ezBags Hervorheben verwandter Gegenstände
+-- aufheben, wenn die Maus nicht mehr über dem Abschnitt steht (ein verpasstes OnLeave ließ es sonst stehen).
+local syncQueued = false
+function Layout.SyncSection()
+    syncQueued = false
+    if not (sectionFrame and rview) then return end
+    ns.Reagent.SyncGrey()
+    if not sectionFrame:IsMouseOver() then rview:SetHover(nil) end
+end
+
+function Layout.QueueSectionSync()
+    if syncQueued or not sectionFrame then return end
+    syncQueued = true
+    C_Timer.After(0, Layout.SyncSection)
+end
+
+for _, event in ipairs({ "CURSOR_CHANGED", "ITEM_LOCK_CHANGED", "BAG_UPDATE_DELAYED", "INVENTORY_SEARCH_UPDATE" }) do
+    ns.On(event, Layout.QueueSectionSync)
 end
 
 -- Blizzards einfaches Raster wiederherstellen (wenn die Gruppierung ausgeschaltet wird).
@@ -940,6 +1119,7 @@ end
 function Layout.Apply(frame, fromBlizzard)
     if applying or not frame or not view then return end
     if Layout.Blocked() then
+        ReleaseSection(true)
         if next(hiddenByUs) or #view.entries > 0 or lastSignature then
             RestoreGrid(frame, not fromBlizzard and frame:IsShown())
         end
@@ -991,6 +1171,8 @@ function Layout.Grip() return grip end
 function Layout.View() return view end
 
 local function CanRelayoutNow(frame)
+    -- Etwas auf die „Frei“-Kachel des Abschnitts Reagenzientasche gelegt: wie bei der Tasche gleich neu ordnen.
+    if rview and rview.out and not resizing and rview:FreeTileTaken() and ns.Render.CanRelayout(nil, false) then return true end
     return ns.Render.CanRelayout(frame, resizing, view)
 end
 
@@ -1037,6 +1219,30 @@ local function Install()
     toolbar.frame:SetFrameLevel(bagFrame:GetFrameLevel() + 20)
     toolbar.frame:Hide()
     ns.Transfer.Register("bag", view, bagFrame, toolbar)
+    -- „Tasche, Gruppe oder Bank“ hebt auch im Abschnitt Reagenzientasche hervor
+    local baseSetFocus = view.SetFocus
+    view.SetFocus = function(self, focus)
+        baseSetFocus(self, focus)
+        if rview then rview:SetFocus(focus) end
+    end
+    -- Abschnitt Reagenzientasche (Reagent.lua): Blizzards Reagenzien-Fenster geht auf, zu oder ordnet neu
+    ns.Reagent.HookFrames(function()
+        if bagFrame:IsShown() and not Layout.Blocked() then
+            lastSignature = nil
+            Layout.Apply(bagFrame, true)
+        elseif sectionFrame then
+            ReleaseSection(false)
+        end
+    end, function(frame)
+        UpdateOverlays(frame)
+        if not Layout.Blocked() then dirty = true end
+        Layout.QueueSectionSync()
+    end)
+    bagFrame:HookScript("OnShow", function()
+        C_Timer.After(0, function()
+            if bagFrame:IsShown() then ns.Reagent.OnBagShown() end
+        end)
+    end)
 
     hooksecurefunc(bagFrame, "UpdateFrameSize", function(self)
         baseHeight = self:GetHeight()
@@ -1063,6 +1269,13 @@ local function Install()
         ns.Render.CancelDrag()
         ns.ClearNewItems()
         if toolbar then toolbar:ClearFocus() end
+        -- Abschnitt aufheben und die Reagenzientasche mitschließen (im Kampf beides erst danach)
+        if sectionFrame and sectionFrame:IsShown() and ns.InCombat() then
+            ReleaseSection(false, ns.Reagent.CloseIfBagHidden)
+        else
+            ReleaseSection(false)
+            ns.Reagent.OnBagHidden()
+        end
     end)
     CreateMover()
     CreateGrip()
@@ -1075,6 +1288,9 @@ local function Install()
         end)
     end
 end
+
+-- Für Prüfungen (Tests/reagenz_test.lua): nachträglich anbinden, wenn die nachgebaute Tasche erst später entsteht.
+Layout.Install = Install
 
 -- Sofort installieren: Blizzards Taschenrahmen existiert schon, bevor Addons laden.
 -- Die Teile mit gespeicherten Einstellungen warten auf PLAYER_LOGIN.
@@ -1102,6 +1318,14 @@ ns.OnSettingChanged(function(key)
         ns.Groups.RefreshAll()
     elseif key == "grouping" or key == "newItems" or key == "compressEmpty" then
         Layout.Refresh(true)
+    elseif key == "reagentSection" then
+        if ns.S.reagentSection then
+            if bagFrame and bagFrame:IsShown() then ns.Reagent.OnBagShown() end
+            Layout.Refresh(true)
+        else
+            ReleaseSection(true)
+            Layout.Refresh(true)
+        end
     elseif key == "itemLevel" or key == "boe" then
         Layout.RefreshOverlays()
     elseif key == "dockBank" then

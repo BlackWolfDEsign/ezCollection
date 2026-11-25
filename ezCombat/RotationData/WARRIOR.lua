@@ -24,6 +24,12 @@ local T = ns.RotationData.T
 -- am Namens-Kommentar – ob der Client sie kennt, meldet der Selbsttest (/ez test).
 -- Name, Symbol, Ränge, gelernt, Kosten, Zauberzeit, Abklingzeit und Dauer liefert der Client zur Laufzeit; hier
 -- stehen nur Zauber-IDs (Rang 1) und Logik. Zahlen sind Schwellen der Logik (Wut, Stapel, Sekunden bis zum Erneuern).
+-- Berserkerwut 18499: seit Build 1.60.1.71037 eine dritte Wirkung – Immunität gegen Mechanik 30 (Kopfnuss) neben
+-- Mechanik 5 (Furcht) und 14 (laut wago.tools, wowf, SpellEffect; Hotfix vom 13.11.2026 „removes Sap“; den Namen von
+-- Mechanik 14 belegt keine geladene Tabelle – SpellMechanic ist nicht geladen). Die Texte nennen Kopfnuss (Name im
+-- Client für 6770) seit dem Paket „Daten auf Build 71037“ (22.11.2026) fest statt als {6770}: jede {ID} im Text zählt
+-- als Zauber der Rotation (RotationData.lua, TextIDs), und die wago-Prüfung meldet einen Zauber, den die
+-- Client-Tabellen einer anderen Klasse zuordnen, rot – 6770 ist laut Zauberfamilie 8 ein Schurkenzauber.
 --
 -- Bauart (gilt für alle sechs Rotationen):
 --   * Die Haltung für den Pull steht unter „Vor dem Kampf“ (nur wenn schon eine zweite Haltung gelernt ist – vorher
@@ -32,7 +38,7 @@ local T = ns.RotationData.T
 --   * Was keinen globalen Cooldown hat oder den nächsten Schlag ersetzt, läuft nebenher (side) und leuchtet nur.
 --   * Wut-Vorhalt: Der niedrigere Schritt trägt eine Wut-Schwelle (need.rage) – „kurz vor Ende der Abklingzeit“
 --     kann das Format nicht.
---   * Blutung erst nach Ablauf erneuern (refresh = "missing"); nicht mehr, sobald das Ziel in der Hinrichtungsphase
+--   * Blutung zum Ablauf erneuern (refresh = "missing", mit Vorlauf); nicht mehr, sobald das Ziel in der Hinrichtungsphase
 --     ist (need.unusable) – Annahme als Näherung für „stirbt gleich“.
 --   * Rüstungs-Stapel zählen von jedem Krieger (mine = false).
 -- [V] = Annahme oder ID nicht im Spiel bestätigt (/ez test meldet unbekannte IDs).
@@ -61,8 +67,8 @@ ns.RotationData.Add("WARRIOR", {
       source = "https://www.icy-veins.com/wow-forever/arms-warrior-melee-dps-pve-rotation-cooldowns-abilities",
       sources = { "https://www.wowhead.com/forever/guide/classes/warrior/arms/rotation-cooldowns-pve-dps" },
       pick = { leveling = false },
-      how = T("Zweihandwaffe in {2457}. {772} liegt immer und wird erst nach Ablauf erneuert: Nur an einem blutenden Ziel schalten deine Treffer {7384} zusätzlich frei. Danach zählt {12294}, sobald er bereit ist – behalte Wut dafür übrig. {5308} kommt erst hinter beiden, {1240193} füllt im Stand. Was an Wut übrig bleibt, geht in {1715} und {78}.",
-              "Two-hander in {2457}. Keep {772} up and renew it only after it ends: only on a bleeding target do your hits unlock extra {7384}. Next comes {12294} whenever it is ready – keep rage in reserve for it. {5308} ranks below both, {1240193} fills while you stand still. Leftover rage goes into {1715} and {78}."),
+      how = T("Zweihandwaffe in {2457}. {772} liegt immer und wird zum Ablauf erneuert: Nur an einem blutenden Ziel schalten deine Treffer {7384} zusätzlich frei. Danach zählt {12294}, sobald er bereit ist – behalte Wut dafür übrig. {5308} kommt erst hinter beiden, {1240193} füllt im Stand. Was an Wut übrig bleibt, geht in {1715} und {78}.",
+              "Two-hander in {2457}. Keep {772} up and renew it as it ends: only on a bleeding target do your hits unlock extra {7384}. Next comes {12294} whenever it is ready – keep rage in reserve for it. {5308} ranks below both, {1240193} fills while you stand still. Leftover rage goes into {1715} and {78}."),
       note = T("Gegnerzahl, Lebenszeit des Ziels und Blutungsimmunität sieht ezCombat nicht: Flächenschritte nur im Flächenmodus, {7386} nur eingeschaltet. Wowhead nennt {78} ab 40 Wut und nie in der Hinrichtungsphase.",
                "ezCombat can't see enemy count, time to live or bleed immunity: AoE steps need AoE mode, {7386} only when turned on. Wowhead uses {78} from 40 rage and never in the kill phase."),
       steps = {
@@ -92,7 +98,7 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Gegen Riesen und Drachkin zuerst.", "Top priority against giants and dragonkin.") },    -- Aufspießender Stoß / Spearing Strike
         { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },
           guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
-          text = T("Fehlt: setzen. Erst nach Ablauf erneuern.", "Missing: apply. Renew only after it ends.") },    -- Verwunden / Rend
+          text = T("Fehlt: setzen. Zum Ablauf erneuern.", "Missing: apply. Renew it as it ends.") },    -- Verwunden / Rend
         { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5, optional = true,
           guess = T("Erneuern 5 Sek. vor Ablauf ist geschätzt.", "Refreshing 5 sec before it ends is estimated."),
           text = T("Nur wenn du zuständig bist: 5 Stapel halten.", "Only if it's your job: keep 5 stacks up.") },    -- Rüstung zerreißen / Sunder Armor
@@ -126,7 +132,7 @@ ns.RotationData.Add("WARRIOR", {
         { id = 1160, kind = "situational", when = "manual",
           text = T("Nach Lage: wenn die Gruppe ihn braucht und kein anderer ihn setzt.", "As needed: when the group needs it and no one else applies it.") },    -- Demoralisierender Ruf / Demoralizing Shout
         { id = 18499, kind = "situational", when = "manual",
-          text = T("Für Furcht-Effekte aufheben.", "Save it for fear effects.") },    -- Berserkerwut / Berserker Rage
+          text = T("Für Furcht-Effekte und Kopfnuss aufheben.", "Save it for fear effects and Sap.") },    -- Berserkerwut / Berserker Rage
         { id = 6552, kind = "situational", when = "manual",
           text = T("Unterbricht einen Zauber; braucht {2458}.", "Interrupts a cast; needs {2458}.") },    -- Zuschlagen / Pummel
       } },
@@ -198,7 +204,7 @@ ns.RotationData.Add("WARRIOR", {
         { id = 1160, kind = "situational", when = "manual",
           text = T("Nach Lage: wenn die Gruppe ihn braucht und kein anderer ihn setzt.", "As needed: when the group needs it and no one else applies it.") },    -- Demoralisierender Ruf / Demoralizing Shout
         { id = 18499, kind = "situational", when = "manual",
-          text = T("Für Furcht-Effekte aufheben.", "Save it for fear effects.") },    -- Berserkerwut / Berserker Rage
+          text = T("Für Furcht-Effekte und Kopfnuss aufheben.", "Save it for fear effects and Sap.") },    -- Berserkerwut / Berserker Rage
         { id = 6552, kind = "situational", when = "manual",
           text = T("Unterbricht einen Zauber.", "Interrupts a cast.") },    -- Zuschlagen / Pummel
         { id = 20252, kind = "situational", when = "manual",
@@ -320,7 +326,7 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Gegen Riesen und Drachkin zuerst.", "Top priority against giants and dragonkin.") },    -- Aufspießender Stoß / Spearing Strike
         { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },
           guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
-          text = T("Früh setzen; erst nach Ablauf erneuern.", "Apply early; renew only after it ends.") },    -- Verwunden / Rend
+          text = T("Früh setzen; zum Ablauf erneuern.", "Apply early; renew it as it ends.") },    -- Verwunden / Rend
         { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,
           need = { enemy = { rank = ELITE } },
           guess = T("Erneuern 5 Sek. vor Ablauf ist geschätzt.", "Refreshing 5 sec before it ends is estimated."),
@@ -411,7 +417,7 @@ ns.RotationData.Add("WARRIOR", {
         { id = 1160, kind = "situational", when = "manual",
           text = T("Früh im Kampf gegen harte Nahkämpfer.", "Early in the fight against hard-hitting melee.") },    -- Demoralisierender Ruf / Demoralizing Shout
         { id = 18499, kind = "situational", when = "manual",
-          text = T("Vor dem Angriff für Wut oder gegen Furcht.", "Before you attack for rage, or against fear.") },    -- Berserkerwut / Berserker Rage
+          text = T("Vor dem Angriff für Wut oder gegen Furcht und Kopfnuss.", "Before you attack for rage, or against fear and Sap.") },    -- Berserkerwut / Berserker Rage
         { id = 1719, kind = "situational", when = "manual",
           text = T("Für harte Kämpfe aufheben.", "Save it for hard fights.") },    -- Tollkühnheit / Recklessness
       } },
@@ -456,7 +462,7 @@ ns.RotationData.Add("WARRIOR", {
           text = T("Bei wenig Wut erst nach {6572}.", "At low rage only after {6572}.") },    -- Schildschlag / Shield Slam
         { id = 772, kind = "maintain", when = "dot", refresh = "missing", need = { unusable = 5308 },
           guess = T("„Stirbt gleich“ ist geschätzt: sobald das Ziel unter 20 % ist.", "“About to die” is estimated: once the target is below 20%."),
-          text = T("Früh setzen; erst nach Ablauf erneuern.", "Apply early; renew only after it ends.") },    -- Verwunden / Rend
+          text = T("Früh setzen; zum Ablauf erneuern.", "Apply early; renew it as it ends.") },    -- Verwunden / Rend
         { id = 7386, kind = "maintain", when = "dot", stacks = 5, mine = false, refresh = 5,
           need = { grouped = true },
           guess = T("Erneuern 5 Sek. vor Ablauf ist geschätzt.", "Refreshing 5 sec before it ends is estimated."),

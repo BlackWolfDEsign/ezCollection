@@ -115,52 +115,9 @@ Items.Request = ns.Throttle(function() Items.Rebuild() end, 0.5)
 -- Gegenstände zum Benutzen mit Verfolgung, Hervorhebung und Gebiet (ezCore.API("ezQuest").UseItems, Welle 23, A2)
 ---------------------------------------------------------------------------
 
--- In der Verfolgung? Blizzards Art der Verfolgung (C_QuestLog.GetQuestWatchType), sonst das ältere IsQuestWatched.
-local function Watched(log, questID, index)
-    local kind = Call(log.GetQuestWatchType, questID)
-    if not Core.IsSecret(kind) and kind ~= nil then return true end
-    return Core.Bool(Call(rawget(_G, "IsQuestWatched"), index), false) == true
-end
-
-function Items.UseItems()
-    local log = rawget(_G, "C_QuestLog")
-    local special = rawget(_G, "GetQuestLogSpecialItemInfo")
-    if type(log) ~= "table" or type(log.GetNumQuestLogEntries) ~= "function" or type(log.GetInfo) ~= "function"
-        or type(special) ~= "function" then
-        return nil, "noQuestLog"
-    end
-    local superTrack = rawget(_G, "C_SuperTrack")
-    local super = Core.Num(Call(type(superTrack) == "table" and superTrack.GetSuperTrackedQuestID or nil))
-    local zone = Plain(Call(rawget(_G, "GetRealZoneText")))
-    local header
-    local list = {}
-    for index = 1, Core.Num((Call(log.GetNumQuestLogEntries))) or 0 do
-        local info = Call(log.GetInfo, index)
-        if type(info) == "table" then
-            local title = Plain(info.title)
-            if Core.Bool(info.isHeader, false) then
-                header = title
-            else
-                local questID = Core.Num(info.questID)
-                local itemID = Core.ItemID((Call(special, index)))
-                if questID and itemID then
-                    local isSuper = super ~= nil and super == questID
-                    local watched = Watched(log, questID, index)
-                    local onMap = Core.Bool(info.isOnMap, false) == true
-                        or (type(header) == "string" and type(zone) == "string" and header == zone)
-                    list[#list + 1] = { itemID = itemID, questID = questID, title = title, order = index,
-                        header = header, super = isSuper, watched = watched, onMap = onMap,
-                        rank = isSuper and 3 or watched and 2 or onMap and 1 or 0 }
-                end
-            end
-        end
-    end
-    table.sort(list, function(a, b)
-        if a.rank ~= b.rank then return a.rank > b.rank end
-        return a.order < b.order
-    end)
-    return list
-end
+-- Gelesen wird in ezCore (Core.Inventory.QuestUseItems, Durchsicht 24.11.2026 – vorher hier und gleich in ezMacro)
+Items.UseItems = Core.Inventory.QuestUseItems
+Items.Watched, Items.InZone = Core.Inventory.QuestWatched, Core.Inventory.QuestInZone    -- für ShareJoin.lua
 ns.API.UseItems = Items.UseItems
 
 function Items.Count() return objectiveCount end

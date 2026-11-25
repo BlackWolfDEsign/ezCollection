@@ -206,9 +206,18 @@ function Sparkle.Check(atLogin)
     return nil
 end
 
+-- Chatzeile „beim Update ausgeschaltet, verschwindet nach dem Neustart“, wenn Sync Blizzards Werte zurückgegeben hat
+local function Off29Notice(n, why)
+    if why == nil and (n or 0) > 0 then
+        ns.Print(L.SPARKLE_OFF29 .. " " .. Core.SettingsPathText("ezQuest", "OPT_HEADER_SHINE", "OPT_worldSparkle", L))
+    end
+end
+
 -- Beim Anmelden: erst abgleichen (in der Zwischenzeit selbst gewählt?), dann setzen. Hat das Update den Schalter eben
 -- ausgeschaltet (ns.worldSwitched, ns.MigrateWorldOptIn) und gibt Sync Blizzards Werte zurück, sagt der Chat einmal,
--- dass das Funkeln erst nach dem nächsten Neustart verschwindet (im Kampf wartet das Zurückgeben, ohne Meldung).
+-- dass das Funkeln erst nach dem nächsten Neustart verschwindet. Im Kampf wartet das Zurückgeben; die Meldung kommt
+-- dann mit ihm nach PLAYER_REGEN_ENABLED (derselbe Schlüssel ersetzt das wartende Sync, ns.AfterCombat; schaltet der
+-- Spieler vorher selbst um, ersetzt dessen Sync diesen Aufruf und die Meldung entfällt).
 function Sparkle.Login()
     if Sparkle.Check(true) then return "user" end
     local n, why = Sparkle.Sync()
@@ -216,8 +225,10 @@ function Sparkle.Login()
     for _, key in ipairs(type(ns.worldSwitched) == "table" and ns.worldSwitched or {}) do
         if key == Sparkle.KEY then switched = true end
     end
-    if switched and why == nil and (n or 0) > 0 then
-        ns.Print(L.SPARKLE_OFF29 .. " " .. Core.SettingsPathText("ezQuest", "OPT_HEADER_SHINE", "OPT_worldSparkle", L))
+    if switched and why == "combat" then
+        ns.AfterCombat(function() Off29Notice(Sparkle.Sync()) end, Sparkle.KEY)
+    elseif switched then
+        Off29Notice(n, why)
     end
     return n, why
 end

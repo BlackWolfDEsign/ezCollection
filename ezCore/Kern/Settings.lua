@@ -945,6 +945,8 @@ end
 -- Knöpfe tun im Kampf nichts außer einem Hinweis).
 -- opts.shown = fn() → bool: Zeile nur zeigen, solange fn() wahr ist (wie page:Checkbox).
 -- opts.parent, opts.enabledWhen, opts.parentLabel: Knopf grau, solange der Oberschalter aus ist (Abhängigkeit, oben).
+-- opts.search = false: Blizzards Suchmarken (Beschriftung, Knopftext) nicht setzen; opts.searchTags = { text … }:
+-- stattdessen diese Marken (etwa die zweite Zeile von page:AllToggle: Beschriftung " ", gefunden über die der Gruppe).
 function Page:Button(label, buttonText, onClick, tooltip, opts)
     local layout = self.layout
     if not (layout and layout.AddInitializer and CreateSettingsButtonInitializer) then return end
@@ -960,8 +962,13 @@ function Page:Button(label, buttonText, onClick, tooltip, opts)
         end
     end
     self:Try(function()
+        local tags = type(opts) == "table" and type(opts.searchTags) == "table" and opts.searchTags or nil
         initializer = OwnRow(CreateSettingsButtonInitializer(label, buttonText, onClick, DependentTip(self, opts, tooltip),
-            true))
+            not (tags or (type(opts) == "table" and opts.search == false))))
+        -- (fehlt AddSearchTags in einem anderen Client-Stand, bleibt die Zeile ohne Marken – Blizzards Forever-Quelle hat sie)
+        if tags and type(initializer) == "table" and type(initializer.AddSearchTags) == "function" then
+            initializer:AddSearchTags(unpack(tags))
+        end
         layout:AddInitializer(initializer)
         AddShown(self.owner, initializer, type(opts) == "table" and opts.shown, "Button " .. tostring(label))
         AddDependency(self, initializer, opts)
@@ -1015,14 +1022,26 @@ function Page:AllToggle(keys, opts)
     end
     local L = Core.L
     local label = type(opts.label) == "string" and opts.label or ""
+    local shownLabel = label ~= "" and label or " "   -- "" setzte den Knopf an den linken Rand (s. u.)
+    -- Suchmarken: beide Zeilen über die Beschriftung der Gruppe und ihren Knopftext – Blizzards Suche zeigt sonst nur
+    -- „Alle auswählen“ (Spielbefund vom 23.11.2026, Suche „Tooltip“: „Alle abwählen“ fehlte), nie das Leerzeichen
+    local onText, offText = opts.onText or Core.Style.AllText(true), opts.offText or Core.Style.AllText(false)
+    -- ohne Beschriftung der Gruppe keine Marken: ein „Alle abwählen“ ohne Zusammenhang hilft in der Suche nicht
+    local function Tags(text)
+        if label ~= "" then return { label, text } end
+        return nil
+    end
     local onRow, offRow
     if opts.on ~= false then
-        onRow = self:Button(label, opts.onText or Core.Style.AllText(true), function() SetAll(true) end,
-            opts.onTip or opts.tip or L.ALL_CHECK_TIP, { shown = opts.shown })
+        onRow = self:Button(shownLabel, onText, function() SetAll(true) end,
+            opts.onTip or opts.tip or L.ALL_CHECK_TIP, { shown = opts.shown, searchTags = Tags(onText), search = label ~= "" })
     end
+    -- Beschriftung der zweiten Zeile ein Leerzeichen statt "": Blizzards Vorlage setzt den Knopf einer Zeile ohne
+    -- Beschriftung an den linken Rand (SettingsButtonControlMixin:Init, name == ""), mit Text steht er in der Spalte
+    -- unter „Alle auswählen“ (Spielbefund vom 23.11.2026: „Alle abwählen“ allein links).
     if opts.off ~= false then
-        offRow = self:Button(onRow and "" or label, opts.offText or Core.Style.AllText(false), function() SetAll(false) end,
-            opts.offTip or opts.tip or L.ALL_UNCHECK_TIP, { shown = opts.shown })
+        offRow = self:Button(onRow and " " or shownLabel, offText, function() SetAll(false) end,
+            opts.offTip or opts.tip or L.ALL_UNCHECK_TIP, { shown = opts.shown, searchTags = Tags(offText), search = label ~= "" })
     end
     return onRow, offRow, SetAll
 end
@@ -1247,9 +1266,72 @@ end
 Core.SETTINGS_AFTER_COMBAT = "ezCore.openSettings"
 local deferCount = 0   -- zählt jedes Vormerken, damit ein Aufrufer sein eigenes erkennt
 
+-- Ging Blizzards Fenster nicht auf (Spielbefund vom 22.11.2026: „Einstellungen“ in ezMacro öffnete nichts), nennt ein
+-- Hinweis im Chat den Weg über Blizzards Menü (Leitlinie 3). Blizzard öffnet über C_SettingsUtil.OpenSettingsPanel und
+-- das Ereignis SETTINGS_PANEL_OPEN (Forever-Quelle, Blizzard_Settings.lua und Blizzard_SettingsPanel.lua), also erst
+-- danach – geprüft wird nach Core.SETTINGS_CHECK_DELAY Sekunden, nur für den letzten Wunsch (Doppelklick: ein Hinweis).
+-- Ging das Fenster seit dem Wunsch einmal auf (OnShow, per HookScript gemerkt), gilt es als geöffnet – auch wenn der
+-- Spieler es schon wieder geschlossen hat. Eigene Seiten nennen den Weg über „AddOns“, Blizzards Seiten (etwa aus
+-- ezQuest nach dem Kampf nachgeholt) ohne.
+--   Core.SettingsPath(kategorie) → „ezCollection » ezMacro“ (Name der Seite samt Oberseiten)
+--   Core.IsOwnSettingsCategory(kategorie) → true, wenn die Seite oder eine Oberseite der ezCollection gehört
+--   Core.CheckSettingsOpened(kategorie, owner, seit) → true (offen bzw. seit Core.Uptime() = seit aufgegangen) |
+--                                                       false (Hinweis gezeigt) | nil (nicht prüfbar)
+Core.SETTINGS_CHECK_DELAY = 0.5
+local checkSeq, lastShown, watchedPanel = 0, nil, nil
+
+-- Merkt, wann Blizzards Einstellungsfenster zuletzt aufging (HookScript, taint-sicher; einmal je Fenster).
+local function WatchSettingsPanel()
+    local panel = rawget(_G, "SettingsPanel")
+    if panel == watchedPanel or type(panel) ~= "table" or type(panel.HookScript) ~= "function" then return end
+    if pcall(panel.HookScript, panel, "OnShow", function() lastShown = Core.Uptime() end) then watchedPanel = panel end
+end
+
+function Core.IsOwnSettingsCategory(category)
+    local depth = 0
+    while type(category) == "table" and depth < 4 do
+        depth = depth + 1
+        if ownCategories[category] or category == parent then return true end
+        local up = Core.Call(category.GetParentCategory, category)
+        if up == nil then up = rawget(category, "parentCategory") end
+        category = up
+    end
+    return false
+end
+
+function Core.SettingsPath(category)
+    local names, depth = {}, 0
+    while type(category) == "table" and depth < 4 do
+        depth = depth + 1
+        local name = Core.Call(category.GetName, category)
+        if type(name) == "string" and name ~= "" and not Core.IsSecret(name) then table.insert(names, 1, name) end
+        local up = Core.Call(category.GetParentCategory, category)
+        if up == nil then up = rawget(category, "parentCategory") end
+        category = up
+    end
+    if #names == 0 then names[1] = Core.TITLE end
+    return table.concat(names, " » ")
+end
+
+function Core.CheckSettingsOpened(category, owner, since)
+    local panel = rawget(_G, "SettingsPanel")
+    if type(panel) ~= "table" or type(panel.IsShown) ~= "function" then return nil end
+    if Core.Call(panel.IsShown, panel) then return true end
+    if since and lastShown and lastShown >= since then return true end
+    local text = Core.IsOwnSettingsCategory(category) and Core.L.SETTINGS_NOT_OPENED or Core.L.SETTINGS_NOT_OPENED_BLIZZ
+    Core.Print(owner or Core.TITLE, text:format(Core.SettingsPath(category)))
+    return false
+end
+
 local function OpenNow(category, owner, after)
     if not (category and Settings and Settings.OpenToCategory and category.GetID) then return false end
+    WatchSettingsPanel()
+    checkSeq = checkSeq + 1
+    local seq, since = checkSeq, Core.Uptime()
     Settings.OpenToCategory(category:GetID())
+    C_Timer.After(Core.SETTINGS_CHECK_DELAY, function()
+        if seq == checkSeq then Core.CheckSettingsOpened(category, owner, since) end
+    end)
     if type(after) == "function" then Core.Try(owner, "OpenSettings after", after) end
     return true
 end

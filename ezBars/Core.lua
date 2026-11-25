@@ -22,7 +22,7 @@ ns.SHOW_VALUES = { "always", "combat", "nocombat", "hidden" }
 ns.DEFAULTS = {}
 for n = 1, ns.MAX_BARS do
     local prefix = "bar" .. n
-    ns.DEFAULTS[prefix .. "On"] = n == 1
+    ns.DEFAULTS[prefix .. "On"] = false   -- alle Leisten ab Werk aus (Nutzer 23.11.2026: „bars leiste 1 auch default aus“)
     ns.DEFAULTS[prefix .. "Cols"] = 4
     ns.DEFAULTS[prefix .. "Rows"] = 3
     ns.DEFAULTS[prefix .. "Size"] = 100       -- Prozent wie Blizzards „Symbolgröße“
@@ -96,8 +96,12 @@ Core.NewModule(ADDON, ns, {
     core = "1.15.0", needs = { "scaffold", "tourOwner", "AfterCombat", "OpenPanel", "NewProfiles", "StyleIcon",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Ersatzsymbol aus ezCore (T16-NM6)
         "ICON_FALLBACK",
+        -- Seite der Haltung und „Leiste zu sehen“ aus ezCore (24.11.2026, ohne neue Nummer)
+        "ActionSlots.BonusPage", "ActionSlots.BarShown",
         "Style.SetStrata", "Style.ICON", "ApplySetting", "compartmentMain", "slashMain", "CombatNotice", "KeyBindPathText",
-        "SettingsPathText", "TipTitle" },   -- Style: Design-System (Welle 22); TipTitle: Rollen statt Farbzahlen (T9-6)
+        "SettingsPathText", "TipTitle",   -- Style: Design-System (Welle 22); TipTitle: Rollen statt Farbzahlen (T9-6)
+        -- Architektur-Review 22.11.2026 (Paket ezcore/leisten-profile, ohne neue Nummer): Leisten-Profile aus ezCore
+        "BarProfiles.Save", "BarProfiles.Load" },
     db = "ezBarsDB", tables = { "chars", "hints", "tour" },
     schema = 1, migrations = ns.MIGRATIONS,   -- 1: Abstand als Pixel bei 100 % (ns.ScalePaddings oben)
     onLoad = function(db)
@@ -277,12 +281,14 @@ function ns.PrintFreeSlots()
 end
 
 ---------------------------------------------------------------------------
--- Leisten-Profile: die Profile führt ezMacro (ezCore.API("ezMacro"), seit 1.2); ezBars baut keine eigenen.
--- Je Leiste ein Profil „ezBars: Leiste n“ (fester Name, unabhängig von der Sprache des Clients, damit jeder
--- Charakter es findet). Laden nach Reihenfolge (byOrder): Knopf i bekommt den i-ten gespeicherten Platz, auch wenn
--- die Leiste auf diesem Charakter andere Aktionsplätze nutzt. Tastenbelegungen lädt ezBars nicht mit.
+-- Leisten-Profile: ein Dienst in ezCore (Core.BarProfiles, Architektur-Review 22.11.2026; vorher führte ezMacro die
+-- Profile, und ohne ezMacro hatte ezBars keine). Je Leiste ein Profil „ezBars: Leiste n“ (fester Name, unabhängig von
+-- der Sprache des Clients, damit jeder Charakter es findet). Laden nach Reihenfolge (byOrder): Knopf i bekommt den
+-- i-ten gespeicherten Platz, auch wenn die Leiste auf diesem Charakter andere Aktionsplätze nutzt. Tastenbelegungen
+-- lädt ezBars nicht mit. Die Übersicht aller Profile (Löschen, Als Text) bleibt ezMacros Werkzeug „Leisten-Profile“.
 ---------------------------------------------------------------------------
 
+-- ezMacros Schnittstelle (ezCore.API("ezMacro")) oder nil – heute nur noch für den Knopf „Alle Leisten-Profile“.
 function ns.MacroProfiles()
     local mac = Core.API("ezMacro")
     if mac and type(mac.SaveProfile) == "function" and type(mac.LoadProfile) == "function"
@@ -299,27 +305,21 @@ local function BarSlots(n)
     return bar and bar.slots or {}
 end
 
--- Speichert die Plätze der Leiste n als Profil (ezMacro meldet das Ergebnis im Chat).
+-- Speichert die Plätze der Leiste n als Profil (ezCore meldet das Ergebnis im Chat, als „ezBars:“).
 function ns.SaveBarProfile(n)
-    local mac = ns.MacroProfiles()
-    if not mac then ns.Print(L.PROFILE_NO_MACRO) return false end
     local slots = BarSlots(n)
     if #slots == 0 then ns.Print(L.PROFILE_EMPTY:format(ns.BarName(n))) return false end
-    return mac.SaveProfile(ns.ProfileName(n), slots) ~= nil
+    return Core.BarProfiles.Save(ns.ProfileName(n), { slots = slots, owner = ADDON }) ~= nil
 end
 
--- Lädt das Profil der Leiste n auf ihre Plätze (ezMacro fragt einmal nach; im Kampf meldet ezMacro die Sperre).
+-- Lädt das Profil der Leiste n auf ihre Plätze (ezCore fragt einmal nach; im Kampf meldet ezCore die Sperre).
+-- Fehlende Makros und „leere Plätze leeren“: mit ezMacro nach dessen Häkchen im Werkzeug, sonst ezCores Standard.
 function ns.LoadBarProfile(n)
-    local mac = ns.MacroProfiles()
-    if not mac then ns.Print(L.PROFILE_NO_MACRO) return false end
-    local name, found = ns.ProfileName(n), false
-    for _, existing in ipairs(mac.ProfileNames() or {}) do
-        if existing == name then found = true end
-    end
-    if not found then ns.Print(L.PROFILE_MISSING:format(name)) return false end
+    local name = ns.ProfileName(n)
+    if not Core.BarProfiles.Get(name) then ns.Print(L.PROFILE_MISSING:format(name)) return false end
     local slots = BarSlots(n)
     if #slots == 0 then ns.Print(L.PROFILE_EMPTY:format(ns.BarName(n))) return false end
-    return mac.LoadProfile(name, slots, { byOrder = true, bindings = false }) == true
+    return Core.BarProfiles.Load(name, { slots = slots, byOrder = true, bindings = false, owner = ADDON }) == true
 end
 
 function ns.OpenMacroProfiles()
@@ -516,8 +516,9 @@ end
 ---------------------------------------------------------------------------
 -- Schnittstelle für andere Module (ezCore.API("ezBars")).
 -- Aktionsplätze (Bars, UsedSlots, ButtonForSlot; BARS-07, V-153): UsedSlots nutzt ezMacro seit Welle 6 für das
--- Rang-Leuchten auf ezBars-Plätzen (ezMacro/Ranks.lua, BarSlots); die Leisten-Profile laufen umgekehrt (ezBars ruft
--- ezCore.API("ezMacro")). Bars und ButtonForSlot bleiben für Module, die Leisten bzw. den Knopf zu einem Aktionsplatz
+-- Rang-Leuchten auf ezBars-Plätzen (ezMacro/Ranks.lua, BarSlots); die Leisten-Profile liegen in ezCore
+-- (Core.BarProfiles; bis 22.11.2026 rief ezBars dafür ezCore.API("ezMacro")). Bars und ButtonForSlot bleiben für
+-- Module, die Leisten bzw. den Knopf zu einem Aktionsplatz
 -- suchen (Empfehlung umgesetzt, Antwort des Nutzers offen). Alle drei fragen nur ab und merken nichts
 -- (Slots.Resolve ohne commit, V-154).
 -- Leisten anderer Module (RegisterBar …): Beschreibung oben.

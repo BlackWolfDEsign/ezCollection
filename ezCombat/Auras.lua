@@ -3,8 +3,8 @@ local L = ns.L
 local Glow = ns.Glow
 
 -- Eigene DoTs und HoTs auf dem Ziel:
---   1. Blizzards Zielfenster zeigt eigene Auren ohnehin größer (21 statt 17). ezCombat stellt diese Größe
---      über Blizzards eigene Schnittstelle des Auren-Containers höher (SetLargeAuraSize) – das Original, nur größer.
+--   1. (Entfernt am 22.11.2026: die größeren eigenen Auren in Blizzards Zielfenster über SetLargeAuraSize –
+--      der Aufruf verunreinigte Blizzards Auren-Layout; Blizzards Größe gilt.)
 --   2. Eine Reihe großer Symbole in Aktionsknopf-Optik über dem Zielfenster, mit Restzeit in Zahlen: Blizzards
 --      Auren-Reihe über ezCore.AuraRow (CB-06; leuchtet im Pandemie-Fenster des Spiels), ohne Blizzards Vorlage
 --      ezCombats eigene Reihe als Rückfall (CB-07 entfernt sie nach dem Spieltest).
@@ -17,8 +17,10 @@ local Glow = ns.Glow
 -- GetAuraDataByIndex ist „SecretWhenUnitAuraRestricted“ – gesperrt ist die ganze Aura ein gesperrter Wert, nicht nur
 -- ihre Felder. ezCore.Auras.Scan hörte dann bei der ersten Aura auf (eine gesperrte Tabelle lässt sich nicht lesen),
 -- die Liste blieb leer und die Reihe verborgen – und gesperrt sind die Auren, sobald man im Kampf ist, also immer,
--- wenn ein eigener DoT auf dem Ziel liegt. Nie gesperrt ist C_UnitAuras.GetUnitAuraInstanceIDs (nur Zahlen, auf
--- Wunsch nach Ablauf sortiert) und GetAuraDuration (Dauer-Objekt je Instanz). Darüber liest seit ezCore 1.8.0
+-- wenn ein eigener DoT auf dem Ziel liegt. C_UnitAuras.GetUnitAuraInstanceIDs (nur Zahlen, auf Wunsch nach Ablauf
+-- sortiert) liefert nie gesperrte Werte, wirft aber für Addons, sobald das Spiel die Auren gar nicht herausgibt
+-- (RequiresUnitAuraAccess; Proben 14.11. und 23.11.2026: im Kampf); GetAuraDuration (Dauer-Objekt je Instanz) hat
+-- dieselbe Bedingung. Darüber liest seit ezCore 1.8.0
 -- ezCore.Auras.Scan selbst (vorher baute ezCombat das hier nach); Namen und Symbole gesperrter Auren kennt ezCombat
 -- aus den eigenen Zaubern (Auras.Learn, Auras.Remember).
 -- Auslaufende DoTs stehen außerdem am gemeinsamen Symbolplatz in der Bildschirmmitte (Symbol.lua, Rang 1).
@@ -31,7 +33,6 @@ local MAX_ICONS = 6
 local ICON_SIZE = 30
 local SPACING = 5
 local TICK = 0.1
-local BLIZZARD_LARGE_SIZE = 21
 local FALLBACK_ICON = ezCore.ICON_FALLBACK_ID   -- ezCores Ersatzsymbol, Fragezeichen (Gesamtreview 18.11.2026, T16-NM6)
 
 local current = {}          -- gesammelte Auren des Ziels (Felder wie ezCore.Auras.Scan, expires = Ablaufzeit)
@@ -75,7 +76,7 @@ function Auras.Collect()
     if not present then return list, false, false end
     local friendly = ns.Bool(UnitIsFriend("player", "target"), false)
     local filter = friendly and "HELPFUL|PLAYER" or "HARMFUL|PLAYER"
-    -- ezCore liest über die nie gesperrten Instanz-IDs (ganz gesperrte Auren als Platzhalter mit Instanz und
+    -- ezCore liest über die Instanz-IDs, soweit das Spiel sie herausgibt (ganz gesperrte Auren als Platzhalter mit Instanz und
     -- Blizzards Dauer-Objekt); ezCombat ergänzt Namen und Symbole aus den eigenen Zaubern.
     local auras, secret, ids, unread = ezCore.Auras.Scan("target", filter,
         { keepSecret = true, durations = true, max = MAX_ICONS * 2 })
@@ -114,12 +115,12 @@ function Auras.Collect()
 end
 
 ---------------------------------------------------------------------------
--- Gesperrte Auren: Instanz-IDs (nie gesperrt) und was ezCombat aus den eigenen Zaubern über sie weiß.
+-- Gesperrte Auren: Instanz-IDs (Zahlen, soweit das Spiel sie herausgibt) und was ezCombat aus den eigenen Zaubern über sie weiß.
 -- Lesen gehört seit ezCore 1.8.0 nach ezCore.Auras (InstanceIDs, FromInstances, Duration); hier bleiben die
 -- Weiterleitungen und das Wissen aus den eigenen Zaubern.
 ---------------------------------------------------------------------------
 
--- Instanz-IDs der Auren, die zum Filter passen, die zuerst auslaufende zuerst; nil ohne Schnittstelle.
+-- Instanz-IDs der Auren, die zum Filter passen, die zuerst auslaufende zuerst; nil ohne Schnittstelle oder ohne Zugriff.
 -- Weiterleitung an ezCore.Auras.InstanceIDs (höchstens doppelt so viele wie Symbole in der Reihe).
 function Auras.InstanceIDs(unit, filter)
     return ezCore.Auras.InstanceIDs(unit, filter, MAX_ICONS * 2)
@@ -497,6 +498,8 @@ end
 -- deshalb am Halter der Reihe an (unter UIParent, an derselben Stelle, Größe von sechs Symbolen) – nur solange das
 -- Zielfenster zu sehen ist, sonst wird der Schritt wie bisher übersprungen. Beim Rückfall die eigene Reihe.
 function Auras.TourTarget()
+    -- ab Werk aus (Entscheidung 23.11.2026): ohne Reihe kein Rundgang-Schritt, der auf einen verborgenen Halter zeigt
+    if not ns.Enabled("dots") then return nil end
     if blizzRow then
         local holder = blizzRow:Holder()
         if holder and TargetFrame and TargetFrame:IsVisible() then return holder end
@@ -535,15 +538,8 @@ end
 local curves = {}
 
 local function StepCurve(key, points)
-    if curves[key] then return curves[key] end
-    if not (C_CurveUtil and C_CurveUtil.CreateCurve) then return nil end
-    local ok, curve = pcall(C_CurveUtil.CreateCurve)
-    if not ok or type(curve) ~= "table" then return nil end
-    local stepType = Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step
-    if stepType and curve.SetType then curve:SetType(stepType) end
-    for _, point in ipairs(points) do curve:AddPoint(point[1], point[2]) end
-    curves[key] = curve
-    return curve
+    if not curves[key] then curves[key] = ezCore.StepCurve(points) end
+    return curves[key]
 end
 
 -- Restzeit ≤ Schwelle → 1 (leuchten), sonst 0.
@@ -800,48 +796,10 @@ ns.OnSettingChanged(function(key)
     if key == ns.SHOW_KEYS.expiring then Auras.UpdateTicker() end
 end)
 
----------------------------------------------------------------------------
--- Blizzards Zielfenster: eigene Auren größer
----------------------------------------------------------------------------
+-- „Größere eigene Auren in Blizzards Zielfenster“ (Auras.BigAurasOn/ApplyBigAuras über Blizzards SetLargeAuraSize) ist
+-- entfernt: Der Aufruf schrieb largeAuraSize in Blizzards Auren-Container, Blizzards Auren-Layout lief danach verunreinigt
+-- (Taint-Prüfung vom 22.11.2026, Leitlinie 5). Entscheidung des Nutzers vom 22.11.2026: „Ganz entfernen“.
 
-local bigApplied = false
-
-local function Containers()
-    local list = {}
-    for _, unitFrame in ipairs({ TargetFrame, FocusFrame }) do
-        if type(unitFrame) == "table" and type(unitFrame.GetAuraContainer) == "function" then
-            local ok, container = pcall(unitFrame.GetAuraContainer, unitFrame)
-            if ok and type(container) == "table" and type(container.SetLargeAuraSize) == "function" then
-                list[#list + 1] = container
-            end
-        end
-    end
-    return list
-end
-
--- Nur außerhalb des Kampfs; ausgeschaltet stellt ezCombat Blizzards Größe nur wieder her, wenn es sie geändert hat.
--- Aus heißt: Regler auf Blizzards Größe (Einstellungs-Prüfung 19.11.2026, Nr. 72; bis dahin Kästchen bigAuras).
-function Auras.BigAurasOn()
-    local size = ns.S and tonumber(ns.S.bigAuraSize)
-    return size ~= nil and size > BLIZZARD_LARGE_SIZE
-end
-
-function Auras.ApplyBigAuras()
-    if ns.InCombat() then return false end
-    local enabled = Auras.BigAurasOn()
-    if not enabled and not bigApplied then return false end
-    local defaults = rawget(_G, "TargetFrameAuraContainerDefaults")
-    local size = enabled and ns.S.bigAuraSize
-        or (type(defaults) == "table" and defaults.LargeAuraSize) or BLIZZARD_LARGE_SIZE
-    local done = false
-    for _, container in ipairs(Containers()) do
-        if pcall(container.SetLargeAuraSize, container, size) then done = true end
-    end
-    bigApplied = enabled and done
-    return done
-end
-
-ns.On("PLAYER_REGEN_ENABLED", Auras.ApplyBigAuras)
 ns.On("PLAYER_REGEN_ENABLED", Auras.UpdateParent)
 ns.On("PLAYER_REGEN_DISABLED", function() Row() end)
 
@@ -898,16 +856,13 @@ ns.AddStatusLine(function()
 end)
 
 ns.OnSettingChanged(function(key)
-    if key == "bigAuraSize" then
-        Auras.ApplyBigAuras()
-    elseif key == "dots" or key == "dotWarn" or key == "showExpiring" then
+    if key == "dots" or key == "dotWarn" or key == "showExpiring" then
         updateSoon()
     end
 end)
 
 ns.OnReady(function()
     Row()                   -- entscheidet zuerst, welche Reihe es gibt (Mode)
-    Auras.ApplyBigAuras()
     updateSoon()
 end)
 
@@ -915,11 +870,6 @@ end)
 ns.Listen("PARTS_SHOWING", function()
     Auras.Update()
     Auras.UpdateParent()
-end)
-
--- Nach dem Bearbeitungsmodus die eigene Aurengröße erneut setzen (Blizzard baut die Einheitenfenster neu auf).
-ns.Listen("EDIT_MODE", function(active)
-    if not active then Auras.ApplyBigAuras() end
 end)
 
 -- Vorschau: zwei Beispiel-Symbole über dem Zielfenster, eines kurz vor Ablauf (leuchtet).

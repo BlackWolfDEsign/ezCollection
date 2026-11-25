@@ -18,6 +18,10 @@ local _, ns = ...
       - Satt-Zauber (WELL_FED_SPELLS): Zauber-IDs aus Classic; /ez test prüft jede gegen den Client (Spells.BUFFS).
       - Rüstung und Waffen je Klasse samt Stufe (ARMOR_PROF, WEAPONS_BY_CLASS) und die Grenzen „hoher Händlerwert“:
         UNGEPRÜFT – Classic-Regeln bzw. eigene Wahl, im Spiel gegen den Client zu bestätigen (Forever kann abweichen).
+        Seit 23.11.2026 (Paket ezgear/lernbar-tragbar) sind ARMOR_PROF und WEAPONS_BY_CLASS nur noch Rückfall: Das
+        Item-Wissen nimmt zuerst die Client-Tabellen dieses Builds (ezCore.Proficiency, Wissen/Client/Proficiencies.lua),
+        hier gelten sie nur für Arten ohne Fertigkeit dort (Buchbände, Götzen, Totems). Laut Client weichen ab: Schurken
+        haben Einhandäxte (je nach Volk von Anfang an), Druiden lernen Stangenwaffen (ab 20).
       - Suchwörter (SEARCH_*): eigene Wahl.
 ]]
 

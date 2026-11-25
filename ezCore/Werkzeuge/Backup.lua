@@ -13,10 +13,9 @@ local L = Core.L
     Was NICHT im Text steht (persönliche Daten): Charaktere, Taschen, Post, Verlauf, Chat, Kontakte, Preise,
     Positionen, Listen und Tabellen in den Einstellungen, Texte mit einem bekannten Charakternamen, einem Link
     oder einer BattleTag. Ein Modul nimmt weitere Schlüssel mit ns.EXPORT_SKIP = { key = true } aus, ezCore seine
-    eigenen mit Core.OwnExportSkip(gruppe, { key = true }) (Settings.lua) – so bleiben der Entwicklerschalter
-    comfort.developer und der Testschalter comfort.editModeOpen draußen und werden auch nicht übernommen
-    (Gegenprüfung zum Gesamtreview 18.11.2026, P6: sonst gingen sie über einen geteilten Text an, vorbei an
-    /ez debug entwickler).
+    eigenen mit Core.OwnExportSkip(gruppe, { key = true }) (Settings.lua) – so bleibt der Entwicklerschalter
+    comfort.developer draußen und wird auch nicht übernommen (Gegenprüfung zum Gesamtreview 18.11.2026, P6: sonst
+    ginge er über einen geteilten Text an, vorbei an /ez debug entwickler).
     Profile, Gruppen und Makros der Module behalten ihren eigenen Export (Core.NewProfiles, ezBag, ezMacro).
     Die Entdecker-Datenbank (ezWorldDB, DB.lua) ist Weltwissen und kein Teil des Textes; ihre zwei Schalter
     (Gruppe „discovery“: dataCollect, explorer) kommen wie alle eigenen Schalter mit. Ihr Weg nach außen ist der

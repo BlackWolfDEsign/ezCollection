@@ -3,7 +3,7 @@
 ## Notes: Merchant and trainer in the original look: wider merchant window with search and filters, buy stacks, restock supplies to target amounts, known recipes marked, automatic repair (also with guild money), "Learn all" at trainers, "What comes when" at the spellbook, level-up summary. Part of ezCollection.
 ## Notes-deDE: Händler und Lehrer im Originalstil: breiteres Händlerfenster mit Suche und Filtern, Stapel kaufen, Vorrat auf Sollmengen auffüllen, bekannte Rezepte markiert, automatisch reparieren (auch mit Gildengeld), „Alles lernen“ beim Lehrer, „Was kommt wann“ am Zauberbuch, Meldung beim Stufenaufstieg. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.9.0
+## Version: 1.10.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Misc_Coin_02
 ## RequiredDeps: ezCore
@@ -24,5 +24,6 @@ Trainer.lua
 LevelUp.lua
 PetTrainer.lua
 Spellbook.lua
+Where.lua
 Tour.lua
 Options.lua

@@ -32,8 +32,8 @@ local Data = ns.Data
     abgewählten Farbe werden abgeblendet (ezCraft setzt nur die Deckkraft der Zeile); „Grau (nie)“ abwählen schaltet
     zusätzlich Blizzards eigenen Filter „Hat Fertigkeitsanstieg“ ein, der graue Rezepte wirklich ausblendet
     (Empfehlung umgesetzt, Antwort offen: Abblenden statt Ausblenden). Der Tooltip einer Zeile nennt die Chance
-    (über Blizzards Nachricht „Professions.RecipeListOnEnter“); auf Wunsch steht sie als kleine Zahl neben dem Namen
-    (Schalter chanceNumber, ab Werk aus).
+    (über Blizzards Nachricht „Professions.RecipeListOnEnter“); auf Wunsch steht sie als kleine Zahl rechts in der Zeile
+    (Schalter chanceNumber, ab Werk aus; gezeichnet in Rows.lua, zusammen mit Stufe und ezGears Pfeil).
 
       Skill.Color(info)            → "orange" | "yellow" | "green" | "gray" | "white" | "unlearned" (nicht gelernt:
                                      der Client meldet dann orange, ohne dass das etwas bedeutet – Probe 10, Station J3;
@@ -226,11 +226,9 @@ function Skill.Reset()
 end
 
 ---------------------------------------------------------------------------
--- Blizzards Rezeptliste: Abblenden, kleine Zahl, Zeile im Tooltip (nur eigene Regionen und Deckkraft; nichts in
+-- Blizzards Rezeptliste: Abblenden, Spalten (Rows.lua), Zeile im Tooltip (nur eigene Regionen und Deckkraft; nichts in
 -- Blizzards Tabellen)
 ---------------------------------------------------------------------------
-
-local numbers = setmetatable({}, { __mode = "k" })   -- Zeile » eigene Schrift (nicht an Blizzards Rahmen gemerkt)
 
 local function RecipeList()
     local pf = rawget(_G, "ProfessionsFrame")
@@ -238,6 +236,7 @@ local function RecipeList()
     local list = type(page) == "table" and page.RecipeList
     return type(list) == "table" and list or nil
 end
+Skill.RecipeList = RecipeList
 
 local function RowInfo(button, node)
     local data = node and type(node.GetData) == "function" and node:GetData()
@@ -254,29 +253,22 @@ function Skill.ApplyRow(button, node)
     if not info then return false end
     local color = Skill.Color(info)
     button:SetAlpha(not Skill.Wanted(color) and Skill.DIM or 1)
-    local text = numbers[button]
-    if ns.Enabled("chanceNumber") then
-        if not text then
-            text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            text:SetPoint("RIGHT", button, "RIGHT", -4, 0)
-            numbers[button] = text
-        end
-        text:SetText(Skill.ShortText(Skill.Chance(info, ns.Where.Rank())) or "")
-        text:Show()
-    elseif text then
-        text:Hide()
-    end
+    ns.Rows.Draw(button, info)
     return true
 end
 
+-- Alle sichtbaren Zeilen: Blizzards Liste und – solange sie steht – ezCrafts sortierte (Sort.lua)
 function Skill.ApplyAll()
     local list = RecipeList()
-    local box = list and rawget(list, "ScrollBox") or (list and list.ScrollBox)
-    if type(box) ~= "table" or type(box.ForEachFrame) ~= "function" then return 0 end
     local n = 0
-    pcall(box.ForEachFrame, box, function(frame)
-        if Skill.ApplyRow(frame) then n = n + 1 end
-    end)
+    local function Each(box)
+        if type(box) ~= "table" or type(box.ForEachFrame) ~= "function" then return end
+        pcall(box.ForEachFrame, box, function(frame)
+            if Skill.ApplyRow(frame) then n = n + 1 end
+        end)
+    end
+    Each(list and rawget(list, "ScrollBox") or (list and list.ScrollBox))
+    Each(ns.Sort.Box())
     return n
 end
 
@@ -287,8 +279,19 @@ function Skill.OnRecipeEnter(_, button, data)
     if type(info) ~= "table" then return end
     local c = Skill.Chance(info, ns.Where.Rank())
     local text = Skill.ChanceText(c)
-    if not text then return end
-    if not GameTooltip:IsShown() then GameTooltip:SetOwner(button, "ANCHOR_RIGHT") end
+    local lines = ns.Rows.TipLines(info)      -- Stufe und ezGears Stand des hergestellten Gegenstands
+    if not text and #lines == 0 then return end
+    if not GameTooltip:IsShown() then
+        -- wie Blizzards Tooltip an gekürzten Namen: der volle Name als Überschrift
+        GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+        local name = Core.Plain(info.name)
+        if #lines > 0 and type(name) == "string" then ns.TipLine(GameTooltip, name, "highlight") end
+    end
+    for _, line in ipairs(lines) do ns.TipLine(GameTooltip, line.text, line.role, true) end
+    if not text then
+        GameTooltip:Show()
+        return
+    end
     -- Stufenfarbe aus ezCore (Data.StageRGB); „weiß“ (Farbe unbekannt) bleibt Blizzards Weiß wie bisher
     local r, g, b
     if Data.IsStage(c.color) then r, g, b = Data.StageRGB(c.color) else r, g, b = Core.Style.Color("highlight") end

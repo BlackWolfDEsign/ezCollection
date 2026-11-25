@@ -7,21 +7,22 @@ local Core = ezCore
         Item-Wissen von ezBag (Reihenfolge 20 → ezGear 25). Gilt überall, wo Blizzard einen Gegenstands-Tooltip zeigt –
         Tasche, Händler, Questbelohnung, Beute, Rezept-Ergebnis. Bei Ausrüstung sagt die Zeile immer, wie es steht
         (Leitlinie 3): besser (mit dem grünen Pfeil wie am Platz), schlechter (rot), keine zählenden Werte, Werte
-        werden gelesen – und wenn Pawn die Pfeile übernimmt, dass er es tut. „Stufe zu hoch“ und „nicht tragbar“
-        schreibt ezGear NICHT in den Tooltip: Blizzard zeigt dort schon rot „Benötigt Stufe N“ bzw. die Rüstungsart,
-        das Item-Wissen (Text aus ezCore, angezeigt von ezBag) ergänzt „(du: 10)“ – eine Zeile je Aussage
-        (Spieltest 14.11.2026). Ausnahme: Beherrscht die Klasse die Rüstungsart erst später (Schwere Rüstung für
-        Jäger ab 40), nennt Blizzard nur die Mindeststufe des Gegenstands – „tragbar ab 40“ ist dann Zusatzwissen.
-        Das sagt schon ezCores Item-Wissen („Tragbar ab Stufe: 40 …“), solange sein Abschnitt an ist; ezGear fragt
-        Core.Tooltip.Shows und schreibt seine Zeile nur ohne diese Zeile (GEAR-01: je Fall höchstens eine Zeile zur
-        Tragbarkeit). Der Stand selbst (Score.Verdict, Score.Describe) bleibt für Pfeile, /ezg status und die
-        Schnittstelle.
+        werden gelesen – und wenn Pawn die Pfeile übernimmt, dass er es tut. „Nicht tragbar“ schreibt ezGear NICHT in
+        den Tooltip: Blizzard zeigt dort schon rot die Rüstungsart (Spieltest 14.11.2026). Fehlt nur die Stufe, steht seit
+        dem 24.11.2026 der Vergleich mit „– ab Stufe N“ da (Nutzer: „ezgear zeigt pfeil nicht mehr weil das lvl höher ist
+        als meins? blöd“); nennt ezCores Item-Wissen im selben Tooltip schon „Tragbar ab Stufe: 40 …“, bleibt nur der
+        Vergleich (ezGear fragt Core.Tooltip.Shows; GEAR-01: je Fall höchstens eine Zeile zur Tragbarkeit). Der Stand
+        selbst (Score.Verdict, Score.Describe) bleibt für Pfeile, /ezg status und die Schnittstelle.
         Trägt der Knopf das Gold-Symbol, erklärt eine Zeile es; ebenso das Zeichen „Verzauberung fehlt“ an einem
         Platz des Charakterfensters (Character.lua).
         Mit gedrückter Umschalt-Taste steht unter der Vergleichszeile grau, woher die Gewichtung stammt
-        (Regel „Datenquellen“: jede Angabe nennt ihre Quelle; Weights.Source – derselbe Text wie in /ezg status).
+        (Regel „Datenquellen“: jede Angabe nennt ihre Quelle; Weights.Source – derselbe Text wie in /ezg status);
+        nennt die Zeile einen Weg („erst … lernen“), steht darunter, woher Stufe, Lehrer und Ort stammen.
         Beim Drücken und Loslassen zeichnet der Tooltip neu (RefreshData, wie ezLoot) – auch das Fenster eines
         im Chat angeklickten Links (ItemRefTooltip).
+      * Zeile „Für Twinks: ↑ Mira +18 %“ (Alts.lua, Schalter tooltipAlts; Nutzer am 24.11.2026): wem ein Gegenstand, den du
+        weitergeben kannst, etwas bringt. Diese Namen fehlen dann in der Zeile „Twinks“ des Item-Wissens (wer ihn tragen
+        kann). Laden die Daten seiner Ausrüstung noch, zeichnet der Tooltip neu, sobald sie da sind.
       * Rezept-Ergebnis im Berufefenster (Idee von Forever Tweaks, hier selbst gebaut): Blizzards Vergleichs-Tooltips mit der angelegten
         Ausrüstung erscheinen von selbst, ohne Umschalt-Taste. Blizzard setzt den Tooltip dort jedes Bild neu
         (SetRecipeResultItem im OnUpdate); ezGear zeigt den Vergleich nur einmal je Gegenstand.
@@ -31,31 +32,26 @@ local Tip = {}
 ns.Tooltip = Tip
 
 local GREEN = { 0.1, 1, 0.1 }
+local YELLOW = { 1, 0.82, 0 }    -- „besser, sobald gelernt“ bzw. „… sobald die Stufe reicht“ (Score.LATER), wie der gelbe Pfeil (Marks.LEARN_COLOR)
 local RED = { 1, 0.35, 0.35 }
 local GREY = { 0.65, 0.65, 0.65 }
 
--- Stände, die Blizzards Tooltip schon selbst rot nennt („Benötigt Stufe N“, Rüstungs- bzw. Waffenart, Klassen) –
--- dazu schreibt ezGear keine eigene Zeile.
-local SAID_BY_BLIZZARD = { level = true, unusable = true }
+-- Stände, die Blizzards Tooltip schon selbst rot nennt (Rüstungs- bzw. Waffenart, Klassen) – dazu schreibt ezGear keine
+-- eigene Zeile.
+local SAID_BY_BLIZZARD = { unusable = true }
 
--- Sagt Blizzards Tooltip diesen Stand schon? „Stufe zu hoch“ nur, wenn die Stufe die Mindeststufe des Gegenstands
--- ist („Benötigt Stufe N“) – liegt sie darüber (Rüstungsart erst später), kennt Blizzards Tooltip die Zahl nicht.
-function Tip.SaidByBlizzard(kind, info)
-    if not SAID_BY_BLIZZARD[kind] then return false end
-    if kind == "level" and info and info.usableFrom and info.minLevel and info.usableFrom > info.minLevel then
-        return false
-    end
-    return true
+-- Sagt Blizzards Tooltip diesen Stand schon?
+function Tip.SaidByBlizzard(kind)
+    return SAID_BY_BLIZZARD[kind] == true
 end
 
 -- Stand → Aussage, die ezCores Item-Wissen im selben Tooltip zeigen kann (Core.Tooltip.ClaimLine, FP-06):
 -- "level" = „Tragbar ab Stufe“, "class" = „Nicht für deine Klasse“.
 local SAID_BY_KNOWLEDGE = { level = "level", unusable = "class" }
 
--- Sagt das Item-Wissen diesen Stand im selben Tooltip schon (GEAR-01)? Der Fall, der hier bleibt: Die Klasse
--- beherrscht die Rüstungsart erst später – dann steht dort „Tragbar ab Stufe: 40 (Kette erst ab Stufe 40)“, und
--- ezGear spricht nur über den Vergleich (Empfehlung „das Item-Wissen behält die Aussage“). Ohne Item-Wissen-Zeile
--- (Abschnitt aus, Schalter aus, ezCore ohne Core.Tooltip.Shows) → false, dann bleibt ezGears Zeile.
+-- Sagt das Item-Wissen diesen Stand im selben Tooltip schon (GEAR-01)? Nennt es die Stufe („Tragbar ab Stufe: 40 (Kette
+-- erst ab Stufe 40)“), spricht ezGear nur über den Vergleich (Empfehlung „das Item-Wissen behält die Aussage“). Ohne
+-- Item-Wissen-Zeile (Abschnitt aus, Schalter aus, ezCore ohne Core.Tooltip.Shows) → false, dann bleibt ezGears Zusatz.
 function Tip.SaidByKnowledge(kind, link)
     local what = SAID_BY_KNOWLEDGE[kind]
     local tooltip = Core.Tooltip
@@ -64,26 +60,37 @@ function Tip.SaidByKnowledge(kind, link)
     return ok and shows == true
 end
 
--- Tip.Line(link) → Text, Farbe, Stand (Score.Verdict) oder nil (kein Ausrüstungsgegenstand, angelegt, oder
+-- Tip.Line(link) → Text, Farbe, Stand (Score.Verdict), info oder nil (kein Ausrüstungsgegenstand, angelegt, oder
 -- Blizzard bzw. das Item-Wissen sagt es schon)
 function Tip.Line(link)
     local info = ns.Score.Compare(link)
     local text, _, kind = ns.Score.Describe(info)
-    if not text or Tip.SaidByBlizzard(kind, info) or Tip.SaidByKnowledge(kind, link) then return nil end
+    if not text or Tip.SaidByBlizzard(kind) then return nil end
+    -- Die Stufe fehlt noch (Mindeststufe des Gegenstands, Platte ab 40): Nennt das Item-Wissen im selben Tooltip
+    -- „Tragbar ab Stufe: 40 …“, bleibt der Vergleich ohne die Stufe (GEAR-01: je Fall höchstens eine Zeile zur
+    -- Tragbarkeit); was beim Waffenmeister zu lernen ist, steht weiter da
+    if info and (info.usableFrom or ns.Score.LearnByLevel(info)) and Tip.SaidByKnowledge("level", link) then
+        text = ns.Score.Describe(info, true)
+    end
     -- „−8 %“ steht immer (Einstellungs-Prüfung 19.11.2026, Nr. 42): sonst wüsste man nicht, ob das Teil schlechter
     -- ist oder gar nicht bewertet wurde
     local color = GREY
     if kind == "better" then
         color = GREEN
         text = ns.Marks.ArrowIcon() .. " " .. text   -- derselbe Pfeil wie am Platz
+    elseif ns.Score.LATER[kind] then
+        -- „+18 % für Schaden – erst Schwerter lernen (Waffenmeister)“, „+12 % für Schaden – ab Stufe 24“, mit dem
+        -- gelben Pfeil wie am Platz
+        color = YELLOW
+        text = ns.Marks.LearnIcon() .. " " .. text
     elseif kind == "worse" then
         color = RED
     end
-    return text, color, kind
+    return text, color, kind, info
 end
 
 -- Stände, deren Aussage aus der Gewichtung kommt – nur dort nennt die Umschalt-Zeile deren Quelle.
-local WEIGHTED = { better = true, worse = true, same = true, nostats = true }
+local WEIGHTED = { better = true, learn = true, level = true, worse = true, same = true, nostats = true }
 
 -- Tip.SourceLine(kind) → „Quelle der Gewichtung: …“ (Weights.Source) – nur mit gedrückter Umschalt-Taste und nur
 -- bei einem Stand, der aus der Gewichtung kommt; sonst nil
@@ -92,6 +99,25 @@ function Tip.SourceLine(kind)
     if ns.Plain(ns.Call(IsShiftKeyDown)) ~= true then return nil end
     local _, text = ns.Weights.Source()
     return text
+end
+
+-- Tip.WaySourceLine(link) → woher der Weg „erst … lernen“ stammt (Leitlinie 11) – nur mit gedrückter Umschalt-Taste
+-- und nur, wenn der Vergleich einen Weg nennt: Stufe laut Client-Tabellen, Lehrer und Ort aus deinem Lehrerfenster
+-- (Entdecker-Datenbank), aus Beiträgen anderer Spieler (way.shared, seit 25.11.2026) oder nach der Classic-Regel (Waffen beim Waffenmeister, Rüstung beim Klassenlehrer); sonst nil
+function Tip.WaySourceLine(link)
+    if ns.Plain(ns.Call(IsShiftKeyDown)) ~= true then return nil end
+    local info = ns.Score.Compare(link)
+    local way = info and info.learn
+    if type(way) ~= "table" then return nil end
+    if type(way.shared) == "string" then
+        -- selbst gesehen, nur der Ort aus Beiträgen | Lehrer und Ort aus Beiträgen | nur der Lehrer (Ort unbekannt)
+        local text = way.seen and ns.L.TIP_WAY_SOURCE_SHIP_PLACE
+            or way.place and ns.L.TIP_WAY_SOURCE_SHIP or ns.L.TIP_WAY_SOURCE_SHIP_NOPLACE
+        return text:format(way.shared)
+    end
+    if way.seen then return ns.L.TIP_WAY_SOURCE_SEEN end
+    if way.trainer then return ns.L.TIP_WAY_SOURCE_RULE end
+    return ns.L.TIP_WAY_SOURCE
 end
 
 -- Waffe zur Spielweise (Paket ezgear/talent-empfehlung; Weights.WeaponFit): grün „passt“, orange „nutzt …“ – nur mit
@@ -103,6 +129,12 @@ function Tip.WeaponLine(link)
     name = tostring(name or ns.L.WEIGHTS_TALENT_NAME)
     if fit == "match" then return (shield and ns.L.TIP_SHIELD_MATCH or ns.L.TIP_WEAPON_MATCH):format(name), GREEN end
     return ns.L.TIP_WEAPON_OTHER:format(name, tostring(want)), ORANGE
+end
+
+-- Wem der Gegenstand etwas bringt (Alts.lua) → Zeile oder nil, laden noch Daten?
+function Tip.AltsLine(link, data)
+    local hits, pending = ns.Alts.For(link, ns.Stats.Facts(link), data)
+    return hits and ns.Alts.Text(hits), pending
 end
 
 -- Hinweis, wenn ein fremdes Addon (Pawn) Pfeile oder Vergleich übernimmt – sonst wüsste niemand, warum sie fehlen.
@@ -140,8 +172,9 @@ end
 -- auf einen Link ihn einfügt statt das Fenster zu öffnen). Geleert, sobald der Tooltip geleert oder versteckt wird.
 local weightedShown = {}     -- [Tooltip] = true
 local watched = {}           -- [Tooltip] = true: OnHide und OnTooltipCleared sind angehängt
+local altsOpen = {}          -- [Tooltip] = true: Daten für die Zeile „Für Twinks“ laden noch
 
-local function Forget(tooltip) weightedShown[tooltip] = nil end
+local function Forget(tooltip) weightedShown[tooltip], altsOpen[tooltip] = nil, nil end
 
 -- Einmal je Tooltip: leeren, wenn er versteckt wird oder etwas anderes zeigt (Einheit, Zauber – dann läuft der
 -- Abschnitt unten nicht). Nur HookScript (Leitlinie 5); kennt der Tooltip ein Skript nicht, bleibt das folgenlos.
@@ -154,7 +187,7 @@ local function Watch(tooltip)
 end
 
 Core.Tooltip.AddItemSection("ezGear.upgrade", 25, function(tooltip, _, data)
-    weightedShown[tooltip] = nil
+    weightedShown[tooltip], altsOpen[tooltip] = nil, nil
     local link = Core.Tooltip.ItemLink(tooltip, data)
     if not link then return end
     -- Abstand (Spielbefund 18.11.2026 „auch hier fehlender abstand“, S-1811-Tooltipabstand): erst sammeln, dann vor
@@ -162,20 +195,36 @@ Core.Tooltip.AddItemSection("ezGear.upgrade", 25, function(tooltip, _, data)
     local out = {}
     local function Add(text, rgb, wrap) out[#out + 1] = { text, rgb, wrap } end
     if ns.Active("tooltip") then
-        local text, color, kind = Tip.Line(link)
+        local text, color, kind, info = Tip.Line(link)
         if text then
-            Add(text, color)
+            Add(text, color, info and info.mateHand ~= nil)    -- mit dem Gegenstück wird die Zeile lang: umbrechen
+            -- schlechter, obwohl ein gezählter Wert steigt: was dafür und was dagegen spricht (Nutzer am 24.11.2026 zum
+            -- Schurken mit Bogen: „stimmt die ezgear aussage“)
+            local trade = kind == "worse" and ns.Score.TradeText(link, info)
+            if trade then Add(trade, GREY, true) end
             if WEIGHTED[kind] then
                 Watch(tooltip)
                 weightedShown[tooltip] = true
                 local source = Tip.SourceLine(kind)
                 if source then Add(source, GREY, true) end
+                local way = Tip.WaySourceLine(link)
+                if way then Add(way, GREY, true) end
             end
         end
     end
     if ns.Active("tooltip") then
         local weapon, rgb = Tip.WeaponLine(link)
         if weapon then Add(weapon, rgb, true) end
+    end
+    local alts, altsPending = Tip.AltsLine(link, data)
+    if alts then
+        Add(alts, GREY, true)
+        if ns.Plain(ns.Call(IsShiftKeyDown)) == true then Add(ns.L.TIP_ALTS_SOURCE, GREY, true) end
+    end
+    if alts or altsPending then
+        Watch(tooltip)
+        weightedShown[tooltip] = true
+        altsOpen[tooltip] = altsPending or nil
     end
     for _, line in ipairs(Tip.HeldLines(link)) do Add(line, GREY) end
     local value = Tip.ValueLine(tooltip)
@@ -199,13 +248,20 @@ local function Redraw(tooltip)
     return pcall(tooltip.RefreshData, tooltip) == true
 end
 
+-- Daten sind nachgeladen: Tooltips, deren Zeile „Für Twinks“ noch darauf wartete
+function Tip.OnScores()
+    for _, tooltip in ipairs({ GameTooltip, ItemRefTooltip }) do
+        if altsOpen[tooltip] then Redraw(tooltip) end
+    end
+end
+
 -- Umschalt gedrückt oder losgelassen: die Tooltips neu zeichnen, die gerade eine Vergleichszeile aus der
 -- Gewichtung zeigen (GameTooltip und das Link-Fenster ItemRefTooltip) – die Zeile zur Quelle erscheint bzw.
 -- verschwindet sofort. → true, wenn mindestens einer neu gezeichnet wurde
 function Tip.OnModifier(key)
     key = ns.Plain(key)
     if key ~= "LSHIFT" and key ~= "RSHIFT" then return false end
-    if not ns.Active("tooltip") then return false end
+    if not (ns.Active("tooltip") or ns.Enabled("tooltipAlts")) then return false end
     local main = Redraw(GameTooltip)
     local ref = Redraw(ItemRefTooltip)
     return main or ref
@@ -248,4 +304,5 @@ ns.OnReady(function()
         Watch(GameTooltip)
     end
     ns.On("MODIFIER_STATE_CHANGED", function(_, key) ns.Try("TooltipShift", Tip.OnModifier, key) end)
+    ns.Listen("SCORES_CHANGED", function() ns.Try("TooltipAlts", Tip.OnScores) end)
 end)

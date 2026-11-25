@@ -256,9 +256,39 @@ local function BuildList()
     for _, entry in ipairs(extra) do list[#list + 1] = entry end
 end
 
+-- → Index, perChar, gefundener Name – auch unter dem Namen der anderen Fassung (Schalter „Maus über“ umgestellt,
+-- Import.FindEntry)
 local function ExistingScope(entry)
-    local index, perChar = ns.Import.Find(ns.EntryName(entry))
-    return index, perChar
+    return ns.Import.FindEntry(entry, ns.EntryName(entry))
+end
+
+-- Kästchen „Maus über“ je Makro (Resolver.lua, Entscheidung des Nutzers vom 23.11.2026): nur bei Vorlagen mit Gliedern
+-- „Einheit unter der Maus“; bei angepasstem Text grau (die Anpassung gilt, „Zurücksetzen“ gibt es frei)
+local function UpdateMouseoverBox()
+    if not ui.mouseover then return end
+    local active
+    if current and not current.tool then active = ns.MouseoverActive(current) end
+    local shown = active ~= nil
+    ui.mouseover:SetShown(shown)
+    ui.mouseoverLabel:SetShown(shown)
+    if not shown then return end
+    local edited = ns.IsEdited(current)
+    ui.mouseover:SetChecked(active)
+    ui.mouseover:SetEnabled(not edited)
+    SetFontColor(ui.mouseoverLabel, edited and "GRAY_FONT_COLOR" or "HIGHLIGHT_FONT_COLOR")
+end
+
+-- Übernommenes Makro passt nicht mehr zu den Schaltern „Maus über“ (anderer Name oder andere Maus-Glieder als die
+-- Vorlage jetzt)? Nur bei Vorlagen mit Maus-Gliedern und ohne Anpassung; andere Abweichungen im Text zählen hier nicht.
+-- Das WoW-Makro bleibt, bis „Aktualisieren“ es nach Rückfrage neu schreibt.
+local function MouseKey(text)
+    local kinds = ezCore.Spells.MacroMouseoverKinds(text) or {}
+    return (kinds.friend and "f" or "") .. (kinds.hostile and "h" or "")
+end
+local function TemplateChanged(entry, existing, found, cleanName)
+    if not (entry and existing) or ns.MouseoverActive(entry) == nil or ns.IsEdited(entry) then return false end
+    if found ~= cleanName then return true end
+    return MouseKey(ns.Import.BodyOf(existing)) ~= MouseKey((ns.EntryBody(entry)))
 end
 
 -- „Ersetzt: Sturmangriff, Abfangen“ – welche Fähigkeiten das Makro auf der Aktionsleiste ersetzt.
@@ -321,6 +351,7 @@ local function UpdateHealStatus()
 end
 
 local function UpdateDetailStatus()
+    UpdateMouseoverBox()
     if not current then return end
     if current.tool then return ns.Tools.Refresh(current) end
     if current.heal then return UpdateHealStatus() end
@@ -338,7 +369,9 @@ local function UpdateDetailStatus()
         ui.charCount:SetText(L.DETAIL_CHARS:format(length))
     end
 
-    local existing, existingPerChar = ns.Import.Find(ns.Import.CleanName(name))
+    local cleanName = ns.Import.CleanName(name)
+    local existing, existingPerChar, found = ns.Import.FindEntry(current, cleanName)
+    local changed = TemplateChanged(current, existing, found, cleanName)
     ui.importButton:SetText(existing and L.BTN_UPDATE or L.BTN_IMPORT)
     -- Emote-Makro mit altem Blizzard-Befehl (Emote.lua) – nur, wenn es das Makro ist, das der Knopf „Aktualisieren“
     -- ersetzt (Name im Feld): Unterzeile, Hinweis und Tooltip des Knopfs sagen dann dasselbe
@@ -354,6 +387,10 @@ local function UpdateDetailStatus()
         if oldCommand then
             ui.subtitle:SetText(ns.GroupLabel(current) .. "  ·  "
                 .. Colored("ORANGE_FONT_COLOR", L.DETAIL_OUTDATED:format(ns.Import.ScopeLabel(existingPerChar))))
+        elseif changed then
+            -- Schalter „Maus über“ umgestellt: Vorlage geändert, das WoW-Makro bleibt bis „Aktualisieren“
+            ui.subtitle:SetText(ns.GroupLabel(current) .. "  ·  "
+                .. Colored("ORANGE_FONT_COLOR", L.DETAIL_TEMPLATE_CHANGED:format(ns.Import.ScopeLabel(existingPerChar))))
         else
             ui.subtitle:SetText(ns.GroupLabel(current) .. "  ·  "
                 .. Colored("GREEN_FONT_COLOR", L.DETAIL_EXISTS:format(ns.Import.ScopeLabel(existingPerChar))))
@@ -369,7 +406,7 @@ local function UpdateDetailStatus()
     ui.importButton:SetEnabled(ok)
     -- Klick-Zauber: nur außerhalb des Kampfes und wenn ezCore Blizzards Klick-Zaubern schreiben kann
     ui.clickButton:SetEnabled(ok and ns.ClickCast.Available())
-    ui.resetButton:SetEnabled(ns.IsEdited(current))
+    ui.resetButton:SetEnabled(ns.IsEdited(current) or ns.MouseoverOverride(current) ~= nil)
 
     -- Hinweise unter dem Textfeld, wichtigste zuerst.
     local notes = {}
@@ -400,6 +437,7 @@ local function UpdateDetailStatus()
     end
     -- Emote-Makro mit altem Blizzard-Befehl (Emote.lua): Hinweis, kein stilles Umschreiben
     if oldCommand then notes[#notes + 1] = Colored("ORANGE_FONT_COLOR", L.EMOTE_OUTDATED_NOTE:format(oldCommand)) end
+    if changed then notes[#notes + 1] = Colored("ORANGE_FONT_COLOR", L.DETAIL_TEMPLATE_CHANGED_NOTE:format(found)) end
     -- Ein-Klick: ein fremdes Makro trägt schon den Namen – ezMacro hält es nicht aktuell (OneClick.lua)
     if ns.OneClick.NameTaken(current) then
         notes[#notes + 1] = Colored("ORANGE_FONT_COLOR", L.ONECLICK_NAME_TAKEN:format(ns.EntryName(current)))
@@ -518,6 +556,7 @@ end
 
 local function ShowDetail(entry)
     current = entry
+    UpdateMouseoverBox()   -- auch auf Werkzeug-Seiten und ohne Eintrag (dort aus)
     -- Werkzeuge zeigen ihre eigene Seite anstelle der Makro-Erklärung.
     if entry and entry.tool then
         for _, widget in ipairs(ui.detailWidgets) do widget:Hide() end
@@ -545,7 +584,7 @@ local function ShowDetail(entry)
     LayoutInfo({
         ns.EntryWhy(entry),
         ns.Text(entry.without),
-        ns.Text(entry.desc),
+        ns.EntryDesc(entry),
         tip and (Colored("GREEN_FONT_COLOR", L.DETAIL_TIP) .. " " .. tip) or nil,
     })
     ui.nameBox:SetText(ns.EntryName(entry))
@@ -700,11 +739,15 @@ local function RowOnEnter(self)
     if spell and not ns.IsSpellKnown(spell) then
         GameTooltip:AddLine(Colored("GRAY_FONT_COLOR", L.DETAIL_UNKNOWN:format(ns.SpellName(spell) or spell)), nil, nil, nil, true)
     end
-    local existing, perChar = ExistingScope(entry)
+    local existing, perChar, found = ExistingScope(entry)
     if existing then
         local _, _, oldCommand = ns.Emote.Outdated(entry)
         if oldCommand then
             GameTooltip:AddLine(Colored("ORANGE_FONT_COLOR", L.EMOTE_OUTDATED_NOTE:format(oldCommand)), nil, nil, nil, true)
+        elseif TemplateChanged(entry, existing, found, ns.Import.CleanName(ns.EntryName(entry))) then
+            -- Schalter „Maus über“ umgestellt: wie die Unterzeile im Detailbereich, nicht grün
+            GameTooltip:AddLine(Colored("ORANGE_FONT_COLOR", L.DETAIL_TEMPLATE_CHANGED:format(ns.Import.ScopeLabel(perChar))),
+                nil, nil, nil, true)
         else
             GameTooltip:AddLine(Colored("GREEN_FONT_COLOR", L.DETAIL_EXISTS:format(ns.Import.ScopeLabel(perChar))))
         end
@@ -1352,11 +1395,11 @@ local function CreateDetail()
     end)
     ui.editButton:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
-    -- „Klick-Zauber“: Makro auf eine Maustaste in Blizzards Klick-Zaubern legen (ClickCast.lua, über ezCore,
-    -- nur außerhalb des Kampfes, mit Rückfrage). Unten in der Knopfzeile hinter „Teilen“.
-    ui.clickButton = Track(UI.Button(pane, L.BTN_CLICKBIND, 96, function(self)
+    -- „Klick-Zauber“: öffnet Blizzards Fenster „Klick-Zauber“ mit dem Makro am Mauszeiger, die Taste wählt der Spieler
+    -- dort wie aus dem Zauberbuch (ClickCast.Hand; Spieltest vom 23.11.2026). Unten in der Knopfzeile hinter „Teilen“.
+    ui.clickButton = Track(UI.Button(pane, L.BTN_CLICKBIND, 96, function()
         if not current or current.tool or current.heal then return end
-        ns.ClickCast.Menu(self, current, ui.nameBox:GetText(), ui.textEdit:GetText(), CurrentPerChar())
+        ns.ClickCast.Hand(current, ui.nameBox:GetText(), ui.textEdit:GetText(), CurrentPerChar())
     end))
     ui.clickButton:SetScript("OnEnter", function(self)
         local tip = L.BTN_CLICKBIND_TIP .. "\n\n" .. ns.ClickCast.Guide()
@@ -1523,6 +1566,27 @@ local function CreateDetail()
     ui.perCharLabel = Track(pane:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall"))
     ui.perCharLabel:SetPoint("LEFT", ui.perChar, "RIGHT", 2, 1)
     ui.perCharLabel:SetText(L.CHK_PERCHAR)
+    -- Kästchen „Maus über“ je Makro rechts daneben (Resolver.lua; Sichtbarkeit: UpdateMouseoverBox, nicht über Track –
+    -- es steht nur bei Vorlagen mit Maus-Gliedern). Gilt vor den Einstellungen „Maus über Mitspieler/Gegner“.
+    ui.mouseover = ezCore.CreateCheck(pane, ezCore.Style.IconSize("check"))
+    ui.mouseover:SetPoint("LEFT", ui.perCharLabel, "RIGHT", 10, -1)
+    ui.mouseover:SetScript("OnEnter", function(self)
+        local tip = L.CHK_MOUSEOVER_TIP
+        if current and ns.IsEdited(current) then tip = tip .. "\n\n" .. L.CHK_MOUSEOVER_EDITED end
+        ShowTip(self, L.CHK_MOUSEOVER, tip)
+    end)
+    ui.mouseover:SetScript("OnLeave", RowOnLeave)
+    ui.mouseover:SetScript("OnClick", function(self)
+        if not current then return end
+        ns.SetMouseover(current, self:GetChecked())
+        ShowDetail(current)
+        UpdateRows()
+    end)
+    ui.mouseoverLabel = pane:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    ui.mouseoverLabel:SetPoint("LEFT", ui.mouseover, "RIGHT", 2, 1)
+    ui.mouseoverLabel:SetText(L.CHK_MOUSEOVER)
+    ui.mouseover:Hide()
+    ui.mouseoverLabel:Hide()
 
     ui.importButton = Track(CreateFrame("Button", nil, pane, "UIPanelButtonTemplate"))
     ui.importButton:SetSize(120, 22)
@@ -1990,11 +2054,20 @@ end
 local OPEN_KEY = "browser.open"                 -- Schlüssel in ns.AfterCombat
 local OPEN_WAITING = "ezMacro:" .. OPEN_KEY     -- derselbe Schlüssel, wie ezCore ihn führt (Modul:Schlüssel)
 
+-- Aus Blizzards Einstellungen heraus (Knöpfe auf ezMacros Seite: „Werkzeuge“, „Öffnen“, „Eine Taste“ …) erst Blizzards
+-- Einstellungsfenster schließen – sonst gingen Makroverwaltung und Browser dahinter auf (Spieltest 23.11.2026,
+-- wörtlich „werkzeuge öffnet sich nicht“). Über ezCores Fenster-Dienst: nur außerhalb des Kampfes; stehen in Blizzards
+-- Einstellungen Änderungen an, bleibt das Fenster offen (Core.ClosePanel("settings") → "pending").
+local function LeaveSettings()
+    if not ns.InCombat() then ezCore.ClosePanel("settings", nil, true) end
+end
+
 -- Öffnet Makroverwaltung plus Browser. Im Kampf wird das Öffnen der Makroverwaltung (ein UIPanel)
 -- auf das Kampfende verschoben (ns.AfterCombat); ist sie schon offen, erscheint der Browser sofort.
 function Browser.Open()
     ns.db.window.open = true
     if not frame then Create() end
+    LeaveSettings()
     if hooked and MacroFrame:IsShown() then
         frame:Show()
         return
@@ -2049,7 +2122,10 @@ function Browser.ShowCategory(category)
     local tab, view = PlaceOfCategory(category)
     if not tab then return end
     if not frame then Create() end
-    if frame:IsShown() then return SelectCategory(category) end
+    if frame:IsShown() then
+        LeaveSettings()
+        return SelectCategory(category)
+    end
     state.tab = tab
     ns.db.window.tab = tab
     if view then state.view[tab] = view end
@@ -2083,7 +2159,7 @@ function Browser.ShowEntry(entry, editing)
     local category = ViewCategory(tab, view)
     if group and (category == "class" or category == "race") then state.group[category] = group end
     ns.db.window.selected[category] = entry.id
-    if not frame:IsShown() then Browser.Open() end
+    if frame:IsShown() then LeaveSettings() else Browser.Open() end
     if not frame:IsShown() then return end
     SelectTab(tab)
     if editing and current == entry then SetEditing(true) end
@@ -2127,6 +2203,9 @@ ns.OnSettingChanged(function(key)
         UpdateAutoInfo()
     elseif key == "hideUnknown" or key == "macros" or key == "macroFromSpells" then
         SoftRefresh()
+    elseif (key == "mouseoverFriend" or key == "mouseoverHostile") and current then
+        -- Maus über (Resolver.lua): Name, Text und Kästchen des gezeigten Makros folgen der Einstellung
+        ShowDetail(current)
     elseif (key == "scopeMode" or key == "announceMode") and current then
         -- Ansagen: der Makrotext hängt von der Einstellung ab („/ezmacro ansage …“ oder Blizzards Befehl)
         UpdateAutoInfo()

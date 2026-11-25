@@ -35,13 +35,22 @@ ns.DEFAULTS = {
     sizeExpiring = ezCore.Style.ICON.small, -- Pixel: links (30)
     sizeReady = ezCore.Style.ICON.small,    -- Pixel: rechts (30)
     symbolHold = 2,         -- Sekunden: so lange steht „wieder bereit“
-    symbolCenter = true,    -- ein einzelnes Symbol steht in der Mitte (Wunsch des Nutzers vom 15.11.2026)
+    symbolCenter = true,    -- ein seitliches Symbol allein rückt in die Mitte (Wunsch des Nutzers vom 15.11.2026)
     -- Text unter dem Symbol (Symbol.lua; Spielbefund des Nutzers vom 18.11.2026: „viel zu viel text... wenn berhaupt
     -- nötig...“, S-1811-Symboltext): "off" nur das Symbol (ab Werk), "name" eine Zeile mit dem Namen, "full" wie bis
     -- dahin („Als Nächstes: …“ und „wartet: …“). Bis 18.11.2026 gab es keine Wahl, alle sahen „ausführlich“; der
     -- Schlüssel ist neu, also bekommt jeder gespeicherte Stand beim Ergänzen der Standardwerte einmal „aus“ – eine
     -- eigene Wahl gibt es noch nicht, die bleiben müsste. Umkehrbar: dieser Wert.
     symbolText = "off",
+    -- Trank im mittigen Symbol (Potions.lua; Wunsch des Nutzers vom 23.11.2026: „nur die tränke mittig Symbol, beides
+    -- ab 15 %“): Gesundheitsstein bzw. Heiltrank unter der Grenze an Leben, Manatrank unter der Grenze an Mana – ein
+    -- Regler für beides, Deckkraft über Blizzards Kurve (ezCombat liest Leben und Mana nie)
+    potions = true,
+    potionBelow = 15,       -- Prozent: Trank, Rettungsfähigkeit und Leuchten am Spielerfenster
+    -- Fast tot oder vergiftet (Frage des Nutzers vom 24.11.2026, docs/roadmap/ezCombat.md): ab Werk an
+    rescue = true,          -- Rettungsfähigkeit im mittigen Symbol (Rescue.lua)
+    dangerGlow = true,      -- Blizzards Spielerfenster leuchtet (Danger.lua)
+    dispelHint = true,      -- Bann-Zauber am Spielerfenster und an den klassischen Gruppenrahmen (Dispel.lua)
 
     -- Rotation (Rotation.lua, Daten in RotationData/<KLASSE>.lua)
     rotation = true,        -- nächste Aktion vorschlagen
@@ -63,6 +72,14 @@ ns.DEFAULTS = {
                               -- der Prüfung auf Blizzards Regeln vom 17.11.2026 (V1, Risiko 1; vorher an; entschieden 17.11.)
     rotationWarn = 3,       -- Vorwarnung vor Ablauf: Sekunden, ab denen ein Schritt „gleich bereit“ zeigt (Welle 27, Paket
                             -- modul/ezcombat-abklingzeit; Empfehlung umgesetzt, Antwort offen)
+    -- Werte abwägen (RotationValue.lua, Auftrag des Nutzers vom 23.11.2026; Entscheidungen vom 23.11.2026: Schalter
+    -- „Ab Werk an (Empfohlen)“, Modell „Treffer zählen, Reserve 30 % (Empfohlen)“ – docs/roadmap/ezCombat.md)
+    rotationValues = true,  -- Füller gegen Zauberstab nach Schaden je Sekunde und Mana abwägen
+    -- Schadensvergleich Zauber gegen Zauberstab als Zeile unter dem Symbol, unabhängig von „Text unter dem Symbol“; ab
+    -- Werk aus (Nutzer am 24.11.2026: „den text mit schaden von zauberstab vs schattenblitz ist nicht austellbar? gar
+    -- sinnlos?“, auf den Vorschlag „Ja, umbauen“; bis dahin an, ns.MigrateSymbolText2411)
+    rotationValuesText = false,
+    rotationManaReserve = 30, -- Mana in Prozent, das nach einem teuren Füller bleiben soll (sonst der Stab)
 
     -- Hinweise am Aktionsknopf
     reactive = true,        -- Überwältigen, Rache, Gegenangriff, Hinrichten unter 20 % …
@@ -70,17 +87,22 @@ ns.DEFAULTS = {
     finisher = true,        -- volle Combo-Punkte
 
     -- Eigene DoTs/HoTs am Ziel
-    dots = true,            -- große Symbole über dem Zielfenster
+    -- große Symbole über dem Zielfenster; ab Werk aus seit der Entscheidung des Nutzers vom 23.11.2026 („Ja, ab Werk
+    -- aus (Empfohlen)“, ns.MigrateDots2311) – Leuchten am Knopf und „läuft aus“ in der Mitte hängen nicht daran
+    dots = false,
     dotWarn = 3,            -- Sekunden Restzeit (plus Zauberzeit) für „neu setzen“
-    bigAuraSize = 26,       -- eigene Auren in Blizzards Zielfenster; 21 = Blizzards Größe (aus)
 
     -- Eigene Buffs auf dir
     buffs = true,           -- Aktionsknopf leuchtet kurz vor dem Ablauf (und danach, bis neu gewirkt)
     buffWarn = 10,          -- Sekunden Restzeit (plus Zauberzeit)
 
-    -- Combo-Punkte
-    comboScale = 150,       -- Blizzards Punkte am Zielporträt in Prozent; 100 = Blizzards Größe (aus)
+    -- Combo-Punkte (Combo.lua; Entscheidung des Nutzers vom 23.11.2026, „Ziel aus, ein Regler“): die Leiste unter dem
+    -- Spielerfenster zeigt sie, Blizzards Punkte am Zielporträt sind ab Werk aus, ein Regler gilt für beide.
     comboBar = true,        -- Reihe unter dem Spielerfenster wie im Original-Retail
+    comboTarget = false,    -- Blizzards Punkte am Zielporträt zeigen (aus: ausgeblendet; auch für bisherige Nutzer)
+    comboScale = 100,       -- Größe der Punkte in Prozent von Blizzards Größe (Vorlage 20 px) – Leiste und, wenn an, Ziel.
+                            -- Bis 23.11.2026 nur das Ziel, in Prozent von Blizzards 60 % dort (Standard 150, 100 = aus);
+                            -- umgestellt einmal über ns.MigrateCombo2311
 
     -- Schlagtimer des Spiels
     swingExtras = true,     -- Autoschuss-Fenster und vorgemerkter Schlag
@@ -122,16 +144,33 @@ ns.DEFAULTS = {
 -- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
 ns.AGREE = {
     meterFramesInterrupts = "on", meterFramesDispels = "on", meterFramesDeaths = "on", meterFramesThreat = "on",
-    meterSummary = "on", rotationAoe = "choice",
+    meterSummary = "choice", rotationAoe = "choice",   -- Zusammenfassung: auch bei „Allem zustimmen“ aus (Nutzer 23.11.2026)
+    -- Blizzards Punkte am Zielporträt: ab Werk aus, weil die Combo-Leiste sie schon zeigt (Entscheidung 23.11.2026) –
+    -- zusätzlich am Ziel ist Geschmack
+    comboTarget = "choice",
+    -- Große Symbole über dem Zielfenster: ab Werk aus, weil der Nutzer keinen Nutzen darin sieht (Entscheidung
+    -- 23.11.2026); Leuchten am Knopf und „läuft aus“ in der Mitte zeigen dasselbe – zusätzlich ist Geschmack
+    dots = "choice",
+    -- Schadensvergleich unter dem Symbol: ab Werk aus, weil das Symbol schon sagt, was dran ist (Entscheidung 24.11.2026)
+    rotationValuesText = "choice",
 }
+
+-- Neu seit v1.0.0-beta3 und ab Werk an; Einträge bleiben stehen (ezCore, Werkzeuge/ConsentNews.lua: Intro.NewsOnRows;
+-- Nutzer am 24.11.2026): Die Blase „Neu seit dem Update“ nennt sie einmal mit gesetztem Häkchen. tools/Tests/agree_test.lua
+-- ist rot, wenn ein neuer Schalter mit true hier fehlt.
+ns.NEWS = { "potions", { "rotationValues", needs = "rotation" }, "rescue", "dangerGlow", "dispelHint" }
 
 -- Grenzen der Regler { min, max, Schritt } und Werte der Auswahlfelder: EINE Stelle für die Einstellungsseite
 -- (Options.lua) und die Prüfung importierter Profile (Profiles.lua, CB-44).
 ns.LIMITS = {
     sizeNext = { 24, 96, 1 }, sizeExpiring = { 20, 64, 2 }, sizeReady = { 20, 64, 2 }, symbolHold = { 1, 5, 1 },
-    readyMin = { 2, 60, 1 }, dotWarn = { 1, 10, 1 }, bigAuraSize = { 21, 34, 1 }, buffWarn = { 5, 60, 5 },
-    comboScale = { 100, 200, 10 }, totemWarn = { 2, 15, 1 }, enchantWarn = { 30, 600, 30 },
+    readyMin = { 2, 60, 1 }, dotWarn = { 1, 10, 1 }, buffWarn = { 5, 60, 5 },
+    -- comboScale: 60 % ist Blizzards Größe am Zielporträt, 150 % (30 px) hält den Bogen um das Porträt noch kürzer als
+    -- einen Halbkreis; bis 23.11.2026 { 100, 200, 10 } in Prozent von Blizzards Größe am Ziel (= 60 bis 120 hier)
+    comboScale = { 60, 150, 5 }, totemWarn = { 2, 15, 1 }, enchantWarn = { 30, 600, 30 },
     meterReportLines = { 3, 10, 1 }, meterFramesHeight = { 1, 5, 1 }, rotationWarn = { 0, 5, 1 },
+    rotationManaReserve = { 0, 80, 5 },
+    potionBelow = { 5, 50, 5 },
 }
 
 ---------------------------------------------------------------------------
@@ -155,7 +194,7 @@ Core.NewModule(ADDON, ns, {
     -- fremden Zauber beim Einlesen einer eigenen Rotation); Welle 27: Style.SetTextColor (Medaillenfarben der Marken
     -- an den Gruppenrahmen, MeterTop.lua – kam ohne neue Versionsnummer nach 1.13.0), Buff-Wissen nur über ezCores
     -- Leseschnittstelle (F7)
-    needs = { "Spells.LockedKind", "WeaponEnchantInfo", "ApplySetting", "GroupFrames.TooltipUnit",
+    needs = { "NewSettingsProfiles", "Spells.LockedKind", "WeaponEnchantInfo", "ApplySetting", "GroupFrames.TooltipUnit",
         -- Einstellungs-Prüfung 19.11.2026: gespeicherte Werte einmal umstellen (Core.MigrateOnce), Tooltip am Symbol
         "MigrateOnce", "TipLine",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Takt mit Griff (T7-3), Ersatzsymbol (T16-NM6)
@@ -169,7 +208,20 @@ Core.NewModule(ADDON, ns, {
         -- Gesamtreview 18.11.2026 (D3, kern/einheit-rest; ohne neue Nummer): Texthelfer statt Kopien im Modul
         "CombatText", "Word", "CmdText",
     -- Gesamtreview 18.11.2026 (P19a, kern/ssot-helfer; ohne neue Nummer): gemeinsame Helfer statt Kopien
-    "PlaySound", "Spells.CONJURED" },
+    "PlaySound", "Spells.CONJURED",
+    -- Trank im mittigen Symbol (23.11.2026, ohne neue Nummer): Kurve für Leben und Mana, bester Trank, Anzahl
+    "HealthBelowAlpha", "PowerBelowAlpha", "BestItems.Consumable", "ItemCount",
+    -- Rettung, Bannen, Leuchten (24.11.2026, ohne neue Nummer)
+    "Spells.RescueSpells", "Spells.DispelsBySpell", "AuraRows.DispelBorderStyle",
+    -- Stufenkurve aus ezCore statt eigener Fassung (25.11.2026, ohne neue Nummer)
+    "StepCurve",
+    -- Talentbaum des Charakters und Rotation zu Talentvorlage, n:m (24.11.2026, ohne neue Nummer)
+    "Talents.MainTree", "RotationBuilds.Builds",
+    -- Rotation auf die Aktionsleisten 1 und 2 legen (24.11.2026, ohne neue Nummer)
+    "ActionSlots.MainPage", "ActionSlots.BarShown", "BarProfiles.Rearrange", "BarProfiles.Restore", "BarProfiles.MacroNames",
+    "BarProfiles.Movable", "BarProfiles.Exact", "DateText",
+    -- Was sich ausschließt (24.11.2026, ohne neue Nummer)
+    "Spells.FamilyInfo" },
     db = "ezCombatDB",
     tables = { "tour" },                  -- gesehene Erklärblasen (ezCore.NewTour)
     onLoad = function(db) ns.OnLoad(db) end,
@@ -291,13 +343,33 @@ function ns.Movable(frame, key, label, anchor, protected)
     return part
 end
 
+-- Die gespeicherte Lage eines Teils (ns.Movable) um die Hälfte einer Größenänderung nachführen, damit seine Mitte
+-- stehen bleibt. ezCore merkt sich nach dem Ziehen eine Ecke (Core.QuadrantPos: BOTTOMLEFT, TOPRIGHT …), keine Mitte;
+-- ohne Ausgleich wüchse das Teil von dieser Ecke weg. Ohne gespeicherte Lage (Standardanker) ist nichts zu tun.
+-- dw, dh: Änderung von Breite und Höhe. Eine Stelle für das Bereit-Symbol (Symbol.KeepCenter) und die Combo-Leiste.
+-- → true, wenn die Lage gerückt wurde.
+function ns.KeepCenter(part, dw, dh)
+    dw, dh = ns.Num(dw) or 0, ns.Num(dh) or 0
+    if (dw == 0 and dh == 0) or type(part) ~= "table" or type(part.Position) ~= "function" then return false end
+    local pos = part:Position()
+    local point = type(pos) == "table" and pos.point or nil
+    if type(point) ~= "string" then return false end
+    local x, y = ns.Num(pos.x) or 0, ns.Num(pos.y) or 0
+    if point:find("LEFT", 1, true) then x = x - dw / 2 elseif point:find("RIGHT", 1, true) then x = x + dw / 2 end
+    if point:find("TOP", 1, true) then y = y + dh / 2 elseif point:find("BOTTOM", 1, true) then y = y - dh / 2 end
+    if x == pos.x and y == pos.y then return false end
+    Core.StorePosition(part.key, { point = point, relPoint = pos.relPoint or point, x = x, y = y })
+    part:Apply()
+    return true
+end
+
 ---------------------------------------------------------------------------
 -- Eigene Helfer von ezCombat
 ---------------------------------------------------------------------------
 
 -- Waffenverzauberung auf Zeit (Gift, Wetzstein, Waffenzauber) beider Hände: true, hasMain, mainMs, hasOff, offMs wie
 -- Blizzards GetWeaponEnchantInfo, sonst false. Seit Welle 23 (A2) der gemeinsame Leser von ezCore
--- (Core.WeaponEnchantInfo: das Globale zuerst, dann C_Item.GetWeaponEnchantInfo je Hand; eine gesperrte Art kommt als
+-- (Core.WeaponEnchantInfo: C_PaperDollInfo je Platz, dann C_Item, zuletzt das Globale; eine gesperrte Art kommt als
 -- „verzaubert?“ zurück, der Aufrufer behält dann den gemerkten Stand – Leitlinie 6). Der Name bleibt als
 -- Weiterleitung (Leitlinie 8).
 ns.WeaponEnchantInfo = Core.WeaponEnchantInfo
@@ -375,7 +447,8 @@ end
 -- vorher einmal aus).
 ns.REMOVED_SETTINGS = { "fadeFrames", "fadeAlpha",
     "rotationOffBar", "symbolWaitCooldown", "symbolWaitPower", "symbolWaitRange", "rotationBook", "rotationComputed",
-    "meterHighlight", "meterReport", "meterFramesTooltip", "ready", "bigAuras", "combo" }
+    "meterHighlight", "meterReport", "meterFramesTooltip", "ready", "bigAuras", "combo",
+    "bigAuraSize" }   -- Auren-Größe im Zielfenster entfernt am 22.11.2026 (Taint, Entscheidung „Ganz entfernen“)
 
 -- Einstellungs-Prüfung vom 19.11.2026 (Entscheidung des Nutzers „Ja, alle umsetzen“): gespeicherte Werte der
 -- zusammengelegten Schalter einmal übernehmen – in den Einstellungen und in jedem gesicherten Profil (ezCores
@@ -383,8 +456,8 @@ ns.REMOVED_SETTINGS = { "fadeFrames", "fadeAlpha",
 -- gilt nicht mehr.
 --   showNext "off"          → rotation aus (der eine Ausschalter), showNext zurück auf den Standard (Nr. 69)
 --   ready false             → showReady "off" (Nr. 70/71)
---   bigAuras false          → bigAuraSize 21 = Blizzards Größe (Nr. 72)
---   combo false             → comboScale 100 = Blizzards Größe (Nr. 73)
+--   combo false             → comboScale 100 = Blizzards Größe (Nr. 73; Bedeutung vor dem 23.11.2026, danach stellt
+--                             ns.AdoptCombo2311 den Wert um)
 -- Danach fliegen die alten Schlüssel aus Einstellungen und Profilen (ns.REMOVED_SETTINGS), dazu der Merker der
 -- früher gemerkten Zauberbuch-Seite (rotationBookOpen; das Buch öffnet immer auf Blizzards Reiter).
 function ns.AdoptSettings1911(settings)
@@ -394,8 +467,7 @@ function ns.AdoptSettings1911(settings)
         settings.showNext = ns.DEFAULTS.showNext
     end
     if settings.ready == false then settings.showReady = "off" end
-    if settings.bigAuras == false then settings.bigAuraSize = ns.LIMITS.bigAuraSize[1] end
-    if settings.combo == false then settings.comboScale = ns.LIMITS.comboScale[1] end
+    if settings.combo == false then settings.comboScale = ns.COMBO_SCALE_1911.off end
     for _, key in ipairs(ns.REMOVED_SETTINGS) do settings[key] = nil end
 end
 
@@ -414,6 +486,88 @@ function ns.MigrateSettings1911(db)
             ns.AdoptSettings1911(type(profile) == "table" and profile.settings or nil)
         end
         db.rotationBookOpen = nil
+        return true
+    end)
+end
+
+-- Combo-Punkte, Entscheidung des Nutzers vom 23.11.2026 („Ziel aus, ein Regler“): comboScale meinte bis dahin nur
+-- Blizzards Punkte am Zielporträt, in Prozent von Blizzards Größe dort (pointScale 0,6 der Vorlage; Standard 150,
+-- 100 = Blizzards Größe, also aus). Seitdem: Prozent der Vorlage (20 px) für die Leiste und, wenn an, das Ziel.
+--   eigene Größe 110 … 200  → dieselbe Größe am Ziel, jetzt für beide (alter Wert × 0,6, auf den Schritt des Reglers
+--                             gerundet: höchstens 0,4 px Unterschied)
+--   alter Standard 150      → neuer Standard 100 (ezCore schreibt Standardwerte in den Speicher – 150 heißt fast immer
+--                             „nie verstellt“); die Leiste bleibt so groß wie bisher
+--   100 und darunter („aus“) → neuer Standard 100: Wer die Vergrößerung am Ziel aus hatte, behält die Leiste in
+--                             Blizzards Größe (die exakte Größe am Ziel wären 60 %, die Leiste schrumpfte dann auf 12 px)
+-- comboTarget („Blizzards Punkte am Zielporträt“) ist danach für alle aus – auch für bisherige Nutzer (die Entscheidung).
+ns.COMBO_SCALE_1911 = { default = 150, off = 100, base = 0.6 }
+
+function ns.ComboScaleFrom1911(old)
+    local default, limit, was = ns.DEFAULTS.comboScale, ns.LIMITS.comboScale, ns.COMBO_SCALE_1911
+    if type(old) ~= "number" or old ~= old or old == math.huge then return default end
+    if old <= was.off or old == was.default then return default end
+    local value = math.floor(old * was.base / limit[3] + 0.5) * limit[3]
+    return math.max(limit[1], math.min(limit[2], value))
+end
+
+-- Eine Einstellungs-Tabelle (Einstellungen, gesichertes Profil, Export) umstellen. Erkennungszeichen der neuen
+-- Bedeutung ist comboTarget: Jeder Export und jedes Profil nach dem 23.11.2026 trägt ihn (Profiles.Snapshot und ezCores
+-- „Alles sichern“ nehmen alle Schlüssel aus ns.DEFAULTS mit). force: trotzdem umstellen – für ezCombatDB.settings, wo
+-- ezCore die Standardwerte (also auch comboTarget) schon vor ns.OnLoad ergänzt. Ohne comboScale ist nichts umzustellen
+-- (ein Text bekommt dann auch kein comboTarget – sonst wäre ein Import ohne einen gültigen Wert brauchbar; beim
+-- Übernehmen gilt der Standard „aus“). → true, wenn umgestellt.
+function ns.AdoptCombo2311(settings, force)
+    if type(settings) ~= "table" or type(settings.comboScale) ~= "number" then return false end
+    if settings.comboTarget ~= nil and not force then return false end
+    settings.comboScale = ns.ComboScaleFrom1911(settings.comboScale)
+    settings.comboTarget = false
+    return true
+end
+
+-- Einmal beim Laden (Merker combo2311): Einstellungen und jedes gesicherte Profil. Alte Exporte und Sicherungen stellt
+-- ns.Profiles.Adopted beim Einfügen um (dieselbe Funktion für ezCores „Alles übernehmen“, ns.ImportLegacy).
+-- db.comboBarShift: Die Leiste war bis dahin immer 100 % groß – Combo.TakeShift führt die gespeicherte Lage einer
+-- verschobenen Leiste einmal nach, sobald sie angemeldet ist.
+function ns.MigrateCombo2311(db)
+    return Core.MigrateOnce(db, "combo2311", function()
+        ns.AdoptCombo2311(db.settings, true)
+        db.comboBarShift = true
+        for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            ns.AdoptCombo2311(type(profile) == "table" and profile.settings or nil)
+        end
+        return true
+    end)
+end
+
+-- Große Symbole über dem Zielfenster ab Werk aus (Entscheidung des Nutzers vom 23.11.2026, wörtlich: „ist das hier
+-- neu? wenn ja dann standardmäßig aus, sehe keinen nutzen drin“, auf die Rückfrage „Ja, ab Werk aus (Empfohlen)“).
+-- Einmal (Merker dots2311): Einstellungen und jedes gesicherte Profil mit dem alten Standard (an) bekommen den neuen.
+-- ezCore speichert Standardwerte mit – „nie geändert“ und „selbst eingeschaltet“ sind nicht zu unterscheiden; wer die
+-- Reihe will, schaltet sie danach wieder ein (die Wahl bleibt, der Merker verhindert ein zweites Umstellen).
+function ns.MigrateDots2311(db)
+    return Core.MigrateOnce(db, "dots2311", function()
+        local function Adopt(settings)
+            if type(settings) == "table" and settings.dots == true then settings.dots = false end
+        end
+        Adopt(db.settings)
+        for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            Adopt(type(profile) == "table" and profile.settings or nil)
+        end
+        return true
+    end)
+end
+
+-- Schadensvergleich unter dem Symbol ab Werk aus (Entscheidung des Nutzers vom 24.11.2026, „Ja, umbauen“). Einmal (Merker
+-- symbolText2411), wie MigrateDots2311: Der alte Standard (an) ist von „selbst eingeschaltet“ nicht zu unterscheiden.
+function ns.MigrateSymbolText2411(db)
+    return Core.MigrateOnce(db, "symbolText2411", function()
+        local function Adopt(settings)
+            if type(settings) == "table" and settings.rotationValuesText == true then settings.rotationValuesText = false end
+        end
+        Adopt(db.settings)
+        for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            Adopt(type(profile) == "table" and profile.settings or nil)
+        end
         return true
     end)
 end
@@ -537,7 +691,22 @@ function ns.OnLoad(db)
     -- still verwerfen – sie hätten sonst keinen Leser mehr. Vorher die Einstellungs-Prüfung vom 19.11.2026 (liest die
     -- zusammengelegten Schalter einmal aus, bevor sie fliegen).
     ns.MigrateSettings1911(db)
+    -- Combo-Punkte (Entscheidung 23.11.2026): ein Regler für Leiste und Ziel, Blizzards Punkte am Ziel ab Werk aus –
+    -- nach der Prüfung vom 19.11.2026, die comboScale noch in der alten Bedeutung setzt
+    ns.MigrateCombo2311(db)
+    -- Große Symbole über dem Zielfenster ab Werk aus (Entscheidung 23.11.2026)
+    ns.MigrateDots2311(db)
+    -- Schadensvergleich unter dem Symbol ab Werk aus (Entscheidung 24.11.2026)
+    ns.MigrateSymbolText2411(db)
+    -- auch in jedem gesicherten Profil: Die Einmal-Umstellung oben lief bei den meisten schon (Merker settings1911),
+    -- später entfernte Schlüssel (bigAuraSize, 22.11.2026) blieben sonst dort liegen (Befund des code-reviewers)
     for _, key in ipairs(ns.REMOVED_SETTINGS) do db.settings[key] = nil end
+    for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+        local saved = type(profile) == "table" and profile.settings
+        if type(saved) == "table" then
+            for _, key in ipairs(ns.REMOVED_SETTINGS) do saved[key] = nil end
+        end
+    end
 end
 
 ---------------------------------------------------------------------------

@@ -3,7 +3,9 @@ local _, ns = ...
 --[[
     Berechnete Rotationen (Welle 21, docs/talent-simulation.md, Abschnitt 6). Diese Datei schreibt das Werkzeug
     tools/rotation_sim.lua – nicht von Hand ändern:
-        luajit tools/rotation_sim.lua [<Messungen …>] --wago --aus=ezCombat/RotationComputed.lua --talente-aus=ezTalent/Computed.lua
+        luajit tools/rotation_sim.lua [<Messungen …>] --wago --aus=ezCombat/RotationComputed.lua
+    Die Verteilungen dazu (ezTalent/Computed.lua samt Volkszuschlag): luajit tools/talent_sim.lua --wago --roh=../wago-roh/<Build>
+        --aus=ezTalent/Computed.lua (docs/wago-tools.md, Abschnitt 1, Schritt 5).
 
     Grundlage (Leitlinie 11): Zauber und Talente aus den Client-Tabellen (tools/daten/wago/, laut wago.tools) bzw. die
     Zauber-Messung je Klasse aus dem Client (ezCombat), die Grundwerte aus der Talent-Messung (ezTalent) und das
@@ -13,7 +15,7 @@ local _, ns = ...
     model, distribution, provisional, assumptions, values, result }; gelesen von ns.RotationData.Computed.
 ]]
 
-ns.ROTATION_COMPUTED_META = { date = "2026-11-20", build = "1.60.1.70938", model = "3/1", classes = 6 }
+ns.ROTATION_COMPUTED_META = { date = "2026-11-24", build = "1.60.1.71037", model = "3/1", classes = 6 }
 ns.ROTATION_COMPUTED = ns.ROTATION_COMPUTED or {}
 
 ns.ROTATION_COMPUTED.DRUID = {
@@ -27,8 +29,8 @@ ns.ROTATION_COMPUTED.DRUID = {
             "Computed from the client tables for the talent build “Balance – PvP (computed)”: top to bottom, the first that is possible – {8921}, {2912}. In the model 158 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-balance-pvp", name = { "Gleichgewicht – PvP (berechnet)", "Balance – PvP (computed)" } },
             provisional = true,
@@ -37,8 +39,8 @@ ns.ROTATION_COMPUTED.DRUID = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Nature and Arcane, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 10 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 10 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 10 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 10 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 158 },
         },
@@ -73,8 +75,8 @@ ns.ROTATION_COMPUTED.DRUID = {
             "Computed from the client tables for the talent build “Restoration – PvP (computed)”: top to bottom, the first that is possible – {8936}. In the model 1008 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-resto-pvp",
@@ -87,8 +89,8 @@ ns.ROTATION_COMPUTED.DRUID = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 10 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 10 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 10 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 10 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 1008 },
         },
@@ -114,8 +116,8 @@ ns.ROTATION_COMPUTED.DRUID = {
             "Computed from the client tables for the talent build “Balance (computed)”: top to bottom, the first that is possible – {8921}, {2912}. In the model 158 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-balance", name = { "Gleichgewicht (berechnet)", "Balance (computed)" } },
             provisional = true,
@@ -124,8 +126,8 @@ ns.ROTATION_COMPUTED.DRUID = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Nature and Arcane, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 10 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 10 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 10 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 10 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 158 },
         },
@@ -160,8 +162,8 @@ ns.ROTATION_COMPUTED.DRUID = {
             "Computed from the client tables for the talent build “Restoration (computed)”: top to bottom, the first that is possible – {8936}. In the model 1008 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-resto", name = { "Wiederherstellung (berechnet)", "Restoration (computed)" } },
             provisional = true,
@@ -171,8 +173,8 @@ ns.ROTATION_COMPUTED.DRUID = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 10 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 10 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 10 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 10 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 1008 },
         },
@@ -200,8 +202,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Arcane – leveling (computed)”: top to bottom, the first that is possible – {2136}, {400574}. In the model 179 damage per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-arcane-leveling", name = { "Arkan – Leveln (berechnet)", "Arcane – leveling (computed)" } },
             provisional = true,
@@ -210,8 +212,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Arcane, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 179 },
         },
@@ -257,8 +259,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Arcane – PvP (computed)”: top to bottom, the first that is possible – {2136}, {400574}. In the model 174 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-arcane-pvp", name = { "Arkan – PvP (berechnet)", "Arcane – PvP (computed)" } },
             provisional = true,
@@ -267,8 +269,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Arcane, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 174 },
         },
@@ -314,8 +316,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Arcane – survival (computed)”: top to bottom, the first that is possible – {2136}, {400574}. In the model 174 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-arcane-survival",
@@ -327,8 +329,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Arcane, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 174 },
         },
@@ -374,8 +376,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Fire – leveling (computed)”: top to bottom, the first that is possible – {2136}, {133}. In the model 180 damage per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-fire-leveling", name = { "Feuer – Leveln (berechnet)", "Fire – leveling (computed)" } },
             provisional = true,
@@ -384,8 +386,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 180 },
         },
@@ -437,8 +439,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Fire – PvP (computed)”: top to bottom, the first that is possible – {2136}, {133}. In the model 175 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-fire-pvp", name = { "Feuer – PvP (berechnet)", "Fire – PvP (computed)" } },
             provisional = true,
@@ -447,8 +449,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 175 },
         },
@@ -500,8 +502,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Fire – survival (computed)”: top to bottom, the first that is possible – {2136}, {133}. In the model 175 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-fire-survival", name = { "Feuer – Überleben (berechnet)", "Fire – survival (computed)" } },
             provisional = true,
@@ -510,8 +512,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 175 },
         },
@@ -563,8 +565,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Frost – leveling (computed)”: top to bottom, the first that is possible – {2136}, {116}. In the model 180 damage per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-frost-leveling", name = { "Frost – Leveln (berechnet)", "Frost – leveling (computed)" } },
             provisional = true,
@@ -573,8 +575,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Frost, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 180 },
         },
@@ -620,8 +622,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Frost – PvP (computed)”: top to bottom, the first that is possible – {2136}, {116}. In the model 173 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-frost-pvp", name = { "Frost – PvP (berechnet)", "Frost – PvP (computed)" } },
             provisional = true,
@@ -630,8 +632,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Frost, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 173 },
         },
@@ -677,8 +679,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Frost – survival (computed)”: top to bottom, the first that is possible – {2136}, {116}. In the model 173 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-frost-survival", name = { "Frost – Überleben (berechnet)", "Frost – survival (computed)" } },
             provisional = true,
@@ -687,8 +689,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Frost, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 173 },
         },
@@ -734,8 +736,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Arcane (computed)”: top to bottom, the first that is possible – {2136}, {400574}. In the model 174 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-arcane", name = { "Arkan (berechnet)", "Arcane (computed)" } },
             provisional = true,
@@ -744,8 +746,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Arcane, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 174 },
         },
@@ -791,8 +793,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Fire (computed)”: top to bottom, the first that is possible – {2136}, {133}. In the model 175 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-fire", name = { "Feuer (berechnet)", "Fire (computed)" } },
             provisional = true,
@@ -801,8 +803,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 175 },
         },
@@ -854,8 +856,8 @@ ns.ROTATION_COMPUTED.MAGE = {
             "Computed from the client tables for the talent build “Frost (computed)”: top to bottom, the first that is possible – {2136}, {116}. In the model 173 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-frost", name = { "Frost (berechnet)", "Frost (computed)" } },
             provisional = true,
@@ -864,8 +866,8 @@ ns.ROTATION_COMPUTED.MAGE = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Frost, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 9 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 9 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 173 },
         },
@@ -914,8 +916,8 @@ ns.ROTATION_COMPUTED.PALADIN = {
             "Computed from the client tables for the talent build “Holy – leveling (computed)”: top to bottom, the first that is possible – {635}. In the model 632 healing per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-holy-leveling", name = { "Heilig – Leveln (berechnet)", "Holy – leveling (computed)" } },
             provisional = true,
@@ -925,8 +927,8 @@ ns.ROTATION_COMPUTED.PALADIN = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 6 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 6 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 6 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 6 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 632 },
         },
@@ -951,8 +953,8 @@ ns.ROTATION_COMPUTED.PALADIN = {
             "Computed from the client tables for the talent build “Holy – PvP (computed)”: top to bottom, the first that is possible – {635}. In the model 632 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-holy-pvp", name = { "Heilig – PvP (berechnet)", "Holy – PvP (computed)" } },
             provisional = true,
@@ -962,8 +964,8 @@ ns.ROTATION_COMPUTED.PALADIN = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 6 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 6 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 6 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 6 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 632 },
         },
@@ -988,8 +990,8 @@ ns.ROTATION_COMPUTED.PALADIN = {
             "Computed from the client tables for the talent build “Holy (computed)”: top to bottom, the first that is possible – {635}. In the model 632 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-holy", name = { "Heilig (berechnet)", "Holy (computed)" } },
             provisional = true,
@@ -999,8 +1001,8 @@ ns.ROTATION_COMPUTED.PALADIN = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 6 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 6 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 6 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 6 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 632 },
         },
@@ -1028,8 +1030,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Discipline – leveling (computed)”: top to bottom, the first that is possible – {1277370}, {2060}. In the model 700 healing per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-disc-leveling",
@@ -1042,8 +1044,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 700 },
         },
@@ -1077,8 +1079,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Discipline – PvP (computed)”: top to bottom, the first that is possible – {1277370}, {2060}. In the model 661 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-disc-pvp", name = { "Disziplin – PvP (berechnet)", "Discipline – PvP (computed)" } },
             provisional = true,
@@ -1088,8 +1090,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 661 },
         },
@@ -1123,8 +1125,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Holy – leveling (computed)”: top to bottom, the first that is possible – {1277370}, {2060}. In the model 700 healing per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-holy-leveling", name = { "Heilig – Leveln (berechnet)", "Holy – leveling (computed)" } },
             provisional = true,
@@ -1134,8 +1136,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 700 },
         },
@@ -1169,8 +1171,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Holy – PvP (computed)”: top to bottom, the first that is possible – {1277370}, {2060}. In the model 661 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-holy-pvp", name = { "Heilig – PvP (berechnet)", "Holy – PvP (computed)" } },
             provisional = true,
@@ -1180,8 +1182,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 661 },
         },
@@ -1215,8 +1217,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Shadow – leveling (computed)”: top to bottom, the first that is possible – {8092}, {10797}, {589}, {1277331}, {15407}. In the model 241 damage per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-shadow-leveling",
@@ -1228,8 +1230,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 241 },
         },
@@ -1292,8 +1294,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Shadow – PvP (computed)”: top to bottom, the first that is possible – {589}, {8092}, {10797}, {1277331}, {15407}. In the model 217 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-shadow-pvp", name = { "Schatten – PvP (berechnet)", "Shadow – PvP (computed)" } },
             provisional = true,
@@ -1302,8 +1304,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 217 },
         },
@@ -1365,8 +1367,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Shadow – survival (computed)”: top to bottom, the first that is possible – {589}, {8092}, {10797}, {1277331}, {15407}. In the model 217 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-shadow-survival",
@@ -1378,8 +1380,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 217 },
         },
@@ -1441,8 +1443,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Discipline (computed)”: top to bottom, the first that is possible – {1277370}, {2060}. In the model 661 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-disc", name = { "Disziplin (berechnet)", "Discipline (computed)" } },
             provisional = true,
@@ -1452,8 +1454,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 661 },
         },
@@ -1487,8 +1489,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Holy (computed)”: top to bottom, the first that is possible – {1277370}, {2060}. In the model 661 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-holy", name = { "Heilig (berechnet)", "Holy (computed)" } },
             provisional = true,
@@ -1498,8 +1500,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 661 },
         },
@@ -1534,8 +1536,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
             "Computed from the client tables for the talent build “Shadow (computed)”: top to bottom, the first that is possible – {589}, {8092}, {10797}, {1277331}, {15407}. In the model 217 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-shadow", name = { "Schatten (berechnet)", "Shadow (computed)" } },
             provisional = true,
@@ -1544,8 +1546,8 @@ ns.ROTATION_COMPUTED.PRIEST = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 16 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 16 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 217 },
         },
@@ -1610,8 +1612,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
             "Computed from the client tables for the talent build “Elemental – leveling (computed)”: top to bottom, the first that is possible – {8050}, {8042}, {403}. In the model 219 damage per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-ele-leveling",
@@ -1623,8 +1625,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Nature, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 219 },
         },
@@ -1674,8 +1676,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
             "Computed from the client tables for the talent build “Elemental – PvP (computed)”: top to bottom, the first that is possible – {8050}, {8042}, {403}. In the model 212 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-ele-pvp", name = { "Elementar – PvP (berechnet)", "Elemental – PvP (computed)" } },
             provisional = true,
@@ -1684,8 +1686,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Nature, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 212 },
         },
@@ -1735,8 +1737,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
             "Computed from the client tables for the talent build “Elemental – survival (computed)”: top to bottom, the first that is possible – {8050}, {8042}, {403}. In the model 212 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-ele-survival",
@@ -1748,8 +1750,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Nature, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 212 },
         },
@@ -1799,8 +1801,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
             "Computed from the client tables for the talent build “Restoration – leveling (computed)”: top to bottom, the first that is possible – {8004}. In the model 547 healing per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-resto-leveling",
@@ -1813,8 +1815,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
                 "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 547 },
         },
@@ -1839,8 +1841,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
             "Computed from the client tables for the talent build “Elemental (computed)”: top to bottom, the first that is possible – {8050}, {8042}, {403}. In the model 212 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-ele", name = { "Elementar (berechnet)", "Elemental (computed)" } },
             provisional = true,
@@ -1849,8 +1851,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Nature, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; shared cooldowns according to the client tables (spell categories): of two spells in one category only one in the priority unless one works over time – then the model counts both separately (slightly too high); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { dps = 212 },
         },
@@ -1900,8 +1902,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
             "Computed from the client tables for the talent build “Restoration (computed)”: top to bottom, the first that is possible – {8004}. In the model 547 healing per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-resto", name = { "Wiederherstellung (berechnet)", "Restoration (computed)" } },
             provisional = true,
@@ -1911,8 +1913,8 @@ ns.ROTATION_COMPUTED.SHAMAN = {
                 "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; Healing: heals by hand only (in combat ezCombat suggests only against enemies and sees HoTs only on you); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
             result = { hps = 547 },
         },
@@ -1939,12 +1941,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             "Affliction – Felhunter – leveling (provisionally computed)",
         },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Gebrechen – Teufelsjäger – Leveln (berechnet)“: von oben nach unten das Erste, das geht – {348}, {172}, {980}, {603}, {686}. Im Modell 198 Schaden je Sekunde über 30 Sek.",
-            "Computed from the client tables for the talent build “Affliction – Felhunter – leveling (computed)”: top to bottom, the first that is possible – {348}, {172}, {980}, {603}, {686}. In the model 198 damage per second over 30 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Gebrechen – Teufelsjäger – Leveln (berechnet)“: von oben nach unten das Erste, das geht – {348}, {980}, {172}, {686}. Im Modell 151 Schaden je Sekunde über 30 Sek.",
+            "Computed from the client tables for the talent build “Affliction – Felhunter – leveling (computed)”: top to bottom, the first that is possible – {348}, {980}, {172}, {686}. In the model 151 damage per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-aff-leveling",
@@ -1952,38 +1954,18 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 30 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 30 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 198 },
+            result = { dps = 151 },
         },
         steps = {
             {
                 id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 14 % des Schadens.",
-                    "Missing on the target: apply – 14 % of the damage in the model.",
-                },
-            },
-            {
-                id = 172,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 14 % des Schadens.",
-                    "Missing on the target: apply – 14 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -1993,13 +1975,23 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
-                id = 603,
+                id = 980,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 28 % des Schadens.",
-                    "Missing on the target: apply – 28 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 23 % des Schadens.",
+                    "Missing on the target: apply – 23 % of the damage in the model.",
+                },
+            },
+            {
+                id = 172,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 19 % des Schadens.",
+                    "Missing on the target: apply – 19 % of the damage in the model.",
                 },
             },
             {
@@ -2007,8 +1999,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 26 % des Schadens.",
-                    "Otherwise always this one – 26 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 40 % des Schadens.",
+                    "Otherwise always this one – 40 % of the damage in the model.",
                 },
             },
         },
@@ -2022,12 +2014,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
         },
         pick = { known = { 1225220 }, leveling = false },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Gebrechen – Teufelsjäger – PvP (berechnet)“: von oben nach unten das Erste, das geht – {172}, {980}, {348}, {603}, {686}. Im Modell 159 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Affliction – Felhunter – PvP (computed)”: top to bottom, the first that is possible – {172}, {980}, {348}, {603}, {686}. In the model 159 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Gebrechen – Teufelsjäger – PvP (berechnet)“: von oben nach unten das Erste, das geht – {980}, {348}, {172}, {686}. Im Modell 131 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Affliction – Felhunter – PvP (computed)”: top to bottom, the first that is possible – {980}, {348}, {172}, {686}. In the model 131 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-aff-pvp",
@@ -2035,48 +2027,18 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 159 },
+            result = { dps = 131 },
         },
         steps = {
             {
-                id = 172,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
-                },
-            },
-            {
                 id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
-                },
-            },
-            {
-                id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
-                    "Missing on the target: apply – 16 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2086,12 +2048,32 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
+                id = 348,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 19 % des Schadens.",
+                    "Missing on the target: apply – 19 % of the damage in the model.",
+                },
+            },
+            {
+                id = 172,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
+                    "Missing on the target: apply – 16 % of the damage in the model.",
+                },
+            },
+            {
                 id = 686,
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 37 % des Schadens.",
-                    "Otherwise always this one – 37 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 47 % des Schadens.",
+                    "Otherwise always this one – 47 % of the damage in the model.",
                 },
             },
         },
@@ -2104,12 +2086,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             "Affliction – Felhunter – survival (provisionally computed)",
         },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Gebrechen – Teufelsjäger – Überleben (berechnet)“: von oben nach unten das Erste, das geht – {172}, {980}, {348}, {603}, {686}. Im Modell 159 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Affliction – Felhunter – survival (computed)”: top to bottom, the first that is possible – {172}, {980}, {348}, {603}, {686}. In the model 159 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Gebrechen – Teufelsjäger – Überleben (berechnet)“: von oben nach unten das Erste, das geht – {172}, {348}, {603}, {980}, {686}. Im Modell 141 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Affliction – Felhunter – survival (computed)”: top to bottom, the first that is possible – {172}, {348}, {603}, {980}, {686}. In the model 141 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-aff-survival",
@@ -2120,14 +2102,14 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; der Wert gilt in langen Kämpfen (Elite, Boss); vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; the value applies to long fights (elite, boss); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 159 },
+            result = { dps = 141 },
         },
         steps = {
             {
@@ -2136,32 +2118,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 17 % des Schadens.",
+                    "Missing on the target: apply – 17 % of the damage in the model.",
                 },
             },
             {
                 id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
-                    "Missing on the target: apply – 16 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2171,12 +2133,33 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
+                id = 603,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 20 % des Schadens. Nur in langen Kämpfen (Elite, Boss).",
+                    "Missing on the target: apply – 20 % of the damage in the model. Long fights only (elite, boss).",
+                },
+                need = { enemy = { rank = { "elite", "rareelite", "worldboss" } } },
+            },
+            {
+                id = 980,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen, wenn {603} nicht lohnt – nie beide, nur eines liegt.",
+                    "Missing on the target: apply when {603} isn't worth it – never both, only one stays.",
+                },
+            },
+            {
                 id = 686,
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 37 % des Schadens.",
-                    "Otherwise always this one – 37 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 46 % des Schadens.",
+                    "Otherwise always this one – 46 % of the damage in the model.",
                 },
             },
         },
@@ -2189,12 +2172,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             "Demonology – Succubus – leveling (provisionally computed)",
         },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Dämonologie – Sukkubus – Leveln (berechnet)“: von oben nach unten das Erste, das geht – {348}, {172}, {980}, {603}, {686}. Im Modell 198 Schaden je Sekunde über 30 Sek.",
-            "Computed from the client tables for the talent build “Demonology – Succubus – leveling (computed)”: top to bottom, the first that is possible – {348}, {172}, {980}, {603}, {686}. In the model 198 damage per second over 30 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Dämonologie – Sukkubus – Leveln (berechnet)“: von oben nach unten das Erste, das geht – {348}, {980}, {172}, {686}. Im Modell 151 Schaden je Sekunde über 30 Sek.",
+            "Computed from the client tables for the talent build “Demonology – Succubus – leveling (computed)”: top to bottom, the first that is possible – {348}, {980}, {172}, {686}. In the model 151 damage per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-demo-leveling",
@@ -2202,38 +2185,18 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 30 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 30 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 198 },
+            result = { dps = 151 },
         },
         steps = {
             {
                 id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 14 % des Schadens.",
-                    "Missing on the target: apply – 14 % of the damage in the model.",
-                },
-            },
-            {
-                id = 172,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 14 % des Schadens.",
-                    "Missing on the target: apply – 14 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2243,13 +2206,23 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
-                id = 603,
+                id = 980,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 28 % des Schadens.",
-                    "Missing on the target: apply – 28 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 23 % des Schadens.",
+                    "Missing on the target: apply – 23 % of the damage in the model.",
+                },
+            },
+            {
+                id = 172,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 19 % des Schadens.",
+                    "Missing on the target: apply – 19 % of the damage in the model.",
                 },
             },
             {
@@ -2257,8 +2230,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 26 % des Schadens.",
-                    "Otherwise always this one – 26 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 40 % des Schadens.",
+                    "Otherwise always this one – 40 % of the damage in the model.",
                 },
             },
         },
@@ -2272,12 +2245,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
         },
         pick = { known = { 17927 }, leveling = false },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Dämonologie – Sukkubus – PvP (berechnet)“: von oben nach unten das Erste, das geht – {172}, {980}, {348}, {603}, {686}. Im Modell 159 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Demonology – Succubus – PvP (computed)”: top to bottom, the first that is possible – {172}, {980}, {348}, {603}, {686}. In the model 159 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Dämonologie – Sukkubus – PvP (berechnet)“: von oben nach unten das Erste, das geht – {980}, {348}, {172}, {686}. Im Modell 131 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Demonology – Succubus – PvP (computed)”: top to bottom, the first that is possible – {980}, {348}, {172}, {686}. In the model 131 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-demo-pvp",
@@ -2285,48 +2258,18 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 159 },
+            result = { dps = 131 },
         },
         steps = {
             {
-                id = 172,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
-                },
-            },
-            {
                 id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
-                },
-            },
-            {
-                id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
-                    "Missing on the target: apply – 16 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2336,12 +2279,32 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
+                id = 348,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 19 % des Schadens.",
+                    "Missing on the target: apply – 19 % of the damage in the model.",
+                },
+            },
+            {
+                id = 172,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
+                    "Missing on the target: apply – 16 % of the damage in the model.",
+                },
+            },
+            {
                 id = 686,
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 37 % des Schadens.",
-                    "Otherwise always this one – 37 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 47 % des Schadens.",
+                    "Otherwise always this one – 47 % of the damage in the model.",
                 },
             },
         },
@@ -2354,12 +2317,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             "Demonology – Succubus – survival (provisionally computed)",
         },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Dämonologie – Sukkubus – Überleben (berechnet)“: von oben nach unten das Erste, das geht – {172}, {980}, {348}, {603}, {686}. Im Modell 159 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Demonology – Succubus – survival (computed)”: top to bottom, the first that is possible – {172}, {980}, {348}, {603}, {686}. In the model 159 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Dämonologie – Sukkubus – Überleben (berechnet)“: von oben nach unten das Erste, das geht – {172}, {348}, {603}, {980}, {686}. Im Modell 141 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Demonology – Succubus – survival (computed)”: top to bottom, the first that is possible – {172}, {348}, {603}, {980}, {686}. In the model 141 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-demo-survival",
@@ -2367,14 +2330,14 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; der Wert gilt in langen Kämpfen (Elite, Boss); vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; the value applies to long fights (elite, boss); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 159 },
+            result = { dps = 141 },
         },
         steps = {
             {
@@ -2383,32 +2346,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 17 % des Schadens.",
+                    "Missing on the target: apply – 17 % of the damage in the model.",
                 },
             },
             {
                 id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
-                    "Missing on the target: apply – 16 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2418,12 +2361,33 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
+                id = 603,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 20 % des Schadens. Nur in langen Kämpfen (Elite, Boss).",
+                    "Missing on the target: apply – 20 % of the damage in the model. Long fights only (elite, boss).",
+                },
+                need = { enemy = { rank = { "elite", "rareelite", "worldboss" } } },
+            },
+            {
+                id = 980,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen, wenn {603} nicht lohnt – nie beide, nur eines liegt.",
+                    "Missing on the target: apply when {603} isn't worth it – never both, only one stays.",
+                },
+            },
+            {
                 id = 686,
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 37 % des Schadens.",
-                    "Otherwise always this one – 37 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 46 % des Schadens.",
+                    "Otherwise always this one – 46 % of the damage in the model.",
                 },
             },
         },
@@ -2436,12 +2400,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             "Destruction – Imp sacrificed – leveling (provisionally computed)",
         },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Zerstörung – Wichtel als Opfer – Leveln (berechnet)“: von oben nach unten das Erste, das geht – {348}, {172}, {980}, {17877}, {1293817}, {603}, {686}. Im Modell 217 Schaden je Sekunde über 30 Sek.",
-            "Computed from the client tables for the talent build “Destruction – Imp sacrificed – leveling (computed)”: top to bottom, the first that is possible – {348}, {172}, {980}, {17877}, {1293817}, {603}, {686}. In the model 217 damage per second over 30 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Zerstörung – Wichtel als Opfer – Leveln (berechnet)“: von oben nach unten das Erste, das geht – {1293817}, {348}, {980}, {172}, {17877}, {686}. Im Modell 170 Schaden je Sekunde über 30 Sek.",
+            "Computed from the client tables for the talent build “Destruction – Imp sacrificed – leveling (computed)”: top to bottom, the first that is possible – {1293817}, {348}, {980}, {172}, {17877}, {686}. In the model 170 damage per second over 30 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-destro-leveling",
@@ -2452,38 +2416,47 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 30 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Feuer und Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire and Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 30 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Feuer und Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 30 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire and Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 217 },
+            result = { dps = 170 },
         },
         steps = {
+            {
+                id = 1293817,
+                kind = "priority",
+                when = "ready",
+                text = {
+                    "Wenn bereit – vor allen Schritten darunter – im Modell 16 % des Schadens.",
+                    "When ready – before every step below – 16 % of the damage in the model.",
+                },
+            },
             {
                 id = 348,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 13 % des Schadens.",
-                    "Missing on the target: apply – 13 % of the damage in the model.",
-                },
-            },
-            {
-                id = 172,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 13 % des Schadens.",
-                    "Missing on the target: apply – 13 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
+                    "Missing on the target: apply – 16 % of the damage in the model.",
                 },
             },
             {
                 id = 980,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 21 % des Schadens.",
+                    "Missing on the target: apply – 21 % of the damage in the model.",
+                },
+            },
+            {
+                id = 172,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2497,27 +2470,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "priority",
                 when = "ready",
                 text = {
-                    "Wenn bereit – vor allen Schritten darunter – im Modell 8 % des Schadens.",
-                    "When ready – before every step below – 8 % of the damage in the model.",
-                },
-            },
-            {
-                id = 1293817,
-                kind = "priority",
-                when = "ready",
-                text = {
-                    "Wenn bereit – vor allen Schritten darunter – im Modell 8 % des Schadens.",
-                    "When ready – before every step below – 8 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 26 % des Schadens.",
-                    "Missing on the target: apply – 26 % of the damage in the model.",
+                    "Wenn bereit – vor allen Schritten darunter – im Modell 10 % des Schadens.",
+                    "When ready – before every step below – 10 % of the damage in the model.",
                 },
             },
             {
@@ -2525,8 +2479,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 16 % des Schadens.",
-                    "Otherwise always this one – 16 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 20 % des Schadens.",
+                    "Otherwise always this one – 20 % of the damage in the model.",
                 },
             },
         },
@@ -2539,12 +2493,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             "Destruction – Imp sacrificed – PvP (provisionally computed)",
         },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Zerstörung – Wichtel als Opfer – PvP (berechnet)“: von oben nach unten das Erste, das geht – {172}, {1293817}, {17877}, {980}, {348}, {603}, {686}. Im Modell 177 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Destruction – Imp sacrificed – PvP (computed)”: top to bottom, the first that is possible – {172}, {1293817}, {17877}, {980}, {348}, {603}, {686}. In the model 177 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Zerstörung – Wichtel als Opfer – PvP (berechnet)“: von oben nach unten das Erste, das geht – {980}, {1293817}, {17877}, {348}, {172}, {686}. Im Modell 153 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Destruction – Imp sacrificed – PvP (computed)”: top to bottom, the first that is possible – {980}, {1293817}, {17877}, {348}, {172}, {686}. In the model 153 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-destro-pvp",
@@ -2555,24 +2509,24 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Feuer und Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire and Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Feuer und Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire and Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 177 },
+            result = { dps = 153 },
         },
         steps = {
             {
-                id = 172,
+                id = 980,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 13 % des Schadens.",
-                    "Missing on the target: apply – 13 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
+                    "Missing on the target: apply – 15 % of the damage in the model.",
                 },
             },
             {
@@ -2580,8 +2534,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "priority",
                 when = "ready",
                 text = {
-                    "Wenn bereit – vor allen Schritten darunter – im Modell 14 % des Schadens.",
-                    "When ready – before every step below – 14 % of the damage in the model.",
+                    "Wenn bereit – vor allen Schritten darunter – im Modell 17 % des Schadens.",
+                    "When ready – before every step below – 17 % of the damage in the model.",
                 },
             },
             {
@@ -2589,18 +2543,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "priority",
                 when = "ready",
                 text = {
-                    "Wenn bereit – vor allen Schritten darunter – im Modell 9 % des Schadens.",
-                    "When ready – before every step below – 9 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 12 % des Schadens.",
-                    "Missing on the target: apply – 12 % of the damage in the model.",
+                    "Wenn bereit – vor allen Schritten darunter – im Modell 10 % des Schadens.",
+                    "When ready – before every step below – 10 % of the damage in the model.",
                 },
             },
             {
@@ -2609,18 +2553,18 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 13 % des Schadens.",
-                    "Missing on the target: apply – 13 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 17 % des Schadens.",
+                    "Missing on the target: apply – 17 % of the damage in the model.",
                 },
             },
             {
-                id = 603,
+                id = 172,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
-                    "Missing on the target: apply – 16 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 14 % des Schadens.",
+                    "Missing on the target: apply – 14 % of the damage in the model.",
                 },
             },
             {
@@ -2628,8 +2572,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 23 % des Schadens.",
-                    "Otherwise always this one – 23 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 27 % des Schadens.",
+                    "Otherwise always this one – 27 % of the damage in the model.",
                 },
             },
         },
@@ -2642,12 +2586,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             "Destruction – Imp sacrificed – survival (provisionally computed)",
         },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Zerstörung – Wichtel als Opfer – Überleben (berechnet)“: von oben nach unten das Erste, das geht – {172}, {1293817}, {17877}, {980}, {348}, {603}, {686}. Im Modell 177 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Destruction – Imp sacrificed – survival (computed)”: top to bottom, the first that is possible – {172}, {1293817}, {17877}, {980}, {348}, {603}, {686}. In the model 177 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Zerstörung – Wichtel als Opfer – Überleben (berechnet)“: von oben nach unten das Erste, das geht – {172}, {1293817}, {17877}, {348}, {603}, {980}, {686}. Im Modell 161 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Destruction – Imp sacrificed – survival (computed)”: top to bottom, the first that is possible – {172}, {1293817}, {17877}, {348}, {603}, {980}, {686}. In the model 161 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-destro-survival",
@@ -2658,14 +2602,14 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Feuer und Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire and Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Feuer und Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; der Wert gilt in langen Kämpfen (Elite, Boss); vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire and Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; the value applies to long fights (elite, boss); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 177 },
+            result = { dps = 161 },
         },
         steps = {
             {
@@ -2674,8 +2618,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 13 % des Schadens.",
-                    "Missing on the target: apply – 13 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
+                    "Missing on the target: apply – 15 % of the damage in the model.",
                 },
             },
             {
@@ -2683,8 +2627,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "priority",
                 when = "ready",
                 text = {
-                    "Wenn bereit – vor allen Schritten darunter – im Modell 14 % des Schadens.",
-                    "When ready – before every step below – 14 % of the damage in the model.",
+                    "Wenn bereit – vor allen Schritten darunter – im Modell 15 % des Schadens.",
+                    "When ready – before every step below – 15 % of the damage in the model.",
                 },
             },
             {
@@ -2692,32 +2636,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "priority",
                 when = "ready",
                 text = {
-                    "Wenn bereit – vor allen Schritten darunter – im Modell 9 % des Schadens.",
-                    "When ready – before every step below – 9 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 12 % des Schadens.",
-                    "Missing on the target: apply – 12 % of the damage in the model.",
+                    "Wenn bereit – vor allen Schritten darunter – im Modell 10 % des Schadens.",
+                    "When ready – before every step below – 10 % of the damage in the model.",
                 },
             },
             {
                 id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 13 % des Schadens.",
-                    "Missing on the target: apply – 13 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2727,12 +2651,33 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
+                id = 603,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 17 % des Schadens. Nur in langen Kämpfen (Elite, Boss).",
+                    "Missing on the target: apply – 17 % of the damage in the model. Long fights only (elite, boss).",
+                },
+                need = { enemy = { rank = { "elite", "rareelite", "worldboss" } } },
+            },
+            {
+                id = 980,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen, wenn {603} nicht lohnt – nie beide, nur eines liegt.",
+                    "Missing on the target: apply when {603} isn't worth it – never both, only one stays.",
+                },
+            },
+            {
                 id = 686,
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 23 % des Schadens.",
-                    "Otherwise always this one – 23 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 28 % des Schadens.",
+                    "Otherwise always this one – 28 % of the damage in the model.",
                 },
             },
         },
@@ -2743,12 +2688,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
         name = { "Gebrechen – Teufelsjäger (vorläufig berechnet)", "Affliction – Felhunter (provisionally computed)" },
         pick = { known = { 18731 }, leveling = false },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Gebrechen – Teufelsjäger (berechnet)“: von oben nach unten das Erste, das geht – {172}, {980}, {348}, {603}, {686}. Im Modell 159 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Affliction – Felhunter (computed)”: top to bottom, the first that is possible – {172}, {980}, {348}, {603}, {686}. In the model 159 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Gebrechen – Teufelsjäger (berechnet)“: von oben nach unten das Erste, das geht – {172}, {348}, {603}, {980}, {686}. Im Modell 141 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Affliction – Felhunter (computed)”: top to bottom, the first that is possible – {172}, {348}, {603}, {980}, {686}. In the model 141 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-aff",
@@ -2756,14 +2701,14 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; der Wert gilt in langen Kämpfen (Elite, Boss); vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; the value applies to long fights (elite, boss); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 159 },
+            result = { dps = 141 },
         },
         steps = {
             {
@@ -2772,32 +2717,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 17 % des Schadens.",
+                    "Missing on the target: apply – 17 % of the damage in the model.",
                 },
             },
             {
                 id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
-                    "Missing on the target: apply – 16 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2807,12 +2732,33 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
+                id = 603,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 20 % des Schadens. Nur in langen Kämpfen (Elite, Boss).",
+                    "Missing on the target: apply – 20 % of the damage in the model. Long fights only (elite, boss).",
+                },
+                need = { enemy = { rank = { "elite", "rareelite", "worldboss" } } },
+            },
+            {
+                id = 980,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen, wenn {603} nicht lohnt – nie beide, nur eines liegt.",
+                    "Missing on the target: apply when {603} isn't worth it – never both, only one stays.",
+                },
+            },
+            {
                 id = 686,
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 37 % des Schadens.",
-                    "Otherwise always this one – 37 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 46 % des Schadens.",
+                    "Otherwise always this one – 46 % of the damage in the model.",
                 },
             },
         },
@@ -2823,24 +2769,24 @@ ns.ROTATION_COMPUTED.WARLOCK = {
         name = { "Dämonologie – Sukkubus (vorläufig berechnet)", "Demonology – Succubus (provisionally computed)" },
         pick = { known = { 18731, 18754 }, leveling = false },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Dämonologie – Sukkubus (berechnet)“: von oben nach unten das Erste, das geht – {172}, {980}, {348}, {603}, {686}. Im Modell 159 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Demonology – Succubus (computed)”: top to bottom, the first that is possible – {172}, {980}, {348}, {603}, {686}. In the model 159 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Dämonologie – Sukkubus (berechnet)“: von oben nach unten das Erste, das geht – {172}, {348}, {603}, {980}, {686}. Im Modell 141 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Demonology – Succubus (computed)”: top to bottom, the first that is possible – {172}, {348}, {603}, {980}, {686}. In the model 141 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = { key = "sim-demo", name = { "Dämonologie – Sukkubus (berechnet)", "Demonology – Succubus (computed)" } },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; der Wert gilt in langen Kämpfen (Elite, Boss); vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; the value applies to long fights (elite, boss); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 159 },
+            result = { dps = 141 },
         },
         steps = {
             {
@@ -2849,32 +2795,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
-                    "Missing on the target: apply – 15 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 17 % des Schadens.",
+                    "Missing on the target: apply – 17 % of the damage in the model.",
                 },
             },
             {
                 id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 16 % des Schadens.",
-                    "Missing on the target: apply – 16 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2884,12 +2810,33 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
+                id = 603,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 20 % des Schadens. Nur in langen Kämpfen (Elite, Boss).",
+                    "Missing on the target: apply – 20 % of the damage in the model. Long fights only (elite, boss).",
+                },
+                need = { enemy = { rank = { "elite", "rareelite", "worldboss" } } },
+            },
+            {
+                id = 980,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen, wenn {603} nicht lohnt – nie beide, nur eines liegt.",
+                    "Missing on the target: apply when {603} isn't worth it – never both, only one stays.",
+                },
+            },
+            {
                 id = 686,
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 37 % des Schadens.",
-                    "Otherwise always this one – 37 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 46 % des Schadens.",
+                    "Otherwise always this one – 46 % of the damage in the model.",
                 },
             },
         },
@@ -2902,12 +2849,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             "Destruction – Imp sacrificed (provisionally computed)",
         },
         how = {
-            "Berechnet aus den Client-Tabellen für die Talentverteilung „Zerstörung – Wichtel als Opfer (berechnet)“: von oben nach unten das Erste, das geht – {172}, {1293817}, {17877}, {980}, {348}, {603}, {686}. Im Modell 177 Schaden je Sekunde über 180 Sek.",
-            "Computed from the client tables for the talent build “Destruction – Imp sacrificed (computed)”: top to bottom, the first that is possible – {172}, {1293817}, {17877}, {980}, {348}, {603}, {686}. In the model 177 damage per second over 180 sec.",
+            "Berechnet aus den Client-Tabellen für die Talentverteilung „Zerstörung – Wichtel als Opfer (berechnet)“: von oben nach unten das Erste, das geht – {172}, {1293817}, {17877}, {348}, {603}, {980}, {686}. Im Modell 161 Schaden je Sekunde über 180 Sek.",
+            "Computed from the client tables for the talent build “Destruction – Imp sacrificed (computed)”: top to bottom, the first that is possible – {172}, {1293817}, {17877}, {348}, {603}, {980}, {686}. In the model 161 damage per second over 180 sec.",
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-24",
+            build = "1.60.1.71037",
             model = "3/1",
             distribution = {
                 key = "sim-destro",
@@ -2915,14 +2862,14 @@ ns.ROTATION_COMPUTED.WARLOCK = {
             },
             provisional = true,
             assumptions = {
-                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Feuer und Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
-                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire and Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
+                "Kampf gegen einen Gegner gleicher Stufe, 180 Sek.; Erwartungswerte ohne Würfel; globale Abklingzeit 1,5 Sek., 5 % Verfehlen, 4 % Widerstehen; Wirkung aus den Client-Tabellen (Schaden, Heilung, über Zeit); Stärkungen, Schwächungen und Combo-Punkte ohne Schadenszahl zählen nicht; Füller aus der Schule des Hauptbaums (Feuer und Schatten, erkannt an seinen Talenten); was überwiegend über Zeit wirkt, nur als „Fehlt auf dem Ziel: setzen“; was sich laut den Beschreibungen des Clients ausschließt (eines je Ziel), zählt nur einmal; der Wert gilt in langen Kämpfen (Elite, Boss); vorläufig, Grundwerte geschätzt: Zauberwerte und Talente aus den Client-Tabellen (wago.tools), noch ohne Messung der Grundwerte (%s werte ohne Ausrüstung, jede Stufe zählt, zwei Stufen je Klasse ergeben die Kurve) – Zaubermacht 0, Krit 0 %, Mana ohne Grenze; Talentwirkungen nicht eingerechnet – die Verteilung bestimmt nur, welche Talent-Zauber es gibt; Koeffizienten und Streuung aus den Client-Tabellen",
+                "Fight against one enemy of the same level, 180 sec.; Expected values without dice; global cooldown 1.5 sec., 5 % miss, 4 % resist; Effect from the client tables (damage, healing, over time); buffs, debuffs and combo points without a damage number count as zero; filler from the school of the main tree (Fire and Shadow, recognised by its talents); anything mostly over time only as “Missing on the target: apply”; what excludes each other according to the client's descriptions (one per target) counts only once; the value applies to long fights (elite, boss); provisional, base stats estimated: spell values and talents from the client tables (wago.tools), base stats not yet measured (%s values without gear, every level counts, two levels per class give the curve) – spell power 0, crit 0 %, unlimited mana; talent effects not included – the build only decides which talent spells exist; coefficients and variance from the client tables",
             },
             values = {
-                "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
-                "Client tables according to wago.tools (wowf 1.60.1.70938): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
+                "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Wirkungen, Koeffizienten, Kosten, Zauberzeit, Abklingzeit und Lernstufe je Rang bis Stufe 60, 8 Zauber mit Schaden oder Heilung; Talente aus den Client-Tabellen; Grundwerte geschätzt (keine Messung)",
+                "Client tables according to wago.tools (wowf 1.60.1.71037): effects, coefficients, cost, cast time, cooldown and level per rank up to level 60, 8 spells with damage or healing; talents from the client tables; base stats estimated (no measurement)",
             },
-            result = { dps = 177 },
+            result = { dps = 161 },
         },
         steps = {
             {
@@ -2931,8 +2878,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 when = "dot",
                 refresh = "missing",
                 text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 13 % des Schadens.",
-                    "Missing on the target: apply – 13 % of the damage in the model.",
+                    "Fehlt auf dem Ziel: setzen – im Modell 15 % des Schadens.",
+                    "Missing on the target: apply – 15 % of the damage in the model.",
                 },
             },
             {
@@ -2940,8 +2887,8 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "priority",
                 when = "ready",
                 text = {
-                    "Wenn bereit – vor allen Schritten darunter – im Modell 14 % des Schadens.",
-                    "When ready – before every step below – 14 % of the damage in the model.",
+                    "Wenn bereit – vor allen Schritten darunter – im Modell 15 % des Schadens.",
+                    "When ready – before every step below – 15 % of the damage in the model.",
                 },
             },
             {
@@ -2949,32 +2896,12 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 kind = "priority",
                 when = "ready",
                 text = {
-                    "Wenn bereit – vor allen Schritten darunter – im Modell 9 % des Schadens.",
-                    "When ready – before every step below – 9 % of the damage in the model.",
-                },
-            },
-            {
-                id = 980,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 12 % des Schadens.",
-                    "Missing on the target: apply – 12 % of the damage in the model.",
+                    "Wenn bereit – vor allen Schritten darunter – im Modell 10 % des Schadens.",
+                    "When ready – before every step below – 10 % of the damage in the model.",
                 },
             },
             {
                 id = 348,
-                kind = "maintain",
-                when = "dot",
-                refresh = "missing",
-                text = {
-                    "Fehlt auf dem Ziel: setzen – im Modell 13 % des Schadens.",
-                    "Missing on the target: apply – 13 % of the damage in the model.",
-                },
-            },
-            {
-                id = 603,
                 kind = "maintain",
                 when = "dot",
                 refresh = "missing",
@@ -2984,12 +2911,33 @@ ns.ROTATION_COMPUTED.WARLOCK = {
                 },
             },
             {
+                id = 603,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen – im Modell 17 % des Schadens. Nur in langen Kämpfen (Elite, Boss).",
+                    "Missing on the target: apply – 17 % of the damage in the model. Long fights only (elite, boss).",
+                },
+                need = { enemy = { rank = { "elite", "rareelite", "worldboss" } } },
+            },
+            {
+                id = 980,
+                kind = "maintain",
+                when = "dot",
+                refresh = "missing",
+                text = {
+                    "Fehlt auf dem Ziel: setzen, wenn {603} nicht lohnt – nie beide, nur eines liegt.",
+                    "Missing on the target: apply when {603} isn't worth it – never both, only one stays.",
+                },
+            },
+            {
                 id = 686,
                 kind = "filler",
                 when = "filler",
                 text = {
-                    "Sonst immer dieser – im Modell 23 % des Schadens.",
-                    "Otherwise always this one – 23 % of the damage in the model.",
+                    "Sonst immer dieser – im Modell 28 % des Schadens.",
+                    "Otherwise always this one – 28 % of the damage in the model.",
                 },
             },
         },

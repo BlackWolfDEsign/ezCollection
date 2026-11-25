@@ -4,7 +4,7 @@ local _, ns = ...
 -- Makro-Namen und -Beschreibungen stehen zweisprachig direkt in Data\*.lua.
 local de = {
     -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
-    INTRO_FEATURES = "Fertige Makros je Klasse und Volk\nEin-Klick: Essen, Reittier, Durchbuffen\nGift, Waffenzauber, Stein oder Öl je Hand\nEmotes und Ansagen im Reiter Chat\nAngeln mit eigener Taste\nRänge aktualisieren, lange Makros",
+    INTRO_FEATURES = "Fertige Makros je Klasse und Volk\nEin-Klick: Essen, Reittier, Durchbuffen\nGift, Waffenzauber, Stein oder Öl je Hand\nEmotes und Ansagen im Reiter Chat\nAngeln mit eigener Taste\nRänge aktualisieren, Leisten-Profile",
     TITLE = "ezMacro",
 
     TAB_class = "Klasse",
@@ -130,6 +130,8 @@ local de = {
     DETAIL_EXISTS = "Bereits übernommen (%s)",
     -- Emote-Makro, das noch Blizzards Befehl enthält (Emote.Outdated): Hinweis statt stillem Umschreiben
     DETAIL_OUTDATED = "Übernommen (%s), aber veraltet – „Aktualisieren“",
+    DETAIL_TEMPLATE_CHANGED = "Übernommen (%s), Vorlage geändert – „Aktualisieren“",
+    DETAIL_TEMPLATE_CHANGED_NOTE = "Die Vorlage hat sich geändert (Maus über). Dein Makro „%s“ bleibt, wie es ist, bis du „Aktualisieren“ klickst (mit Rückfrage).",
     TAG_OUTDATED = "veraltet",
     EMOTE_OUTDATED_NOTE = "Veraltet: Dein Makro enthält noch „%s“ – „Aktualisieren“ ersetzt es (mit Rückfrage).",
     EMOTE_OUTDATED_TIP = "Veraltet: Dein vorhandenes Makro enthält noch „%s“. „Aktualisieren“ ersetzt es nach einer Rückfrage durch „%s“. ezMacro schreibt vorhandene Makros nie von selbst um.",
@@ -186,6 +188,10 @@ local de = {
     OPEN_COMBAT_WHAT = "Die Makroverwaltung",   -- Core.CombatNotice(…, "later"): „… kommt gleich nach dem Kampf.“ (T18-1)
     CHK_PERCHAR = "Nur für diesen Charakter",
     CHK_PERCHAR_TIP = "An: das Makro landet bei den Charakter-Makros (nur dieser Charakter).\nAus: bei den allgemeinen Makros (alle Charaktere des Accounts).",
+    CHK_MOUSEOVER = "Maus über",
+    DETAIL_MOUSEOVER_OFF = "Maus über ist für dieses Makro aus: Es wirkt auf dein Ziel, nicht auf die Einheit unter der Maus (Kästchen „Maus über“ unten, Standard in den Einstellungen).",
+    CHK_MOUSEOVER_TIP = "Nur für dieses Makro. An: wirkt auf die Einheit unter der Maus, sonst auf dein Ziel. Aus: wirkt auf dein Ziel, ohne „(MO)“ im Namen.\nGilt vor den Einstellungen „Maus über Mitspieler“ und „Maus über Gegner“. Stimmt es wieder mit der Einstellung überein oder klickst du „Zurücksetzen“, gilt wieder die Einstellung.\nEin schon übernommenes Makro schreibt erst „Aktualisieren“ neu (mit Rückfrage).",
+    CHK_MOUSEOVER_EDITED = "Du hast dieses Makro angepasst – deine Fassung gilt. „Zurücksetzen“ gibt das Kästchen wieder frei.",
     COUNT = "Freie Makroplätze – allgemein: %d, Charakter: %d",
     AUTO_INFO = "Automatisch: Heilern danken %s  ·  Mördern hinterherspucken %s",
     AUTO_INFO_TIP = "Klick: Einstellungen für automatische Emotes öffnen",
@@ -207,6 +213,7 @@ local de = {
     ERR_FAILED = "Das Makro konnte nicht angelegt werden.",
     ERR_NO_API = "Dieser Client bietet keine Makro-Funktionen für Addons an.",
     POPUP_OVERWRITE = "Es gibt schon ein Makro „%s“ (%s).\nMit dem neuen Text ersetzen?",
+    POPUP_OVERWRITE_RENAME = "Die Vorlage hat sich geändert (Maus über): Dein Makro „%s“ (%s) heißt jetzt „%s“.\nMit der neuen Fassung ersetzen (Name und Text)?",
 
     -- Einstellungen
     OPT_HEADER_MACROS = "Makros",
@@ -468,15 +475,6 @@ local de = {
     BUILDER_C_BTN2 = "Rechtsklick",
 
     -- Viele Makros auf einmal (Sicherung, Leisten-Profil)
-    PLAN_CREATE = "%d neu",
-    PLAN_REPLACE = "%d ersetzen",
-    PLAN_SAME = "%d unverändert",
-    PLAN_FULL = "%d ohne freien Platz",
-    PLAN_INVALID = "%d ungültig",
-    PLAN_EMPTY = "keine Makros",
-    PLAN_CONFIRM = "%s\nMakros: %s.\n\nFortfahren?",
-    PLAN_NOTHING = "%s: nichts zu tun (%s).",
-    PLAN_DONE = "%s: %d Makros geändert (%s).",
     MSG_DELETED = "Makro „%s“ gelöscht.",
 
     -- Werkzeug „Makros sichern“
@@ -527,7 +525,7 @@ local de = {
     TOOL_PROFILES_DESC = "Speichert deine Aktionsleisten samt Makros (auf Wunsch mit Tastenbelegung) und lädt sie auf einem anderen Charakter – mit einer Rückfrage.",
     PROFILE_NONE = "Noch kein Profil gespeichert.",
     PROFILE_STATUS = "%d Profile",
-    PROFILE_EMPTY = "Noch keine Profile. „Speichern“ merkt sich die Leisten dieses Charakters.",
+    PROFILE_EMPTY = "Noch keine Profile. Erst „Speichern“ auf diesem Charakter, dann auf einem anderen „Laden“.",
     PROFILE_ROW = "%d Plätze, %d Makros · %s · %s",
     PROFILE_ROW_TIP = "Gespeichert von %s. Doppelklick lädt das Profil.",
     PROFILE_ROW_TIP_IMPORTED = "Aus Text übernommen. Doppelklick lädt das Profil.",
@@ -538,33 +536,10 @@ local de = {
     PROFILE_LOAD = "Laden",
     PROFILE_LOAD_TIP = "Legt die Leisten des gewählten Profils auf diesen Charakter. Fehlende Makros entstehen neu (die Rückfrage nennt sie mit Namen), vorhandene bleiben unverändert; Zauber in deinem höchsten gelernten Rang. ezMacro fragt vorher. Nur außerhalb des Kampfes.",
     PROFILE_DELETE_TIP = "Löscht das gewählte Profil (nach Rückfrage).",
-    PROFILE_DELETE_CONFIRM = "Leisten-Profil „%s“ löschen?",
-    PROFILE_SAVED = "Leisten-Profil „%s“ gespeichert (%d Plätze).",
-    PROFILE_LOAD_TITLE = "Leisten-Profil „%s“ laden",
-    PROFILE_PLAN_SLOTS = "%d Aktionsplätze ändern sich.",
-    PROFILE_PLAN_CLEAR = "%d Plätze werden geleert.",
-    PROFILE_PLAN_MISSING = "%d Plätze bleiben, wie sie sind (Zauber nicht gelernt oder Gegenstand fehlt).",
-    PROFILE_PLAN_BINDINGS = "%d Tastenbelegungen werden übernommen – %s.",
-    PROFILE_BINDINGS_ACCOUNT = "für alle Charaktere des Accounts (Blizzards kontoweite Tastaturbelegung)",
-    PROFILE_BINDINGS_CHAR = "nur für diesen Charakter (charakterspezifische Tastaturbelegung)",
-    PROFILE_PLAN_BINDINGS_CHANGED = "%d Tasten lösen danach etwas anderes aus: %s.",
-    PROFILE_PLAN_BINDINGS_SKIPPED = "%d Tastenbelegungen bleiben weg (Befehl unbekannt, Taste ungültig oder gesperrt, etwa Esc).",
-    PROFILE_KEY_WAS = "%s (bisher %s)",
-    PROFILE_PLAN_KEEP = "%d Makros aus dem Profil gibt es bei dir schon; sie bleiben unverändert, auf ihre Plätze kommt dein Makro: %s.",
-    PROFILE_MACROS_HEAD = "Neue Makros:",
-    PROFILE_MACROS_HEAD_PAGE = "Neue Makros (Teil %d von %d):",
-    PROFILE_MACRO_LINE = "· %s",
-    PROFILE_MACRO_SCRIPT = "(enthält %s)",
-    PROFILE_MACROS_SCRIPT_WARN = "Achtung: Rot markierte Makros (%d) enthalten /run, /script, /console, /dump oder /tinspect – sie führen beim Klick Lua-Code aus oder ändern Client-Einstellungen. Lade ein fremdes Profil nur, wenn du dem Absender vertraust.",
-    PROFILE_MACROS_NEXT = "Weiter",
-    PROFILE_PLAN_CLASS = "Achtung: Das Profil stammt von einer anderen Klasse (%s).",
-    PROFILE_LOADED = "Leisten-Profil „%s“ geladen: %d Plätze belegt, %d geleert, %d fehlen, %d Tasten.",
     PROFILE_TEXT = "Als Text",
     PROFILE_TEXT_TIP = "Zeigt das gewählte Profil als Text zum Kopieren (z. B. auf einen anderen Account). Eingefügter Profil-Text wird mit „Übernehmen“ ein neues Profil.",
     PROFILE_TEXT_TITLE = "Leisten-Profil als Text",
     PROFILE_TEXT_HINT = "Strg+C kopiert das Profil. Zum Übernehmen eines anderen Profils Text einfügen (Strg+V) und „Übernehmen“.",
-    PROFILE_IMPORT_BAD = "Dieser Text ist kein Leisten-Profil von ezMacro.",
-    PROFILE_IMPORT_NEWER = "Dieses Leisten-Profil stammt aus einer neueren Fassung von ezMacro. Bitte zuerst ezMacro aktualisieren.",
     -- eigener Schlüssel: ezCores PROFILE_IMPORTED hat andere Platzhalter (T16-11)
     MACRO_PROFILE_IMPORTED = "Leisten-Profil „%s“ übernommen.",
 
@@ -683,30 +658,23 @@ local de = {
     GENERAL_GROUP_TIP = "„Für alle“: Fokus, Markierung, Schmuckstücke … „Heilen und Buffen per Klick“: Maus-über-Makros für Heilen, Bannen, Wiederbeleben und Buffs auf Mitspieler – mit ezHeal aus seinen Vorlagen, sonst die Maus-über-Makros deiner Klasse. Jedes lässt sich mit „Klick-Zauber“ auf eine Maustaste legen.",
     BTN_CLICKBIND = "Klick-Zauber",
     BTN_CLICKBIND_TITLE = "Als Klick-Zauber belegen",
-    BTN_CLICKBIND_TIP = "Legt dieses Makro auf eine Maustaste mit Umschalt-, Strg- oder Alt-Taste in Blizzards Klick-Zaubern: Klick auf den Rahmen eines Mitspielers wirkt es auf ihn. Du wählst die Taste und bestätigst; fehlt das Makro noch, legt ezMacro es an. Nur außerhalb des Kampfes; die alte Belegung sichert ezCore.",
+    BTN_CLICKBIND_TIP = "Öffnet Blizzards Fenster „Klick-Zauber“ (wie aus dem Zauberbuch) und hängt dieses Makro an den Mauszeiger: in die Liste klicken, dann mit der gewünschten Maus- und Umschalttaste auf die neue Zeile klicken und „Speichern“. Klick auf den Rahmen eines Mitspielers wirkt es dann auf ihn. Fehlt das Makro noch, legt ezMacro es an. Nur außerhalb des Kampfes.",
     CLICK_TIP_SUGGESTED = "Vorschlag aus ezHeal: %s",
+    CLICK_HAND = "„%s“ hängt am Mauszeiger: In Blizzards Fenster „Klick-Zauber“ in die Liste klicken, dann mit der gewünschten Maus- und Umschalttaste auf die neue Zeile klicken und „Speichern“.",
+    CLICK_HAND_SELFCAST = "Nicht mit %s – das ist Blizzards Selbstwirk-Taste, ein Klick-Zauber darauf wirkt auf dich.",
+    CLICK_HAND_NOFRAME = "„%s“ hängt am Mauszeiger, aber Blizzards Fenster „Klick-Zauber“ ging nicht auf: Öffne es selbst (am Zauberbuch oder unter Optionen, Tastaturbelegung) und klick dort in die Liste.",
+    CLICK_HAND_SELF = "„%s“ hängt am Mauszeiger.",
+    CLICK_HAND_EXISTING = "Es gibt schon ein Makro „%s“ mit anderem Text – genau dieses hängt am Zeiger, sein Text bleibt.",
     CLICK_GUIDE_HEAD = "Wo, wann und mit welcher Taste:",
     CLICK_GUIDE_BAR = "Leiste: Makro auf eine Aktionsleiste ziehen und mit deren Taste drücken. „(MO)“ wirkt auf das, was unter der Maus ist – auch auf einen Rahmen –, sonst auf dein Ziel; „(F)“ auf deinen Fokus, sonst auf dein Ziel.",
-    CLICK_GUIDE_FRAME = "Rahmen (Klick-Zauber): Maustaste mit Umschalt, Strg oder Alt – oder die mittlere Maustaste – auf dem Rahmen eines Mitspielers (Gruppe, Raid, Ziel) wirkt das Makro auf ihn, ohne Zielwechsel und ohne Leistenplatz. Linksklick ohne Zusatztaste bleibt „Ziel“, Rechtsklick „Menü“.",
+    CLICK_GUIDE_FRAME = "Rahmen (Klick-Zauber): Maustaste mit Umschalt oder Strg – oder die mittlere Maustaste, Maustaste 4 oder 5 – auf dem Rahmen eines Mitspielers (Gruppe, Raid, Ziel) wirkt das Makro auf ihn, ohne Zielwechsel und ohne Leistenplatz. Linksklick ohne Zusatztaste bleibt „Ziel“, Rechtsklick „Menü“; Alt ist ab Werk Blizzards Selbstwirk-Taste und wirkt auf dich.",
     CLICK_GUIDE_SPELL = "Fähigkeit: Makros „Aus deinen Fähigkeiten“ sind normale Makros – auf die Leiste ziehen oder genauso als Klick-Zauber legen.",
     CLICK_GUIDE_KEYS = "Tasten für Klick-Zauber: %s",
-    CLICK_MENU_KEY_TIP = "Klick mit %s auf den Rahmen eines Mitspielers wirkt „%s“ auf ihn.\nHeute liegt dort: %s",
-    CLICK_MENU_TITLE = "„%s“ legen auf …",
-    CLICK_SUGGESTED = "(Vorschlag)",
-    CLICK_CONFIRM = "Makro „%s“ als Klick-Zauber auf %s legen?\nDort liegt jetzt: %s\nDie alte Belegung bleibt in ezCore gesichert.",
-    CLICK_CONFIRM_CREATE = "Das Makro gibt es noch nicht – ezMacro legt es dabei an.",
-    CLICK_CONFIRM_EXISTING = "Ein Makro „%s“ gibt es schon – belegt wird dieses vorhandene Makro mit seinem eigenen Text; ezMacro ändert es nicht.",
+    CLICK_GUIDE_KEYS_FREE = "Noch freie Tasten für Klick-Zauber: %s",
+    CLICK_SELFCAST = "(Selbstwirk-Taste: wirkt auf dich)",
     CLICK_OTHER_ADDON = "Hinweis: %s läuft und belegt die Klicks auf Gruppenrahmen selbst. Blizzards Klick-Zauber und %s können sich auf derselben Taste überschneiden – am besten eine Taste wählen, die dort frei ist.",
-    CLICK_DONE = "„%s“ liegt jetzt auf %s (Blizzards Klick-Zauber, auf Gruppen- und Raidrahmen).",
-    CLICK_SAME = "„%s“ lag schon auf %s.",
-    CLICK_LATER = "„%s“ kommt nach dem Kampf auf %s.",
     CLICK_FAILED = "„%s“ ließ sich nicht als Klick-Zauber belegen: %s",
     CLICK_ERR_missing = "Dieser Client oder ezCore kann Blizzards Klick-Zauber nicht schreiben.",
-    CLICK_ERR_unknown = "Das Makro gibt es in Blizzards Makroverwaltung nicht.",
-    CLICK_ERR_invalid = "Taste oder Makro ungültig.",
-    CLICK_ERR_unreadable = "Die jetzige Belegung ließ sich nicht ganz lesen – sie bleibt, wie sie ist.",
-    CLICK_ERR_error = "Blizzard meldete einen Fehler (Fehlerliste von ezCore).",
-    CLICK_ERR_ownerError = "ezHeal, das die Klick-Belegung schreibt, meldete einen Fehler (Fehlerliste von ezCore) – die Taste bleibt, wie sie war.",
     CLICKHEAL_WHY = "%s auf den Mitspieler unter der Maus – oder als Klick-Zauber auf seinem Rahmen.",
     CLICKHEAL_DESC = "Wirkt %s auf den Mitspieler unter der Maus, sonst auf dein freundliches Ziel, sonst auf dich (Wiederbeleben: auf Tote). Aus ezHeals Vorlage; vorgeschlagene Taste für „Klick-Zauber“: %s.",
 
@@ -859,7 +827,7 @@ local de = {
     ONEKEY_DE_CLEAR_TIP = "Nimmt alle Häkchen weg – danach entzaubert die Taste nichts mehr.",
     ONEKEY_DE_EMPTY = "Nichts zum Entzaubern in deinen Taschen (grüne bis violette Ausrüstung).",
     ONEKEY_PET_WHY = "Dämon beschwören bzw. Tier rufen, beleben, heilen, füttern",
-    ONEKEY_PET_DESC = "Hexenmeister: Wähle den Dämon der Begleiter-Taste. Jäger: Hake das Futter an, das dein Tier frisst – der Client nennt nur die Art (oben), nicht je Gegenstand. Füttern hat eine eigene Taste: Tastaturbelegung, ezCollection.",
+    ONEKEY_PET_DESC = "Hexenmeister: Wähle den Dämon der Begleiter-Taste. Jäger: Hake das Futter an, das dein Tier frisst – die Arten nennt der Client (oben). Füttern hat eine eigene Taste: Tastaturbelegung, ezCollection.",
     ONEKEY_PET_DEMON = "beschwört %s",
     ONEKEY_PET_DEMON_missing = "beschwört %s – aber dir fehlt: %s",
     ONEKEY_PET_FEED = "füttert %s (außerhalb des Kampfes)",
@@ -889,6 +857,10 @@ local de = {
     -- Makros nach Art in Blizzards Makroverwaltung (Kinds.lua)
     OPT_macroKinds = "Makros nach Art",
     OPT_macroKinds_TIP = "Ordnet jedes Makro in Blizzards Makroverwaltung einer Art zu: Heilen, Buffs, Kampf, Emotes, Berufe oder Sonstiges. Der Knopf „Art“ unter dem Symbolraster blendet Makros anderer Art ab; der Tooltip am Symbol nennt Art und Quelle, Rechtsklick aufs Symbol ändert die Art. Erkannt am Kennzeichen von ezHeal und ezBuff, sonst am Inhalt (Zauber laut ezCores Zauber-Wissen, Emotes, /startattack). Deine Zuordnung gilt vor der Erkennung und bleibt gemerkt.",
+    OPT_mouseoverFriend = "Maus über Mitspieler",
+    OPT_mouseoverFriend_TIP = "Das bringt dir: Heilen, Buffen, Bannen und Wiederbeleben aus ezMacros Vorlagen wirken auf den Mitspieler unter der Maus, ohne dass du ihn anklickst – sonst auf dein Ziel bzw. dich.\nAus: Die Vorlagen wirken auf dein Ziel, das Kürzel „(MO)“ im Namen entfällt. Je Makro abweichen: Kästchen „Maus über“ im ezMacro-Fenster. Schon übernommene Makros bleiben, bis du sie mit „Aktualisieren“ neu schreibst; die Klick-Zauber behalten die Maus immer.\nBlizzards Option „%s“ wirkt nur auf Zauber auf deinen Leisten, nicht auf Makros.",
+    OPT_mouseoverHostile = "Maus über Gegner",
+    OPT_mouseoverHostile_TIP = "Das bringt dir: Unterbrecher, Kontrolle, Flüche, Spott und Schaden über Zeit aus ezMacros Vorlagen wirken auf den Gegner unter der Maus, ohne das Ziel zu wechseln – sonst auf dein Ziel. Fokus-Makros behalten den Fokus.\nAus: Die Vorlagen wirken auf dein Ziel, das Kürzel „(MO)“ im Namen entfällt. Je Makro abweichen: Kästchen „Maus über“ im ezMacro-Fenster. Schon übernommene Makros bleiben, bis du sie mit „Aktualisieren“ neu schreibst.\nBlizzards Option „%s“ wirkt nur auf Zauber auf deinen Leisten, nicht auf Makros.",
     -- Welle 27: Makros aus deinen Fähigkeiten (SpellMacros.lua)
     OPT_macroFromSpells = "Makros aus deinen Fähigkeiten",
     OPT_macroFromSpells_TIP = "Zeigt im ezMacro-Fenster (Reiter „Makros“, Auswahl „Für mich“) hinter den Vorlagen die Gruppe „Aus deinen Fähigkeiten“: zu jedem gelernten Zauber deiner Klasse ohne eigene Vorlage ein Makro nach seiner Art – Schaden und Schwächung auf den Gegner unter der Maus, Heilung und Stärkung auf den Mitspieler unter der Maus, Kontrolle auf den Fokus, Unterbrechen mit /stopcasting davor. Selbst-Zauber und Haltungen bekommen keins. Die Art sagt zuerst der Client, sonst ezCores Client-Tabellen.",
@@ -971,7 +943,7 @@ local de = {
 }
 
 local en = {
-    INTRO_FEATURES = "Ready macros per class and race\nOne-click: food, mount, buff group\nPoison, imbue, stone or oil per hand\nEmotes and announcements in the Chat tab\nFishing on its own key\nUpdate ranks, long macros",
+    INTRO_FEATURES = "Ready macros per class and race\nOne-click: food, mount, buff group\nPoison, imbue, stone or oil per hand\nEmotes and announcements in the Chat tab\nFishing on its own key\nUpdate ranks, bar profiles",
     TITLE = "ezMacro",
 
     TAB_class = "Class",
@@ -1095,6 +1067,8 @@ local en = {
     DETAIL_EXISTS = "Already added (%s)",
     -- Emote macro that still holds Blizzard's command (Emote.Outdated): a hint instead of rewriting it silently
     DETAIL_OUTDATED = "Added (%s), but outdated – \"Update\"",
+    DETAIL_TEMPLATE_CHANGED = "Added (%s), template changed – \"Update\"",
+    DETAIL_TEMPLATE_CHANGED_NOTE = "The template changed (mouseover). Your macro \"%s\" stays as it is until you click \"Update\" (asks first).",
     TAG_OUTDATED = "outdated",
     EMOTE_OUTDATED_NOTE = "Outdated: your macro still holds \"%s\" – \"Update\" replaces it (after asking).",
     EMOTE_OUTDATED_TIP = "Outdated: your existing macro still holds \"%s\". \"Update\" replaces it with \"%s\" after asking. ezMacro never rewrites existing macros by itself.",
@@ -1151,6 +1125,10 @@ local en = {
     OPEN_COMBAT_WHAT = "The macro window",
     CHK_PERCHAR = "This character only",
     CHK_PERCHAR_TIP = "On: the macro goes to the character macros (this character only).\nOff: it goes to the general macros (every character on the account).",
+    CHK_MOUSEOVER = "Mouseover",
+    DETAIL_MOUSEOVER_OFF = "Mouseover is off for this macro: it acts on your target, not on the unit under the mouse (\"Mouseover\" box below, default in the settings).",
+    CHK_MOUSEOVER_TIP = "Only for this macro. On: acts on the unit under the mouse, otherwise on your target. Off: acts on your target, without \"(MO)\" in the name.\nComes before the settings \"Mouseover for allies\" and \"Mouseover for enemies\". Once it matches the setting again or you click \"Reset\", the setting applies again.\nA macro you already added is only rewritten by \"Update\" (asks first).",
+    CHK_MOUSEOVER_EDITED = "You adjusted this macro – your version applies. \"Reset\" frees the box again.",
     COUNT = "Free macro slots – general: %d, character: %d",
     AUTO_INFO = "Automatic: thank healers %s  ·  spit at killers %s",
     AUTO_INFO_TIP = "Click: open the settings for automatic emotes",
@@ -1171,6 +1149,7 @@ local en = {
     ERR_FAILED = "The macro could not be created.",
     ERR_NO_API = "This client offers no macro functions to addons.",
     POPUP_OVERWRITE = "There already is a macro \"%s\" (%s).\nReplace it with the new text?",
+    POPUP_OVERWRITE_RENAME = "The template changed (mouseover): your macro \"%s\" (%s) is now called \"%s\".\nReplace it with the new version (name and text)?",
 
     OPT_HEADER_MACROS = "Macros",
     OPT_HEADER_AUTO = "Automatic emotes",
@@ -1420,15 +1399,6 @@ local en = {
     BUILDER_C_NOMOD = "no key held",
     BUILDER_C_BTN2 = "right-click",
 
-    PLAN_CREATE = "%d new",
-    PLAN_REPLACE = "%d to replace",
-    PLAN_SAME = "%d unchanged",
-    PLAN_FULL = "%d without a free slot",
-    PLAN_INVALID = "%d invalid",
-    PLAN_EMPTY = "no macros",
-    PLAN_CONFIRM = "%s\nMacros: %s.\n\nContinue?",
-    PLAN_NOTHING = "%s: nothing to do (%s).",
-    PLAN_DONE = "%s: %d macros changed (%s).",
     MSG_DELETED = "Macro \"%s\" deleted.",
 
     TOOL_BACKUP = "Back up macros",
@@ -1476,7 +1446,7 @@ local en = {
     TOOL_PROFILES_DESC = "Saves your action bars with their macros (key bindings if you like) and loads them on another character – asking once.",
     PROFILE_NONE = "No profile saved yet.",
     PROFILE_STATUS = "%d profiles",
-    PROFILE_EMPTY = "No profiles yet. \"Save\" remembers this character's bars.",
+    PROFILE_EMPTY = "No profiles yet. First \"Save\" on this character, then \"Load\" on another one.",
     PROFILE_ROW = "%d slots, %d macros · %s · %s",
     PROFILE_ROW_TIP = "Saved by %s. Double-click loads the profile.",
     PROFILE_ROW_TIP_IMPORTED = "Added from text. Double-click loads the profile.",
@@ -1487,33 +1457,10 @@ local en = {
     PROFILE_LOAD = "Load",
     PROFILE_LOAD_TIP = "Puts the selected profile's bars on this character. Missing macros are created (the confirmation lists their names), existing ones stay unchanged; spells in your highest learned rank. ezMacro asks first. Out of combat only.",
     PROFILE_DELETE_TIP = "Deletes the selected profile (after asking).",
-    PROFILE_DELETE_CONFIRM = "Delete the bar profile \"%s\"?",
-    PROFILE_SAVED = "Bar profile \"%s\" saved (%d slots).",
-    PROFILE_LOAD_TITLE = "Load bar profile \"%s\"",
-    PROFILE_PLAN_SLOTS = "%d action slots change.",
-    PROFILE_PLAN_CLEAR = "%d slots are cleared.",
-    PROFILE_PLAN_MISSING = "%d slots stay as they are (spell not learned or item missing).",
-    PROFILE_PLAN_BINDINGS = "%d key bindings are applied – %s.",
-    PROFILE_BINDINGS_ACCOUNT = "for all characters of the account (Blizzard's account-wide key bindings)",
-    PROFILE_BINDINGS_CHAR = "for this character only (character specific key bindings)",
-    PROFILE_PLAN_BINDINGS_CHANGED = "%d keys will then do something else: %s.",
-    PROFILE_PLAN_BINDINGS_SKIPPED = "%d key bindings are left out (unknown command, invalid or blocked key such as Esc).",
-    PROFILE_KEY_WAS = "%s (was %s)",
-    PROFILE_PLAN_KEEP = "%d macros from the profile already exist on your side; they stay unchanged and their slots get your macro: %s.",
-    PROFILE_MACROS_HEAD = "New macros:",
-    PROFILE_MACROS_HEAD_PAGE = "New macros (part %d of %d):",
-    PROFILE_MACRO_LINE = "· %s",
-    PROFILE_MACRO_SCRIPT = "(contains %s)",
-    PROFILE_MACROS_SCRIPT_WARN = "Note: macros marked in red (%d) contain /run, /script, /console, /dump or /tinspect – they run Lua code or change client settings when clicked. Only load a profile from someone else if you trust the sender.",
-    PROFILE_MACROS_NEXT = "Next",
-    PROFILE_PLAN_CLASS = "Note: this profile comes from another class (%s).",
-    PROFILE_LOADED = "Bar profile \"%s\" loaded: %d slots set, %d cleared, %d missing, %d keys.",
     PROFILE_TEXT = "As text",
     PROFILE_TEXT_TIP = "Shows the selected profile as text to copy (e.g. to another account). Pasted profile text becomes a new profile with \"Apply\".",
     PROFILE_TEXT_TITLE = "Bar profile as text",
     PROFILE_TEXT_HINT = "Ctrl+C copies the profile. To add another profile, paste its text (Ctrl+V) and click \"Apply\".",
-    PROFILE_IMPORT_BAD = "This text is not an ezMacro bar profile.",
-    PROFILE_IMPORT_NEWER = "This bar profile comes from a newer version of ezMacro. Please update ezMacro first.",
     MACRO_PROFILE_IMPORTED = "Bar profile \"%s\" added.",
 
     TOOL_RANKS = "Update ranks",
@@ -1629,30 +1576,23 @@ local en = {
     GENERAL_GROUP_TIP = "\"For everyone\": focus, marker, trinkets … \"Heal and buff by click\": mouseover macros for healing, dispelling, resurrecting and buffing party members – from ezHeal's templates when it runs, otherwise your class's mouseover macros. Each one can go on a mouse button with \"Click cast\".",
     BTN_CLICKBIND = "Click cast",
     BTN_CLICKBIND_TITLE = "Bind as click cast",
-    BTN_CLICKBIND_TIP = "Puts this macro on a mouse button with Shift, Ctrl or Alt in Blizzard's click casting: clicking a party member's frame casts it on them. You pick the button and confirm; if the macro does not exist yet, ezMacro creates it. Only out of combat; ezCore backs up the old bindings.",
+    BTN_CLICKBIND_TIP = "Opens Blizzard's “Click Casting” window (as from the spellbook) and puts this macro on your cursor: click into the list, then click the new row with the mouse button and modifier you want, and “Save”. Clicking a party member's frame then casts it on them. If the macro does not exist yet, ezMacro creates it. Only out of combat.",
     CLICK_TIP_SUGGESTED = "Suggested by ezHeal: %s",
+    CLICK_HAND = "“%s” is on your cursor: in Blizzard's “Click Casting” window click into the list, then click the new row with the mouse button and modifier you want, and “Save”.",
+    CLICK_HAND_SELFCAST = "Not with %s – that is Blizzard's self cast key, a click cast on it hits you.",
+    CLICK_HAND_NOFRAME = "“%s” is on your cursor, but Blizzard's “Click Casting” window did not open: open it yourself (at the spellbook or under Options, Keybindings) and click into the list.",
+    CLICK_HAND_SELF = "“%s” is on your cursor.",
+    CLICK_HAND_EXISTING = "A macro “%s” with a different text already exists – that one is on your cursor, its text stays.",
     CLICK_GUIDE_HEAD = "Where, when and with which key:",
     CLICK_GUIDE_BAR = "Bar: drag the macro onto an action bar and press that button's key. \"(MO)\" works on whatever is under the mouse – a frame too –, otherwise on your target; \"(F)\" on your focus, otherwise on your target.",
-    CLICK_GUIDE_FRAME = "Frame (click casting): a mouse button with Shift, Ctrl or Alt – or the middle button – on a group member's frame (party, raid, target) casts the macro on them, without switching targets and without a bar slot. Left click without a modifier stays \"Target\", right click \"Menu\".",
+    CLICK_GUIDE_FRAME = "Frame (click casting): a mouse button with Shift or Ctrl – or the middle button, mouse button 4 or 5 – on a group member's frame (party, raid, target) casts the macro on them, without switching targets and without a bar slot. Left click without a modifier stays “target”, right click “menu”; Alt is Blizzard's self cast key by default and casts on you.",
     CLICK_GUIDE_SPELL = "Ability: macros \"From your abilities\" are normal macros – drag them onto a bar or bind them as click casts the same way.",
     CLICK_GUIDE_KEYS = "Keys for click casting: %s",
-    CLICK_MENU_KEY_TIP = "Clicking a group member's frame with %s casts \"%s\" on them.\nOn it now: %s",
-    CLICK_MENU_TITLE = "Put \"%s\" on …",
-    CLICK_SUGGESTED = "(suggested)",
-    CLICK_CONFIRM = "Bind macro \"%s\" as a click cast on %s?\nCurrently there: %s\nezCore keeps a backup of the old bindings.",
-    CLICK_CONFIRM_CREATE = "The macro does not exist yet – ezMacro creates it.",
-    CLICK_CONFIRM_EXISTING = "A macro \"%s\" already exists – that existing macro is bound with its own text; ezMacro does not change it.",
+    CLICK_GUIDE_KEYS_FREE = "Keys still free for click casting: %s",
+    CLICK_SELFCAST = "(self cast key: casts on you)",
     CLICK_OTHER_ADDON = "Note: %s is running and binds clicks on party frames itself. Blizzard's click casting and %s can overlap on the same button – best pick a button that is free there.",
-    CLICK_DONE = "\"%s\" is now on %s (Blizzard's click casting, on party and raid frames).",
-    CLICK_SAME = "\"%s\" was already on %s.",
-    CLICK_LATER = "\"%s\" goes on %s after combat.",
     CLICK_FAILED = "\"%s\" could not be bound as a click cast: %s",
     CLICK_ERR_missing = "This client or ezCore cannot write Blizzard's click casting.",
-    CLICK_ERR_unknown = "The macro does not exist in Blizzard's macro window.",
-    CLICK_ERR_invalid = "Button or macro invalid.",
-    CLICK_ERR_unreadable = "The current bindings could not be read completely – they stay as they are.",
-    CLICK_ERR_error = "Blizzard reported an error (ezCore's error list).",
-    CLICK_ERR_ownerError = "ezHeal, which writes the click bindings, reported an error (ezCore's error list) – the key stays as it was.",
     CLICKHEAL_WHY = "%s on the party member under your mouse – or as a click cast on their frame.",
     CLICKHEAL_DESC = "Casts %s on the party member under your mouse, otherwise your friendly target, otherwise yourself (resurrection: on the dead). From ezHeal's template; suggested button for \"Click cast\": %s.",
 
@@ -1801,7 +1741,7 @@ local en = {
     ONEKEY_DE_CLEAR_TIP = "Removes all ticks – then the key disenchants nothing.",
     ONEKEY_DE_EMPTY = "Nothing to disenchant in your bags (green to purple gear).",
     ONEKEY_PET_WHY = "Summon a demon or call, revive, heal, feed your pet",
-    ONEKEY_PET_DESC = "Warlock: choose the demon of the pet key. Hunter: tick the food your pet eats – the client names only the diet (above), not per item. Feeding has a key of its own: key bindings, ezCollection.",
+    ONEKEY_PET_DESC = "Warlock: choose the demon of the pet key. Hunter: tick the food your pet eats – the client names the diet (above). Feeding has a key of its own: key bindings, ezCollection.",
     ONEKEY_PET_DEMON = "summons %s",
     ONEKEY_PET_DEMON_missing = "summons %s – but you are missing: %s",
     ONEKEY_PET_FEED = "feeds %s (out of combat)",
@@ -1832,6 +1772,10 @@ local en = {
     -- Macros by kind in Blizzard's macro window (Kinds.lua)
     OPT_macroKinds = "Macros by kind",
     OPT_macroKinds_TIP = "Sorts every macro in Blizzard's macro window into a kind: Heal, Buffs, Combat, Emotes, Professions or Other. The \"Kind\" button below the icon grid dims macros of other kinds; the tooltip on the icon names kind and source, right-clicking the icon changes the kind. Detected by the marker of ezHeal and ezBuff, otherwise by the content (spells per ezCore's spell knowledge, emotes, /startattack). Your own choice comes before the detection and is remembered.",
+    OPT_mouseoverFriend = "Mouseover for allies",
+    OPT_mouseoverFriend_TIP = "What you get: heals, buffs, dispels and resurrections from ezMacro's templates act on the ally under the mouse without clicking them – otherwise on your target or yourself.\nOff: the templates act on your target and \"(MO)\" leaves the name. Per macro: the \"Mouseover\" box in the ezMacro window. Macros you already added stay until you rewrite them with \"Update\"; click casting always keeps the mouse.\nBlizzard's option \"%s\" only affects spells on your action bars, not macros.",
+    OPT_mouseoverHostile = "Mouseover for enemies",
+    OPT_mouseoverHostile_TIP = "What you get: interrupts, crowd control, curses, taunts and damage over time from ezMacro's templates act on the enemy under the mouse without changing your target – otherwise on your target. Focus macros keep the focus.\nOff: the templates act on your target and \"(MO)\" leaves the name. Per macro: the \"Mouseover\" box in the ezMacro window. Macros you already added stay until you rewrite them with \"Update\".\nBlizzard's option \"%s\" only affects spells on your action bars, not macros.",
     -- Wave 27: macros from your abilities (SpellMacros.lua)
     OPT_macroFromSpells = "Macros from your abilities",
     OPT_macroFromSpells_TIP = "Shows the group \"From your abilities\" in the ezMacro window (\"Macros\" tab, \"For me\") after the templates: a macro for every spell of your class you have learned and that has no template of its own, by the kind of spell – damage and debuffs on the enemy under your mouse, heals and buffs on the ally under your mouse, crowd control on your focus, interrupts with /stopcasting first. Self-only spells and stances get none. The kind comes from the client first, otherwise from ezCore's client tables.",
@@ -1911,6 +1855,17 @@ local en = {
 
     PROFILE_OTHER = "%s is running and saves bars itself – ezMacro's profiles only act when you click.",
 }
+
+-- Maus über (Resolver.lua): Blizzards Option „Mouseover-Zauber“ (CVar enableMouseoverCast) mit dem Text aus dem Client
+-- (GlobalStrings ENABLE_MOUSEOVER_CAST); fehlt er, der Name laut docs/klassenmakros-recherche.md
+do
+    local blizz = rawget(_G, "ENABLE_MOUSEOVER_CAST")
+    if type(blizz) ~= "string" or blizz == "" then blizz = nil end
+    for _, key in ipairs({ "OPT_mouseoverFriend_TIP", "OPT_mouseoverHostile_TIP" }) do
+        de[key] = de[key]:format(blizz or "Mouseover-Zauber")
+        en[key] = en[key]:format(blizz or "Mouseover Cast")
+    end
+end
 
 -- Gemeinsame Texte (an/aus, Völker …) kommen aus ezCore.
 ns.isGerman = ezCore.IsGerman()

@@ -32,10 +32,11 @@ local Core = ezCore
                      totem Begleiter. Jäger: „[@pet,dead] wiederbeleben; [nopet] rufen; heilen“ als Makro-Bedingungen –
                      Leben des Begleiters liest ezMacro nie (auf Forever kann es gesperrt sein, Leitlinie 6). Was keine
                      Bedingung kann, schreibt ezMacro außerhalb des Kampfes dazu: Ist der Begleiter nicht zufrieden
-                     (GetPetHappiness, nur lesbar ausgewertet), füttert der Knopf außerhalb des Kampfes – mit dem
+                     (C_PetInfo.GetPetHappiness, nur lesbar ausgewertet), füttert der Knopf außerhalb des Kampfes – mit dem
                      ersten angehakten Futter aus der Tasche (sicherer Knopf „ezMacroOneKeyFeed“, wie oben).
-                     Welche Nahrung ein Tier frisst, nennt der Client nur als Art (GetPetFoodTypes), nicht je
-                     Gegenstand; darum hakst du das Futter im Werkzeug „Begleiter“ selbst an (Leitlinie 11).
+                     Welche Nahrung ein Tier frisst, nennt der Client als Art (C_PetInfo.GetPetFoodTypes); das Futter hakst du
+                     im Werkzeug „Begleiter“ selbst an (C_PetInfo.CanPetEatItem je Gegenstand: noch ungenutzt,
+                     docs/roadmap/ezMacro.md).
 
     Fakten mit Quelle (Leitlinie 10, nichts aus Addons): Zauber-IDs geprüft am 15.11.2026 gegen Wowheads
     Forever-Tooltip (nether.wowhead.com/forever/tooltip/spell/<ID>), Name und Klasse. Herbeizaubern (5504, 587),
@@ -143,54 +144,16 @@ end
 -- MACRO-07: Questgegenstand
 ---------------------------------------------------------------------------
 
-local function Watched(log, questID, index)
-    local kind = Call(log.GetQuestWatchType, questID)
-    if not Core.IsSecret(kind) and kind ~= nil then return true end
-    return Bool(Call(rawget(_G, "IsQuestWatched"), index), false) == true
-end
-
 -- Quests mit Gegenstand zum Benutzen, der in den Taschen liegt, beste zuerst →
 -- { { itemID, questID, title, rank, super, watched, onMap } } | nil, "noQuestLog".
--- Quelle: Questlog des Clients. ezQuest führt dieselben Gegenstände (ezCore.API("ezQuest").ItemQuest), aber ohne
--- Verfolgung und Gebiet; sobald es sie mit beidem anbietet, liest ezMacro dort (docs/roadmap/ezMacro.md).
+-- Quelle: Questlog des Clients über ezCore (Core.Inventory.QuestUseItems, dieselbe Liste wie ezQuest).
 function OneKey.QuestItems()
-    local log = rawget(_G, "C_QuestLog")
-    local special = rawget(_G, "GetQuestLogSpecialItemInfo")
-    if type(log) ~= "table" or type(log.GetNumQuestLogEntries) ~= "function" or type(log.GetInfo) ~= "function"
-        or type(special) ~= "function" then
-        return nil, "noQuestLog"
+    local all, why = Core.Inventory.QuestUseItems()
+    if not all then return nil, why end
+    local byID, list = Bags(), {}
+    for _, entry in ipairs(all) do
+        if byID[entry.itemID] and not Equippable(entry.itemID) then list[#list + 1] = entry end
     end
-    local byID = Bags()
-    local superTrack = rawget(_G, "C_SuperTrack")
-    local super = Num(Call(type(superTrack) == "table" and superTrack.GetSuperTrackedQuestID or nil))
-    local zone = Plain(Call(rawget(_G, "GetRealZoneText")))
-    local header
-    local list = {}
-    for index = 1, Num((Call(log.GetNumQuestLogEntries))) or 0 do
-        local info = Call(log.GetInfo, index)
-        if type(info) == "table" then
-            local title = Plain(info.title)
-            if Bool(info.isHeader, false) then
-                header = title
-            else
-                local questID = Num(info.questID)
-                local itemID = Core.ItemID((Call(special, index)))
-                if questID and itemID and byID[itemID] and not Equippable(itemID) then
-                    local isSuper = super ~= nil and super == questID
-                    local watched = Watched(log, questID, index)
-                    local onMap = Bool(info.isOnMap, false) == true
-                        or (type(header) == "string" and type(zone) == "string" and header == zone)
-                    list[#list + 1] = { itemID = itemID, questID = questID, title = title, order = index,
-                        super = isSuper, watched = watched, onMap = onMap,
-                        rank = isSuper and 3 or watched and 2 or onMap and 1 or 0 }
-                end
-            end
-        end
-    end
-    table.sort(list, function(a, b)
-        if a.rank ~= b.rank then return a.rank > b.rank end
-        return a.order < b.order
-    end)
     return list
 end
 
@@ -400,7 +363,9 @@ end
 function OneKey.Happiness()
     if Core.UnitPresent("pet") ~= true then return nil end
     if Bool(Call(rawget(_G, "UnitIsDead"), "pet"), true) ~= false then return nil end
-    return Num((Call(rawget(_G, "GetPetHappiness"))))
+    local api = rawget(_G, "C_PetInfo")     -- wie Blizzards PetHappiness.lua; die alte Globale nur als Rückfall
+    local value = Num((Call(type(api) == "table" and api.GetPetHappiness or rawget(_G, "GetPetHappiness"))))
+    return value and value >= 1 and value <= 3 and value or nil     -- Blizzard kennt nur 1 bis 3
 end
 
 -- Erstes angehaktes Futter in den Taschen → itemID | nil
@@ -908,15 +873,16 @@ local function FoodItems()
     return items
 end
 
--- Was das Tier frisst (Blizzards Text je Art, GetPetFoodTypes) | nil
+-- Was das Tier frisst (Blizzards Text je Art, C_PetInfo.GetPetFoodTypes: eine Tabelle; die alte Globale als Rückfall
+-- gab die Texte einzeln zurück) | nil
 function OneKey.Diet()
-    local fn = rawget(_G, "GetPetFoodTypes")
-    if type(fn) ~= "function" then return nil end
-    local ok, a, b, c, d, e, f = pcall(fn)
-    if not ok then return nil end
+    local api = rawget(_G, "C_PetInfo")
+    local types = { Call(type(api) == "table" and api.GetPetFoodTypes or rawget(_G, "GetPetFoodTypes")) }
+    local first = Plain(types[1])
+    if type(first) == "table" then types = first end
     local names = {}
-    for _, value in ipairs({ a, b, c, d, e, f }) do
-        value = Plain(value)
+    for i = 1, #types do
+        local value = Plain(types[i])
         if type(value) == "string" and value ~= "" then names[#names + 1] = value end
     end
     return #names > 0 and table.concat(names, ", ") or nil

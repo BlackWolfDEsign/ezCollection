@@ -851,7 +851,7 @@ function Buy.StockLine(data, entry, list)
     return line
 end
 
-function Buy.MarkBrowseRow(_, data, overlay)
+function Buy.MarkBrowseRow(row, data, overlay)
     local text, r, g, b, highlight, tip = Buy.BrowseLabel(data)
     local wanted, list, entry = Buy.Wanted(data)
     local stockShown = false

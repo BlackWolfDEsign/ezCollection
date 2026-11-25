@@ -50,33 +50,17 @@ function Import.Find(name)
     return index, index > maxAccount
 end
 
-function Import.CleanName(name)
-    name = Core.Trim((tostring(name or ""):gsub("[\r\n\"]", "")))   -- Core.Trim (T16-15)
-    return ns.Truncate(name, ns.MACRO_NAME_MAX)
-end
+-- Name und Text bereinigen: ezCore (Core.Macro.CleanName/CleanBody, Architektur-Review 22.11.2026 – die Leisten-
+-- Profile in ezCore brauchen dieselbe Fassung; vorher stand sie hier). Name ohne Umbruch und „"“, auf 16 Zeichen.
+function Import.CleanName(name) return Macro.CleanName(name) end
 
-function Import.CleanBody(body)
-    body = tostring(body or ""):gsub("\r\n", "\n"):gsub("\r", "\n"):gsub("%s+$", "")
-    return body
-end
+function Import.CleanBody(body) return Macro.CleanBody(body) end
 
 -- Befehle, die Lua-Code ausführen oder Client-Einstellungen ändern (Gesamtreview 18.11.2026, T6-1): welche das sind,
 -- entscheidet ezCore (Core.RunsCode – /run, /script, /console, /dump, /tinspect und die Schreibweisen des Clients aus
--- SLASH_SCRIPT<n> usw.; P19: vorher eine eigene Liste ScriptCommandSet hier, dieselbe wie in ezCore).
--- Solche Befehle in einem Makrotext, in der Reihenfolge ihres ersten Auftretens, ohne Doppelte: { "/run", … }.
-function Import.ScriptCommands(body)
-    local found, seen = {}, {}
-    if type(body) ~= "string" then return found end
-    for line in body:gmatch("[^\r\n]+") do
-        local cmd = line:match("^%s*(/[^%s%[]+)")
-        cmd = cmd and cmd:lower()
-        if cmd and not seen[cmd] and Core.RunsCode(cmd) then
-            seen[cmd] = true
-            found[#found + 1] = cmd
-        end
-    end
-    return found
-end
+-- SLASH_SCRIPT<n> usw.). Solche Befehle in einem Makrotext, in der Reihenfolge ihres ersten Auftretens, ohne Doppelte:
+-- { "/run", … }. Die Suche selbst steht seit dem Architektur-Review 22.11.2026 in ezCore (Core.Macro.ScriptCommands).
+function Import.ScriptCommands(body) return Macro.ScriptCommands(body) end
 
 -- Meldung oben in der Bildschirmmitte über ezCore (Core.ErrorMessage: Blizzards AddExternalErrorMessage, sonst rot
 -- über AddMessage; W-14) und im Chat.
@@ -142,6 +126,9 @@ local function Write(index, name, icon, body, perChar)
     name = ns.Truncate(tostring(name or ""), ns.MACRO_NAME_MAX)
     return (Macro.Write(name, icon or (not index and ns.DEFAULT_ICON or nil), body, perChar and true or false, index))
 end
+-- Für ezCores Leisten-Profile (Core.BarProfiles, Anmeldung in Profiles.lua): fehlende Makros über diese Stelle anlegen,
+-- damit Texte über 255 Zeichen lange Makros werden.
+Import.Write = Write
 
 -- Ersetzt nur den Text eines vorhandenen Makros (Name, Symbol und Bereich bleiben), z. B. neue Ränge.
 function Import.Rewrite(index, body)
@@ -152,10 +139,39 @@ function Import.Rewrite(index, body)
     return Write(index, name, nil, Import.CleanBody(body), index > maxAccount)
 end
 
+-- Vorhandenes Makro eines Eintrags: unter seinem Namen, sonst – Schalter „Maus über“ umgestellt (Resolver.lua) – unter
+-- dem Namen der anderen Fassung („Lichtblitz (MO)“ ↔ „Lichtblitz“), solange im Namensfeld der Name der Vorlage steht.
+-- Das übernommene Makro bleibt, bis „Aktualisieren“ es nach Rückfrage neu schreibt. → Index, perChar, gefundener Name
+-- Ein Makro, das als Klick-Zauber auf einer Maustaste liegt (Blizzards Klick-Zauber über ezCore.ClickBindings), gehört
+-- zur Gruppe „Heilen und Buffen per Klick“ und behält die Maus-Kette: es wird nie über die andere Fassung gefunden.
+local function ClickBound(index, name)
+    local CB = Core.ClickBindings
+    if not (CB and type(CB.List) == "function") then return false end
+    local ok, list = pcall(CB.List)
+    if not ok or type(list) ~= "table" then return false end
+    for _, bound in ipairs(list) do
+        if type(bound) == "table" and bound.kind == "macro" and (bound.name == name or bound.id == index) then
+            return true
+        end
+    end
+    return false
+end
+
+function Import.FindEntry(entry, name)
+    local index, perChar = Import.Find(name)
+    if index then return index, perChar, name end
+    local other = type(entry) == "table" and ns.MouseoverOtherName(entry) or nil
+    if other and other ~= name and name == Import.CleanName(ns.EntryName(entry)) then
+        index, perChar = Import.Find(other)
+        if index and not ClickBound(index, other) then return index, perChar, other end
+    end
+    return nil
+end
+
 local function Overwrite(data)
     if ns.InCombat() then return Fail(ns.CombatText()) end
-    -- Der Index kann sich verschoben haben, solange das Fenster offen war.
-    local index, perChar = Import.Find(data.name)
+    -- Der Index kann sich verschoben haben, solange das Fenster offen war (umbenannt: unter dem alten Namen suchen).
+    local index, perChar = Import.Find(data.found or data.name)
     if not index then
         return Import.Apply(data.entry, data.name, data.body, data.perChar, data.pickup, data.onDone)
     end
@@ -181,15 +197,18 @@ function Import.Apply(entry, name, body, perChar, pickup, onDone)
     -- Eigene Symbole mitgeben; dynamische Makros behalten beim Ersetzen das vorhandene Symbol.
     local icon = entry and entry.icon and ns.MacroIcon(entry) or nil
 
-    local existing, existingPerChar = Import.Find(name)
+    local existing, existingPerChar, found = Import.FindEntry(entry, name)
     if existing then
-        if Import.CleanBody(Import.BodyOf(existing)) == body then
+        local renamed = found ~= name
+        if not renamed and Import.CleanBody(Import.BodyOf(existing)) == body then
             Done(existing, existingPerChar, name, "same", pickup, onDone, entry)
             return true
         end
         local data = { entry = entry, name = name, body = body, icon = icon,
-            perChar = perChar, pickup = pickup, onDone = onDone }
-        Core.Confirm(L.POPUP_OVERWRITE:format(name, Import.ScopeLabel(existingPerChar)), function() Overwrite(data) end)
+            perChar = perChar, pickup = pickup, onDone = onDone, found = renamed and found or nil }
+        local question = renamed and L.POPUP_OVERWRITE_RENAME:format(found, Import.ScopeLabel(existingPerChar), name)
+            or L.POPUP_OVERWRITE:format(name, Import.ScopeLabel(existingPerChar))
+        Core.Confirm(question, function() Overwrite(data) end)
         return true
     end
 
@@ -213,55 +232,18 @@ function Import.Drag(entry, name, body, perChar)
 end
 
 ---------------------------------------------------------------------------
--- Viele Makros auf einmal (Sicherung zurückholen, Leisten-Profil laden): erst ein Plan, dann **eine**
--- gesammelte Rückfrage statt einer je Makro.
--- list = { { name, body, icon, perChar }, … }
+-- Viele Makros auf einmal (Sicherung zurückholen): erst ein Plan, dann **eine** gesammelte Rückfrage statt einer je
+-- Makro. list = { { name, body, icon, perChar }, … }. Plan und Zusammenfassung baut ezCore (Core.Macro.Plan/PlanText,
+-- Architektur-Review 22.11.2026: dieselbe Fassung für ezCores Leisten-Profile); ezMacro gibt seine Grenze (lange
+-- Makros bis 1023 Zeichen), seine Suche im Bereich und den ganzen Text langer Makros mit.
 ---------------------------------------------------------------------------
 
 function Import.Plan(list)
-    local plan = { create = {}, replace = {}, same = {}, full = {}, invalid = {} }
-    local numAccount, maxAccount, numChar, maxChar = Import.Counts()
-    local free = { [true] = maxChar - numChar, [false] = maxAccount - numAccount }
-    local seen = {}
-    for _, macro in ipairs(list or {}) do
-        local name, body = Import.CleanName(macro.name), Import.CleanBody(macro.body)
-        local perChar = macro.perChar and true or false
-        local item = { name = name, body = body, icon = macro.icon, perChar = perChar }
-        local key = (perChar and "c:" or "a:") .. name
-        if name == "" or body == "" or #body > Import.MaxChars() then
-            table.insert(plan.invalid, item)
-        elseif not seen[key] then
-            seen[key] = true
-            local index = ns.Macros.Find(name, perChar)
-            if index then
-                if Import.CleanBody(Import.BodyOf(index)) == body then
-                    table.insert(plan.same, item)
-                else
-                    table.insert(plan.replace, item)
-                end
-            elseif free[perChar] > 0 then
-                free[perChar] = free[perChar] - 1
-                table.insert(plan.create, item)
-            else
-                table.insert(plan.full, item)
-            end
-        end
-    end
-    plan.changes = #plan.create + #plan.replace
-    return plan
+    return Macro.Plan(list, { maxChars = Import.MaxChars(), find = ns.Macros.Find, body = Import.BodyOf })
 end
 
--- Zusammenfassung für Rückfrage und Chat: „9 neu, 2 ersetzen, 1 unverändert, 3 ohne Platz“.
-function Import.PlanText(plan)
-    local parts = {}
-    if #plan.create > 0 then parts[#parts + 1] = L.PLAN_CREATE:format(#plan.create) end
-    if #plan.replace > 0 then parts[#parts + 1] = L.PLAN_REPLACE:format(#plan.replace) end
-    if #plan.same > 0 then parts[#parts + 1] = L.PLAN_SAME:format(#plan.same) end
-    if #plan.full > 0 then parts[#parts + 1] = L.PLAN_FULL:format(#plan.full) end
-    if #plan.invalid > 0 then parts[#parts + 1] = L.PLAN_INVALID:format(#plan.invalid) end
-    if #parts == 0 then return L.PLAN_EMPTY end
-    return table.concat(parts, ", ")
-end
+-- Zusammenfassung für Rückfrage und Chat: „9 neu, 2 ersetzen, 1 unverändert, 3 ohne Platz“ (Texte MACRO_PLAN_* aus ezCore).
+function Import.PlanText(plan) return Macro.PlanText(plan) end
 
 -- Führt den Plan aus (außerhalb des Kampfes): erst ersetzen, dann anlegen. Rückgabe: Anzahl der Änderungen.
 function Import.RunPlan(plan)
@@ -287,16 +269,16 @@ end
 function Import.ConfirmPlan(plan, title, onDone, extra, force)
     if ns.InCombat() then return Fail(ns.CombatText()) end
     if plan.changes == 0 and not force then
-        ns.Print(L.PLAN_NOTHING:format(title, Import.PlanText(plan)))
+        ns.Print(L.MACRO_PLAN_NOTHING:format(title, Import.PlanText(plan)))
         if onDone then onDone(0, plan) end
         return true
     end
-    local text = L.PLAN_CONFIRM:format(title, Import.PlanText(plan))
+    local text = L.MACRO_PLAN_CONFIRM:format(title, Import.PlanText(plan))
     if extra then text = text .. "\n" .. extra end
     Core.Confirm(text, function()
         if ns.InCombat() then return Fail(ns.CombatText()) end
         local done = Import.RunPlan(plan)
-        ns.Print(L.PLAN_DONE:format(title, done, Import.PlanText(plan)))
+        ns.Print(L.MACRO_PLAN_DONE:format(title, done, Import.PlanText(plan)))
         if onDone then onDone(done, plan) end
     end)
     return true

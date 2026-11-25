@@ -800,6 +800,8 @@ function Sell.RuleTip(frame)
     if price then body = body .. "\n" .. L.PRICE_RULE_NOW:format(ns.Money(price)) end
     local low, high, days = ns.Scan.Trend(itemID)
     if raised == "trend" then body = body .. "\n" .. L.PRICE_RULE_RAISED:format(days or 0) end
+    local note = ns.S.neverBelowVendor and itemID and (Core.VendorPrice(itemID) or 0) > 0 and Core.Prices.FeeNote()
+    if note then body = body .. "\n" .. L.PRICE_RULE_FLOOR:format(note) end
     if low then
         body = body .. "\n" .. L.TIP_TREND:format(days) .. ": " .. L.TIP_TREND_RANGE:format(ns.Money(low), ns.Money(high))
     end
@@ -1168,11 +1170,12 @@ end
 -- 21.11.2026 („das rechteck ist doppelt und kann weg“): Blizzards „Einzahlen“ und „Gesamtpreis“ stehen direkt darüber.
 
 -- AH-20: Warnung bei Fehlpreis – weit unter dem Median (die EINE Bewertung aus AUC-04, Market.Judge mit dem einen
--- Schwellen-Schalter bargainPercent; keine zweite Schwelle) oder der Händler zahlt mehr als der Erlös nach Gebühr.
+-- Schwellen-Schalter bargainPercent; keine zweite Schwelle) oder der Händler zahlt mehr als der Erlös nach Gebühr
+-- (Prices.Proceeds; ohne gemessene Gebühr mehr als der volle Preis).
 -- Rückgabe: Liste der Sätze oder nil. Nur Hinweis – Blizzards Einstellen-Knopf bleibt frei.
 function Sell.Warning(frame)
     if not ns.Enabled("priceWarn") then return nil end
-    local itemID, price, duration = Sell.PostValues(frame)
+    local itemID, price = Sell.PostValues(frame)
     if not (itemID and price and price > 0) then return nil end
     local lines = {}
     local Market = ns.Market
@@ -1185,11 +1188,9 @@ function Sell.Warning(frame)
     end
     local vendor = Core.VendorPrice(itemID)
     if vendor and vendor > 0 then
-        local prices = ns.Prices()
-        local net = prices and type(prices.Net) == "function" and Core.Call(prices.Net, itemID, price, duration, 1)
-        local after = type(net) == "table" and type(net.bekannt) == "table" and net.bekannt.erloes and Core.Num(net.erloes)
-            or price * (1 - ns.AH_CUT)
-        if vendor > after then lines[#lines + 1] = L.SELL_WARN_VENDOR:format(ns.Money(vendor)) end
+        -- ohne gemessene Gebühr gegen den vollen Preis: Der Satz stimmt dann erst recht
+        local after = Core.Prices.Proceeds(price, 1)
+        if after and vendor > after then lines[#lines + 1] = L.SELL_WARN_VENDOR:format(ns.Money(vendor)) end
     end
     return #lines > 0 and lines or nil
 end

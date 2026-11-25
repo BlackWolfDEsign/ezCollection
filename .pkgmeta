@@ -6,6 +6,7 @@ move-folders:
   ezCore/ezCore: ezCore
   ezCore/ezWorld: ezWorld
   ezCore/ezMarket: ezMarket
+  ezCore/ezData: ezData
   ezCore/ezBag: ezBag
   ezCore/ezMail: ezMail
   ezCore/ezChat: ezChat

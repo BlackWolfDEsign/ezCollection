@@ -87,12 +87,12 @@ function Sch.Create()
     return true
 end
 
--- Kurzform für die Zeile: „Material 65s (fehlt 11s) · Auktionshaus 91s · Gewinn 26s“. → Text, grau?
-function Sch.LineText(lines, cost, profit, other)
+-- Kurzform für die Zeile: „Material 65s (fehlt 11s) · Auktionshaus 91s · Gewinn 26s“. → Teile, grau?
+function Sch.LineParts(lines, cost, profit, other)
     if other or not cost or cost.unknown == cost.count then
         local parts = {}
         for _, line in ipairs(lines) do parts[#parts + 1] = line.text end
-        return table.concat(parts, " · "), other == nil
+        return parts, other == nil
     end
     local Money = Core.Money
     local text = L.RECIPE_COST:format(Money(cost.total))
@@ -104,7 +104,35 @@ function Sch.LineText(lines, cost, profit, other)
             parts[#parts + 1] = (profit.kind == "net" and L.RECIPE_PROFIT or L.RECIPE_PROFIT_GROSS):format(Money(profit.profit, nil, true))
         end
     end
-    return table.concat(parts, " · "), false
+    return parts, false
+end
+
+-- Reicht die Breite nicht, nur zwischen den Teilen umbrechen: Sonst trennte der Client die Münze von ihrer Zahl („Gewinn
+-- −32“, darunter das Kupfer; Spieltest 25.11.2026). Nur ein Teil, der allein zu breit ist, bleibt dem Client. → umgebrochen?
+function Sch.SetLine(text, parts, room)
+    room = Core.Num(Core.Plain(room))
+    local function TooWide(line)
+        text:SetText(line)
+        local width = Core.Num(Core.Plain(Core.Call(text.GetUnboundedStringWidth or text.GetStringWidth, text)))
+        return width ~= nil and room ~= nil and room > 0 and width > room
+    end
+    local whole = table.concat(parts, " · ")
+    if #parts < 2 or not TooWide(whole) then
+        text:SetText(whole)
+        return false
+    end
+    local lines, current = {}, parts[1]
+    for i = 2, #parts do
+        local longer = current .. " · " .. parts[i]
+        if TooWide(longer) then
+            lines[#lines + 1], current = current, parts[i]
+        else
+            current = longer
+        end
+    end
+    lines[#lines + 1] = current
+    text:SetText(table.concat(lines, "\n"))
+    return true
 end
 
 -- Name der Liste, in die „Auf die Liste“ einträgt: die rechts gewählte, wenn sie änderbar ist, sonst „ezCraft“
@@ -146,8 +174,8 @@ function Sch.Refresh()
         return
     end
     if cost then cost.count = #rows end
-    local text, grey = Sch.LineText(lines, cost, profit, other)
-    ui.line.text:SetText(text)
+    local parts, grey = Sch.LineParts(lines, cost, profit, other)
+    Sch.SetLine(ui.line.text, parts, ui.line:GetWidth())
     Core.Style.SetTextColor(ui.line.text, grey and "gray" or "highlight")   -- Blizzards Farbrollen (ezCore)
     ui.line.lines = lines
     ui.line:Show()

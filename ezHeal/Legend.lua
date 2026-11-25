@@ -8,7 +8,8 @@ local Core = ezCore
     („Umschalt + Linksklick   Blitzheilung (Rang 7)“). Kein eigener Tooltip-Hook: ezCores Einheiten-Pipeline
     (Core.Tooltip.AddUnitSection, UnitTooltip.lua) ruft den Abschnitt; gelesen wird über Core.ClickBindings.List.
 
-      Legend.Lines()                  → { { key = Text, what = Text } … }, weitere | nil   (nil: nichts zu zeigen)
+      Legend.Lines()                  → { { key = Text, what = Text, self = true | nil } … }, weitere | nil   (nil: nichts
+                                         zu zeigen; self: liegt auf Blizzards Selbstwirk-Taste, wirkt auf dich – rot)
       Legend.FrameUnit(tooltip)       → Einheit, wenn der Tooltip zu einem Gruppen- oder Raidrahmen gehört (GF.TooltipUnit)
       Legend.AddSection(tooltip, unit) hängt die Zeilen an (Abschnitt der Pipeline)
       Legend.Other()                  → Anzeigename des Addons, das die Legende schon zeigt, oder nil
@@ -92,12 +93,17 @@ function Legend.Lines()
     local list = cb.List()
     if type(list) ~= "table" then return nil end
     local rows = {}
+    -- Blizzards Selbstwirk-Taste (Fehler vom 23.11.2026): Zauber, Makro und Begleiter-Aktion auf dieser Taste wirken
+    -- auf dich statt auf den Rahmen – die Zeile sagt es (self = true); „Ziel“ und „Menü“ wirken nichts
+    local selfKey = type(cb.SelfCastKey) == "function" and cb.SelfCastKey() or nil
     for _, entry in ipairs(list) do
         if type(entry) == "table" and not IsStandard(entry) and not (cb.Dead and cb.Dead(entry)) then
             local what = What(entry)
             if what then
+                local casts = entry.kind == "spell" or entry.kind == "macro" or entry.kind == "pet"
                 rows[#rows + 1] = { key = cb.KeyText(entry.button, entry.modifiers), what = what,
-                    button = ButtonRank(entry.button), count = ModifierCount(entry.modifiers), mask = entry.modifiers }
+                    button = ButtonRank(entry.button), count = ModifierCount(entry.modifiers), mask = entry.modifiers,
+                    self = casts and selfKey ~= nil and cb.HitsSelfCast(entry.modifiers, selfKey) ~= nil or nil }
             end
         end
     end
@@ -136,7 +142,11 @@ function Legend.AddSection(tooltip, unit)
     -- Rollen statt Farbzahlen (T9-6): Überschrift gold, Taste grau, Inhalt weiß, Hinweise grau
     Core.TipLine(tooltip, L.LEGEND_HEAD, "normal")
     for _, row in ipairs(rows) do
-        Core.TipDoubleLine(tooltip, row.key, row.what, "gray", "highlight")
+        if row.self then
+            Core.TipDoubleLine(tooltip, row.key, row.what .. " – " .. L.LEGEND_SELF, "gray", "bad")
+        else
+            Core.TipDoubleLine(tooltip, row.key, row.what, "gray", "highlight")
+        end
     end
     -- Rest der gekürzten Liste: ezCores „… und n weitere“ (Core.More) plus der Ort, an dem alles steht
     if more > 0 then Core.TipLine(tooltip, Core.More(more) .. " " .. L.LEGEND_MORE_WHERE, "hint") end

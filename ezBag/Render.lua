@@ -650,12 +650,14 @@ end
 Render.CHECK_INTERVAL = 0.2    -- wie oft eine aufgeschobene Neuordnung geprüft wird
 
 -- Darf jetzt neu geordnet werden? Nicht, solange eine Gruppe gezogen wird, etwas am Mauszeiger hängt, Blizzards
--- Stapel-Teiler offen ist oder die Maus über dem Fenster steht (sonst springt beim Benutzen etwas weg) – außer in der
+-- Stapel-Teiler oder ezBags Anzahl-Feld offen ist (es hängt an einem Platz) oder die Maus über dem Fenster steht (sonst
+-- springt beim Benutzen etwas weg) – außer in der
 -- zusammengefassten „Frei“-Kachel liegt inzwischen etwas (view:FreeTileTaken()).
 -- busy: weiterer Grund der Ansicht (Breite wird gezogen, Umlagern läuft). view: die Ansicht (optional).
 function Render.CanRelayout(frame, busy, view)
     if Render.IsBusy() or busy or CursorHasItem() then return false end
     if StackSplitFrame and StackSplitFrame:IsShown() then return false end
+    if ns.Stacks and ns.Stacks.FieldShown() then return false end
     if frame and frame:IsMouseOver(10, -10, -10, 10) and not (view and view:FreeTileTaken()) then return false end
     return true
 end
@@ -965,6 +967,18 @@ end
 
 local View = {}
 View.__index = View
+
+-- Einträge einer Ansicht samt der an sie gehängten Ansichten (view.linked – der Abschnitt Reagenzientasche hängt an
+-- der Tasche): „Auswählen“ und die Umlagern-Pfeile gelten für beide. → Liste (ohne angehängte: view.entries selbst)
+function Render.Entries(view)
+    if not (view and view.linked) then return view and view.entries or {} end
+    local list = {}
+    for _, entry in ipairs(view.entries) do list[#list + 1] = entry end
+    for _, other in ipairs(view.linked) do
+        for _, entry in ipairs(other.entries or {}) do list[#list + 1] = entry end
+    end
+    return list
+end
 
 function Render.NewView(parent, viewKey)
     return setmetatable({ parent = parent, viewKey = viewKey, boxes = {}, chips = {}, targets = {},

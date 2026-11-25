@@ -101,7 +101,14 @@ function Toolbar.New(parent, opts)
             tooltip = function()
                 local lines = { L.SPACE_TIP:format(ns.CountWord("SLOT", ns.Space.Free())) }
                 local c = ns.Space.Candidates()[1]
-                if c then lines[#lines + 1] = L.SPACE_NEXT:format(c.link or tostring(c.itemID)) end
+                if c then
+                    local item, value, feeNote = ns.Space.Describe(c)
+                    lines[#lines + 1] = L.SPACE_NEXT:format(item, value)
+                    local _, auction, sure = ns.Space.PricesOf(c)
+                    if auction then lines[#lines + 1] = { L.VALUE_AUCTION_SOURCE, ns.TipRGB("hint") } end
+                    if feeNote then lines[#lines + 1] = { feeNote, ns.TipRGB("hint") } end
+                    if auction and not sure then lines[#lines + 1] = { L.SPACE_PRICE_UNSURE_TIP, ns.TipRGB("hint") } end
+                end
                 lines[#lines + 1] = { L.SPACE_RIGHT, ns.TipRGB("hint") }
                 return L.SPACE_TITLE, lines
             end })
@@ -358,7 +365,7 @@ function Bar:OpenFocusMenu(owner)
             for _, bag in ipairs(bags) do
                 local text = InlineIcon(bag.icon) .. bag.name
                 if bag.total and bag.total > 0 then
-                    text = text .. " " .. ezCore.Grey(L.TB_FREE:format(bag.free or 0, bag.total))
+                    text = text .. " " .. ezCore.Grey(ezCore.FreeSpaceText(bag.free))
                 end
                 if self.opts.pickBag then
                     -- Gildenbank: ein Fach wählen heißt dorthin wechseln (wie Blizzards Reiter).

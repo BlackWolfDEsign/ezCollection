@@ -30,7 +30,9 @@ local block = ns.RegisterBlock({
         hidden = {},
         lockouts = true,       -- Abschnitt „Sperren“ im Tooltip
         lockBosses = false,    -- besiegte Bosse je Charakter aufzählen
-        instanceLimit = 0,     -- Grenze pro Stunde (0 = keine Angabe)
+        -- Grenze pro Stunde (0 = keine Angabe). Ab Werk ns.INSTANCE_LIMIT (Entscheidung des Nutzers vom 22.11.2026:
+        -- „Ab Werk 5, 10 streichen (Empfohlen)“)
+        instanceLimit = ns.INSTANCE_LIMIT,
         cooldowns = true,      -- Berufs-Abklingzeiten aller Charaktere im Tooltip (Daten: ezCore.Professions)
     },
     hints = function() return { L.ALTS_HINT_LEFT } end,
@@ -290,8 +292,13 @@ function block:OnMenu(root)
     ns.MenuCheck(locks, L.LOCK_SHOW_BOSSES, cfg, "lockBosses", self)
     local limit = locks:CreateButton(L.LOCK_LIMIT)
     ns.MenuRadio(limit, L.LOCK_LIMIT_NONE, cfg, "instanceLimit", 0, self)
-    ns.MenuRadio(limit, "5", cfg, "instanceLimit", 5, self)
-    ns.MenuRadio(limit, "10", cfg, "instanceLimit", 10, self)
+    -- die Grenze von WoW Forever mit Quelle; die frühere Auswahl 10 entfällt (ns.MigrateInstanceLimit)
+    ns.MenuRadio(limit, L.LOCK_LIMIT_FOREVER:format(ns.INSTANCE_LIMIT), cfg, "instanceLimit", ns.INSTANCE_LIMIT, self)
+    -- ein anderer gespeicherter Wert (z. B. aus einem Profil-Import) bleibt sichtbar und gewählt, bis du umschaltest
+    local own = tonumber(cfg.instanceLimit)
+    if own and own > 0 and own ~= ns.INSTANCE_LIMIT then
+        ns.MenuRadio(limit, L.LOCK_LIMIT_OWN:format(own), cfg, "instanceLimit", cfg.instanceLimit, self)
+    end
     locks:CreateDivider()
     locks:CreateButton(L.LOCK_OPEN_RAIDINFO, OpenRaidInfo)
     locks:CreateButton(L.LOCK_REFRESH, function() ns.Lockouts.Request() end)

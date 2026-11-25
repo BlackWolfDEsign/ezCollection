@@ -237,7 +237,7 @@ end
 
 local function ActiveFrames()
     local frames = {}
-    for i = 1, (NUM_CHAT_WINDOWS or 10) do
+    for i = 1, ns.NumChatWindows() do
         local frame = _G["ChatFrame" .. i]
         if frame and i ~= 2 then   -- 2 = Kampflog
             local active

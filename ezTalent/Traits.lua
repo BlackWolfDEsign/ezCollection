@@ -13,8 +13,8 @@ local Core = ezCore
     ResetTree) – bestätigt wird mit Blizzards eigenem Knopf, nie von ezTalent (Leitlinie 1 und 5).
 
       Traits.Available()                   → C_Traits da?
-      Traits.ClassConfigID()               → Konfiguration der aktiven Spezialisierung
-      Traits.TreeOfConfig(configID)        → erster Baum der Konfiguration
+      Traits.ClassConfigID()               → Konfiguration der aktiven Spezialisierung (ezCore, Core.Talents)
+      Traits.TreeOfConfig(configID)        → erster Baum der Konfiguration (ezCore, Core.Talents)
       Traits.LegacyTrees()                 → { { key, treeID } } (nur, was Constants.LegacyConsts nennt)
       Traits.LegacyConfigID(treeID)
       Traits.Node(configID, nodeID)        → schlichte Kopie: { id, purchased, current, active, max, entry, entries,
@@ -23,6 +23,9 @@ local Core = ezCore
       Traits.Incoming(nodes)               → { [Knoten] = { { from, kind, active } } } – Vorgänger je Knoten
       Traits.Requirements(configID, treeID, node) → was dem Knoten im Client gerade fehlt (für „fehlt“)
       Traits.Needs(configID, treeID, node) → seine Schwellen mit Stand (für die Auswirkungen)
+      Traits.CountsFor(node, other, layout, class) → zählen die Punkte von other für eine Schwelle an node?
+      Traits.Thresholds(configID, treeID, nodes, layout, class) → { [nodeID] = feste Schwelle in Punkten } (der Client
+                                             nennt nur den Rest bis zur Schwelle – für Planer, Suche und Texte)
       Traits.Nodes(configID, treeID)       → Liste dieser Kopien, von oben nach unten
       Traits.Snapshot(configID, treeID, committed) → { nodes = { [nodeID] = Ränge }, choices = { [nodeID] = entryID } }
       Traits.Groups(configID, treeID)      → { { id, name, icon, spent } } (Talentbäume 1–3 einer Klasse)
@@ -67,28 +70,11 @@ end
 -- Konfigurationen und Bäume
 ---------------------------------------------------------------------------
 
--- Aktive Spezialisierungsgruppe (1 oder 2).
-function Traits.ActiveSpecGroup()
-    local spec = rawget(_G, "C_SpecializationInfo")
-    local group = spec and Num(Core.Call(spec.GetActiveSpecGroup))
-    if not group then group = Num(Core.Call(rawget(_G, "GetActiveTalentGroup"))) end
-    return group or 1
-end
-
-function Traits.ClassConfigID()
-    local spec = rawget(_G, "C_SpecializationInfo")
-    local id = spec and Num(Core.Call(spec.GetCombatConfigIDForSpecGroup, Traits.ActiveSpecGroup()))
-    if id then return id end
-    local talents = rawget(_G, "C_ClassTalents")
-    return talents and Num(Core.Call(talents.GetActiveConfigID)) or nil
-end
-
-function Traits.TreeOfConfig(configID)
-    if not configID then return nil end
-    local info = Call("GetConfigInfo", configID)
-    local trees = type(info) == "table" and info.treeIDs
-    return type(trees) == "table" and Num(trees[1]) or nil
-end
+-- Aktive Spezialisierungsgruppe (1 oder 2), ihre Konfiguration, deren Baum, die drei Talentbäume mit Punkten und der
+-- Hauptbaum: liest ezCore (Core.Talents, SSOT seit dem 24.11.2026 – ezCombats „Nach Talentbaum“ braucht dasselbe).
+function Traits.ActiveSpecGroup() return Core.Talents.SpecGroup() end
+function Traits.ClassConfigID() return Core.Talents.ConfigID() end
+function Traits.TreeOfConfig(configID) return Core.Talents.TreeID(configID) end
 
 -- Vermächtnis-Bäume in Blizzards Reihenfolge (Blizzard_LegacySystemConstants: Berufe, Abenteuer, Einfallsreichtum).
 Traits.LEGACY = {
@@ -278,6 +264,9 @@ end
 
 -- Was einem Knoten im Client gerade fehlt: { { kind = "spent" | "level" | "edge" | "other", need, have, from, text } }
 -- (ungedeckte Bedingungen und Vorgänger, deren Kante nicht aktiv ist). incoming (freiwillig): Traits.Incoming.
+-- need einer Schwelle ist die feste Zahl: der Rest laut Client plus die Punkte, die schon zählen (Traits.Thresholds).
+-- Gezählt über SpentFor (alle Punkte des Talentbaums): Solange die Reihe gesperrt ist, steht darunter nichts – das ist
+-- dieselbe Zahl wie nach Traits.CountsFor, ohne Lage und Knotenliste je Aufruf (Traits.Needs läuft für jeden Knoten).
 function Traits.Requirements(configID, treeID, node, incoming)
     local out = {}
     if type(node) ~= "table" then return out end
@@ -285,7 +274,8 @@ function Traits.Requirements(configID, treeID, node, incoming)
         local cond = Traits.Condition(configID, condID)
         if Restricts(cond) and not cond.met then
             if cond.spent then
-                out[#out + 1] = { kind = "spent", need = cond.spent, have = SpentFor(configID, treeID, node), text = cond.text }
+                local have = SpentFor(configID, treeID, node)
+                out[#out + 1] = { kind = "spent", need = cond.spent + (have or 0), have = have, text = cond.text }
             elseif cond.level then
                 out[#out + 1] = { kind = "level", need = cond.level, text = cond.text }
             elseif cond.text then
@@ -316,9 +306,114 @@ function Traits.Needs(configID, treeID, node)
         if Restricts(cond) and (cond.spent or cond.level or cond.text) then
             local req = { kind = cond.spent and "spent" or cond.level and "level" or "other", need = cond.spent or cond.level,
                 text = cond.text }
-            if cond.spent and not cond.met then req.have = SpentFor(configID, treeID, node) end
+            -- Rest laut Client plus die Punkte, die schon zählen = feste Schwelle (Traits.Thresholds)
+            if cond.spent and not cond.met then
+                req.have = SpentFor(configID, treeID, node)
+                req.need = cond.spent + (req.have or 0)
+            end
             out[#out + 1] = { text = Traits.RequirementText(configID, req), met = cond.met }
         end
+    end
+    return out
+end
+
+---------------------------------------------------------------------------
+-- Feste Schwellen (Spieltest 23.11.2026, „Bestes mit n Punkten“ setzte 0 Punkte in die erste Reihe und die übrigen in
+-- Reihe 2 und 3). Blizzards TraitCondInfo.spentAmountRequired ist der REST bis zur Schwelle, nicht die Schwelle selbst:
+-- Blizzards eigenes Reihen-Tor zeigt genau diesen Wert im Tooltip TALENT_FRAME_GATE_TOOLTIP_FORMAT „Spend %d more
+-- |4point:points; to unlock this row“ (Gethe/wow-ui-source, Zweig forever, Blizzard_SharedTalentUI/
+-- Blizzard_SharedTalentButtonTemplates.lua, TalentFrameGateMixin:Init; Text laut GlobalStrings, Build 1.60.1.71037,
+-- wago.tools – nachgelesen am 23.11.2026). Ist die Schwelle erreicht, nennt der Client keinen Rest mehr. Gezählt werden
+-- bei Klassentalenten die Punkte in den Reihen darüber im selben Talentbaum (Client-Tabellen 71037: TraitCond.
+-- TraitNodeGroupID ist je Schwelle die Knotengruppe aller Reihen darüber; 5 Punkte je Reihe in allen Bäumen aller
+-- Klassen, geprüft in Tests/reihen.lua gegen tools/daten/wago/talente.lua), beim Vermächtnis die übrigen Punkte im Baum.
+-- Bis zu diesem Paket las ezTalent den Rest als Schwelle: mit 5 Punkten in Reihe 1 galt Reihe 2 als frei ab 0 Punkten
+-- und Reihe 3 ab 5.
+-- Feste Schwelle = Rest + Punkte, die jetzt dafür zählen. Ist sie erreicht (kein Rest), gilt
+--   1. der Wert, den der Client in dieser Sitzung schon als Rest verraten hat (je Bedingung gemerkt),
+--   2. bei Klassentalenten die Schwelle derselben Reihe aus einem anderen Talentbaum der Klasse,
+--   3. bei Klassentalenten sonst die kleinste Punktzahl darüber, die diese Reihe in einem Baum schon freigibt,
+-- immer höchstens die Punkte, die jetzt zählen: Der Baum, wie er steht, bleibt gültig, und kleiner als nötig wird keine
+-- Schwelle (3. ist eine obere Grenze – sie kann nur strenger sein als der Client). Beim Vermächtnis (keine Reihen) bleibt
+-- eine erreichte Schwelle ohne gemerkten Wert ohne Eintrag wie vor diesem Paket: „alle übrigen Punkte im Baum“ als obere
+-- Grenze machte jede Vorlage mit weniger Punkten an anderer Stelle ungültig (code-reviewer, 23.11.2026). Eine nicht
+-- erreichte Bedingung ohne Rest (vom Client so nicht bekannt) bekommt höchstens die Schwelle ihrer Reihe aus 2.
+---------------------------------------------------------------------------
+
+local learned = {}      -- [Bedingung] = feste Schwelle, sobald der Client einmal einen Rest genannt hat
+
+-- Für Prüfungen: das Gemerkte vergessen.
+function Traits.ForgetThresholds() learned = {} end
+
+-- Kann die Bedingung eine Punkte-Schwelle sein? Rest genannt, Währung oder Tor laut Client, früher gemerkt – oder eine
+-- einschränkende Bedingung „verfügbar“ ohne Stufe: Ob eine erreichte Schwelle Währung und Tor noch nennt, ist im Spiel
+-- nicht belegt; eine solche Bedingung bekommt dann die Schwelle ihrer Reihe (Regeln 2 und 3 oben) – in Reihe 1 ist das 0.
+local function SpendGate(cond)
+    if not Restricts(cond) or cond.level then return false end
+    return cond.spent ~= nil or cond.currency ~= nil or cond.gate or learned[cond.id] ~= nil
+        or cond.kind == nil or cond.kind == Traits.COND.available
+end
+
+-- Zählen die Punkte von other für eine Schwelle an node? Klassentalente (class): derselbe Talentbaum, eine Reihe darüber
+-- (ohne Lage im Baum: weiter oben); Vermächtnis: jeder andere Knoten des Baums. Eine Regel für Traits.Thresholds und
+-- Plan.Check. layout: Traits.Layout (nur bei Klassentalenten nötig).
+function Traits.CountsFor(node, other, layout, class)
+    if type(node) ~= "table" or type(other) ~= "table" or other.id == node.id then return false end
+    if not class then return true end
+    local here, there = layout and layout[node.id], layout and layout[other.id]
+    if here and there then return there.tree == here.tree and (there.row or 0) < (here.row or 0) end
+    return (other.y or 0) < (node.y or 0)
+end
+
+-- Feste Schwelle je Knoten: { [Knoten] = Punkte } (nur Knoten mit Schwelle). nodes (freiwillig): Traits.Nodes;
+-- layout (freiwillig): Traits.Layout; class: Klassentalente (Reihen und Talentbäume).
+function Traits.Thresholds(configID, treeID, nodes, layout, class)
+    nodes = nodes or Traits.Nodes(configID, treeID)
+    if class and not layout then layout = Traits.Layout(configID, treeID, nodes) end
+    local out, open, rowKnown, rowBound = {}, {}, {}, {}
+    for _, node in ipairs(nodes) do
+        local have = 0
+        for _, other in ipairs(nodes) do
+            if Traits.CountsFor(node, other, layout, class) then have = have + (tonumber(other.purchased) or 0) end
+        end
+        local where = class and layout and layout[node.id]
+        local row = where and where.row
+        local need, metUnknown, openUnknown
+        for _, condID in ipairs(node.conditions or {}) do
+            local cond = Traits.Condition(configID, condID)
+            if cond and SpendGate(cond) then
+                local value, exact
+                if cond.spent and not cond.met then
+                    value, exact = cond.spent + have, true
+                    learned[condID] = value
+                elseif learned[condID] then
+                    value, exact = cond.met and math.min(learned[condID], have) or learned[condID], true
+                elseif cond.spent then
+                    value = math.min(cond.spent, have)      -- erfüllt, aber mit Zahl: höchstens, was jetzt zählt
+                elseif cond.met then
+                    metUnknown = true
+                else
+                    openUnknown = true
+                end
+                if value and (not need or value > need) then need = value end
+                if exact and row then rowKnown[row] = math.max(rowKnown[row] or 0, value) end
+            end
+        end
+        if metUnknown or openUnknown then
+            open[#open + 1] = { id = node.id, have = have, row = row, need = need, met = not openUnknown }
+            if row and metUnknown then rowBound[row] = math.min(rowBound[row] or have, have) end
+        elseif need then
+            out[node.id] = need
+        end
+    end
+    for _, o in ipairs(open) do
+        local value
+        if o.row and o.met then
+            value = math.min(rowKnown[o.row] or rowBound[o.row] or o.have, o.have)
+        elseif o.row then
+            value = rowKnown[o.row]         -- nicht erreicht, ohne Rest: nicht kappen (sonst kleiner als nötig)
+        end
+        if value or o.need then out[o.id] = math.max(o.need or 0, value or 0) end
     end
     return out
 end
@@ -518,49 +613,13 @@ end
 -- Gruppen (Talentbäume einer Klasse) und Punkte
 ---------------------------------------------------------------------------
 
-function Traits.Groups(configID, treeID)
-    local list = {}
-    local displays = treeID and Call("GetGroupDisplayInfoByTreeID", treeID)
-    if type(displays) ~= "table" then return list end
-    local ids = {}
-    for _, d in ipairs(displays) do
-        local id = type(d) == "table" and Num(d.groupID)
-        if id then
-            ids[#ids + 1] = id
-            list[#list + 1] = { id = id, name = Core.Plain(d.displayName) or "", icon = Core.Plain(d.icon), spent = 0 }
-        end
-    end
-    local infos = configID and #ids > 0 and Call("GetGroupCurrencyInfo", configID, ids)
-    if type(infos) == "table" then
-        for _, info in ipairs(infos) do
-            local gid = type(info) == "table" and Num(info.traitNodeGroupID)
-            local currency = gid and type(info.currencyInfos) == "table" and info.currencyInfos[1]
-            local spent = type(currency) == "table" and Num(currency.spent)
-            if spent then
-                for _, g in ipairs(list) do
-                    if g.id == gid then g.spent = spent end
-                end
-            end
-        end
-    end
-    return list
-end
+function Traits.Groups(configID, treeID) return (Core.Talents.Groups(configID, treeID)) end
 
 -- Nummer (1–3) des Baums mit den meisten Punkten; bei Gleichstand der erste, ohne Punkte nil.
-function Traits.PrimaryTree(groups)
-    local best, bestSpent = nil, 0
-    for i, g in ipairs(groups or {}) do
-        if (g.spent or 0) > bestSpent then best, bestSpent = i, g.spent end
-    end
-    return best
-end
+function Traits.PrimaryTree(groups) return Core.Talents.Primary(groups) end
 
 -- „12 / 31 / 8“ aus den Gruppen.
-function Traits.GroupText(groups)
-    local parts = {}
-    for i, g in ipairs(groups or {}) do parts[i] = tostring(g.spent or 0) end
-    return table.concat(parts, " / ")
-end
+function Traits.GroupText(groups) return Core.Talents.GroupText(groups) end
 
 -- Punkte eines Baums: frei, ausgegeben, gesamt (nil, wenn der Client nichts liefert).
 function Traits.Currency(configID, treeID)
@@ -573,9 +632,7 @@ function Traits.Currency(configID, treeID)
     return free, spent, total
 end
 
-function Traits.HasStaged(configID)
-    return configID ~= nil and Call("ConfigHasStagedChanges", configID) == true
-end
+function Traits.HasStaged(configID) return Core.Talents.HasStaged(configID) end
 
 ---------------------------------------------------------------------------
 -- Texte eines Eintrags (aus dem Client; ezTalent rechnet nichts)

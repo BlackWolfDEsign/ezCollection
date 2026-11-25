@@ -34,14 +34,17 @@ local function SkillLines()
     return ezCore.SkillLines() or {}
 end
 
--- Waffenfertigkeiten unter Blizzards Überschrift „Waffenfertigkeiten“: { { Name, Wert mit Bonus, Höchstwert }, … }
+local WEAPON_CATEGORY = 6     -- Client-Tabelle SkillLineCategory, Zeile „Weapon Skills“ (Build 1.60.1.71037, laut wago.tools)
+
+-- Waffenfertigkeiten unter Blizzards Überschrift: an ihrer Kennung (wie Blizzards SkillsFrame, in jeder Sprache), ohne
+-- Kennung (alte Globale) am Text STAT_CATEGORY_WEAPON_SKILLS: { { Name, Wert mit Bonus, Höchstwert }, … }
 function ns.WeaponSkills()
-    local weapons, header = {}, nil
-    local title = _G.WEAPON_SKILLS or L.STATS_WEAPONS
+    local weapons, inWeapons = {}, false
+    local title = _G.STAT_CATEGORY_WEAPON_SKILLS or L.STATS_WEAPONS
     for _, line in ipairs(SkillLines()) do
         if line.header then
-            header = line.name
-        elseif header == title and type(line.name) == "string" and line.rank then
+            if line.id then inWeapons = line.id == WEAPON_CATEGORY else inWeapons = line.name == title end
+        elseif inWeapons and type(line.name) == "string" and line.rank then
             weapons[#weapons + 1] = { line.name, line.rank + (line.mod or 0), line.max }
         end
     end
@@ -96,7 +99,7 @@ local function Speed()
 end
 
 local function Defense()
-    local base, mod = Call(UnitDefense, "player")
+    local base, mod = Call(UnitDefenseSkill, "player")     -- Forever hat nur diese Fassung (Charakterfenster: PaperDollFrame.lua)
     base = ns.Num(base)
     return base and base + (ns.Num(mod) or 0) or nil
 end

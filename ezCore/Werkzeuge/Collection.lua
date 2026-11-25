@@ -119,6 +119,10 @@ function Core.StatusLines()
     -- Rücksicht-Zähler (AH-14): wie oft ein Modul je Funktion und Addon gewichen ist (nur, wenn es das gab)
     local yielded = Core.YieldStatusLine and Core.YieldStatusLine()
     if yielded then lines[#lines + 1] = yielded end
+    -- Kamera (Bausteine/Comfort.lua): Faktor laut Spiel, Schalter, Mausrad
+    for _, line in ipairs(Core.Comfort and Core.Comfort.CameraLines and Core.Comfort.CameraLines() or {}) do
+        lines[#lines + 1] = line
+    end
     -- Leucht-Dienst: wer gerade Gründe angemeldet hat (nur, wenn es welche gibt)
     local glow = Core.Glow and Core.Glow.StatusLine()
     if glow then lines[#lines + 1] = glow end
@@ -442,50 +446,61 @@ local function BuildOverview()
         end
         Core.AddCharRows(page)
         Core.AddGuildRows(page)
-        page:Advanced()
-        page:Button(L.OVERVIEW_STATUS, L.OVERVIEW_STATUS_BUTTON, Core.PrintStatus, L.OVERVIEW_STATUS_TIP)
-        -- Fehlerliste: als Unterseite in Blizzards Einstellungen (V-024), sonst das Fenster
+        -- „Erweitert“ als eigene Unterseite (Entscheidung des Nutzers vom 23.11.2026 „Eigene Unterseite (Empfohlen)“: der
+        -- Abschnitt stand nach allen Themen ganz unten). Die Fehlerliste meldet sich vorher an, damit „Erweitert“ in
+        -- Blizzards Liste links die letzte Unterseite ist; der Pfad „ezCollection » Erweitert“ bleibt wörtlich. Die Unterseite
+        -- teilt die eigenen Schalter der Seite (own: Zurücksetzen, Core.ApplyOwnSetting) und bekommt wie sie die
+        -- Hinweis-Schalter (isParent, Page:Advanced). Ohne Unterseiten-API bleibt alles auf der Seite.
         if Core.RegisterErrorListPage then Core.RegisterErrorListPage() end
-        page:Button(L.OVERVIEW_ERRORLIST, L.OVERVIEW_ERRORLIST_BUTTON, function() Core.ShowErrorList() end, L.OVERVIEW_ERRORLIST_TIP)
-        page:Button(L.OVERVIEW_ERRORS, L.OVERVIEW_ERRORS_BUTTON, function() Core.AskClearErrors() end, L.OVERVIEW_ERRORS_TIP)
+        local adv = page:Sub(L.SETTINGS_ADVANCED)
+        if adv then adv.own, adv.isParent = page.own, true else adv = page end
+        adv:Advanced()
+        adv:Button(L.OVERVIEW_STATUS, L.OVERVIEW_STATUS_BUTTON, Core.PrintStatus, L.OVERVIEW_STATUS_TIP)
+        -- Fehlerliste: als Unterseite in Blizzards Einstellungen (V-024, angemeldet vor „Erweitert“), sonst das Fenster
+        adv:Button(L.OVERVIEW_ERRORLIST, L.OVERVIEW_ERRORLIST_BUTTON, function() Core.ShowErrorList() end, L.OVERVIEW_ERRORLIST_TIP)
+        adv:Button(L.OVERVIEW_ERRORS, L.OVERVIEW_ERRORS_BUTTON, function() Core.AskClearErrors() end, L.OVERVIEW_ERRORS_TIP)
         -- Zurücksetzen der eigenen Schalter (V-018): Komfort, Tooltip, Leucht-Zeichen
-        page:ResetButton({ label = L.RESET_OWN_LABEL, ask = L.RESET_OWN_ASK, tip = L.RESET_OWN_TIP })
+        adv:ResetButton({ label = L.RESET_OWN_LABEL, ask = L.RESET_OWN_ASK, tip = L.RESET_OWN_TIP })
         if Core.Backup then
-            page:Button(L.BACKUP_EXPORT_LABEL, L.BACKUP_EXPORT_BUTTON, function() Core.Backup.ShowExport() end, L.BACKUP_EXPORT_TIP)
-            page:Button(L.BACKUP_IMPORT_LABEL, L.BACKUP_IMPORT_BUTTON, function() Core.Backup.ShowImport() end, L.BACKUP_IMPORT_TIP)
+            adv:Button(L.BACKUP_EXPORT_LABEL, L.BACKUP_EXPORT_BUTTON, function() Core.Backup.ShowExport() end, L.BACKUP_EXPORT_TIP)
+            adv:Button(L.BACKUP_IMPORT_LABEL, L.BACKUP_IMPORT_BUTTON, function() Core.Backup.ShowImport() end, L.BACKUP_IMPORT_TIP)
         end
         if Core.ResetAllTours then
-            page:Button(L.TOURS_ALL_LABEL, L.TOURS_ALL_BUTTON, function() Core.AskResetAllTours() end, L.TOURS_ALL_TIP)
+            adv:Button(L.TOURS_ALL_LABEL, L.TOURS_ALL_BUTTON, function() Core.AskResetAllTours() end, L.TOURS_ALL_TIP)
         end
         if Core.Debug then
-            page:Button(L.DEBUG_LABEL, L.DEBUG_BUTTON, function() Core.Debug.Toggle() end, L.DEBUG_TIP)
+            adv:Button(L.DEBUG_LABEL, L.DEBUG_BUTTON, function() Core.Debug.Toggle() end, L.DEBUG_TIP)
             -- eigener Knopf für den Bericht: „Starten / Stoppen“ würde nach dem Selbststopp neu starten und ihn verwerfen
-            page:Button(L.DEBUG_REPORT_LABEL, L.DEBUG_REPORT_BUTTON, function() Core.Debug.Show() end, L.DEBUG_REPORT_TIP)
+            adv:Button(L.DEBUG_REPORT_LABEL, L.DEBUG_REPORT_BUTTON, function() Core.Debug.Show() end, L.DEBUG_REPORT_TIP)
         end
         if Core.RunSelfTest then
-            page:Button(L.SELFTEST_LABEL, L.SELFTEST_BUTTON, function() Core.RunSelfTest() end, L.SELFTEST_TIP)
+            adv:Button(L.SELFTEST_LABEL, L.SELFTEST_BUTTON, function() Core.RunSelfTest() end, L.SELFTEST_TIP)
+        end
+        -- Taint-Suche (TaintScan.lua, Spielbefund vom 22.11.2026): welche Werte in Blizzards Tabellen ein Modul verunreinigt hat
+        if Core.TaintScan then
+            adv:Button(L.TAINT_LABEL, L.TAINT_BUTTON, function() Core.TaintScan.Run() end, L.TAINT_TIP)
         end
         if Core.RunSpellCheck then
-            page:Button(L.SPELLCHECK_LABEL, L.SPELLCHECK_BUTTON, function() Core.RunSpellCheck() end, L.SPELLCHECK_TIP)
+            adv:Button(L.SPELLCHECK_LABEL, L.SPELLCHECK_BUTTON, function() Core.RunSpellCheck() end, L.SPELLCHECK_TIP)
         end
-        -- Entwicklerschalter und Testschalter für den Taint-Test (Frage 32, EC-12; Gesamtreview 18.11.2026,
-        -- Entscheidung 1): beide Zeilen baut Diagnose.lua, der Testschalter erscheint erst mit dem Entwicklerschalter
+        -- Entwicklerschalter (Gesamtreview 18.11.2026, Entscheidung 1): die Zeile baut Diagnose.lua; den Testschalter für
+        -- den Taint-Test (Frage 32) darunter hat der Nutzer am 22.11.2026 gestrichen
         if Core.Debug and Core.Debug.AddDeveloperRows then
-            local okDev, errDev = pcall(Core.Debug.AddDeveloperRows, page)
+            local okDev, errDev = pcall(Core.Debug.AddDeveloperRows, adv)
             if not okDev then Core.Error(ADDON, errDev, "Developer") end
         end
         -- Daten-Probe (Probe.lua): Probe an dieser Stelle, Mitschnitt, Tempo, Dokumentation, Sonderproben, Stand, Leeren
         if Core.Probe then
-            local okProbe, errProbe = pcall(Core.Probe.AddSettings, page)
+            local okProbe, errProbe = pcall(Core.Probe.AddSettings, adv)
             if not okProbe then Core.Error(ADDON, errProbe, "Probe") end
         end
         -- Entdecker-Datenbank (DiscoveryView.lua): Sammeln, Entdecker-Wissen, Größe, Aufräumen (DG-10)
         if Core.Discovery and Core.Discovery.AddSettings then
-            local okDB, errDB = pcall(Core.Discovery.AddSettings, page)
+            local okDB, errDB = pcall(Core.Discovery.AddSettings, adv)
             if not okDB then Core.Error(ADDON, errDB, "Discovery") end
         end
         if Core.AddCompanionButtons then
-            local okComp, errComp = pcall(Core.AddCompanionButtons, layout, "ezCore")
+            local okComp, errComp = pcall(Core.AddCompanionButtons, adv.layout or layout, "ezCore")
             if not okComp then Core.Error(ADDON, errComp, "Companions") end
         end
     end

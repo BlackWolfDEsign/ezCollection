@@ -154,8 +154,8 @@ ns.RotationData.Add("PRIEST", {
       source = "https://www.icy-veins.com/wow-forever/shadow-priest-ranged-dps-pve-rotation-cooldowns-abilities",
       sources = { "https://www.icy-veins.com/wow-forever/shadow-priest-leveling" },
       pick = { leveling = false },    -- „Nach Talentbaum“: auf Höchststufe diese, darunter „shadow_level“
-      how = T("Vor dem Kampf Gestalt und Buffs, in der Gruppe {586} vor dem Pull. Eröffnet wird mit einem vorgezauberten {8092}. Danach {589} und {2944} halten und erst nach Ablauf erneuern, {8092} und {1309595} nutzen, sobald sie bereit sind, und {15286} halten. Alle Lücken füllt {15407} – den Kanal nie abbrechen.",
-              "Before combat: your form and buffs, in a group {586} before the pull. Open with a pre-cast {8092}. Then keep {589} and {2944} up and renew them only after they end, use {8092} and {1309595} whenever ready, and keep {15286} up. Fill every gap with {15407} – never clip the channel."),
+      how = T("Vor dem Kampf Gestalt und Buffs, in der Gruppe {586} vor dem Pull. Eröffnet wird mit einem vorgezauberten {8092}. Danach {589} und {2944} halten und zum Ablauf erneuern, {8092} und {1309595} nutzen, sobald sie bereit sind, und {15286} halten. Alle Lücken füllt {15407} – den Kanal nie abbrechen.",
+              "Before combat: your form and buffs, in a group {586} before the pull. Open with a pre-cast {8092}. Then keep {589} and {2944} up and renew them as they end, use {8092} and {1309595} whenever ready, and keep {15286} up. Fill every gap with {15407} – never clip the channel."),
       note = T("{1309595} kostet Leben, wenn das Ziel überlebt, und dein Leben kann ezCombat im Kampf nicht lesen: Schalte den Schritt aus, wenn dich niemand heilt. Gegnerzahl und Lebenszeit der Ziele sieht ezCombat nicht – Fläche nur als Liste. Bei Abklingzeit von {1309595} und Lernstufe von {15286} weichen Guide und Tooltip ab; es gilt der Client.",
                "{1309595} costs health if the target survives, and ezCombat can't read your health in combat: turn the step off when nobody heals you. ezCombat can't see enemy count or time to live – AoE is list only. Guide and tooltip differ on the cooldown of {1309595} and when you learn {15286}; the client decides."),
       steps = {
@@ -185,7 +185,7 @@ ns.RotationData.Add("PRIEST", {
         { id = 15473, kind = "maintain", when = "buff", refresh = "missing", need = { combat = true },
           text = T("Nach einer Notheilung verloren: wieder annehmen.", "Lost after an emergency heal: enter it again.") },    -- Schattengestalt / Shadowform
         { id = 589, kind = "maintain", when = "dot", refresh = "missing",
-          text = T("Fehlt: setzen. Erst nach Ablauf erneuern.", "Missing: apply. Renew only after it ends.") },    -- Schattenwort: Schmerz / Shadow Word: Pain
+          text = T("Fehlt: setzen. Zum Ablauf erneuern.", "Missing: apply. Renew it as it ends.") },    -- Schattenwort: Schmerz / Shadow Word: Pain
         { id = 2944, kind = "maintain", when = "dot", refresh = "missing",
           text = T("Fehlt und bereit: setzen (nur auf einem Ziel).", "Missing and ready: apply (one target only).") },    -- Verschlingende Seuche / Devouring Plague
         { id = 8092, kind = "priority", when = "ready",

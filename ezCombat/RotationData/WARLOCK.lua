@@ -63,8 +63,8 @@ ns.RotationData.Add("WARLOCK", {
       sources = { "https://www.icy-veins.com/wow-forever/affliction-warlock-ranged-dps-pve-guide",
                   "https://www.icy-veins.com/wow-forever/affliction-warlock-leveling" },
       pick = { leveling = false },
-      how = T("Vor dem Kampf stehen Rüstung, Dämon und Waffenstein. Im Kampf hältst du ein Omen und deine DoTs auf dem Ziel und erneuerst sie erst, wenn sie abgelaufen sind. {17941} macht den nächsten {686} sofort wirkbar: gleich nutzen. Dazwischen füllt {1316697}; der Kanal darf für einen fälligen DoT abbrechen. Mana holst du mit {1454}, am besten im Laufen.",
-              "Before combat: armor, demon and weapon stone. In combat keep one bane and your DoTs on the target and renew them only once they have ended. {17941} makes your next {686} instant: use it at once. {1316697} fills the gaps; you may clip the channel for a DoT that is due. Get mana back with {1454}, ideally while moving."),
+      how = T("Vor dem Kampf stehen Rüstung, Dämon und Waffenstein. Im Kampf hältst du ein Omen und deine DoTs auf dem Ziel und erneuerst sie zum Ablauf, nicht früher. {17941} macht den nächsten {686} sofort wirkbar: gleich nutzen. Dazwischen füllt {1316697}; der Kanal darf für einen fälligen DoT abbrechen. Mana holst du mit {1454}, am besten im Laufen.",
+              "Before combat: armor, demon and weapon stone. In combat keep one bane and your DoTs on the target and renew them as they end, not earlier. {17941} makes your next {686} instant: use it at once. {1316697} fills the gaps; you may clip the channel for a DoT that is due. Get mana back with {1454}, ideally while moving."),
       note = T("{603} und {348} nennt die Quelle seit dem 16.11.2026 für Gebrechen nicht mehr – beide sind zum Einschalten. Lebenszeit des Ziels und Gegnerzahl sieht ezCombat nicht: {603} nur gegen Elite und Bosse, Fläche und DoTs auf einem zweiten Ziel nur als Liste. Die Quelle nennt {1316697} und {686} beide als Füller, je nach Aufbau.",
                "Since 16 Nov 2026 the source no longer lists {603} and {348} for Affliction – both are opt-in. ezCombat can't see time to live or enemy count: {603} on elites and bosses only, AoE and DoTs on a second target are list only. The source names both {1316697} and {686} as filler, depending on the build."),
       steps = {
@@ -96,11 +96,11 @@ ns.RotationData.Add("WARLOCK", {
         { id = 18288, kind = "priority", when = "ready", need = { noaura = { id = "bane", unit = "target" } },
           text = T("Direkt vor einem neuen {980}; nie vor {603}.", "Right before a new {980}; never before {603}.") },    -- Fluch verstärken / Amplify Curse
         { id = 980, kind = "maintain", when = "dot", group = "bane", refresh = "missing",
-          text = T("Kein Omen auf dem Ziel: setzen. Erst nach Ablauf erneuern.", "No bane on the target: apply. Renew only after it ends.") },    -- Omen der Pein / Bane of Agony
+          text = T("Kein Omen auf dem Ziel: setzen. Zum Ablauf erneuern.", "No bane on the target: apply. Renew it as it ends.") },    -- Omen der Pein / Bane of Agony
         { id = 686, key = "proc:686", kind = "priority", when = "proc", aura = 17941,
           text = T("Bei {17941}: sofort.", "On {17941}: at once.") },    -- Schattenblitz / Shadow Bolt
         { id = 18265, kind = "maintain", when = "dot", refresh = "missing",
-          text = T("Fehlt: setzen. Erst nach Ablauf erneuern.", "Missing: apply. Renew only after it ends.") },    -- Lebensentzug / Siphon Life
+          text = T("Fehlt: setzen. Zum Ablauf erneuern.", "Missing: apply. Renew it as it ends.") },    -- Lebensentzug / Siphon Life
         { id = 348, kind = "maintain", when = "dot", refresh = "cast", optional = true,
           text = T("So wirken, dass er beim Ablauf des alten landet.", "Cast so it lands as the old one ends.") },    -- Feuerbrand / Immolate
         { id = 1454, key = "tap:move", kind = "resource", when = "lowmana", max = 60, need = { moving = true },
@@ -163,7 +163,7 @@ ns.RotationData.Add("WARLOCK", {
         { id = 18288, kind = "priority", when = "ready", need = { noaura = { id = "bane", unit = "target" } },
           text = T("Direkt vor einem neuen {980}; nie vor {603}.", "Right before a new {980}; never before {603}.") },    -- Fluch verstärken / Amplify Curse
         { id = 980, kind = "maintain", when = "dot", group = "bane", refresh = "missing",
-          text = T("Kein Omen auf dem Ziel: setzen. Erst nach Ablauf erneuern.", "No bane on the target: apply. Renew only after it ends.") },    -- Omen der Pein / Bane of Agony
+          text = T("Kein Omen auf dem Ziel: setzen. Zum Ablauf erneuern.", "No bane on the target: apply. Renew it as it ends.") },    -- Omen der Pein / Bane of Agony
         { id = 440892, kind = "maintain", when = "dot", group = "curse", refresh = "missing", optional = true,
           text = T("Dein zugeteilter Fluch (ohne Absprache: dieser).", "Your assigned curse (without a call: this one).") },    -- Fluch der Elemente / Curse of the Elements [V]
         -- ohne Ziel des Dämons nicht fällig (der Motor prüft „pettarget“)
@@ -234,7 +234,7 @@ ns.RotationData.Add("WARLOCK", {
           need = { enemy = { rank = { "elite", "rareelite", "worldboss" } } },
           text = T("Nur in langen Kämpfen (Elite, Boss); nie überschreiben.", "Long fights only (elite, boss); never overwrite it.") },    -- Omen der Verdammnis / Bane of Doom [V]
         { id = 980, kind = "maintain", when = "dot", group = "bane", refresh = "missing",
-          text = T("Kein Omen auf dem Ziel: setzen. Erst nach Ablauf erneuern.", "No bane on the target: apply. Renew only after it ends.") },    -- Omen der Pein / Bane of Agony
+          text = T("Kein Omen auf dem Ziel: setzen. Zum Ablauf erneuern.", "No bane on the target: apply. Renew it as it ends.") },    -- Omen der Pein / Bane of Agony
         { id = 440892, kind = "maintain", when = "dot", group = "curse", refresh = "missing", optional = true,
           text = T("Dein zugeteilter Fluch (ohne Absprache: dieser).", "Your assigned curse (without a call: this one).") },    -- Fluch der Elemente / Curse of the Elements [V]
         { id = 348, kind = "maintain", when = "dot", refresh = "cast",

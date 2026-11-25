@@ -177,7 +177,9 @@ function CHECKS.usable(value)
     if locked then return nil end
     return usable == true
 end
-function CHECKS.unusable(value)
+function CHECKS.unusable(value, _, ctx)
+    -- Werte abwägen (RotationValue.lua): „nur ohne Zauberstab“ entscheidet dort der Vergleich mit dem Stab
+    if type(ctx) == "table" and ctx.valueIgnoreUnusable ~= nil and ctx.valueIgnoreUnusable == value then return true end
     local usable, noPower, locked = Spells.Usable(ns.SpellName(value) or value)
     if locked then return nil end
     return usable ~= true and noPower ~= true
@@ -358,12 +360,12 @@ end
 ---------------------------------------------------------------------------
 
 -- Die Hand trägt eine Waffe ohne Waffenverzauberung (Gift, Stein, Waffenzauber). Schild, Nebenhand-Gegenstand
--- oder leerer Platz: nicht dran. GetWeaponEnchantInfo ist laut Forever-Quelle nie gesperrt; geprüft wird trotzdem.
+-- oder leerer Platz: nicht dran. C_PaperDollInfo.GetTemporaryEnchantmentInfo nennt laut Forever-Quelle keine Sperre; geprüft wird trotzdem.
 function CONDITIONS.enchant(step)
     local hand = step.hand == "off" and "off" or "main"
     local _, isWeapon = Core.WeaponKind(hand)
     if not isWeapon then return false end
-    local readable, hasMain, _, hasOff = Core.WeaponEnchantInfo()   -- V-185: global oder C_Item (ezCore, Welle 23)
+    local readable, hasMain, _, hasOff = Core.WeaponEnchantInfo()   -- V-185: ezCore (C_PaperDollInfo, sonst C_Item, global)
     if not readable then return nil end
     local has = hasMain
     if hand == "off" then has = hasOff end
@@ -410,8 +412,10 @@ function CONDITIONS.stealth()
 end
 
 -- Der automatische Schuss bzw. Zauberstab läuft nicht (Ereignisse START/STOP_AUTOREPEAT_SPELL; solange noch
--- keines kam, gilt: läuft nicht).
-function CONDITIONS.autorepeat()
+-- keines kam, gilt: läuft nicht). Werte abwägen (RotationValue.lua) fragt mit ctx.valueAutorepeat, ob der Stab
+-- schießen könnte – dann zählt der laufende Schuss nicht.
+function CONDITIONS.autorepeat(_, _, ctx)
+    if type(ctx) == "table" and ctx.valueAutorepeat then return true end
     return State.Autorepeat() ~= true
 end
 

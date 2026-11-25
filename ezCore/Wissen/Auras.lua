@@ -5,7 +5,7 @@ local Core = ezCore
     Auren lesen (Core.Auras) – eine Stelle für ezCombat und ezBuff (vorher las jedes Modul selbst).
 
       Scan(unit, filter, opts) → Liste, Anzahl gesperrter Auren, Instanz-IDs (wie InstanceIDs: nil ohne
-          Schnittstelle; leer → die Liste kommt aus dem Lesen nach Index), Anzahl unlesbarer Auren
+          Schnittstelle oder ohne Zugriff; leer → die Liste kommt aus dem Lesen nach Index), Anzahl unlesbarer Auren
           unlesbar: Es gibt eine Instanz-ID, aber keine Daten (nil) oder der Aufruf schlug fehl; beim Lesen nach
               Index ein Abbruch durch einen Fehler (zählt als 1). Wer wissen will, ob ein Buff FEHLT, wertet
               unlesbar > 0 wie gesperrt: unbekannt, nichts verlangen (Befund 13.11.2026: Der Buff lag, im Kampf kamen
@@ -19,7 +19,7 @@ local Core = ezCore
           opts.durations = true: jeder Eintrag mit Instanz bekommt durationObject (Blizzards Dauer-Objekt)
           opts.max (Standard 40), opts.sort (Wert aus Enum.UnitAuraSortRule, Standard Expiration)
       InstanceIDs(unit, filter, max, sort) → { id … } (eigene zuerst, dann die zuerst auslaufende; rein nach Ablauf:
-          sort = Enum.UnitAuraSortRule.ExpirationOnly) oder nil ohne Schnittstelle
+          sort = Enum.UnitAuraSortRule.ExpirationOnly) oder nil ohne Schnittstelle oder ohne Zugriff (unten)
       FromInstances(unit, ids, opts) → Liste, Anzahl gesperrter, Anzahl unlesbarer (opts.keepSecret, opts.durations
           wie bei Scan)
       Readable(unit, filter) → bool: nichts gesperrt, nichts unlesbar und Core.AurasLocked() sagt nicht „gesperrt“ –
@@ -29,8 +29,12 @@ local Core = ezCore
 
     Warum über Instanz-IDs (Befund ezCombat, Spieltest 13.11.2026, Forever-Quelle): GetAuraDataByIndex und
     GetAuraDataByAuraInstanceID sind „SecretWhenUnitAuraRestricted“ – gesperrt ist die ganze Aura ein gesperrter
-    Wert, nicht nur ihre Felder. Scan hörte dort auf und zählte sie nicht. Nie gesperrt sind GetUnitAuraInstanceIDs
-    (nur Zahlen, auf Wunsch nach Ablauf sortiert) und GetAuraDuration (Dauer-Objekt je Instanz). Deshalb zuerst die
+    Wert, nicht nur ihre Felder. Scan hörte dort auf und zählte sie nicht. GetUnitAuraInstanceIDs
+    (nur Zahlen, auf Wunsch nach Ablauf sortiert) liefert nie gesperrte Werte, wirft aber für Addons, sobald das Spiel
+    die Auren gar nicht herausgibt (RequiresUnitAuraAccess, UnitAuraDocumentation.lua; Proben 14.11. und 23.11.2026: im
+    Kampf) – InstanceIDs antwortet dann nil. Dieselbe Bedingung gilt laut Beschreibung für GetAuraDataByIndex,
+    GetAuraDataByAuraInstanceID und GetAuraDuration (Dauer-Objekt je Instanz); tools/api_pruefung.lua meldet
+    direkte Aufrufe ohne Schutz (Art „wirft“). Deshalb zuerst die
     Instanz-IDs und je Instanz die Daten oder ein Platzhalter; ohne diese Schnittstelle (oder ohne IDs) nach Index
     über C_UnitAuras, sonst UnitAura – auch dort zählt eine ganz gesperrte Aura mit, und es geht weiter.
     Geheime Werte werden vor jedem Vergleich geprüft; gelesen wird geschützt (eine gesperrte Tabelle wirft).

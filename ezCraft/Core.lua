@@ -19,13 +19,15 @@ local Core = ezCore
       Book.lua       Knopf „Fundorte“ an den Sammelberufen in Blizzards Berufsbuch (Menü je Rohstoff, Kürschner-Liste)
       Where.lua      Rezepte und ihre Fundorte: „Woher“, „Noch zu lernen“, „Erhältlich bei“ im Tooltip (Welle 15b)
       Filter.lua     Schwierigkeitsfarben, Chance auf einen Fertigkeitspunkt, Farbfilter in Blizzards Filtermenü
+      Rows.lua       Spalten der Rezeptzeile: Prozentzahl, Stufe des hergestellten Gegenstands, ezGears Pfeil
+      Sort.lua       Rezeptliste nach dieser Stufe (eigene Liste an Blizzards Stelle, Abschnitt im Filtermenü)
       MailTab.lua    Seitenreiter „Sendungen“ am Postfenster
       Alerts.lua     Quellen „Abklingzeit fertig“ und „Material fehlt“ für ezPanels Baustein „Meldungen“
 ]]
 
 ns.DEFAULTS = {
     panel = true,            -- ezCraft im Berufefenster (Seitenteil mit Symbol-Reiter; auf/zu merkt ezCraftDB.window.open)
-    bookPanel = true,        -- dasselbe Seitenteil auch auf der Seite „Berufe“ (ohne Rezept und Fehlend; Nr. 22, Welle 23)
+    bookPanel = true,        -- dasselbe Seitenteil auch auf der Seite „Berufe“ (ohne die Berufs-Reiter; Nr. 22, Welle 23)
     tooltipRecipe = true,    -- Item-Tooltip: Rezept mit Zutaten und Bestand, wofür etwas Zutat ist
     countBank = true,        -- was als „vorhanden“ zählt (Herstellbar, fehlt, Einkaufsliste)
     countMail = true,
@@ -34,10 +36,13 @@ ns.DEFAULTS = {
     costs = true,            -- Materialkosten aus dem Preis-Wissen von ezCore (Auktionspreise)
     costsBeside = false,     -- Kosten, Ergebnis und Gewinn am Rezept auch neben Auctionator zeigen (CRAFT-02)
     tooltipCost = true,      -- Item-Tooltip eines hergestellten Gegenstands: „Material ≈ …, n von m mit Preis“ (AH-32)
-    missingTab = true,       -- Reiter „Fehlend“: nicht erlernte Rezepte und ihre Quelle
+    missingTab = true,       -- Reiter „Was kommt wann“ und „Wo kommt was“ am gewählten Beruf (bis 24.11.2026 „Fehlend“)
     recipeWhere = true,      -- Fundorte der Rezepte: „Erhältlich bei“ im Tooltip von Rezepten (Welle 15b)
     recipeWaypoint = true,   -- „Auf der Karte zeigen“ setzt auch Blizzards Wegpunkt
-    chanceNumber = false,    -- dieselbe Chance als kleine Zahl neben dem Namen
+    chanceNumber = false,    -- dieselbe Chance als kleine Zahl rechts in der Zeile
+    rowArrow = true,         -- ezGears Pfeil in der Rezeptzeile (nur mit ezGear; Rows.lua, 24.11.2026)
+    rowLevel = true,         -- nötige Stufe des hergestellten Gegenstands in der Rezeptzeile (Rows.lua, 24.11.2026)
+    rowWide = true,          -- Rezeptliste und Berufefenster etwas breiter (Wide.lua, 24.11.2026)
     cooldownTab = true,      -- Reiter „Abklingzeiten“: Berufs-Abklingzeiten aller Twinks (ezCore.Professions)
     -- Immer an seit der Einstellungs-Prüfung vom 19.11.2026 (Nr. 19 bis 22), ohne Schalter: Material bei ezCore zum
     -- Auffrischen anmelden (AH-39), Abschnitt „Farbe (ezCraft)“ im Filtermenü des Berufefensters, Chance auf einen
@@ -63,6 +68,9 @@ ns.DEFAULTS = {
 ns.AGREE = {
     chanceNumber = "choice", countGuild = "choice", costsBeside = "choice",
 }
+
+-- Seit der letzten Veröffentlichung neu und ab Werk an: die Blase „Neu seit dem Update“ nennt sie (ezCore, ConsentNews.lua)
+ns.NEWS = { { "rowArrow", available = function() return Core.API("ezGear") ~= nil end }, "rowLevel", "rowWide" }
 
 -- Ein- und Ausschalten per /ezcraft <wort> (Core.HandleToggle); en: das englische Wort (T10-1, englischer Client).
 ns.TOGGLES = {
@@ -133,7 +141,8 @@ end
 --               shopping  { { id = recipeID, count } } – bis 21.11.2026; seitdem die Liste „ezCraft“ in ezCores
 --                         Core.Lists (Shopping.Adopt einmal, Merker ezCoreDB.migrated.listsFromEzCraft), die Tabelle bleibt als Rückfall
 --               shipments { { from, to, items = { [itemID] = n }, note, created } }
---               window    { tab, open, list } (offene Ansicht, Seitenteil auf oder zu, gewählte Liste)
+--               window    { tab, open, list, sort, sortGroups } (offene Ansicht, Seitenteil auf oder zu, gewählte Liste,
+--                         Reihenfolge der Rezeptliste)
 --               salvageIgnore { [itemID] = true } (nie zum Entzaubern vorschlagen)
 --               watch     { recent = { recipeID … }, favorites = { [recipeID] = true } } (Material zum Beobachten, AH-39)
 --   needs       was ezCraft von ezCore braucht; fehlt etwas, meldet ezCore es einmal statt eines Fehlers im Modul
@@ -144,7 +153,7 @@ Core.NewModule(ADDON, ns, {
     core = "1.15.0",
     -- scaffoldHelpers: ns.Plain/Num/OtherFor des Gerüsts; Now/Uptime: Zeit über ezCore (Kleinhelfer nach 1.11.0);
     -- NewSidePanel: Seitenteil mit Pfeil (FP-09), Rücksicht-Schlüssel craftCost (W-58) kam mit 1.12.0
-    needs = { "AltRecipient", "WhoHandles", "Prices.Get", "SideTabs.Layout", "scaffoldHelpers", "Now", "Uptime",
+    needs = { "GearStatus", "GearProtects", "AltRecipient", "WhoHandles", "Prices.Get", "SideTabs.Layout", "scaffoldHelpers", "Now", "Uptime",
         "NewSidePanel", "Style.Color", "Style.AllText", "Menu.AllToggle",   -- Style/AllToggle: Design-System (Welle 22)
         -- Welle 17: Helfer und Texte, die ezCore ohne neue Versionsnummer bekam (tools/texte.lua, Regel 4)
         "More",
@@ -162,7 +171,9 @@ Core.NewModule(ADDON, ns, {
     -- Gesamtreview 18.11.2026 (P19a, kern/ssot-helfer; ohne neue Nummer): gemeinsame Helfer statt Kopien
     "PlaySound",
     -- Einstellungs-Prüfung vom 19.11.2026: Einmal-Umstellung des entfallenen Farbfilter-Schalters
-    "MigrateOnce" },
+    "MigrateOnce",
+    -- 24.11.2026: Lehrer-Orte für „Wo kommt was“ (ohne neue Nummer)
+    "TrainerSpots.List" },
     db = "ezCraftDB",
     tables = { "hints", "shopping", "shipments", "window", "salvageIgnore", "watch" },
     onLoad = function(db)

@@ -37,6 +37,7 @@ local Core = ezCore
                                           gezeigt hat (cache.item, höchstens LOOT_SCAN), nichts gemerkt.
       Core.Sources.Questie.Register()     meldet die Quelle (neu) an – nach dem Umlegen von LOOT
       Core.Sources.Questie.Contents(art, id) → Inhalt eines Behälters bzw. einer Kiste (Umkehr-Index, unten)
+      Core.Sources.Questie.ClassQuests(klasse) → Quests nur dieser Klasse (unten)
       Core.Sources.Questie.Exists(art, id) → true | false | nil (Item, Npc, Object, Quest; nil = keine Antwort)
       Core.Sources.Questie.MapForArea(areaID) → uiMapID | nil[, später]   Zuordnung über den Namen laut Client (C_Map),
                                           passt kein Name: QuestieDBs Zuordnung (LibQuestieDB.Support, als Text
@@ -434,6 +435,17 @@ function Q.Exists(kind, id)
     return yes
 end
 
+-- Name eines NPC bzw. Objekts laut QuestieDB ("Npc" | "Object") oder nil – für Beiträge anderer Spieler, die nur Nummern
+-- führen (ShipView.lua); nur zur Laufzeit gelesen, nichts wird gespeichert
+function Q.Name(kind, id)
+    if not (Q.NEEDED[kind] and ID(id)) then return nil end
+    local okReady, ready = pcall(Q.Ready)
+    if not (okReady and ready == true) then return nil end
+    local ok, name = pcall(Read, kind, "name", id)
+    if not ok or type(name) ~= "string" or name == "" then return nil end
+    return name
+end
+
 ---------------------------------------------------------------------------
 -- Spawns je Karte (Welle 27, F5 b – Entscheidung des Nutzers vom 16.11.2026: „aber filterbar/anzeigbar?“; die
 -- Gruppe „laut Questie“ und ihre Filter baut ezMap, ezMap/QuestieSpawns.lua)
@@ -463,7 +475,13 @@ end
                       sourceKey = "QuestieDB" } – Core.Sources.Label(antwort) → „laut Questie“
           eintrag = { kind = "npc" | "object", id, name, rank, lo, hi, rare, elite, capped,
                       points = { { x, y } … } (0–1 auf map, höchstens Q.SPAWN_PER_ID) } – nur lesen, nicht ändern
-          opts = { kinds = { npc = bool, object = bool } (Standard beide), name = Teil des Namens (ohne Groß- und
+                      Mit opts.kinds.herb bzw. .ore (Paket „Fundorte“, 22.11.2026) trägt jedes Objekt dazu gather (Art:
+                      "herb" | "ore" | "chest" | "fish" | "quest" | "container" | nil), gatherHow ("own" | "contents" |
+                      "name") und gatherItem (ein Kraut bzw. Erz des Inhalts laut Questie oder nil) – bei jedem Aufruf
+                      neu bestimmt (Abschnitt „Art der Objekte“ unten); n zählt dann auch herb und ore
+          opts = { kinds = { npc = bool, object = bool, herb = bool, ore = bool } (Standard npc und object; nennt ein
+                   Aufrufer herb oder ore, zählen Kräuter- und Erzvorkommen nicht mehr unter object, sondern unter
+                   ihrer Art – ohne die beiden Felder bleiben sie Objekte wie vor dem Paket), name = Teil des Namens (ohne Groß- und
                    Kleinschreibung), ids = { npc = { [id] = true }, object = { … } } (nur diese – für eine Quest
                    bzw. einen Gegenstand), ranks = { normal = bool, elite = bool, rare = bool } (Gegner nach
                    Q.RankClass; fehlt das Feld, alle – Objekte haben keinen Rang), explorer = true (seltene Gegner) }
@@ -497,7 +515,8 @@ Q.SPAWN_MAPS = 3           -- so viele gelesene Karten bleiben im Arbeitsspeiche
 Q.RARE_RANKS = { [2] = true, [4] = true }
 Q.ELITE_RANKS = { [1] = true, [2] = true, [3] = true }
 Q.SPAWN_KINDS = { "npc", "object" }
-local KIND_OF = { npc = "Npc", object = "Object", item = "Item" }   -- item: Inhalt von Behältern (Q.Contents)
+local KIND_OF = { npc = "Npc", object = "Object", item = "Item",   -- item: Inhalt von Behältern (Q.Contents)
+    quest = "Quest" }                                              -- quest: Klassenquests (Q.ClassQuests)
 
 if Core.RegisterMessage then
     Core.RegisterMessage("QUESTIE_SPAWNS", "SourcesQuestie.lua", "Spawns laut Questie: die Einträge einer Karte "
@@ -509,6 +528,9 @@ local spawn = { state = "idle" }       -- Index (nur IDs) und laufende Arbeit
 local spawnMaps, spawnOrder = {}, {}   -- [Karte] = gelesene Einträge; Reihenfolge (neueste hinten)
 local areaMaps = {}                    -- [Gebiets-ID] = Karte | false
 local wanted                           -- zuletzt gefragte Karte
+local gatherSources = {}               -- [Gegenstand] = Fundorte je Karte laut Questie (Q.GatherSources)
+local gatherItemKinds = {}             -- [Gegenstand] = "herb" | "ore" | false (Klasse laut Client, ItemGather unten)
+local ClassifyObjects, GatherIndex     -- Art der Objekte (Abschnitt „Art der Objekte“, nach dem Inhalt von Behältern)
 
 local function MapOfArea(area)
     local map = areaMaps[area]
@@ -742,9 +764,11 @@ end
 
 -- Erst die Spawns (Weltkarte), dann die Stadtbewohner (unten, TownWork) – ein Takt für beide, je Bild nur eine der
 -- beiden Arbeiten (sonst bis zu zweimal SPAWN_BUDGET in einem Bild; Fund des code-reviewers vom 22.11.2026)
--- Danach der Index „Inhalt von Behältern“ (Q.Contents, 22.11.2026) – weiter nur eine Arbeit je Bild.
-local TownWork, TownPending, ContentsWork, ContentsPending
-local function ContentsLeft() return ContentsPending ~= nil and ContentsPending() or false end
+-- Danach der Index „Inhalt von Behältern“ (Q.Contents, 22.11.2026) und die Klassenquests (Q.ClassQuests, 24.11.2026) –
+-- weiter nur eine Arbeit je Bild.
+local TownWork, TownPending, ContentsWork, ContentsPending, ClassWork, ClassPending
+local function ClassLeft() return ClassPending ~= nil and ClassPending() or false end
+local function ContentsLeft() return ContentsPending ~= nil and ContentsPending() or ClassLeft() end
 local function Work()
     if spawn.state == "index" or spawn.job then
         local more = SpawnWork()
@@ -754,7 +778,11 @@ local function Work()
         local more = TownWork()
         return more or ContentsLeft()
     end
-    return ContentsWork ~= nil and ContentsWork() or false
+    if ContentsPending ~= nil and ContentsPending() then
+        local more = ContentsWork()
+        return more or ClassLeft()
+    end
+    return ClassWork ~= nil and ClassWork() or false
 end
 
 local planned = false
@@ -780,6 +808,7 @@ end
 function Q.ForgetSpawns()
     spawn, spawnMaps, spawnOrder, areaMaps, wanted = { state = "idle" }, {}, {}, {}, nil
     zoneLaterUntil, supportZones = 0, nil
+    gatherSources, gatherItemKinds = {}, {}
 end
 
 function Q.SpawnState()
@@ -831,13 +860,24 @@ local function Filtered(raw, opts)
         and Q.Fold(opts.name) or nil
     local out = { map = raw.map, list = {}, n = { npc = 0, object = 0 }, points = 0, total = #raw.list,
         capped = false, cappedKinds = {}, hidden = { rare = 0 }, source = "Questie", sourceKey = "QuestieDB" }
+    -- Paket „Fundorte“: nennt der Aufrufer herb oder ore, trennt ezCore Kräuter- und Erzvorkommen von den Objekten
+    local split = kinds.herb ~= nil or kinds.ore ~= nil
+    if split then
+        out.n.herb, out.n.ore = 0, 0
+        -- nur, wenn überhaupt Objekte gefragt sind (für „nur Gegner“ keine Arbeit je Objekt)
+        if kinds.object or kinds.herb or kinds.ore then
+            out.sorting = ClassifyObjects(raw)   -- true: der Inhalt laut Questie wird noch gelesen (Index)
+        end
+    end
     -- capped nur, wenn eine gefragte Art gedeckelt ist (bei „nur Objekte“ kein Hinweis wegen der Gegner)
     for kind in pairs(raw.cappedKinds or {}) do
         out.cappedKinds[kind] = true
-        if kinds[kind] == true then out.capped = true end
+        if kinds[kind] == true or (kind == "object" and split and (kinds.herb or kinds.ore)) then out.capped = true end
     end
     for _, e in ipairs(raw.list) do
-        local keep = kinds[e.kind] == true
+        local class = e.kind
+        if split and class == "object" and (e.gather == "herb" or e.gather == "ore") then class = e.gather end
+        local keep = kinds[class] == true
         if keep and e.rare and not explorer then
             keep = false
             out.hidden.rare = out.hidden.rare + 1
@@ -850,7 +890,7 @@ local function Filtered(raw, opts)
         if keep and needle then keep = e.name ~= nil and Q.Fold(e.name):find(needle, 1, true) ~= nil end
         if keep then
             out.list[#out.list + 1] = e
-            out.n[e.kind] = out.n[e.kind] + 1
+            out.n[class] = out.n[class] + 1
             out.points = out.points + #e.points
         end
     end
@@ -881,6 +921,13 @@ function Q.Spawns(mapID, opts)
     if lib and spawn.lib ~= nil and spawn.lib ~= lib then Q.ForgetSpawns() end   -- neues Global: neu aufbauen
     local ok, why = Q.SpawnsReady()
     if not ok then return nil, why end
+    -- Getrennt gefragt (herb bzw. ore genannt) und Objekte, Kräuter oder Erze gewünscht: den Inhalt laut Questie lesen
+    -- lassen (Art der Objekte; einmal je Sitzung) – auch für „nur Objekte“, sonst hinge vom Zufall ab, welche Kräuter
+    -- dort noch stehen (Fund des code-reviewers vom 22.11.2026)
+    local kinds = type(opts) == "table" and type(opts.kinds) == "table" and opts.kinds or nil
+    if kinds and (kinds.herb ~= nil or kinds.ore ~= nil) and (kinds.herb or kinds.ore or kinds.object) then
+        GatherIndex()
+    end
     wanted = mapID
     local raw = spawnMaps[mapID]
     if raw then
@@ -971,7 +1018,7 @@ local function TownBits(lib)
     return bits
 end
 
-local function HasBit(flags, bit) return math.floor(flags / bit) % 2 == 1 end
+local HasBit = Core.HasBit
 
 function Q.TownsfolkReady()
     local okReady, ready, why = pcall(Q.Ready)
@@ -1374,6 +1421,170 @@ function Q.Contents(kind, id)
     return { kind = kind, id = id, items = items, n = visible, listed = true, source = "Questie", sourceKey = "QuestieDB" }
 end
 
+--[[
+    Art der Objekte laut Questie (Paket „Fundorte“, 22.11.2026; Prüfung der Fundorte vom selben Tag): QuestieDB trennt
+    Kräuter, Erzadern, Kisten und Quest-Objekte nicht (Types/Object.t.lua kennt kein Feld für die Art; der Client nennt
+    das Schloss eines Objekts nicht – „welches Spielobjekt welches Schloss hat, weiß nur der Server“, Client/Locks.lua).
+    ezCore bestimmt die Art je Objekt einer Karte, der Reihe nach:
+      "own"       deine Beobachtung desselben Objekts (Core.Gathering.ObjectKind: Sammelzauber bzw. Klasse der Beute
+                  laut Client, Entdecker-Datenbank)
+      "contents"  der Inhalt laut Questie (Umkehr-Index von Q.Contents: Gegenstände, die das Objekt fallen lässt) mit der
+                  Klasse laut Client (Core.Gathering.ItemKind): nur Kräuter » herb, nur Erz und Stein » ore; beides
+                  zugleich oder keins: keine Art (andere Gegenstände – Edelsteine, Quest-Gegenstände – zählen nicht)
+      "name"      derselbe Name wie ein schon erkanntes Objekt dieser Karte (QuestieDB führt ein Vorkommen oft unter
+                  mehreren IDs; die Namen kommen in der Sprache des Clients) – nur, wenn alle erkannten mit diesem Namen
+                  dieselbe Art haben
+    Ohne Art bleibt ein Objekt „Objekt“ (Kisten, Quest-Objekte, Unbekanntes). Den Index liest ezCore erst, wenn ein Modul
+    getrennt fragt (herb bzw. ore genannt) und Objekte, Kräuter oder Erze will (GatherIndex aus Q.Spawns); bis er fertig
+    ist, erkennt nur "own" (und "name"), die Antwort trägt sorting = true und die Nachricht QUESTIE_CONTENTS meldet das
+    Ende. Die Felder gather, gatherHow, gatherItem setzt ezCore selbst an seinen gemerkten Einträgen (bei jedem
+    getrennten Aufruf neu); Aufrufer lesen sie nur.
+]]
+-- Klasse laut Client je Gegenstand (ändert sich im Spiel nicht; gemerkt bis Q.ForgetSpawns)
+local function ItemGather(itemID)
+    local k = gatherItemKinds[itemID]
+    if k == nil then
+        local G = Core.Gathering
+        k = G and type(G.ItemKind) == "function" and G.ItemKind(itemID) or false
+        gatherItemKinds[itemID] = k
+    end
+    return k or nil
+end
+
+-- Art aus dem Inhalt laut Questie → "herb" | "ore" | nil, ein Gegenstand dieser Art
+local function ContentsGather(id)
+    if box.state ~= "ready" or box.lib ~= Lib() then return nil end
+    local items = box.byObject and box.byObject[id]
+    if not items then return nil end
+    local kind, item
+    for i = 1, #items do
+        local k = ItemGather(items[i])
+        if k then
+            if kind and kind ~= k then return nil end
+            kind, item = k, item or items[i]
+        end
+    end
+    return kind, item
+end
+
+-- Leser der eigenen Beobachtung (Core.Gathering.ObjectKinds: Datenbank einmal je Durchgang) → fn(id) → Art | nil
+local function OwnKinds()
+    local G = Core.Gathering
+    if G and type(G.ObjectKinds) == "function" then return G.ObjectKinds() end
+    return function() return nil end
+end
+
+local function KindOf(id, own)
+    local kind, item = ContentsGather(id)
+    local seen = own(id)
+    if seen then return seen, "own", kind == seen and item or nil end
+    if kind then return kind, "contents", item end
+    return nil
+end
+
+-- Art eines Objekts → Art, Herkunft ("own" | "contents"), Gegenstand | nil
+function Q.ObjectKind(id)
+    id = ID(id)
+    if not id then return nil end
+    return KindOf(id, OwnKinds())
+end
+
+ClassifyObjects = function(raw)
+    local byName, own = {}, OwnKinds()
+    for _, e in ipairs(raw.list) do
+        if e.kind == "object" then
+            e.gather, e.gatherHow, e.gatherItem = KindOf(e.id, own)
+            if e.gather and e.name then
+                local key = Q.Fold(e.name)
+                local seen = byName[key]
+                if seen == nil then
+                    byName[key] = { kind = e.gather, item = e.gatherItem }
+                elseif seen and seen.kind ~= e.gather then
+                    byName[key] = false          -- derselbe Name, verschiedene Arten: nicht übertragen
+                elseif seen and not seen.item then
+                    seen.item = e.gatherItem
+                end
+            end
+        end
+    end
+    for _, e in ipairs(raw.list) do
+        if e.kind == "object" and not e.gather and e.name then
+            local seen = byName[Q.Fold(e.name)]
+            if seen then e.gather, e.gatherHow, e.gatherItem = seen.kind, "name", seen.item end
+        end
+    end
+    return box.state == "index"
+end
+
+-- Den Inhalt laut Questie einmal je Sitzung lesen lassen (derselbe Index wie Q.Contents) → true, wenn er läuft oder fertig ist
+GatherIndex = function()
+    local lib = Lib()
+    if lib and box.lib ~= nil and box.lib ~= lib then Q.ForgetContents() end
+    if box.state == "idle" then
+        if not Q.ContentsReady() then return false end
+        BoxStartIndex(lib)
+    end
+    return box.state == "index" or box.state == "ready"
+end
+
+--[[
+    Fundorte eines Krauts bzw. Erzes laut Questie für die Tooltip-Zeile „Fundorte“ (Core.Gathering.Sources und Line;
+    Paket „Fundorte“, 22.11.2026): die Objekte, die den Gegenstand fallen lassen (Item.objectDrops, höchstens
+    Q.GATHER_OBJECTS), deren spawns je Zone gezählt (Gebiet » Karte über Q.MapForArea, Punkte ohne Ort zählen nicht).
+    Nur für Kräuter und Erze laut Client (Core.Gathering.ItemKind). Im Tooltip immer „laut Questie“, nie „bei dir“
+    (Core.Gathering.Line nennt jede Quelle außer der eigenen „laut <Name>“). Gemerkt wird nur die Zahl je Karte, im
+    Arbeitsspeicher bis Q.ForgetSpawns; war Questie beim Lesen noch nicht bereit (Gebiet „später“), nicht gemerkt.
+      Q.GatherSources(itemID) → { { mapID, count } … }, meiste zuerst (leer ohne QuestieDB bzw. für andere Gegenstände)
+]]
+Q.GATHER_OBJECTS = 40
+
+function Q.GatherSources(itemID)
+    itemID = ID(itemID)
+    if not (itemID and ItemGather(itemID)) then return {} end
+    local hit = gatherSources[itemID]
+    if hit and hit.lib == Lib() then return hit.list end
+    local okReady, ready = pcall(Q.Ready)
+    if not (okReady and ready == true) then return {} end
+    local okList, objects = pcall(function() return IdList(Read("Item", "objectDrops", itemID)) end)
+    if not okList then return {} end
+    local byMap, later = {}, false
+    for i = 1, math.min(#objects, Q.GATHER_OBJECTS) do
+        local okSpawns, spawns = pcall(Read, "Object", "spawns", objects[i])
+        if okSpawns and type(spawns) == "table" then
+            for area, list in pairs(spawns) do
+                if ID(area) and type(list) == "table" then
+                    local map = MapOfArea(area)
+                    if not map and areaMaps[area] == nil then later = true end   -- Questie noch nicht bereit
+                    if map then
+                        local n = 0
+                        for k = 1, #list do
+                            local p = list[k]
+                            local x, y = Num(Field(p, 1)), Num(Field(p, 2))
+                            if x and y and x >= 0 and y >= 0 and x <= 100 and y <= 100 then n = n + 1 end
+                        end
+                        if n > 0 then byMap[map] = (byMap[map] or 0) + n end
+                    end
+                end
+            end
+        end
+    end
+    local out = {}
+    for map, count in pairs(byMap) do out[#out + 1] = { mapID = map, count = count } end
+    table.sort(out, function(a, b)
+        if a.count ~= b.count then return a.count > b.count end
+        return a.mapID < b.mapID
+    end)
+    if not later then gatherSources[itemID] = { lib = Lib(), list = out } end
+    return out
+end
+
+if Core.Gathering and type(Core.Gathering.AddProvider) == "function" then
+    Core.Gathering.AddProvider("QuestieDB", "Questie", Q.GatherSources, { active = function()
+        local ok, yes = pcall(Q.Ready)
+        return ok and yes == true
+    end })
+end
+
 -- Auskunft für Core.Sources (contentsOf(id, kind)): läuft der Index noch oder ist nur dieser Teil kaputt (fehlende
 -- Lesefunktion, viele Fehler – steht schon in der Fehlerliste), hat die Quelle nicht nachgesehen ("skip"). Nie
 -- "shape": das kippte den Stand der ganzen Quelle in /ez status und Sources.Hint (Gegenprüfung 22.11.2026).
@@ -1473,7 +1684,7 @@ end
 --       objectives = { { type = "monster" | "object" | "item" | "killcredit", id, name, places = { ort … }, capped,
 --                        hidden = "explorer" | "rare" | nil } … } } | nil, grund
 --   ort = { kind = "npc" | "object", id, name, area, map (uiMapID über MapForArea, sonst nil), x, y (0–1) }
---   Je Ziel höchstens Q.PLACES_PER_PART Orte (danach capped), je Start bzw. Abgabe höchstens Q.PLACES_PER_END.
+--   Je Ziel höchstens Q.PLACES_PER_PART Orte (danach capped; opts.places: eigene Grenze), je Start bzw. Abgabe höchstens Q.PLACES_PER_END.
 --   Reihenfolge der Ziele wie in QuestieDB (Gegner, Objekte, Gegenstände, Kill-Credit); Gebiete aufsteigend.
 --   opts.map (uiMapID, freiwillig; Fund der Gegenprüfung vom 17.11.2026): zuerst alle Orte auf dieser Karte (Gebiete,
 --   deren Zonenkarte sie ist oder in ihr liegt), dann die übrigen – so schneidet die Grenze je Ziel die Zone des
@@ -1571,6 +1782,7 @@ function Q.QuestPlaces(questID, opts)
     questID = ID(questID)
     if not questID then return nil, "args" end
     local prefer = type(opts) == "table" and ID(Num(opts.map)) or nil
+    local perPart = type(opts) == "table" and ID(Num(opts.places)) or Q.PLACES_PER_PART
     return Targets(function()
         local lib = Lib()
         for _, field in ipairs(Q.QUEST_FIELDS) do
@@ -1584,7 +1796,7 @@ function Q.QuestPlaces(questID, opts)
             local list = {}
             for _, id in ipairs(ids) do list[#list + 1] = { kind, id } end
             local places = {}
-            local capped, hidden = PlacesOf(list, places, Q.PLACES_PER_PART, prefer)
+            local capped, hidden = PlacesOf(list, places, perPart, prefer)
             entry.places, entry.capped = places, capped or nil
             if #places == 0 then entry.hidden = hidden end
             t.objectives[#t.objectives + 1] = entry
@@ -1618,7 +1830,7 @@ function Q.QuestPlaces(questID, opts)
                         end
                     end
                     local places = {}
-                    local capped = PlacesOf(list, places, Q.PLACES_PER_PART, prefer)
+                    local capped = PlacesOf(list, places, perPart, prefer)
                     entry.places, entry.capped = places, capped or nil
                 else
                     entry.places, entry.hidden = {}, "explorer"
@@ -1639,6 +1851,205 @@ function Q.QuestPlaces(questID, opts)
         t.start = EndPlaces(Read("Quest", "startedBy", questID), prefer)
         t.finish = EndPlaces(Read("Quest", "finishedBy", questID), prefer)
         return t
+    end)
+end
+
+--[[
+    Klassenquests (24.11.2026, „Wo kommt was“ – Klassenquests, die eine Fähigkeit bringen): alle Quests, die laut
+    QuestieDB nur eine Klasse annehmen darf (requiredClasses = genau deren Bit laut Enum.classKeys). Der Index entsteht
+    beim ersten Aufruf in Scheiben (derselbe Takt, nach den anderen Arbeiten); gemerkt werden nur im Arbeitsspeicher
+    Kennung, Stufe, Volksmaske und Anfang der Treffer. Ob die Quest eine Fähigkeit bringt, weiß QuestieDB nicht – das sagt
+    der Client bzw. die Faktenliste (Core.SpellSources, Core.QuestSpells); dafür der englische Grundname (Quest.GetRaw, laut
+    Types/Quest.t.lua „base data without Corrections or localization“; wahlweise).
+      Q.ClassQuests(klasse) → antwort | nil, grund[, fertig, gesamt]   klasse = Token ("MAGE" …)
+          grund wie bei Q.Spawns („building“: die Nachricht QUESTIE_CLASSQUESTS (klasse, zustand) meldet das Ende) oder
+          "class" (QuestieDB nennt kein Bit dieser Klasse)
+          antwort = { class, list = { { id, name, level (nötige Stufe oder nil), base (Grundname oder nil) } … }, source = "Questie", sourceKey =
+                      "QuestieDB" } – nach Stufe, dann Name; ohne Quests anderer Völker (Enum.raceMaskById) und ohne
+                      solche, deren Geber laut friendlyToFaction alle nur zur anderen Fraktion gehören; nur lesen
+      Q.QuestStart(questID, { map }) → Orte, an denen die Quest beginnt, wie QuestPlaces(…).start (ohne die Ziele zu lesen)
+      Q.ForgetClassQuests() – Index verwerfen; Q.SpawnsFinish() erledigt auch diese Arbeit (Prüfungen)
+    Fehlen die Lesefunktionen, meldet nur dieser Teil "shape"; die übrige Quelle bleibt „ok“.
+]]
+Q.CLASS_SLICE = 500        -- IDs je Bild beim Aufbau des Index (je ID nur requiredClasses)
+Q.CLASS_FIELDS = { "GetAllIds", "requiredClasses", "requiredRaces", "requiredLevel", "startedBy", "name" }
+
+if Core.RegisterMessage then
+    Core.RegisterMessage("QUESTIE_CLASSQUESTS", "SourcesQuestie.lua", "Klassenquests laut Questie: der Index einer "
+        .. "Klasse ist fertig (klasse, \"ready\") oder QuestieDB antwortet nicht wie erwartet (klasse, \"shape\" | "
+        .. "\"error\").", "klasse, zustand")
+end
+
+local klass = { state = "idle" }
+
+-- Bit einer Klasse laut QuestieDBs Enum (Schlüssel in beliebiger Schreibung) → Zweierpotenz oder nil
+local function ClassBit(lib, class)
+    local enum = Field(Field(lib, "Enum"), "classKeys")
+    if type(enum) ~= "table" or Core.IsSecret(enum) then return nil end
+    for key, value in pairs(enum) do
+        if type(key) == "string" and key:upper() == class then
+            local v = ID(value)
+            if PowerOfTwo(v) then return v end
+        end
+    end
+    return nil
+end
+
+local function ClassFire(state) Core.Fire("QUESTIE_CLASSQUESTS", klass.class, state) end
+
+local function ClassFail(reason, err)
+    klass = { state = reason, lib = klass.lib, class = klass.class }
+    if reason == "error" then Core.Error(Core.name, err, "Questie.ClassQuests") end
+    ClassFire(reason)
+end
+
+function Q.ForgetClassQuests() klass = { state = "idle" } end
+
+-- Grundname der Quest ohne Übersetzung (wahlweise; QuestieDB ohne GetRaw, falsche Form oder gesperrt: nil – die Quest
+-- bleibt). GetRaw liest laut Questie ohne Korrekturen: Quests, die nur dort stehen, haben keinen.
+local function BaseName(lib, id)
+    local fn = Reader(lib, "Quest", "GetRaw")
+    if not fn then return nil end
+    local ok, value = pcall(fn, id, "name")
+    if not ok or Core.IsSecret(value) or type(value) ~= "string" or value == "" then return nil end
+    return value
+end
+
+local function ClassIndexSlice()
+    local idx, start, n = klass, SliceMillis(), 0
+    while idx.pos <= idx.len do
+        local id = ID(Field(idx.ids, idx.pos))
+        idx.pos, idx.done, n = idx.pos + 1, idx.done + 1, n + 1
+        if not id then
+            idx.skipped = idx.skipped + 1
+        else
+            local okMask, mask = pcall(Read, "Quest", "requiredClasses", id)
+            if not okMask then
+                Broken(idx, idx.done, mask)
+            elseif mask == idx.bit then
+                local ok, e = pcall(function()
+                    local e = { id = id, name = Text(Read("Quest", "name", id)), level = ID(Read("Quest", "requiredLevel", id)),
+                        races = Num(Read("Quest", "requiredRaces", id)) or 0, starts = {}, base = BaseName(idx.lib, id) }
+                    local by = Read("Quest", "startedBy", id)
+                    for _, npc in ipairs(Part(by, 1)) do
+                        if ID(npc) then e.starts[#e.starts + 1] = npc end
+                    end
+                    e.other = #Part(by, 2) > 0 or #Part(by, 3) > 0      -- beginnt auch an einem Objekt bzw. Gegenstand
+                    return e
+                end)
+                if not ok then
+                    Broken(idx, idx.done, e)
+                elseif e.name then
+                    idx.found[#idx.found + 1] = e
+                end
+            end
+        end
+        if Over(start, n, Q.CLASS_SLICE) then return false end
+    end
+    return true
+end
+
+ClassPending = function() return klass.state == "index" end
+
+ClassWork = function()
+    if not ClassPending() then return false end
+    local ok, done = pcall(ClassIndexSlice)
+    if not ok then
+        if done == SHAPE then ClassFail("shape") else ClassFail("error", done) end
+        return false
+    end
+    if not done then return true end
+    klass.state, klass.ids = "ready", nil
+    table.sort(klass.found, function(a, b)
+        if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end
+        if a.name ~= b.name then return a.name < b.name end
+        return a.id < b.id
+    end)
+    ClassFire("ready")
+    return false
+end
+
+local function ClassStart(lib, class, bitValue)
+    klass = { state = "idle", lib = lib, class = class }
+    local ok, err = pcall(function()
+        local list, n = AllIds(lib, "quest")
+        if n == 0 then error(SHAPE, 0) end
+        klass = { state = "index", lib = lib, class = class, bit = bitValue, ids = list, len = n, pos = 1, done = 0,
+            total = n, skipped = 0, failed = 0, found = {} }
+    end)
+    if not ok then
+        if err == SHAPE then ClassFail("shape") else ClassFail("error", err) end
+        return
+    end
+    Plan(0)
+end
+
+-- Darf das Volk des Spielers die Quest annehmen? Ohne Maske, ohne Volk oder ohne Auskunft des Enums: ja.
+local function RaceMayTake(lib, races)
+    if races == 0 then return true end
+    local CD = Core.ClientData
+    local race = CD and CD.PlayerRace and CD.PlayerRace() or nil
+    local mask = race and Num(Field(Field(Field(lib, "Enum"), "raceMaskById"), race)) or nil
+    if not (mask and PowerOfTwo(ID(mask))) then return true end
+    return HasBit(races, mask)
+end
+
+-- Gehört wenigstens ein Geber zur Fraktion des Spielers? Geber ohne Angabe, Objekte und Gegenstände zählen als möglich.
+local function StartFits(starts, other)
+    if other or #starts == 0 then return true end
+    local mine = Core.Plain(Core.Call(rawget(_G, "UnitFactionGroup"), "player"))
+    if mine ~= "Alliance" and mine ~= "Horde" then return true end
+    for _, npc in ipairs(starts) do
+        local ok, friendly = pcall(Read, "Npc", "friendlyToFaction", npc)
+        local faction = ok and friendly ~= nil and FACTION[friendly] or nil
+        if faction == nil or faction == mine then return true end
+    end
+    return false
+end
+
+function Q.ClassQuestsReady()
+    local okReady, ready, why = pcall(Q.Ready)
+    if not okReady then return false, "error" end
+    if ready ~= true then return false, why or "shape" end
+    local lib = Lib()
+    for _, field in ipairs(Q.CLASS_FIELDS) do
+        if not Reader(lib, "Quest", field) then return false, "shape" end
+    end
+    if klass.lib == lib and (klass.state == "shape" or klass.state == "error") then return false, klass.state end
+    return true
+end
+
+function Q.ClassQuests(class)
+    if type(class) ~= "string" or class == "" then return nil, "args" end
+    local ok, why = Q.ClassQuestsReady()
+    if not ok then return nil, why end
+    local lib = Lib()
+    if klass.state == "idle" or klass.lib ~= lib or klass.class ~= class then
+        local bitValue = ClassBit(lib, class)
+        if not bitValue then return nil, "class" end
+        ClassStart(lib, class, bitValue)
+    end
+    if klass.state == "index" then
+        Plan(0)
+        return nil, "building", klass.done, klass.total
+    end
+    if klass.state ~= "ready" then return nil, klass.state end
+    local list = {}
+    for _, e in ipairs(klass.found) do
+        if RaceMayTake(lib, e.races) and StartFits(e.starts, e.other) then
+            list[#list + 1] = { id = e.id, name = e.name, level = e.level, base = e.base }
+        end
+    end
+    return { class = class, list = list, source = "Questie", sourceKey = "QuestieDB" }
+end
+
+function Q.QuestStart(questID, opts)
+    questID = ID(questID)
+    if not questID then return nil, "args" end
+    local prefer = type(opts) == "table" and ID(Num(opts.map)) or nil
+    return Targets(function()
+        if not Reader(Lib(), "Quest", "startedBy") then return nil, "shape" end
+        return EndPlaces(Read("Quest", "startedBy", questID), prefer)
     end)
 end
 

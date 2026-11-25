@@ -39,7 +39,7 @@ ns.RotationData.Add("DRUID", {
       sources = { "https://www.icy-veins.com/wow-forever/balance-druid-leveling",
           "https://www.wowhead.com/forever/guide/classes/druid/balance/rotation-cooldowns-pve-dps" },
       how = T("Halte {5570} und {8921} auf dem Ziel und erneuere sie erst, wenn sie ausgelaufen sind. Dazwischen lädt ein {5176} das Talent {408248} auf; die Ladungen verbrauchst du mit {2912}, ohne Ladung bleibt es bei {5176}. Buffs und Gestalt gehören vor den Kampf, der Pull ist ein vorgezauberter {5176}. Ohne das Talent ist {5176} der einzige Füller.",
-              "Keep {5570} and {8921} on the target and renew them only after they have run out. In between, one {5176} charges the {408248} talent; you spend the charges on {2912}, and without a charge you stay on {5176}. Buffs and form belong before combat, the pull is a pre-cast {5176}. Without the talent {5176} is your only filler."),
+              "Keep {5570} and {8921} on the target and renew them as they run out. In between, one {5176} charges the {408248} talent; you spend the charges on {2912}, and without a charge you stay on {5176}. Buffs and form belong before combat, the pull is a pre-cast {5176}. Without the talent {5176} is your only filler."),
       note = T("Ob {5176} getroffen hat, sieht ezCombat nicht; sind die Ladungen gesperrt, wird mitgezählt. Bei Manamangel nur {5176}, {2912} dann nur mit {16870}. Die Gegnerzahl ist unsichtbar: Fläche nur im Flächenmodus, sinnvoll ab etwa fünf Gegnern.",
                "ezCombat can't see whether {5176} hit; locked charges are counted instead. Low on mana cast {5176} only, {2912} just on {16870}. Enemy count is invisible: AoE only in AoE mode, worth it from about five enemies."),
       counters = {

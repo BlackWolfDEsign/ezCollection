@@ -13,7 +13,7 @@ local SECTIONS = { "groups", "display", "bank", "vendor", "space" }
 -- (Layout.lua, BuildGroups → GroupsFromSlots(…, true); Bank und „Unterwegs ansehen“ rufen es ohne „Neu“). „Freie
 -- Plätze zusammenfassen“ und „Gleiche Gegenstände zusammenfassen“ wirken auch in Bank und Gildenbank – sie bleiben
 -- bedienbar; Bank- und Gildenbank-Gruppen sind eigene Oberschalter.
-ns.OPTION_PARENT = { newItems = "grouping" }
+ns.OPTION_PARENT = { newItems = "grouping", reagentSection = "grouping" }
 
 local function Register()
     if page then return end

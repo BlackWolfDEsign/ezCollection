@@ -314,7 +314,11 @@ function P.Refresh()
         reason = L.ERR_empty
     end
     P.reason = reason
-    P.status:SetText(reason or "")
+    -- Ohne Sperre: Hinweis auf Blizzards „Selbstwirken: Automatisch“ (gelb; Fehler vom 23.11.2026, Core.lua) – er
+    -- sperrt nichts, sagt nur, wohin ein Klick außer Reichweite geht
+    local hint = not reason and ns.AutoSelfCast and ns.AutoSelfCast() and #rows > 0 and L.SELFCAST_AUTO_SHORT or nil
+    P.status:SetText(reason or hint or "")
+    Core.Style.SetTextColor(P.status, reason and "bad" or "warn")
     SetEnabled(P.applyButton, #rows > 0 and reason == nil, reason or L.PREVIEW_NONE:format(ns.KindLabel(P.kind)))
     SetEnabled(P.resetButton, T.HasOwnKeys(P.kind), L.KEYS_RESET_NONE)
     P.shownRows = rows
@@ -383,3 +387,17 @@ ns.OnSettingChanged(function(key)
     P.kind = ns.ChosenKind(ns.S and ns.S.template)
     if P.Shown() then P.Refresh() end
 end)
+
+-- Blizzards „Selbstwirken“ geändert (etwa über den Knopf „Blizzards Selbstwirken“): Die offene Vorschau zeigt Sperre und
+-- Hinweis sofort neu (Review vom 23.11.2026). „Automatisch“ meldet CVAR_UPDATE, die Taste UPDATE_BINDINGS (Blizzards
+-- Einstellung speichert sie über SetModifiedClick und SaveBindings). Nur gelesen.
+function P.RefreshShown()
+    if P.Shown() then P.Refresh() end
+end
+-- name: Name der geänderten CVar (zuerst Typ und IsSecret, dann der Vergleich; Leitlinie 6)
+function P.OnCVar(name)
+    if type(name) ~= "string" or Core.IsSecret(name) then return end
+    if name:lower() == "autoselfcast" then P.RefreshShown() end
+end
+ns.On("CVAR_UPDATE", function(_, name) P.OnCVar(name) end)
+ns.On("UPDATE_BINDINGS", function() P.RefreshShown() end)

@@ -414,7 +414,9 @@ end
 -- Antwort von ezCore: Core.Sources.LootOf(npcID, { level }) (Form in docs/ezcore.md). Alles wird geprüft und in
 -- eigene Tabellen übernommen – nichts bleibt mit der Antwort verbunden, nichts wird hineingeschrieben. Fehlt der
 -- Dienst, weiß keine Quelle etwas oder kommt eine falsche Form zurück: nil.
---   → { npc, source, sourceKey, label, own, items = { { id, chance (0–1), quest } … } }
+--   → { npc, source, sourceKey, label, short, own, items = { { id, chance (0–1), quest } … } }
+--   label: Kopfzeile („laut Questie“, „aus Beiträgen (n Spieler), Stand Build x“); short: Kurzform für den Untertext je
+--   Gegenstand („laut Questie“, „aus Beiträgen“)
 function D.SourceLoot(npc, level)
     npc = Num(npc)
     if not (npc and D.SourcesAvailable()) then return nil end
@@ -435,6 +437,10 @@ function D.SourceLoot(npc, level)
     if type(Core.Sources.Label) == "function" then labelOk, label = pcall(Core.Sources.Label, b) end
     label = labelOk and Plain(label) or nil
     out.label = type(label) == "string" and label ~= "" and label or L.SOURCES_ACCORDING:format(source)
+    local shortOk, short = false, nil
+    if type(Core.Sources.Label) == "function" then shortOk, short = pcall(Core.Sources.Label, b, true) end
+    short = shortOk and Plain(short) or nil
+    out.short = type(short) == "string" and short ~= "" and short or out.label
     return out
 end
 
@@ -523,7 +529,10 @@ end
 function D.PossibleHead(b)
     local label = b.label or L.SOURCES_ACCORDING:format(b.source or "?")
     if b.own then return L.DROPS_POSSIBLE_OWN:format(label) end
-    if D.Listed(b) then return L.DROPS_LISTED:format(label) end
+    if D.Listed(b) then
+        -- „aus Beiträgen (n Spieler), …“ trägt selbst Klammern: eigene Form
+        return (b.sourceKey == "ship" and L.DROPS_LISTED_SHIP or L.DROPS_LISTED):format(label)
+    end
     return L.DROPS_POSSIBLE:format(label)
 end
 
@@ -579,8 +588,10 @@ function D.ActiveSources()
     local ok, list = pcall(Core.Sources.List, "lootOf")
     if not ok or type(list) ~= "table" then return names end
     for _, entry in ipairs(list) do
-        -- die eigene Entdecker-Datenbank ist keine angebundene Quelle (eigene Statuszeile „Beute bei dir“)
-        if type(entry) == "table" and entry.status == "ok" and type(entry.label) == "string" and entry.key ~= "own" then
+        -- die eigene Entdecker-Datenbank ist keine angebundene Quelle (eigene Statuszeile „Beute bei dir“), Beiträge
+        -- anderer Spieler auch nicht (eigene Zeile in /ez status)
+        if type(entry) == "table" and entry.status == "ok" and type(entry.label) == "string" and entry.key ~= "own"
+            and entry.key ~= "ship" then
             names[#names + 1] = entry.label
         end
     end

@@ -4,7 +4,7 @@ local _, ns = ...
 -- Jede Option sagt zuerst, was sie dir bringt.
 local de = {
     -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
-    INTRO_FEATURES = "Bis zu vier Zusatzleisten, Blizzard-Knöpfe\nFormen frei, von 2×2 bis 12×12\nGröße, Sichtbarkeit und Tasten je Leiste\nVerschieben im Bearbeitungsmodus",
+    INTRO_FEATURES = "Bis zu vier Zusatzleisten, Blizzard-Knöpfe\nFormen frei, von 2×2 bis 12×12\nGröße, Sichtbarkeit und Tasten je Leiste\nVerschieben im Bearbeitungsmodus\nLeisten-Profile, auch ohne ezMacro",
     TITLE = "ezBars",
     -- Hilfe: Kopf und Standardbefehle (Einstellungen, status, hilfe, zuruecksetzen) sagt ezCore (Core.HelpLines),
     -- hier nur die eigenen Wörter; %s = der geltende Befehl (Gesamtreview 18.11.2026, T18-20)
@@ -63,7 +63,7 @@ local de = {
     OPT_HEADER_BARS = "Leisten",
     OPT_BAR_PAGE = "Leiste %d: Anordnung",
     OPT_BAR_PAGE_BUTTON = "Öffnen",
-    OPT_BAR_PAGE_TIP = "Spalten, Reihen, Knopfgröße, Abstand, Sichtbarkeit und Aktionsplätze dieser Leiste.",
+    OPT_BAR_PAGE_TIP = "Spalten, Reihen, Knopfgröße, Abstand, Sichtbarkeit, Aktionsplätze und Leisten-Profil dieser Leiste.",
     OPT_HEADER_LAYOUT = "Anordnung",
     OPT_HEADER_VISIBILITY = "Anzeige",
     OPT_HEADER_SLOTS = "Aktionsplätze",
@@ -102,24 +102,27 @@ local de = {
     TOUR_MOVE = "Verschieben: Spielmenü (Esc) » Bearbeitungsmodus – jede eingeschaltete Leiste hat dort Blizzards blauen Rahmen, auch eine versteckte. Dieselben Rahmen zeigen der Knopf „Verschieben“ in den Einstellungen und /ezbars verschieben.",
     TOUR_KEYS = "Tasten belegen: Der Knopf „Tasten belegen“ in den Einstellungen (oder /ezbars tasten) öffnet Blizzards Tastaturbelegung; im Schnelltastenbelegungsmodus auf einen Knopf zeigen und die Taste drücken.",
     TOUR_SLOTS = "Aktionsplätze: ezBars nimmt Plätze, die keine sichtbare Blizzard-Leiste nutzt, und merkt sie je Charakter. Überschneidet sich etwas, meldet es der Chat – „Plätze neu wählen“ unter „Erweitert“ löst es; /ezbars status zeigt alles.",
-    TOUR_RESET_TIP = "Zeigt die Erklärblasen an der Leiste wieder von vorn: was die Leiste ist, Anordnung, Verschieben, Tasten belegen und Aktionsplätze. Sie erscheinen, sobald du eine Einstellung änderst, die Einstellungen über /ezbars öffnest oder dich neu einloggst.",
+    -- Leisten-Profile seit dem 22.11.2026 in ezCore, auch ohne ezMacro (Einführung nachgezogen am 23.11.2026)
+    TOUR_PROFILE = "Leisten-Profil: Auf der Seite „Leiste n: Anordnung“ speichert „Als Profil speichern“ die Zauber, Makros und Gegenstände dieser Leiste. „Profil laden“ legt sie auf einem Twink in derselben Reihenfolge ab – nach einer Rückfrage, auch ohne ezMacro.",
+    TOUR_RESET_TIP = "Zeigt die Erklärblasen an der Leiste wieder von vorn: was die Leiste ist, Anordnung, Verschieben, Tasten belegen, Aktionsplätze und Leisten-Profil. Sie erscheinen, sobald du eine Einstellung änderst, die Einstellungen über /ezbars öffnest oder dich neu einloggst.",
     -- Knopf „Einstellungen zurücksetzen“ kommt aus ezCore (page:ResetButton), nur der Tooltip ist eigen
     RESET_TIP = "Setzt alle Leisten auf den Standard (nur Leiste 1 an, 4 × 3; Leisten anderer Module auf die Werte ihres Moduls). Die Zauber auf den Aktionsplätzen, die gemerkten Plätze dieses Charakters und die Lage der Leisten bleiben.",
 
-    -- Leisten-Profile (von ezMacro): je Leiste ein Profil „ezBars: Leiste n“, auf jedem Charakter ladbar
-    OPT_HEADER_PROFILE = "Leisten-Profil (ezMacro)",
+    -- Leisten-Profile (ezCores Dienst Core.BarProfiles, seit dem Architektur-Review 22.11.2026 auch ohne ezMacro): je
+    -- Leiste ein Profil „ezBars: Leiste n“, auf jedem Charakter ladbar; die Übersicht aller Profile ist ezMacros Werkzeug
+    OPT_HEADER_PROFILE = "Leisten-Profil",
     OPT_PROFILE_SAVE = "Als Profil speichern",
     OPT_PROFILE_SAVE_BUTTON = "Speichern",
-    OPT_PROFILE_SAVE_TIP = "Das bringt dir: dieselbe Leiste auf jedem Twink mit einem Klick. Speichert die Zauber, Makros und Gegenstände dieser Leiste in ezMacros Leisten-Profilen unter „%s“ (ein gleichnamiges Profil wird ersetzt).",
+    OPT_PROFILE_SAVE_TIP = "Das bringt dir: dieselbe Leiste auf jedem Twink mit einem Klick. Speichert die Zauber, Makros und Gegenstände dieser Leiste als Leisten-Profil „%s“ (ein gleichnamiges Profil wird ersetzt). Die Profile gelten für ezBars und ezMacros Werkzeug „Leisten-Profile“.",
     OPT_PROFILE_LOAD = "Profil laden",
     OPT_PROFILE_LOAD_BUTTON = "Laden",
-    OPT_PROFILE_LOAD_TIP = "Legt das Profil „%s“ auf diese Leiste – Platz für Platz in derselben Reihenfolge, auch wenn die Leiste auf diesem Charakter andere Aktionsplätze nutzt. ezMacro fragt vorher einmal nach. Nur außerhalb des Kampfes; belegte Tasten bleiben, wie sie sind.",
+    OPT_PROFILE_LOAD_TIP = "Legt das Profil „%s“ auf diese Leiste – Platz für Platz in derselben Reihenfolge, auch wenn die Leiste auf diesem Charakter andere Aktionsplätze nutzt. Fehlende Makros entstehen neu (die Rückfrage nennt sie; mit ezMacro nach dessen Häkchen „Fehlende Makros anlegen“). Es kommt vorher einmal eine Rückfrage. Nur außerhalb des Kampfes; belegte Tasten bleiben, wie sie sind.",
     OPT_PROFILES = "Alle Leisten-Profile",
     OPT_PROFILES_BUTTON = "ezMacro öffnen",
     OPT_PROFILES_TIP = "Öffnet ezMacros Werkzeug „Leisten-Profile“: alle gespeicherten Profile, auch die der ganzen Leisten, mit Löschen, Export und Import.",
     PROFILE_MISSING = "Kein Profil „%s“. Speichere die Leiste zuerst auf einem Charakter mit „Als Profil speichern“.",
     PROFILE_EMPTY = "%s hat keine Aktionsplätze – nichts zu speichern.",
-    PROFILE_NO_MACRO = "Leisten-Profile gibt es mit ezMacro (ab 1.2).",
+    PROFILE_NO_MACRO = "Die Übersicht aller Leisten-Profile (Löschen, Als Text) gibt es mit ezMacro. Speichern und Laden je Leiste geht auch ohne.",
 
     -- Profile der Leisten-Einstellungen (ezCores Profil-Gerüst, Profiles.lua; Abschnitt aus page:Profiles). Nur, was
     -- von den Leisten spricht; Beschriftungen, Knöpfe und Meldungen mit demselben Wortlaut liefert ezCore (Rückfall).
@@ -171,7 +174,7 @@ local de = {
 }
 
 local en = {
-    INTRO_FEATURES = "Up to four extra bars, Blizzard buttons\nAny shape, from 2×2 to 12×12\nSize, visibility and keys per bar\nMove them in Edit Mode",
+    INTRO_FEATURES = "Up to four extra bars, Blizzard buttons\nAny shape, from 2×2 to 12×12\nSize, visibility and keys per bar\nMove them in Edit Mode\nBar profiles, even without ezMacro",
     TITLE = "ezBars",
     CMD_HELP_OWN = {
         "  %s keys – open Blizzard's key bindings",
@@ -224,7 +227,7 @@ local en = {
     OPT_HEADER_BARS = "Bars",
     OPT_BAR_PAGE = "Bar %d: layout",
     OPT_BAR_PAGE_BUTTON = "Open",
-    OPT_BAR_PAGE_TIP = "Columns, rows, button size, spacing, visibility and action slots of this bar.",
+    OPT_BAR_PAGE_TIP = "Columns, rows, button size, spacing, visibility, action slots and bar profile of this bar.",
     OPT_HEADER_LAYOUT = "Layout",
     OPT_HEADER_VISIBILITY = "Display",
     OPT_HEADER_SLOTS = "Action slots",
@@ -262,22 +265,23 @@ local en = {
     TOUR_MOVE = "Moving: game menu (Esc) » Edit Mode – every bar that is turned on has Blizzard's blue frame there, even a hidden one. The \"Move\" button in the settings and /ezbars move show the same frames.",
     TOUR_KEYS = "Key bindings: the \"Bind keys\" button in the settings (or /ezbars keys) opens Blizzard's key bindings; in Quick Keybind Mode point at a button and press the key.",
     TOUR_SLOTS = "Action slots: ezBars takes slots no visible Blizzard bar uses and remembers them per character. If something overlaps, the chat says so – \"Pick slots again\" under \"Advanced\" fixes it; /ezbars status shows everything.",
-    TOUR_RESET_TIP = "Shows the help bubbles at the bar again from the start: what the bar is, layout, moving, key bindings and action slots. They appear as soon as you change a setting, open the settings with /ezbars or log in again.",
+    TOUR_PROFILE = "Bar profile: on the page \"Bar n: layout\", \"Save as profile\" stores the spells, macros and items of this bar. \"Load profile\" puts them on an alt in the same order – after a confirmation, even without ezMacro.",
+    TOUR_RESET_TIP = "Shows the help bubbles at the bar again from the start: what the bar is, layout, moving, key bindings, action slots and bar profile. They appear as soon as you change a setting, open the settings with /ezbars or log in again.",
     RESET_TIP = "Resets every bar to the default (only bar 1 on, 4 × 3; bars of other modules to their module's values). Spells on the action slots, this character's remembered slots and the bar positions stay.",
 
-    OPT_HEADER_PROFILE = "Bar profile (ezMacro)",
+    OPT_HEADER_PROFILE = "Bar profile",
     OPT_PROFILE_SAVE = "Save as profile",
     OPT_PROFILE_SAVE_BUTTON = "Save",
-    OPT_PROFILE_SAVE_TIP = "What you get: the same bar on every alt with one click. Saves the spells, macros and items of this bar in ezMacro's bar profiles as \"%s\" (a profile of the same name is replaced).",
+    OPT_PROFILE_SAVE_TIP = "What you get: the same bar on every alt with one click. Saves the spells, macros and items of this bar as the bar profile \"%s\" (a profile of the same name is replaced). The profiles apply to ezBars and to ezMacro's tool \"Bar profiles\".",
     OPT_PROFILE_LOAD = "Load profile",
     OPT_PROFILE_LOAD_BUTTON = "Load",
-    OPT_PROFILE_LOAD_TIP = "Puts the profile \"%s\" on this bar – slot by slot in the same order, even if the bar uses other action slots on this character. ezMacro asks once first. Only out of combat; key bindings stay as they are.",
+    OPT_PROFILE_LOAD_TIP = "Puts the profile \"%s\" on this bar – slot by slot in the same order, even if the bar uses other action slots on this character. Missing macros are created (the confirmation lists them; with ezMacro following its checkbox \"Create missing macros\"). You are asked once first. Only out of combat; key bindings stay as they are.",
     OPT_PROFILES = "All bar profiles",
     OPT_PROFILES_BUTTON = "Open ezMacro",
     OPT_PROFILES_TIP = "Opens ezMacro's tool \"Bar profiles\": every saved profile, including whole-bar profiles, with delete, export and import.",
     PROFILE_MISSING = "No profile \"%s\". Save the bar on a character first with \"Save as profile\".",
     PROFILE_EMPTY = "%s has no action slots – nothing to save.",
-    PROFILE_NO_MACRO = "Bar profiles come with ezMacro (1.2 or newer).",
+    PROFILE_NO_MACRO = "The overview of all bar profiles (delete, as text) comes with ezMacro. Saving and loading per bar works without it.",
 
     PROFILE_SECTION_TIP = "A profile remembers every bar setting: which bars are on, columns, rows, size, spacing, visibility and the choice of action slots. The spells on the slots and the bar positions are not part of it.",
     OPT_profile_TIP = "What you get: your healer has other bars than your warrior. Choose which profile this character uses – the bars change at once (in combat right after it). A new profile starts as a copy of the current settings. The spells on the slots stay where they are.",

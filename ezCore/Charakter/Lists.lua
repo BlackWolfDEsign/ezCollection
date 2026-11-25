@@ -27,7 +27,7 @@ local Core = ezCore
       Label(eintrag) · Icon(eintrag)
       SetProvider({ recipe = fn(recipeID), have = fn(itemID) }, owner) – ezCraft liefert Rezepte aus dem offenen
         Berufefenster und „vorhanden“ nach seinen Einstellungen; ohne Anbieter: ezCores Rezept-Wissen, nichts vorhanden
-      Nachricht LISTS_CHANGED (Liste | nil) bei jeder Änderung.
+      Nachricht LISTS_CHANGED (Liste | nil, bisheriger Name beim Umbenennen | nil) bei jeder Änderung.
 
     Übernahme alter Listen: jedes Modul übernimmt seine eigenen einmal (Lists.Adopt) – ezAuction ezAuctionDB.lists,
     ezCraft ezCraftDB.shopping als Liste „ezCraft“. Die alten Tabellen bleiben als Rückfall liegen.
@@ -40,8 +40,9 @@ local EMPTY = {}
 local floor, max = math.floor, math.max
 local provider = {}
 
-local function Changed(list)
-    Core.Fire("LISTS_CHANGED", list)
+-- oldName: nur beim Umbenennen der bisherige Name (wer eine Liste am Namen merkt, zieht ihn nach)
+local function Changed(list, oldName)
+    Core.Fire("LISTS_CHANGED", list, oldName)
 end
 Lists.Changed = Changed
 
@@ -108,8 +109,9 @@ function Lists.Rename(list, name)
     if type(list) ~= "table" or name == "" then return false end
     local other = Lists.Find(name)
     if other and other ~= list then return false end
+    local oldName = list.name
     list.name = name
-    Changed(list)
+    Changed(list, oldName)
     return true, name
 end
 
@@ -330,18 +332,23 @@ end
 -- Gegenstand mit Menge = Menge. Begriffe ohne itemID und Gegenstände ohne Menge zählen nicht.
 local function AddNeeds(map, entry, sources)
     if type(entry) ~= "table" then return end
+    -- kaputte Werte aus dem Speicher zählen nicht (die Rechnung läuft beim Verkaufen je Taschenplatz)
+    local count = Core.Num(entry.count)
     if entry.recipe and not entry.buy then
         local info = Lists.Recipe(entry.recipe)
-        for itemID, per in pairs(info and info.reagents or EMPTY) do
-            map[itemID] = (map[itemID] or 0) + per * (entry.count or 1)
-            if sources then sources[itemID] = sources[itemID] or entry.recipe end
+        for itemID, per in pairs(type(info) == "table" and type(info.reagents) == "table" and info.reagents or EMPTY) do
+            per = Core.Num(per)
+            if per then
+                map[itemID] = (map[itemID] or 0) + per * (count or 1)
+                if sources then sources[itemID] = sources[itemID] or entry.recipe end
+            end
         end
     elseif entry.recipe then
         local info = not entry.itemID and Lists.Recipe(entry.recipe) or nil
-        local product = entry.itemID or (info and Core.Num(info.product))
-        if product then map[product] = (map[product] or 0) + (entry.count or 1) end
-    elseif entry.itemID and entry.count then
-        map[entry.itemID] = (map[entry.itemID] or 0) + entry.count
+        local product = entry.itemID or (type(info) == "table" and Core.Num(info.product))
+        if product then map[product] = (map[product] or 0) + (count or 1) end
+    elseif entry.itemID and count then
+        map[entry.itemID] = (map[entry.itemID] or 0) + count
     end
 end
 
@@ -351,13 +358,17 @@ local needCache   -- Bedarf aller Listen, bis LISTS_CHANGED oder neues Rezept-Wi
 function Lists.Needs(list)
     local map = {}
     if list ~= nil then
-        for _, entry in ipairs(type(list) == "table" and list.items or EMPTY) do AddNeeds(map, entry) end
+        for _, entry in ipairs(type(list) == "table" and type(list.items) == "table" and list.items or EMPTY) do
+            AddNeeds(map, entry)
+        end
         return map
     end
     if not needCache then
         local all = {}
         for _, other in ipairs(Lists.All()) do
-            for _, entry in ipairs(other.items or EMPTY) do AddNeeds(all, entry) end
+            for _, entry in ipairs(type(other) == "table" and type(other.items) == "table" and other.items or EMPTY) do
+                AddNeeds(all, entry)
+            end
         end
         if Store() then needCache = all end
         for id, n in pairs(all) do map[id] = n end
@@ -390,7 +401,7 @@ end
 ]]
 function Lists.SearchEntries(list)
     local out, reagentNeed, reagentSource, order = {}, {}, {}, {}
-    for _, entry in ipairs(type(list) == "table" and list.items or EMPTY) do
+    for _, entry in ipairs(type(list) == "table" and type(list.items) == "table" and list.items or EMPTY) do
         if entry.recipe and not entry.buy then
             local before = {}
             for id in pairs(reagentNeed) do before[id] = true end

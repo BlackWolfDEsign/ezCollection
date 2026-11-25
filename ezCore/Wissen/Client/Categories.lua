@@ -1,11 +1,11 @@
--- Kategorien und geteilte Abklingzeiten der Klassenzauber (F10) – laut wago.tools, Produkt wowf, Build 1.60.1.70938 (Client-Tabellen SpellCategories, SpellCategory).
--- Erzeugt am 2026-11-16 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
+-- Kategorien und geteilte Abklingzeiten der Klassenzauber (F10) – laut wago.tools, Produkt wowf, Build 1.60.1.71037 (Client-Tabellen SpellCategories, SpellCategory).
+-- Erzeugt am 2026-11-24 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
 -- tools/wago.lua <Rohordner> --aus=tools/daten/wago). Nicht von Hand ändern – die wago-Prüfung in sh tools/test.sh
 -- meldet rot, wenn diese Datei nicht zu tools/daten/wago/ passt. Herkunft und Regeln: docs/wago-tools.md, Abschnitt 7.
 -- Leser: ezCore.ClientData (Wissen/ClientData.lua). Felder: spells[Zauber] = { Kategorie (nur mit Kategorie-Abklingzeit, sonst 0), Aufladungs-Kategorie } (gleiche Kategorie = geteilte Abklingzeit); categories[Kategorie] = { Aufladungen, Aufladezeit ms }
 local _, ns = ...
 ns.ClientTables = ns.ClientTables or {}
-ns.ClientTables.categories = {build="1.60.1.70938",data={categories={
+ns.ClientTables.categories = {build="1.60.1.71037",data={categories={
 [2]={0,0},
 [12]={0,0},
 [19]={0,0},
@@ -82,6 +82,7 @@ ns.ClientTables.categories = {build="1.60.1.70938",data={categories={
 [1221]={0,0},
 [1224]={0,0},
 [1228]={0,0},
+[1237]={0,0},
 [2127]={0,0},
 [2129]={0,0},
 [2171]={0,0},
@@ -97,6 +98,7 @@ ns.ClientTables.categories = {build="1.60.1.70938",data={categories={
 [2576]={0,0},
 [2595]={0,0},
 [2601]={0,0},
+[2619]={0,0},
 },spells={
 [17]={56,0},
 [71]={47,0},
@@ -256,6 +258,7 @@ ns.ClientTables.categories = {build="1.60.1.70938",data={categories={
 [8461]={56,0},
 [8462]={56,0},
 [8492]={50,0},
+[8516]={2619,0},
 [8621]={40,0},
 [8629]={33,0},
 [8637]={82,0},
@@ -305,6 +308,8 @@ ns.ClientTables.categories = {build="1.60.1.70938",data={categories={
 [10472]={19,0},
 [10473]={19,0},
 [10605]={85,0},
+[10608]={2619,0},
+[10610]={2619,0},
 [10797]={2522,0},
 [10888]={43,0},
 [10890]={43,0},
@@ -652,6 +657,7 @@ ns.ClientTables.categories = {build="1.60.1.70938",data={categories={
 [403852]={2129,0},
 [407632]={2404,0},
 [407995]={971,0},
+[408120]={1237,0},
 [408341]={35,0},
 [408342]={35,0},
 [408343]={35,0},
@@ -760,6 +766,8 @@ ns.ClientTables.categories = {build="1.60.1.70938",data={categories={
 [1238070]={971,0},
 [1238073]={971,0},
 [1238122]={2182,0},
+[1238214]={1237,0},
+[1238215]={1237,0},
 [1238299]={1224,0},
 [1238300]={1224,0},
 [1239242]={1228,0},
@@ -884,4 +892,4 @@ ns.ClientTables.categories = {build="1.60.1.70938",data={categories={
 [1328372]={33,0},
 [1328373]={33,0},
 [1328374]={33,0},
-}},date="2026-11-16"}
+}},date="2026-11-24"}

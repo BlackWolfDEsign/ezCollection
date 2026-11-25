@@ -75,10 +75,11 @@ function Lists.Delete(list)
 end
 
 -- itemID und Name aus einem Gegenstandslink („|Hitem:2589:…|h[Leinenstoff]|h“ oder „item:2589“).
--- Nur Links: eine getippte Zahl bleibt ein Suchbegriff.
+-- Nur Links: eine getippte Zahl bleibt ein Suchbegriff. Eine Stelle dafür ist ezCores Core.Lists.ParseLink (Leitlinie 2;
+-- Architektur-Review 22.11.2026) – sie weist wie die Kopie vorher Nicht-Texte und geheime Werte ab (Helfer Text:
+-- Core.IsSecret).
 function Lists.ParseLink(link)
-    if type(link) ~= "string" or Core.IsSecret(link) or not link:find("item:%d") then return nil end
-    return Core.ItemID(link), Core.ItemName(link)
+    return Shared().ParseLink(link)
 end
 
 -- Name zur itemID; fehlen die Daten, lädt ezCore sie nach (dann nil).

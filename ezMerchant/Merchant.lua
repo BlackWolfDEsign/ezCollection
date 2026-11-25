@@ -130,14 +130,18 @@ end
 
 -- Ist die Ware laut ezGear besser als das Angelegte? true/false, nil = ezGear fehlt oder die Daten laden noch.
 function M.IsUpgrade(link)
+    if not (M.Gear() and link) then return nil end
+    return (Core.AskModule(ns, "ezGear", "IsUpgrade", link))
+end
+
+-- Bleibt die Ware unter „Nur Verbesserungen“ stehen? Grüner und gelber Pfeil (besser – jetzt oder sobald gelernt bzw. die
+-- Stufe reicht; Entscheidung des Nutzers vom 24.11.2026, „Auch gelbe zeigen (Recommended)“, dieselbe Regel wie ezAuction).
+-- true/false, nil = ezGear fehlt oder die Daten laden noch. Ein älteres ezGear kennt nur den grünen Pfeil.
+function M.WorthShowing(link)
     local gear = M.Gear()
-    if not (gear and link and type(gear.IsUpgrade) == "function") then return nil end
-    local ok, up = pcall(gear.IsUpgrade, link)
-    if not ok then
-        ns.Error(up, "IsUpgrade (ezGear)")
-        return nil
-    end
-    return up
+    if not (gear and link) then return nil end
+    if type(gear.WorthKeeping) ~= "function" then return M.IsUpgrade(link) end
+    return (Core.AskModule(ns, "ezGear", "WorthKeeping", link))
 end
 
 -- Pfeil am Warenplatz setzen oder leeren (link = nil). → true, wenn ezGear gefragt wurde.
@@ -176,7 +180,7 @@ function M.Passes(index, query)
     if ns.Enabled("filterKnown") or ns.Enabled("filterMissing") or upgrades or query ~= "" then
         link = GetMerchantItemLink(index)
     end
-    if upgrades and M.IsUpgrade(link) ~= true then return false end
+    if upgrades and M.WorthShowing(link) ~= true then return false end
     if ns.Enabled("filterKnown") and M.IsKnown(link) then return false end
     if ns.Enabled("filterMissing") then
         local missing, otherClass = M.Missing(link)

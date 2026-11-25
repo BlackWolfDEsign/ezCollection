@@ -21,21 +21,26 @@ local Dungeons = Core.Dungeons
       Dungeons.Current()           → Eintrag der Instanz, in der der Spieler gerade ist
       Dungeons.Difficulty(min, max, stufe) → "red" (zu schwer), "white" (passt), "grey" (zu leicht)
       Dungeons.DifficultyOf(eintrag, stufe), Dungeons.Color(schlüssel) → r, g, b
-      Dungeons.ZoneLevels(uiMapID) → min, max (C_Map.GetMapLevels) oder nil, grund: "invalid" (keine Karten-ID),
-                                     "noapi" (Client ohne die Abfrage), "nodata" (der Client liefert für die Karte
-                                     nichts bzw. 0–0), "secret". Forever (Spieltest 14.11.2026, Wald von Elwynn):
-                                     "nodata" – die Abfrage gibt es (Blizzards Forever-Quelle, MayReturnNothing),
-                                     sie liefert für die Gebiete aber nichts. Einen Ersatz gibt es noch nicht.
+      Dungeons.ZoneLevels(uiMapID) → min, max, quelle: "client" (C_Map.GetMapLevels) bzw. "tables" (Client-Tabellen:
+                                     Erkundungsstufen der Teilgebiete, ClientData.Zones) oder nil, grund: "invalid"
+                                     (keine Karten-ID), "noapi" (Client ohne die Abfrage), "nodata" (der Client liefert
+                                     für die Karte nichts bzw. 0–0), "secret". Forever (Spieltest 14.11.2026, 60
+                                     Karten): C_Map.GetMapLevels liefert nichts – dann gelten die Tabellen (24.11.2026);
+                                     „nodata“ bleibt für Karten, die sie nicht führen (Städte, Dungeons).
       Dungeons.ZoneDifficulty(uiMapID, stufe) → Farbe oder nil (ohne Zonenstufen)
-      Dungeons.Entrances(uiMapID, opts) → { { name, x, y, entry, source } } – was der Client liefert ("client");
-                                     Forever liefert keine (Spieltest 14.11.2026: leere Liste) – mit opts.own = true
-                                     dann die selbst betretenen Eingänge der Entdecker-Datenbank ("own", Welle 9;
-                                     ab Werk aus, bis ezMap in Welle 10 umstellt); Ersatz für den Text:
-                                     EntranceZone (Gebiet je Dungeon) und der Speicher von ezMap (bis Welle 10)
+      Dungeons.Entrances(uiMapID, opts) → { { name, x, y, entry, source, inst, raid } } – was der Client liefert
+                                     ("client"); Forever liefert keine (Spieltest 14.11.2026: leere Liste) – mit
+                                     opts.own = true dann die selbst betretenen Eingänge der Entdecker-Datenbank
+                                     ("own", Welle 9); dazu die Eingänge der Client-Tabellen ("tables", 24.11.2026),
+                                     die weder der Client noch – mit opts.own – du schon kennst (opts.tables = false:
+                                     ohne sie). Text: EntranceZone
+      Dungeons.TableEntrance(id)   → uiMapID, x, y – Eingang laut Client-Tabellen (Map.Corpse: wohin der Geist läuft,
+                                     ClientData.Entrance) auf der Karte seines Gebiets, sonst nil
       Dungeons.EntranceZoneMap(id) → uiMapID, info – Karte des Gebiets mit dem Eingang (EntranceZone über
                                      Core.Map.ByName, Welle 23c), sonst nil
-      Dungeons.EntranceMap(id)     → uiMapID, x, y, "own" – Eingang aus dem eigenen Fund, sonst nil
-      Dungeons.EntranceLabel(id)   → „Westfall (bei dir)“, "own" | Gebiet aus der Tabelle, "data" | nil
+      Dungeons.EntranceMap(id)     → uiMapID, x, y, "own" (eigener Fund) | "tables" (TableEntrance) oder nil
+      Dungeons.EntranceLabel(id)   → „Westfall (bei dir)“, "own" | Gebiet aus der Tabelle, "data" | „… (laut
+                                     Client-Tabellen)“, "tables" (nur ohne Gebiet in der Tabelle) | nil
       Dungeons.Refresh()           die Tabelle beim nächsten Zugriff neu aus der Gruppensuche lesen
       Nachricht DUNGEONS_CHANGED, sobald die Gruppensuche neue Daten geliefert hat.
 
@@ -461,13 +466,33 @@ function Dungeons.Color(key)
     return c[1], c[2], c[3]
 end
 
--- Stufenbereich eines Gebiets aus dem Client. → min, max oder nil, grund ("invalid", "noapi", "nodata", "secret").
--- Forever liefert für die Gebiete nichts ("nodata", Spieltest 14.11.2026) – wer die Stufen zeigt, sagt das dazu
--- (Leitlinie 11: nie stumm) oder lässt die Angabe weg.
-function Dungeons.ZoneLevels(uiMapID)
-    if Core.IsSecret(uiMapID) then return nil, "secret" end
-    uiMapID = tonumber(uiMapID)
-    if not uiMapID then return nil, "invalid" end
+-- Zone der Client-Tabellen zu einer Karte: die Tabellen kennen Gebiete (AreaTable), die Karte dazu nennt
+-- Core.Sources.Questie.MapForArea (Name laut Client, sonst QuestieDBs bzw. Questies Zuordnung). Das Verzeichnis
+-- Karte » Zone wird behalten, sobald jede Zone ihre Karte hat; bis dahin (Questie noch nicht bereit, QuestieDB fehlt)
+-- wird beim nächsten Mal neu gefragt. → Zeile von ClientData.Zones oder nil
+local zoneByMap
+local function TableZone(uiMapID)
+    if zoneByMap then return zoneByMap[uiMapID] end
+    local CD, Q = Core.ClientData, Core.Sources and Core.Sources.Questie
+    if not (CD and CD.Zones and Q and Q.MapForArea) then return nil end
+    local areas, out, complete = {}, {}, true
+    local zones = CD.Zones()
+    for area in pairs(zones) do areas[#areas + 1] = area end
+    table.sort(areas)
+    for _, area in ipairs(areas) do
+        local map = Q.MapForArea(area)
+        if not map then complete = false elseif not out[map] then out[map] = zones[area] end
+    end
+    if complete and next(out) then zoneByMap = out end
+    return out[uiMapID]
+end
+
+-- Gemerkte Lagen der Client-Tabellen vergessen (nur für Prüfungen): Verzeichnis Karte » Zone und Eingänge
+local tableEntrance, tableMiss = {}, {}     -- [Instanz] = { Karte, x, y } | Zeit des letzten Fehlschlags (je Bild einmal)
+function Dungeons.ForgetZones() zoneByMap, tableEntrance, tableMiss = nil, {}, {} end
+
+-- Stufenbereich eines Gebiets laut C_Map.GetMapLevels → lo, hi oder nil, grund
+local function ClientZoneLevels(uiMapID)
     if not (C_Map and C_Map.GetMapLevels) then return nil, "noapi" end
     local ok, lo, hi = pcall(C_Map.GetMapLevels, uiMapID)
     if not ok then return nil, "nodata" end
@@ -475,6 +500,20 @@ function Dungeons.ZoneLevels(uiMapID)
     lo, hi = Core.Num(lo), Core.Num(hi)
     if not (lo and hi) or (lo <= 0 and hi <= 0) then return nil, "nodata" end
     return lo, hi
+end
+
+-- Stufenbereich eines Gebiets: der Client zur Laufzeit, sonst die Client-Tabellen. → min, max, "client" | "tables" oder
+-- nil, grund ("invalid", "noapi", "nodata", "secret"). Forever liefert zur Laufzeit nichts ("nodata", Spieltest
+-- 14.11.2026) – wer die Stufen zeigt, nennt die Quelle bzw. die Lücke (Leitlinie 11: nie stumm).
+function Dungeons.ZoneLevels(uiMapID)
+    if Core.IsSecret(uiMapID) then return nil, "secret" end
+    uiMapID = tonumber(uiMapID)
+    if not uiMapID then return nil, "invalid" end
+    local lo, hi = ClientZoneLevels(uiMapID)
+    if lo then return lo, hi, "client" end
+    local zone = TableZone(uiMapID)
+    if zone and zone.from and zone.to then return zone.from, zone.to, "tables" end
+    return nil, hi
 end
 
 function Dungeons.ZoneDifficulty(uiMapID, level)
@@ -520,46 +559,113 @@ local function ClientEntrances(uiMapID)
     return out
 end
 
+-- Instanz-ID zu Instanz-ID, Name, Kürzel oder Eintrag
+local function InstanceOf(id)
+    local entry = type(id) == "table" and id or Dungeons.Get(id)
+    return type(entry) == "table" and (entry.id or entry.mapID) or (type(id) == "number" and id or nil)
+end
+
+-- Eintrag einer Instanz; nennt die Gruppensuche sie nicht (etwa Schlachtzüge), der aus ezCores Tabelle (DATA). → Eintrag, nil
+local function EntryOf(inst)
+    local entry = Dungeons.Get(inst)
+    if entry or type(inst) ~= "number" or not (Dungeons.DATA and Dungeons.DATA[inst]) then return entry end
+    entry = NewEntry(inst)
+    return entry.name and entry or nil
+end
+
+-- Eingang laut Client-Tabellen auf der Karte seines Gebiets: zuerst die Zonenkarte, die Dungeons.ENTRANCES nennt, wenn
+-- der Punkt auf ihr liegt, sonst die Zone, die der Client zu den Weltkoordinaten nennt (Schwarzfels und Sturmwind haben
+-- keine Zonenkarte mit dem Namen der Tabelle; eine gleichnamige Dungeon- oder Kleinkarte zählt nicht). Gemerkt wird nur
+-- eine Lage auf einer Zone; ohne Ergebnis im nächsten Bild wieder. → uiMapID, x, y (0–1) oder nil
+local function IsZone(info)
+    return type(info) == "table" and Core.Num(info.mapType) == Core.Map.TYPES.Zone
+end
+function Dungeons.TableEntrance(id)
+    local inst = InstanceOf(id)
+    local hit = inst and tableEntrance[inst]
+    if hit then return hit[1], hit[2], hit[3] end
+    local CD = Core.ClientData
+    local e = inst and CD and CD.Entrance and CD.Entrance(inst)
+    local now = type(GetTime) == "function" and GetTime() or nil
+    if not e or (now and tableMiss[inst] == now) then return nil end
+    local map, info = Dungeons.EntranceZoneMap(inst)
+    local x, y
+    if map and IsZone(info) then x, y = Core.Map.PosFromCorners(map, e.continent, e.x, e.y) end
+    if not (x and y) or x < 0 or x > 1 or y < 0 or y > 1 then
+        map, x, y = Core.Map.FromWorld(e.continent, e.x, e.y)
+        info = map and Core.Map.Info(map)
+    end
+    if not (map and x and y and IsZone(info)) then
+        tableMiss[inst] = now
+        return nil
+    end
+    tableEntrance[inst] = { map, x, y }
+    return map, x, y
+end
+
 -- Eingänge auf einer Karte: was der Client liefert; mit opts.own = true als Rückfall die selbst betretenen Eingänge
--- der Entdecker-Datenbank (Welle 9; Quelle je Zeile in source = "client" | "own"). Ab Werk ohne Rückfall, weil ezMap
--- bis zu seinem Paket (Welle 10) eigene Eingänge daneben zeigt – sonst stünde derselbe Eingang doppelt da.
+-- der Entdecker-Datenbank (Welle 9), zuletzt die der Client-Tabellen, die in der Liste noch fehlen (Quelle je Zeile in
+-- source = "client" | "own" | "tables"). Ab Werk ohne eigene, weil ezMap seine eigenen mit Zählung daneben führt.
 function Dungeons.Entrances(uiMapID, opts)
+    uiMapID = tonumber(uiMapID)
     local out = ClientEntrances(uiMapID)
     local own = type(opts) == "table" and opts.own == true
-    if #out > 0 or not own or not (Core.Entrances and Core.Entrances.OnMap) then return out end
-    for _, e in ipairs(Core.Entrances.OnMap(tonumber(uiMapID))) do
-        local entry = Dungeons.Get(e.inst)
-        out[#out + 1] = { name = entry and entry.name or ("#" .. tostring(e.inst)), x = e.x, y = e.y, entry = entry,
-            source = "own", cnt = e.cnt }
+    if #out == 0 and own and Core.Entrances and Core.Entrances.OnMap then
+        for _, e in ipairs(Core.Entrances.OnMap(uiMapID)) do
+            local entry = EntryOf(e.inst)
+            out[#out + 1] = { name = entry and entry.name or ("#" .. tostring(e.inst)), x = e.x, y = e.y, entry = entry,
+                source = "own", cnt = e.cnt, inst = e.inst, raid = entry and entry.kind == "raid" or nil }
+        end
     end
+    local CD = Core.ClientData
+    if not (uiMapID and CD and CD.Entrances) or (type(opts) == "table" and opts.tables == false) then return out end
+    local known, list = {}, {}
+    for _, e in ipairs(out) do
+        known[e.inst or (e.entry and InstanceOf(e.entry)) or e.name] = true
+        known[e.name] = true
+    end
+    for inst in pairs(CD.Entrances()) do
+        local map, x, y
+        if not known[inst] then map, x, y = Dungeons.TableEntrance(inst) end
+        if map == uiMapID then
+            local entry = EntryOf(inst)
+            if entry and not known[entry.name] then
+                list[#list + 1] = { name = entry.name, x = x, y = y, entry = entry, source = "tables", inst = inst,
+                    raid = entry.kind == "raid" or nil }
+            end
+        end
+    end
+    table.sort(list, function(a, b) return a.inst < b.inst end)
+    for _, e in ipairs(list) do out[#out + 1] = e end
     return out
 end
 
--- Wo liegt der Eingang eines Dungeons? → uiMapID, x, y, Quelle ("own") – nur aus selbst betretenen Eingängen
--- (das Journal liefert auf Forever keine, Probe 14.11.2026). Ohne eigenen Fund: nil.
+-- Wo liegt der Eingang eines Dungeons? → uiMapID, x, y, Quelle: "own" aus selbst betretenen Eingängen (der häufigste
+-- Ort), sonst "tables" laut Client-Tabellen (das Journal liefert auf Forever keine, Probe 14.11.2026). Sonst nil.
 function Dungeons.EntranceMap(id)
-    local entry = type(id) == "table" and id or Dungeons.Get(id)
-    local inst = type(entry) == "table" and (entry.id or entry.mapID) or (type(id) == "number" and id or nil)
+    local inst = InstanceOf(id)
     local row = inst and Core.Entrances and Core.Entrances.Of(inst)
     local best
     for _, p in ipairs(row and row.places or {}) do
         if p.x and p.y and (not best or (p.cnt or 0) > (best.cnt or 0)) then best = p end
     end
-    if not best then return nil end
-    return best.map, best.x, best.y, "own"
+    if best then return best.map, best.x, best.y, "own" end
+    local map, x, y = Dungeons.TableEntrance(inst)
+    if map then return map, x, y, "tables" end
+    return nil
 end
 
 -- Text zum Eingang mit Quelle: „Westfall (bei dir)“ aus dem eigenen Fund, sonst das Gebiet aus der Tabelle
--- (EntranceZone). → Text, Quelle ("own" | "data") oder nil
+-- (EntranceZone), zuletzt die Karte laut Client-Tabellen. → Text, Quelle ("own" | "data" | "tables") oder nil
 function Dungeons.EntranceLabel(id)
-    local map = Dungeons.EntranceMap(id)
-    if map then
-        local info = Core.Map.Info(map)
-        local name = type(info) == "table" and Core.Plain(info.name) or nil
-        if type(name) == "string" and name ~= "" then return Core.L.DB_ENTRANCE_OWN:format(name), "own" end
-    end
+    local map, _, _, source = Dungeons.EntranceMap(id)
+    local info = map and Core.Map.Info(map)
+    local name = type(info) == "table" and Core.Plain(info.name) or nil
+    if type(name) ~= "string" or name == "" then name = nil end
+    if name and source == "own" then return Core.L.DB_ENTRANCE_OWN:format(name), "own" end
     local zone = Dungeons.EntranceZone(id)
     if zone then return zone, "data" end
+    if name then return Core.L.DB_ENTRANCE_TABLES:format(name), "tables" end
     return nil
 end
 

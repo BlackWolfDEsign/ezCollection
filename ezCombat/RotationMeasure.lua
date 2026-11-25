@@ -22,15 +22,15 @@ local Spells = Core.Spells
     Jede Stufe hilft (Frage des Nutzers vom 16.11.2026, wörtlich: „reichen auch die nackten character-stats von lvl 1?
     und ggf. lvl20? oder ist lvl 60 unabdingbar?“ – Antwort: Stufe 60 ist nicht unabdingbar): Stufe, Klasse und Volk
     stehen im Titel des Fensters und in der Kopfzeile des Textes; unter Stufe 60 kommt ein Hinweis statt einer Warnung,
-    eine fehlende Spezialisierung (unter Stufe 10 gibt es keine Talente) bleibt ein leeres Feld. Unter dem Hinweis
+    ohne Talentpunkte (unter Stufe 10 gibt es keine) bleibt das Feld Talentbaum leer. Unter dem Hinweis
     steht in einer Zeile, wohin der Text geht (Wunsch des Nutzers vom 16.11.2026: Helfer sollen ohne Anleitung
     wissen, was zu tun ist).
 
     Form des Textes (Fassung 1, gelesen von tools/rotation_sim.lua):
       ezCombat-Zauber;1;<Klasse>;<Volk>;<Stufe>;<Sprache>;<Build>;<Datum>;<Talentbaum>
       zauber;<Grund-ID>;<ID>;<Rang>;<Name>;<Kosten>;<Ressource>;<Zauberzeit ms>;<Abklingzeit ms>;<GCD ms>;<Text>
-    Ressource: mana, rage, energy, focus … (Blizzards Enum.PowerType als Wort), leer ohne Kosten. Talentbaum: die
-    Spezialisierung, die der Client meldet (leer, wenn er keine kennt).
+    Ressource: mana, rage, energy, focus … (Blizzards Enum.PowerType als Wort), leer ohne Kosten. Talentbaum: der
+    mit den meisten Punkten (1–3, Core.Talents; leer ohne Punkte – vor dem 24.11.2026 stand dort nie der Talentbaum).
 ]]
 
 local Measure = {}
@@ -124,9 +124,9 @@ function Measure.Text()
     local level = Core.PlayerLevel()
     local version, build = Core.Call(rawget(_G, "GetBuildInfo"))
     local stamp = tostring(Core.Plain(version) or "?") .. "." .. tostring(Core.Plain(build) or "?")
-    local spec = ns.Num(Core.Call(rawget(_G, "GetSpecialization")))
+    local tree = Core.Talents.MainTree()
     local head = table.concat({ Measure.HEAD, Measure.VERSION, class, Field(Core.Plain(race) or "?"), level or "?",
-        Field(locale), Field(stamp), date and date("%Y-%m-%d") or "?", spec or "" }, ";")
+        Field(locale), Field(stamp), date and date("%Y-%m-%d") or "?", tree or "" }, ";")
     table.insert(rows, 1, head)
     return table.concat(rows, "\n"), #rows - 1, counter, level
 end

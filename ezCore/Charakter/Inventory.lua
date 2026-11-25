@@ -88,6 +88,73 @@ function Inventory.BankBags()
     return list
 end
 
+---------------------------------------------------------------------------
+-- Questgegenstände zum Benutzen (vorher je eine Fassung in ezQuest und ezMacro; Durchsicht 24.11.2026)
+---------------------------------------------------------------------------
+
+-- In der Verfolgung? Blizzards Art der Verfolgung (C_QuestLog.GetQuestWatchType). Das ältere IsQuestWatched kennt
+-- Forever nicht (tools/api_pruefung.lua).
+function Inventory.QuestWatched(log, questID)
+    local kind = Core.Call(log.GetQuestWatchType, questID)
+    return not Core.IsSecret(kind) and kind ~= nil
+end
+
+-- Im jetzigen Gebiet? Blizzards isOnMap oder die Kopfzeile des Questlogs heißt wie das Gebiet.
+function Inventory.QuestInZone(info, header, zone)
+    return Core.Bool(Core.Peek(info, "isOnMap"), false) == true
+        or (type(header) == "string" and type(zone) == "string" and header == zone)
+end
+
+--[[
+    Inventory.QuestUseItems() → Liste | nil, "noQuestLog": alle Gegenstände zum Benutzen aus dem Questlog, beste zuerst –
+    { { itemID, questID, title, order, header, super, watched, onMap, rank } … }. super: Blizzards Hervorhebung
+    (Zielverfolgung, C_SuperTrack); watched: in der Verfolgung; onMap: Quest im jetzigen Gebiet (Blizzards isOnMap oder
+    Kopfzeile = Gebietsname); rank 3/2/1/0 in dieser Reihenfolge, gleich gut: Reihenfolge im Log. Frisch gelesen bei jedem
+    Aufruf; ob der Gegenstand in den Taschen liegt oder angelegt wird, prüft der Aufrufer.
+]]
+function Inventory.QuestUseItems()
+    local log = rawget(_G, "C_QuestLog")
+    local special = rawget(_G, "GetQuestLogSpecialItemInfo")
+    if type(log) ~= "table" or type(log.GetNumQuestLogEntries) ~= "function" or type(log.GetInfo) ~= "function"
+        or type(special) ~= "function" then
+        return nil, "noQuestLog"
+    end
+    local superTrack = rawget(_G, "C_SuperTrack")
+    local super = Core.Num(Core.Call(type(superTrack) == "table" and superTrack.GetSuperTrackedQuestID or nil))
+    local zone = Core.Plain(Core.Call(rawget(_G, "GetRealZoneText")))
+    local header
+    local list = {}
+    for index = 1, Core.Num((Core.Call(log.GetNumQuestLogEntries))) or 0 do
+        local info = Core.Call(log.GetInfo, index)
+        if type(info) == "table" then
+            local title = Core.Plain(info.title)
+            if Core.Bool(info.isHeader, false) then
+                header = title
+            else
+                local questID = Core.Num(info.questID)
+                local itemID = Core.ItemID((Core.Call(special, index)))
+                if questID and itemID then
+                    local isSuper = super ~= nil and super == questID
+                    local watched = Inventory.QuestWatched(log, questID)
+                    local onMap = Inventory.QuestInZone(info, header, zone)
+                    list[#list + 1] = { itemID = itemID, questID = questID, title = title, order = index,
+                        header = header, super = isSuper, watched = watched, onMap = onMap,
+                        rank = isSuper and 3 or watched and 2 or onMap and 1 or 0 }
+                end
+            end
+        end
+    end
+    table.sort(list, function(a, b)
+        if a.rank ~= b.rank then return a.rank > b.rank end
+        return a.order < b.order
+    end)
+    return list
+end
+
+---------------------------------------------------------------------------
+-- Offene Fenster
+---------------------------------------------------------------------------
+
 function Inventory.IsBankOpen() return bankOpen end
 function Inventory.IsGuildBankOpen() return guildOpen end
 
@@ -280,7 +347,9 @@ local function ScanBags()
     local counts, list, slots = ScanContainers((Inventory.CarriedBags()))
     local readable = slots > 0
     if readable then me.bags, me.items.bags = counts, list end
-    me.money = GetMoney()
+    -- Gold nur verlässlich (Characters.lua, Chars.SaveMoney): beim Abmelden liefert der Client wie bei den Taschen 0,
+    -- darum zählt hier nur ein Stand über 0 (Spielbefund vom 22.11.2026: 0 Gold bei allen Twinks)
+    Core.Characters.SaveMoney(false, "bags")
     me.level = UnitLevel("player")
     local free, total, specialFree, specialTotal = Core.BagSpace()
     if SpaceValid(free, total) then

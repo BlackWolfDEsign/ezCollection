@@ -14,7 +14,8 @@ local Traits = ns.Traits
         GetCritChance, GetPowerRegen … – Blizzards Funktionen, jede geschützt; geheime Werte werden übersprungen, Leitlinie 6).
         „Nackt“ heißt: kein Gegenstand auf den Plätzen 1–19 außer Hemd und Wappenrock (GetInventoryItemID).
       - Je Talent deiner Klasse: Lage, Höchstrang, Zauber-ID, Schwelle („benötigt n Punkte im Baum“) und Vorgänger aus
-        den Bedingungen und Kanten des Clients (Traits.Condition, Traits.Incoming), dazu der Text jedes Rangs
+        den Bedingungen und Kanten des Clients (Traits.Thresholds – der Client nennt nur den Rest bis zur Schwelle,
+        Spieltest 23.11.2026 –, Traits.Incoming), dazu der Text jedes Rangs
         (C_Traits.GetTraitDescription wie Blizzards Talent-Tooltip) – verdichtet: Text mit Platzhaltern {1}, {2} … und
         die Zahlen je Rang. Weicht der Text eines Rangs außer in den Zahlen ab, steht jeder Rang ganz da.
     Gemerkt (SavedVariables ezTalentDB.measure, ohne Charakternamen): die Grundwerte je Klasse, Volk und Stufe – damit
@@ -170,16 +171,6 @@ local function RankText(configID, entryID, rank)
     return (Core.Trim(Core.PlainText(text):gsub("[;\r\n]", " "):gsub("%s+", " ")) or "")
 end
 
--- Schwelle eines Knotens (höchste geforderte Punktzahl im Baum aus seinen einschränkenden Bedingungen) oder 0.
-local function Threshold(configID, node)
-    local need = 0
-    for _, condID in ipairs(node.conditions or {}) do
-        local cond = Traits.Condition(configID, condID)
-        if Traits.Restricts(cond) and cond.spent and cond.spent > need then need = cond.spent end
-    end
-    return need
-end
-
 -- Je Eintrag jedes Knotens aller Talentbäume der Klasse: Lage, Höchstrang, Zauber-ID, Schwelle, Vorgänger, Name und
 -- die Texte aller Ränge (verdichtet) und die Kennzeichen wie in der Erhebung (aside, double, hidden).
 -- → { { tree, row, col, max, spell, need, prereqs, name, template, ranks, texts, node, aside, double, hidden } … }
@@ -193,6 +184,12 @@ function Measure.Talents(configID, treeID, locale)
     local nodes = Traits.Nodes(configID, treeID)
     local layout = Traits.Layout(configID, treeID, nodes, Traits.Groups(configID, treeID))
     local incoming = Traits.Incoming(nodes)
+    -- Schwelle je Knoten (höchste geforderte Punktzahl darüber) oder 0 – fest, nicht der Rest laut Client (vorher eine
+    -- eigene Hilfe Threshold hier, die den Rest las; zusammengelegt mit Traits.Thresholds am 23.11.2026). Grenze: Ist eine
+    -- Reihe in allen drei Bäumen schon erreicht und in der Sitzung nie als Rest genannt, ist die Zahl eine obere Grenze
+    -- (Traits.Thresholds, Regel 3) – tools/talent_sim.lua meldet dann ggf. „Schwelle n statt m“; die Regeln des Werkzeugs
+    -- kommen ohnehin aus den Client-Tabellen (docs/talent-simulation.md, Abschnitt 7).
+    local thresholds = Traits.Thresholds(configID, treeID, nodes, layout, true)
     for _, node in ipairs(nodes) do
         local where = layout[node.id] or {}
         local prereqs = {}
@@ -203,7 +200,7 @@ function Measure.Talents(configID, treeID, locale)
             end
         end
         table.sort(prereqs)
-        local need = Threshold(configID, node)
+        local need = thresholds[node.id] or 0
         for _, entryID in ipairs(node.entries) do
             local texts, template, ranks, same = {}, nil, {}, true
             for rank = 1, math.max(node.max or 1, 1) do

@@ -17,8 +17,9 @@ local L = Core.L
                   relation; bis 19.11.2026 zwei Schalter)
       itemLevel   „Itemlevel und Spezialisierung“: Ø-Itemlevel von Spielern – Blizzards eigene Zahl (wie im
                   Betrachten-Fenster), Entscheidung des Nutzers 13.11.2026; bei anderen über „Betrachten“ außerhalb des
-                  Kampfes gelesen, je GUID 10 Min. gemerkt – und die Spezialisierung (falls das Spiel sie kennt) auf
-                  demselben Weg; keine Zeile, wenn sie unbekannt ist oder nur die Klasse nennt („Spezialisierung:
+                  Kampfes gelesen, je GUID 10 Min. gemerkt – und die Spezialisierung: bei dir der Talentbaum mit den
+                  meisten bestätigten Punkten (Core.Talents), bei anderen (falls das Spiel sie kennt) auf demselben Weg
+                  wie das Itemlevel; keine Zeile, wenn sie unbekannt ist oder nur die Klasse nennt („Spezialisierung:
                   Paladin“ unter der Klassenzeile, Spieltest 14.11.2026). Bis 19.11.2026 zwei Schalter (Zeile spec)
       ids         „IDs in Tooltips“: NPC-ID (aus der GUID) und die Quest-ID im Questlog (ezQuest liest denselben
                   Schalter: Core.SharedOn("tooltip", "ids")), Standard aus
@@ -151,16 +152,13 @@ local function SpecName(specID)
     return Text(name)
 end
 
--- Eigener Charakter: Blizzards Ø-Itemlevel der angelegten Ausrüstung und die aktive Spezialisierung.
+-- Eigener Charakter: Blizzards Ø-Itemlevel der angelegten Ausrüstung und der Talentbaum mit den meisten bestätigten
+-- Punkten (Core.Talents). Bis zum 24.11.2026 fragte die Zeile GetSpecialization: Die Globale gibt es auf Forever nicht, und
+-- die eine Spezialisierung je Klasse hieße wie die Klasse. Ohne Punkte (unter Stufe 10) oder unbekannt: nil.
 local function OwnInfo()
     local _, equipped = Core.Call(rawget(_G, "GetAverageItemLevel"))
     equipped = Core.Num(equipped)
-    local spec
-    local index = Core.Num(Core.Call(rawget(_G, "GetSpecialization")))
-    if index and index > 0 then
-        local _, name = Core.Call(rawget(_G, "GetSpecializationInfo"), index)
-        spec = Text(name)
-    end
+    local spec = Core.Talents.TreeName((Core.Talents.MainTree()))
     return equipped and equipped > 0 and math.floor(equipped + 0.5) or nil, spec
 end
 
@@ -241,7 +239,8 @@ end
 OnInspected = function(unit, guid)
     if unit == nil then return end
     local level = InspectedLevel(unit)
-    local spec = SpecName(Core.Call(rawget(_G, "GetInspectSpecialization"), unit))
+    local spec = SpecName((Core.Call((C_SpecializationInfo and C_SpecializationInfo.GetInspectSpecialization)
+        or rawget(_G, "GetInspectSpecialization"), unit)))
     inspectCache[guid] = { ilvl = level, spec = spec, t = Clock() }
     -- Zeigt der Tooltip den Spieler noch, die Zeilen nachtragen.
     if waiting ~= guid then return end

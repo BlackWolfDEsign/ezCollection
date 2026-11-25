@@ -225,7 +225,7 @@ end
                                  (Blizzard_FrameXMLUtil/Mainline/QuestUtils.lua, QuestUtils_AddQuestRewardsToTooltip).
       Core.QuestReady(questID) → true, wenn die Quest abgabebereit ist: C_QuestLog.IsComplete oder ReadyForTurnIn, sonst
                                  alle Teilziele erfüllt (GetQuestObjectives, finished); false sonst.
-      Core.QuestLogEntries()   → { { id = questID, info = C_QuestLog.GetInfo(i) } … } aller Quests im Log ohne
+      Core.QuestLogEntries()   → { { id = questID, info = C_QuestLog.GetInfo(i), header = Kopfzeile } … } aller Quests im Log ohne
                                  Überschriften und verborgene, oder nil ohne Questlog – der eine Filter für die Vorschau
                                  und die Leveling-Route (LR.ReadLog; Gegenprüfung I1).
       Core.QuestLogXP()        → { done, all, doneCount, allCount, unknown } über alle Quests im Log (ohne Überschriften
@@ -266,13 +266,16 @@ end
 function Core.QuestLogEntries()
     local count, info = QuestLogFn("GetNumQuestLogEntries"), QuestLogFn("GetInfo")
     if not (count and info) then return nil end
-    local out = {}
+    local out, header = {}, nil
     for i = 1, Num(Core.Call(count)) or 0 do
         local e = Core.Call(info, i)
-        if type(e) == "table" and not Core.IsSecret(e) and Core.Bool(Core.Peek(e, "isHeader"), false) ~= true
-            and Core.Bool(Core.Peek(e, "isHidden"), false) ~= true then
-            local id = Num(Core.Peek(e, "questID"))
-            if id and id > 0 then out[#out + 1] = { id = id, info = e } end
+        if type(e) == "table" and not Core.IsSecret(e) then
+            if Core.Bool(Core.Peek(e, "isHeader"), false) == true then
+                header = Core.Plain(Core.Peek(e, "title"))
+            elseif Core.Bool(Core.Peek(e, "isHidden"), false) ~= true then
+                local id = Num(Core.Peek(e, "questID"))
+                if id and id > 0 then out[#out + 1] = { id = id, info = e, header = header } end
+            end
         end
     end
     return out

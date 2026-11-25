@@ -487,6 +487,148 @@ function Memory.SetAllAndSay(on)
 end
 
 ---------------------------------------------------------------------------
+-- „Alles aufspüren“: Zeile in „Allem zustimmen“, der Einführung und „Neu seit dem Update“ (ns.AGREE.trackingAll)
+---------------------------------------------------------------------------
+-- Spieltest des Nutzers vom 24.11.2026, wörtlich: „"alle annehmen" muss auch komplette aufspüren suche aktivierenw“.
+-- Anders als „Alle auswählen“ im Menü auch die Such-Zauber: Der Klick auf „Allem zustimmen“ nennt sie vorher. Wie viele
+-- der Client gleichzeitig zulässt, ist unbelegt – darum wird es beim zweiten geprüft (ist der erste danach aus, kommt
+-- er zurück und es bleibt bei ihm), statt alle der Reihe nach zu wirken.
+
+Memory.ALL_WAIT = 3     -- so lange nach dem Schalten gilt der gewünschte Stand (der Client antwortet erst später)
+Memory.allRun = 0       -- zählt die Läufe: ein neuer (oder das Ausschalten) beendet den vorigen
+
+-- Alle Arten an und, wenn der Charakter Such-Zauber kennt, mindestens einer davon (gesperrte zählen nicht).
+-- → true | false | nil (Client ohne Schnittstelle oder ohne Arten)
+function Memory.AllState()
+    if not Api() then return nil end
+    local list = Memory.List()
+    if #list == 0 then return nil end
+    if Core.Uptime() < (Memory.allUntil or 0) then return Memory.allWanted end
+    local spells, spellOn = 0, false
+    for _, entry in ipairs(list) do
+        if entry.spell then
+            spells = spells + 1
+            spellOn = spellOn or entry.active
+        elseif not entry.active then
+            return false
+        end
+    end
+    return spells == 0 or spellOn or Memory.blocked == true
+end
+
+-- Such-Zauber der Reihe nach einschalten, Memory.SPELL_GAP auseinander. queue[1] soll bleiben, falls der Client nur
+-- einen zulässt. Endet bei Kampf, Tod, Sperre, Zonenwechsel (Memory.token) oder neuem Lauf (Memory.allRun).
+local function SpellStep(queue, i, run, token)
+    if Memory.allRun ~= run or Memory.token ~= token or Memory.blocked or Dead() then return end
+    if ns.InCombat() then
+        -- Kampfbeginn mitten im Lauf: danach nur noch prüfen, ob der erste geblieben ist (sonst bliebe der falsche stehen)
+        if i >= 3 then
+            ns.AfterCombat(function() ns.Try("TrackingAllSpells", SpellStep, queue, #queue + 1, run, token) end, "trackingAllSpells")
+        end
+        return
+    end
+    local lead = Memory.Find(queue[1])
+    if i >= 3 and queue.led and lead and not lead.active then
+        Memory.Set(lead, true)
+        ns.Print(L.TRACKMEM_ONE_SPELL:format(lead.name))
+        return
+    end
+    if i == 2 then queue.led = lead ~= nil and lead.active end     -- ging der erste gar nicht an, vergleicht nichts
+    local key = queue[i]
+    if not key then
+        -- der erste ging anfangs nicht an (globale Abklingzeit, laufender Zauber): am Ende noch einmal versuchen
+        if not queue.led and lead and not lead.active then Memory.Set(lead, true) end
+        return
+    end
+    local entry = Memory.Find(key)
+    local wait = 0
+    if entry and not entry.active then
+        Memory.Set(entry, true)
+        wait = Memory.SPELL_GAP
+    end
+    if wait == 0 then return SpellStep(queue, i + 1, run, token) end
+    C_Timer.After(wait, function() ns.Try("TrackingAllSpells", SpellStep, queue, i + 1, run, token) end)
+end
+
+-- Reihenfolge: der zuletzt gewählte Such-Zauber, sonst einer, der schon läuft, sonst der erste der Liste; dann die übrigen
+function Memory.SpellQueue()
+    local rec = Memory.Store(false)
+    local last = rec and rec.last or nil
+    local keys, running, hasLast = {}, nil, false
+    for _, entry in ipairs(Memory.List()) do
+        if entry.spell then
+            keys[#keys + 1] = entry.key
+            if entry.active then running = running or entry.key end
+            if entry.key == last then hasLast = true end
+        end
+    end
+    local first = hasLast and last or running or keys[1]
+    local queue = { first }
+    for _, key in ipairs(keys) do
+        if key ~= first then queue[#queue + 1] = key end
+    end
+    return queue
+end
+
+-- an: alle Arten und die Such-Zauber; aus: der Stand von vor dem Einschalten (dieser Sitzung), sonst wie „Alle“ aus.
+-- Vor dem Wiederherstellen nach Einloggen und Tod (Memory.ready) nichts: Memory.Restore stellte danach die alte Auswahl
+-- her; danach merkt ezMap den Stand (Memory.Save), auch wenn der Klick in die Ruhezeit fiel (Review 24.11.2026).
+-- → true | false (Client ohne Schnittstelle, Kampf, tot, gerade eingeloggt oder nicht alles geschaltet)
+function Memory.SetAllState(on)
+    if not Api() or ns.InCombat() or Dead() or not Memory.ready then return false end
+    local fresh = Core.Uptime() < (Memory.allUntil or 0)    -- der Client hat auf das letzte Umschalten evtl. noch nicht geantwortet
+    Memory.allRun = Memory.allRun + 1
+    local run = Memory.allRun
+    local done = true
+    if on then
+        -- Stand von vorher: jedes Mal neu – außer der Client hat noch nicht geantwortet (dann der letzte bekannte, sonst
+        -- keiner), es fehlt nur ein Such-Zauber oder das letzte Einschalten ging nicht ganz (dann der von damals)
+        local byHand = false
+        for _, entry in ipairs(Memory.List()) do byHand = byHand or not entry.spell and not entry.active end
+        if fresh then
+            Memory.allBefore = Memory.allBefore or Memory.allLast
+        elseif not Memory.allBefore or (byHand and not Memory.allPartial) then
+            Memory.allBefore = {}
+            for _, entry in ipairs(Memory.List()) do Memory.allBefore[entry.key] = entry.active end
+        end
+        for _, entry in ipairs(Memory.List()) do
+            if not entry.spell and (fresh or not entry.active) then done = Memory.Set(entry, true) and done end
+        end
+        local queue = Memory.SpellQueue()
+        if #queue > 0 then
+            if Memory.blocked then
+                Memory.SaySkipped()
+            else
+                -- Zeitfenster der Sperr-Erkennung wie beim Wiederherstellen (Memory.Restore)
+                Memory.watchUntil = Core.Uptime() + Memory.SETTLE + #queue * Memory.SPELL_GAP
+                SpellStep(queue, 1, run, Memory.token)
+            end
+        end
+    else
+        local before = Memory.allBefore or {}
+        Memory.allBefore, Memory.allLast = nil, Memory.allBefore
+        for _, entry in ipairs(Memory.List()) do
+            local want = before[entry.key]
+            if want == nil and not Memory.SkipOff(entry) then want = false end
+            if want ~= nil and (fresh or want ~= entry.active) then
+                if not (entry.spell and want) then
+                    done = Memory.Set(entry, want) and done
+                elseif not Memory.blocked and not entry.active then     -- nach einer Sperre schaltet ezMap keinen mehr ein
+                    Memory.watchUntil = Core.Uptime() + Memory.SETTLE
+                    done = Memory.Set(entry, true) and done
+                end
+            end
+        end
+    end
+    Memory.allPartial = on and not done
+    if done then Memory.allWanted, Memory.allUntil = on == true, Core.Uptime() + Memory.ALL_WAIT end
+    C_Timer.After(Memory.ALL_WAIT, function()
+        if Memory.allRun == run then ns.Try("TrackingSave", Memory.Save, true) end
+    end)
+    return done
+end
+
+---------------------------------------------------------------------------
 -- Status und Ereignisse
 ---------------------------------------------------------------------------
 

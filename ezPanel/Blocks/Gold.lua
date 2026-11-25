@@ -43,10 +43,15 @@ local block = ns.RegisterBlock({
 -- Einnahmen und Ausgaben der Sitzung zählt ezCore (Core.Session, PANEL-03); ezPanel liest sie nur.
 local Session = ezCore.Session
 
+-- Gold jetzt: was der Client nennt, solange es über 0 liegt, sonst der zuletzt verlässlich gespeicherte Stand
+-- (Core.Characters.MoneyBaseline – früh beim Laden nennt der Client 0). Grenze wie in ezCore: wirklich 0 Gold bei einem
+-- älteren Stand über 0 (ausgegeben, während ezCore aus war) zeigt diesen, bis sich das Gold einmal ändert.
+local function Now() return ezCore.Characters.MoneyBaseline() or 0 end
+
 -- Gewinn der Sitzung: Gold jetzt minus Gold beim Beginn (ohne Sitzung 0).
 local function SessionNet()
     local start = Session.StartMoney()
-    return start and (GetMoney() - start) or 0
+    return start and (Now() - start) or 0
 end
 
 -- Kriegsmeute-Bank gibt es nur auf Clients, die sie wirklich haben.
@@ -86,7 +91,7 @@ function block:GetText()
     elseif cfg.show == "all" then
         value = Total("all")
     else
-        value = GetMoney()
+        value = Now()
     end
     local text = ns.Money(value)
     if cfg.sessionOnBar then

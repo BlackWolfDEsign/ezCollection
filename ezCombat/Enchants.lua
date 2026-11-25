@@ -40,6 +40,9 @@ function Enchants.Evaluate(hand, has, expirationMs)
             Enchants.Warn(L.ENCHANT_SOON:format(L["HAND_" .. hand], FormatLeft(expirationMs / 1000)))
         end
         slot.last, slot.active, slot.readAt = expirationMs, true, GetTime()
+    elseif has then
+        -- Verzauberung ohne Ablauf (Core.WeaponEnchantInfo: keine Restzeit): weder „läuft bald ab“ noch „abgelaufen“
+        slot.active, slot.last, slot.warned, slot.readAt = false, nil, false, nil
     else
         -- Rest beim letzten offenen Lesen, abzüglich der Zeit seither (eine Sperre kann dazwischen gelegen haben).
         local left = slot.last and (slot.last - (GetTime() - (slot.readAt or GetTime())) * 1000)
@@ -63,7 +66,7 @@ end
 
 function Enchants.Check()
     if not ns.Enabled("enchants") then return end
-    local readable, hasMain, mainMs, hasOff, offMs = Core.WeaponEnchantInfo()   -- V-185: global oder C_Item (ezCore, Welle 23)
+    local readable, hasMain, mainMs, hasOff, offMs = Core.WeaponEnchantInfo()   -- V-185: ezCore (C_PaperDollInfo, sonst C_Item, global)
     if not readable then return end
     Enchants.CheckHand("main", hasMain, mainMs)
     Enchants.CheckHand("off", hasOff, offMs)

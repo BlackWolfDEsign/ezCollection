@@ -35,8 +35,8 @@ Weapon.IMBUE_ID = "imbue"     -- id der Wahlgruppe (ns.CharDB().prefer.imbue, Ch
 Weapon.IMBUE_ORDER = Core.Spells.IMBUE_ORDER
 
 -- Verzauberung auf Zeit beider Hände: lesbar, hatMain, msMain, hatOff, msOff (wie Blizzards GetWeaponEnchantInfo;
--- die Werte können gesperrt sein). Seit Welle 23 (A3) ezCores gemeinsamer Leser Core.WeaponEnchantInfo (das Globale
--- zuerst, sonst C_Item; dieselbe Regel wie vorher hier); die Funktion bleibt als Weiterleitung (Leitlinie 8).
+-- die Werte können gesperrt sein). Seit Welle 23 (A3) ezCores gemeinsamer Leser Core.WeaponEnchantInfo
+-- (C_PaperDollInfo je Platz, sonst C_Item, zuletzt das alte Globale); die Funktion bleibt als Weiterleitung (Leitlinie 8).
 function Weapon.Info()
     return Core.WeaponEnchantInfo()
 end

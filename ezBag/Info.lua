@@ -68,7 +68,7 @@ function Info.BagValue()
             if ns.ItemIDOf(info) then
                 local value = ns.SellValue(info)
                 total = total + value
-                if ns.IsJunk(info) then junk = junk + value end
+                if ns.Junk.Sellable(info) then junk = junk + value end      -- was der Verkauf wirklich verkaufen würde
                 if P and P.Value and not info.isBound then
                     local ok, market = pcall(P.Value, info.hyperlink or info.itemID, info.stackCount or 1)
                     if ok and type(market) == "number" and market > 0 then

@@ -317,3 +317,141 @@ end
 function Spells.MacroGroupSafe(text)
     return type(text) == "string" and Spells.MacroGroupFirst(text) == text
 end
+
+--[[
+    Maus über wahlweise (Entscheidungen des Nutzers vom 23.11.2026: „Einer für alle, abweichbar (Empfohlen)“ und „Ja,
+    eigener Schalter (Empfohlen)“; docs/roadmap/ezMacro.md, „Neue Recherche: alle sinnvollen Klassenmakros, Maus-über
+    wahlweise“, Schritt 1 und 2). Blizzards Option „Mouseover-Zauber“ (CVar enableMouseoverCast) wirkt nur auf Zauber
+    auf Leisten, nicht auf Makros (docs/klassenmakros-recherche.md, Erkenntnis 1) – darum streicht ein Modul auf Wunsch
+    die Glieder „Einheit unter der Maus“ aus seinen fertigen Makrotexten. Eine Stelle für alle Texte (Vorlagen, Makro-
+    Logik, Makros aus deinen Fähigkeiten): Sie arbeitet auf dem Text, nicht auf den Daten der Makro-Logik.
+    Gestrichen wird in Zeilen mit /cast, /use und Verwandten (CAST_COMMANDS), /petattack und /startattack (der
+    Begleiter greift an, was der Zauber trifft) und in Bausteinen ohne Befehl; /focus, /target, /assist … bleiben.
+    Ein Glied zählt als Maus-Glied, wenn es „@mouseover“ nennt (nicht „@mouseovertarget“): für Gegner mit „harm“, sonst
+    für Mitspieler (help, dead, party, raid, exists, noharm). Steht in derselben Kette (Glieder ohne Text dazwischen)
+    noch ein Glied, das bleibt, entfällt das Maus-Glied ganz:
+      „[@mouseover,party][@mouseover,raid][@mouseover,help,nodead][help,nodead][@player]“ → „[help,nodead][@player]“
+      „[@mouseover,party][@mouseover,raid][@mouseover,help,nodead][]“ (geht nicht auf dich) → „[]“
+      „[@focus,harm,nodead][@mouseover,harm,nodead][]“ → „[@focus,harm,nodead][]“ (Fokus bleibt)
+    Bleibt keines, wird das letzte Maus-Glied zum Glied auf das Ziel („[@mouseover,harm,nodead] A; B“ → „[harm,nodead]
+    A; B“), damit der Teil seine Bedingung behält und nicht immer wirkt.
+]]
+local MOUSEOVER_COMMANDS = { petattack = true, startattack = true }
+for command in pairs(CAST_COMMANDS) do MOUSEOVER_COMMANDS[command] = true end
+
+-- Art eines Glieds (Text zwischen den Klammern): "friend", "hostile" oder nil (kein Maus-Glied)
+local function LinkKind(link)
+    local lower = link:lower()
+    if not (lower:find("@mouseover%f[^%w_]") or lower:find("target%s*=%s*mouseover%f[^%w_]")) then return nil end
+    for word in lower:gmatch("[^,]+") do
+        if word:match("^%s*(.-)%s*$") == "harm" then return "hostile" end
+    end
+    return "friend"
+end
+
+-- Glied ohne „@mouseover“ (bzw. „target=mouseover“): „mod:shift,@mouseover,help,nodead“ → „mod:shift,help,nodead“;
+-- ein nacktes „[@mouseover]“ (Einheit unter der Maus vorhanden) wird „[exists]“ (Ziel vorhanden), nicht „[]“
+local function WithoutMouse(link)
+    local out = {}
+    for word in link:gmatch("[^,]+") do
+        local lower = word:lower()
+        if not (lower:match("^%s*@mouseover%s*$") or lower:match("^%s*target%s*=%s*mouseover%s*$")) then
+            out[#out + 1] = word
+        end
+    end
+    if #out == 0 then return "exists" end
+    return table.concat(out, ",")
+end
+
+-- Eine Kette (Liste der Glieder) mit den Schaltern; drop(kind) → true, wenn Glieder dieser Art wegfallen
+local function StripChain(links, drop)
+    local gone, kept = {}, false
+    for i, link in ipairs(links) do
+        local kind = LinkKind(link)
+        if kind and drop(kind) then gone[i] = true else kept = true end
+    end
+    if not next(gone) then return links end
+    local last
+    if not kept then
+        for i = #links, 1, -1 do if gone[i] then last = i break end end
+    end
+    local out = {}
+    for i, link in ipairs(links) do
+        if i == last then out[#out + 1] = WithoutMouse(link)
+        elseif not gone[i] then out[#out + 1] = link end
+    end
+    return out
+end
+
+-- Alle Ketten einer Zeile: each(links) → neue Liste oder nil (unverändert); gibt die neue Zeile zurück
+local function EachChain(line, each)
+    local out, pos = {}, 1
+    while true do
+        local start = line:find("[", pos, true)
+        if not start then break end
+        local links, stop = {}, start - 1
+        while true do
+            local a, b, inner = line:find("^%s*%[([^%[%]]*)%]", stop + 1)
+            if not a then break end
+            links[#links + 1] = inner
+            stop = b
+        end
+        if #links == 0 then
+            out[#out + 1] = line:sub(pos, start)
+            pos = start + 1
+        else
+            out[#out + 1] = line:sub(pos, start - 1)
+            local new = each(links) or links
+            if new == links then
+                out[#out + 1] = line:sub(start, stop)
+            else
+                for _, link in ipairs(new) do out[#out + 1] = "[" .. link .. "]" end
+            end
+            pos = stop + 1
+        end
+    end
+    out[#out + 1] = line:sub(pos)
+    return table.concat(out)
+end
+
+-- Zeilen mit einem der Befehle oben und Bausteine ohne Befehl; Chat-Zeilen wie „/1 …“ und „#showtooltip“ nicht
+local function MouseLine(line)
+    if line:match("^%s*#") then return false end
+    if not line:match("^%s*/") then return true end
+    local command = line:match("^%s*/(%a+)%f[^%w_]")
+    return command ~= nil and MOUSEOVER_COMMANDS[command:lower()] == true
+end
+
+-- Makrotext mit den Schaltern: opts.friend == false streicht die Glieder für Mitspieler, opts.hostile == false die für
+-- Gegner (siehe oben). Ohne einen Schalter auf false bleibt der Text, wie er ist. → Text
+function Spells.MacroMouseover(text, opts)
+    if type(text) ~= "string" or type(opts) ~= "table" then return text end
+    local dropFriend, dropHostile = opts.friend == false, opts.hostile == false
+    if not (dropFriend or dropHostile) then return text end
+    local function drop(kind) return (kind == "friend" and dropFriend) or (kind == "hostile" and dropHostile) end
+    local out = {}
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        if MouseLine(line) then line = EachChain(line, function(links) return StripChain(links, drop) end) end
+        out[#out + 1] = line
+    end
+    return table.concat(out, "\n")
+end
+
+-- Welche Maus-Glieder stehen im Text (in den Zeilen, die Spells.MacroMouseover bearbeitet)?
+-- → { friend = true, hostile = true } (nur die vorhandenen Arten) oder nil
+function Spells.MacroMouseoverKinds(text)
+    if type(text) ~= "string" or not text:lower():find("@mouseover", 1, true) then return nil end
+    local kinds
+    for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+        if MouseLine(line) then
+            for inner in line:gmatch("%[([^%[%]]*)%]") do
+                local kind = LinkKind(inner)
+                if kind then
+                    kinds = kinds or {}
+                    kinds[kind] = true
+                end
+            end
+        end
+    end
+    return kinds
+end

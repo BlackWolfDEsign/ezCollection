@@ -3,7 +3,7 @@
 ## Notes: Looting like the original, only faster: faster auto loot with a visible switch, item level, "binds when equipped" and "better" (from ezGear) in Blizzard's loot and roll windows, a loot history for all alts, Blizzard's roll history one click away. Part of ezCollection.
 ## Notes-deDE: Plündern wie im Original, nur schneller: schnelleres automatisches Plündern mit sichtbarem Schalter, Itemlevel, „beim Anlegen gebunden“ und „besser“ (aus ezGear) in Blizzards Plündern- und Würfelfenster, Beute-Verlauf aller Twinks, Blizzards Würfelergebnisse mit einem Klick. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.10.0
+## Version: 1.11.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Misc_Bag_10
 ## RequiredDeps: ezCore

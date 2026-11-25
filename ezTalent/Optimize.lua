@@ -7,7 +7,8 @@ local Traits = ns.Traits      -- nur für Optimize.FromClient (im Spiel)
     wird jetzt mit dem Besten, was das Rechenmodell mit genau so vielen Punkten setzen würde.
 
     Grundlage (Leitlinie 11): die Baumregeln aus dem Client (Knoten, Höchstrang, Wahl, Schwelle „benötigt n Punkte in
-    den Reihen darüber“, Vorgänger – Traits.Nodes, Traits.Layout, Traits.Incoming, Traits.Condition) und die Werte je
+    den Reihen darüber“, Vorgänger – Traits.Nodes, Traits.Layout, Traits.Incoming, Traits.Thresholds; der Client nennt
+    nur den Rest bis zur Schwelle, Traits.Thresholds macht daraus die feste Zahl – Spieltest 23.11.2026) und die Werte je
     Talent und Rang, die tools/talent_sim.lua in jede berechnete Verteilung schreibt (computed.weights, kumuliert). Im
     Spiel wird nur gesucht, nicht neu bewertet: dieselben Werte, dieselben Regeln wie im Werkzeug
     (docs/talent-simulation.md, „Optimierung über die Baumregeln“). Tests/empfehlung.lua prüft das gegen die Bäume
@@ -23,7 +24,8 @@ local Traits = ns.Traits      -- nur für Optimize.FromClient (im Spiel)
         spells = { [Zauber-ID] = Rang } }
 
     Auch für das Werkzeug (SSOT, abgesprochen mit der Session „Rechenmodell 3“ am 20.11.2026): Optimize.Worth,
-    Optimize.Value, Optimize.Best, Optimize.RulesFor und Optimize.Template brauchen weder WoW-API noch ezCore – nur Daten
+    Optimize.Value, Optimize.Best, Optimize.RulesFor, Optimize.BestOn und Optimize.Template brauchen weder WoW-API noch
+    ezCore – nur Daten
     rein, Verteilung raus; unter LuaJIT laden mit
         local ns = {} ; loadfile("ezTalent/Optimize.lua")(nil, ns) ; local Optimize = ns.Optimize
     Nur Optimize.FromClient liest den Client (ns.Traits). Diese Trennung bitte halten.
@@ -56,13 +58,15 @@ function Optimize.Value(weights, spells)
     return sum
 end
 
--- Bit-Masken ohne Bibliothek (Lua 5.1): Zahl als Summe von Zweierpotenzen.
+-- Bit-Masken ohne Bibliothek (Lua 5.1): Zahl als Summe von Zweierpotenzen. Eigene Fassung neben Core.HasBit: Die Werkzeuge
+-- laden diese Datei ohne ezCore (tools/talent_sim.lua, LoadOptimize).
 local function HasBit(mask, b) return math.floor(mask / b) % 2 == 1 end
 local function AddBit(mask, b) if HasBit(mask, b) then return mask end return mask + b end
 
 -- Beste Belegung eines Talentbaums je Punktzahl: best[s] = { v, path } für s = 0 … cap (path: verkettete Liste
--- { id, rank, entry, spell, prev }).
-local function TreeBest(nodes, weights, cap)
+-- { id, rank, entry, spell, prev }). base (freiwillig): Mindestränge { ranks = { [Knoten] = Rang }, entries = { [Knoten] =
+-- Eintrag } } – schon vergebene Punkte, die bleiben (Optimize.Best, opts.base).
+local function TreeBest(nodes, weights, cap, base)
     local byID, bitOf, nextBit = {}, {}, 1
     for _, n in ipairs(nodes) do byID[n.id] = n end
     for _, n in ipairs(nodes) do
@@ -111,15 +115,24 @@ local function TreeBest(nodes, weights, cap)
     end
     -- Optionen je Knoten: je Eintrag und Rang der Wert. Auch Ränge ohne Wert zählen: sie füllen Schwellen und Vorgänger
     -- (der Weg zu einem wertvollen Talent); bei gleichem Wert gewinnt die Belegung mit weniger Punkten.
-    local options = {}      -- je Knoten einmal (nicht je Zustand)
+    -- Ein Knoten mit Mindestrang (base) bleibt mindestens so hoch und behält seine Wahl; er ist im Spiel schon gesetzt,
+    -- Schwelle und Vorgänger gelten für ihn als erfüllt.
+    local options, kept = {}, {}      -- je Knoten einmal (nicht je Zustand)
     for _, n in ipairs(nodes) do
         local out = {}
-        for _, opt in ipairs(n.options or {}) do
-            for r = 1, n.max or 1 do
-                out[#out + 1] = { rank = r, v = Optimize.Worth(weights, opt.spell, r), entry = opt.entry, spell = opt.spell }
+        local keep = math.min(tonumber(base and base.ranks and base.ranks[n.id]) or 0, n.max or 1)
+        local keepEntry = keep > 0 and base.entries and base.entries[n.id] or nil
+        for pass = 1, 2 do
+            for _, opt in ipairs(n.options or {}) do
+                if pass == 2 or not keepEntry or opt.entry == keepEntry then
+                    for r = math.max(1, keep), n.max or 1 do
+                        out[#out + 1] = { rank = r, v = Optimize.Worth(weights, opt.spell, r), entry = opt.entry, spell = opt.spell }
+                    end
+                end
             end
+            if #out > 0 or not keepEntry then break end      -- Wahl des Mindestrangs unbekannt: jede Wahl
         end
-        options[n] = out
+        options[n], kept[n] = out, keep > 0
     end
     -- Bits je Vorgänger: ein Zustand ist (Punkte, Maske); die Maske bleibt unter nextBit
     local function Key(st) return st.spent * nextBit + st.mask end
@@ -144,8 +157,10 @@ local function TreeBest(nodes, weights, cap)
         for _, start in ipairs(layer) do
             local inner = { start }
             for _, n in ipairs(rows[r]) do
-                local opts = options[n]
-                if #opts > 0 and start.spent >= (n.need or 0) then
+                local opts, keep = options[n], kept[n]
+                if keep and #opts == 0 then
+                    inner = {}      -- Mindestrang an einem Knoten ohne Eintrag: nicht still verlieren, sondern unerfüllbar
+                elseif #opts > 0 and (keep or start.spent >= (n.need or 0)) then
                     local grown, index = {}, {}
                     local function Put(st)
                         local key = Key(st)
@@ -154,12 +169,12 @@ local function TreeBest(nodes, weights, cap)
                         elseif st.v > grown[at].v + EPS then grown[at] = st end
                     end
                     for _, c in ipairs(inner) do
-                        Put(c)
+                        if not keep then Put(c) end         -- ein Mindestrang darf nicht wegfallen
                         local ok = true
-                        for _, id in ipairs(n.req or {}) do
+                        for _, id in ipairs(keep and {} or n.req or {}) do
                             if not (bitOf[id] and HasBit(c.mask, bitOf[id])) then ok = false break end
                         end
-                        if ok and n.any and #n.any > 0 then
+                        if ok and not keep and n.any and #n.any > 0 then
                             local one = false
                             for _, id in ipairs(n.any) do
                                 if bitOf[id] and HasBit(c.mask, bitOf[id]) then one = true break end
@@ -194,7 +209,9 @@ end
 
 -- Beste Verteilung. opts = { points (Pflicht), main (Hauptbaum, freiwillig), mainMin, mainMost (Hauptbaum nicht
 -- weniger als jeder andere), full (möglichst alle Punkte setzen: zuerst die höchste erreichbare Punktzahl, dann der
--- Wert – wie eine ausgelieferte Verteilung; für das Werkzeug tools/talent_sim.lua, 20.11.2026) }.
+-- Wert – wie eine ausgelieferte Verteilung; für das Werkzeug tools/talent_sim.lua, 20.11.2026), base (freiwillig:
+-- Mindestränge { ranks = { [Knoten] = Rang }, entries = { [Knoten] = Eintrag } } – die schon vergebenen Punkte bleiben,
+-- die Suche verteilt nur den Rest; Spieltest 23.11.2026, „Auf meine Punkte rechnen“) }.
 -- → Ergebnis (Kopf der Datei) oder nil, Grund ("tree" | "points" | "none")
 function Optimize.Best(tree, weights, opts)
     opts = opts or {}
@@ -210,7 +227,8 @@ function Optimize.Best(tree, weights, opts)
         table.insert(byTree[t], n)
     end
     local bests = {}
-    for t = 1, count do bests[t] = TreeBest(byTree[t] or {}, weights, cap) end
+    local base = type(opts.base) == "table" and opts.base or nil
+    for t = 1, count do bests[t] = TreeBest(byTree[t] or {}, weights, cap, base) end
     local main = tonumber(opts.main)
     if main and not bests[main] then main = nil end
     local mainMin = main and (tonumber(opts.mainMin) or 0) or 0
@@ -313,6 +331,30 @@ function Optimize.RulesFor(points, main)
         mainMost = true }
 end
 
+-- Bestes mit points Punkten nach Optimize.RulesFor, auf Mindesträngen base (freiwillig, opts.base von Optimize.Best –
+-- die schon vergebenen Punkte; Spieltest 23.11.2026, „Auf meine Punkte rechnen“). Lässt sich die Regel mit den
+-- vergebenen Punkten nicht erfüllen (die meisten stehen in einem anderen Baum als main, es reicht nicht für die
+-- Mindestzahl im Hauptbaum), gibt die Suche schrittweise nach: erst die Mindestzahl (Hauptbaum hat weiter die meisten
+-- Punkte), dann „die meisten Punkte“ (mit Mindestzahl), zuletzt beides – die vergebenen Punkte bleiben in jedem Fall
+-- (im Spiel nimmt nur ein Zurücksetzen sie weg). → Ergebnis von Optimize.Best oder nil, Grund
+function Optimize.BestOn(tree, weights, points, main, base)
+    local rules = Optimize.RulesFor(points, main)
+    rules.base = base
+    local result, why = Optimize.Best(tree, weights, rules)
+    if result or not base then return result, why end
+    local min, tried = rules.mainMin, { [tostring(rules.mainMin) .. ":true"] = true }
+    for _, step in ipairs({ { 0, true }, { min, nil }, { 0, nil } }) do
+        local key = tostring(step[1]) .. ":" .. tostring(step[2])
+        if not tried[key] then      -- unter 31 Punkten ist die Mindestzahl ohnehin 0: nicht zweimal suchen
+            tried[key] = true
+            rules.mainMin, rules.mainMost = step[1], step[2]
+            result, why = Optimize.Best(tree, weights, rules)
+            if result then return result end
+        end
+    end
+    return nil, why
+end
+
 ---------------------------------------------------------------------------
 -- Baum aus dem Client (nur Klassentalente: drei Bäume mit Reihen, Traits.Layout)
 ---------------------------------------------------------------------------
@@ -326,16 +368,17 @@ function Optimize.FromClient(ctx)
     local layout = Traits.Layout(ctx.configID, ctx.treeID, nodes, groups)
     local incoming = Traits.Incoming(nodes)
     if #groups == 0 then return nil end     -- Bäume noch nicht geliefert: nicht alles in Baum 1 werfen
-    local tree = { trees = #groups, nodes = {} }
+    -- feste Schwelle je Knoten: der Client nennt nur den Rest bis dahin (Spieltest 23.11.2026, Traits.Thresholds)
+    local thresholds = Traits.Thresholds(ctx.configID, ctx.treeID, nodes, layout, true)
+    -- unsure: ein Knoten ab Reihe 2 ohne Schwelle – in den Klassenbäumen von Forever hat jede Reihe ab der zweiten eine
+    -- (Client-Tabellen 71037); fehlt sie, hat der Client die Bedingungen noch nicht geliefert (Advice.Tree merkt dann nichts)
+    local tree = { trees = #groups, nodes = {}, unsure = nil }
     for _, node in ipairs(nodes) do
         local where = layout[node.id]
         if where and node.visible ~= false then
-            local n = { id = node.id, tree = where.tree, row = where.row or 0, max = node.max or 1, need = 0,
-                req = {}, any = {}, options = {} }
-            for _, condID in ipairs(node.conditions or {}) do
-                local cond = Traits.Condition(ctx.configID, condID)
-                if Traits.Restricts(cond) and cond.spent and cond.spent > n.need then n.need = cond.spent end
-            end
+            local n = { id = node.id, tree = where.tree, row = where.row or 0, max = node.max or 1,
+                need = thresholds[node.id] or 0, req = {}, any = {}, options = {} }
+            if n.row > 1 and n.need <= 0 and not where.aside then tree.unsure = true end
             for _, e in ipairs(incoming[node.id] or {}) do
                 if e.kind == Traits.EDGE.required then n.req[#n.req + 1] = e.from
                 elseif e.kind == Traits.EDGE.sufficient then n.any[#n.any + 1] = e.from end

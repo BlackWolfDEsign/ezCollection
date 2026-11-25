@@ -4,7 +4,7 @@
 ## Notes: Shared base of ezCollection: character data of all alts, bags/bank/mail, item and spell knowledge, one mail queue, tooltip pipeline, settings category "ezCollection". Required by every ezCollection module.
 ## Notes-deDE: Gemeinsame Basis der ezCollection: Charakterdaten aller Twinks, Taschen/Bank/Post, Item- und Zauber-Wissen, eine Versand-Warteschlange, Tooltip-Pipeline, Einstellungs-Kategorie "ezCollection". Wird von jedem Modul der ezCollection gebraucht.
 ## Author: BlackWolf-Design
-## Version: 1.17.0
+## Version: 1.18.0
 ## Category: ezCollection
 ## IconTexture: Interface\AddOns\ezCore\Media\ezCollection
 ## SavedVariables: ezCoreDB
@@ -60,10 +60,20 @@ Wissen\Client\Reagents.lua
 Wissen\Client\Categories.lua
 Wissen\Client\Cooldowns.lua
 Wissen\Client\Consumables.lua
+Wissen\Client\SpellBooks.lua
+Wissen\Client\PetBooks.lua
+Wissen\Client\Recipes.lua
+Wissen\Client\Areas.lua
 Wissen\Client\WeaponEnchants.lua
 Wissen\Client\SpellKinds.lua
+Wissen\Client\Periodic.lua
+Wissen\Client\Direct.lua
+Wissen\Client\Proficiencies.lua
 Wissen\ClientData.lua
+Wissen\Proficiency.lua
 Wissen\SpellKinds.lua
+Wissen\Periodic.lua
+Wissen\SpellValue.lua
 Wissen\Gathering.lua
 Wissen\Route.lua
 Wissen\KnowledgeData.lua
@@ -77,12 +87,16 @@ Wissen\MacroLogic.lua
 Wissen\Spells.lua
 Bausteine\ActionSlots.lua
 Bausteine\Glow.lua
+Bausteine\HealthCurve.lua
 Wissen\Auras.lua
 Charakter\Profiles.lua
+Charakter\BarProfiles.lua
 Charakter\Professions.lua
+Charakter\Talents.lua
 Charakter\Lockouts.lua
 Charakter\CharData.lua
 Wissen\Npcs.lua
+Wissen\TrainerSpots.lua
 Charakter\Durability.lua
 Charakter\Junk.lua
 Charakter\Lists.lua
@@ -95,7 +109,9 @@ Wissen\Salvage.lua
 Charakter\History.lua
 Datenbank\DBKeys.lua
 Datenbank\DB.lua
+Datenbank\DBAnon.lua
 Datenbank\DBMarket.lua
+Datenbank\DBShip.lua
 Datenbank\Discovery.lua
 Datenbank\DiscoveryView.lua
 Datenbank\DiscoveryLegacy.lua
@@ -106,14 +122,21 @@ Bausteine\ClickBindings.lua
 Bausteine\AuraRow.lua
 Wissen\Sources.lua
 Wissen\SourcesQuestie.lua
+Datenbank\ShipView.lua
+Wissen\QuestSpells.lua
+Wissen\SpellSources.lua
+Wissen\PetSpells.lua
+Wissen\RotationBuilds.lua
 Bausteine\ChatBar.lua
 Werkzeuge\ErrorList.lua
 Werkzeuge\Diagnose.lua
+Werkzeuge\TaintScan.lua
 Werkzeuge\SpellCheck.lua
 Werkzeuge\Probe.lua
 Werkzeuge\ProbeStations.lua
 Werkzeuge\Backup.lua
 Werkzeuge\FirstStart.lua
+Werkzeuge\ConsentNews.lua
 Werkzeuge\Contribute.lua
 Bausteine\Comfort.lua
 Bausteine\MacroBadge.lua

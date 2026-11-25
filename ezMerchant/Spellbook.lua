@@ -18,13 +18,24 @@ local Core = ezCore
     Tabellen nennen, steht unter seiner Stufe bzw., schon erreicht, in der Gruppe „Erreicht laut Client-Tabellen“.
     Begleiter (MER-08): bei Klassen mit Begleiter (Core.Spells.PetKind) am Ende eine eigene Kopfzeile „Begleiter“ mit
     dem, was sein Ausbilder lehrt (Core.Spells.Available/Upcoming mit der Begleiter-Art); die Zahl am Reiter zählt
-    diese Fähigkeiten mit. „Alles lernen“ bleibt beim Tierausbilder aus (Trainer.lua). Die Fußzeile der Ansicht
+    diese Fähigkeiten mit. Ohne Besuch dort (24.11.2026; Nutzer, wörtlich: „alle möglichkeiten von offiziellen daten
+    abgefragt?“): laut Client-Tabellen (Core.PetSpells) – beim Hexenmeister die Grimoires je Dämon mit Stufe und
+    Händlerpreis (der Dämonenausbilder hat kein Lehrerfenster), beim Jäger die Fähigkeiten mit Stufe, ohne Kosten.
+    „Alles lernen“ bleibt beim Tierausbilder aus (Trainer.lua). Die Fußzeile der Ansicht
     (opts.footer) nennt die Quelle: „beim Lehrer gesehen am …“ bzw. „aus deinem Zauberbuch, noch ohne Kosten“.
+
+    Berufe stehen am Berufefenster (ezCraft, Reiter „Was kommt wann“ für den gewählten Beruf; Nutzer am 24.11.2026:
+    „zauberbuch vs berufe grenzt das doch klar ab“), nicht mehr als Abschnitte am Ende.
 
     Die Ansicht selbst (Buchseiten, Kopfzeilen, Einträge wie SpellBookItemTemplate, Seiten-Layout, Blättern,
     verkleinertes Buch, Seitenreiter, zurück über Kategorie-Reiter und Suche, taint-sicher) baut ezCore:
     Core.NewSpellbookView (seit ezCore 1.7.0, vorher hier). ezMerchant liefert nur die Zeilen und Texte.
-    Reiter bei y −70; darunter ezMacros Reiter „Ränge aktualisieren“ (y −114), dann ezCombat „Rotation“ (y −158).
+    Reiter oben im Seitenreiter-Stapel (Reihenfolge 10, y −70); direkt darunter ezMerchants „Wo kommt was“ (Where.lua,
+    Reihenfolge 15), dann ezMacros Reiter „Ränge aktualisieren“ (20) und ezCombat „Rotation“ (30) – die y-Werte setzt
+    der Stapel lückenlos nach den sichtbaren Reitern.
+    „Zum Lehrer“ (Lehrer auf der Karte, MAP-21) steht seit dem 24.11.2026 nicht mehr hier, sondern für jede Lehrerart in
+    „Wo kommt was“ (Entscheidung des Nutzers vom 23.11.2026: „"zum lehrer" aus "was kommt wann" raus und dafür für alle
+    bei "wo kommt was" rein“); U.MapAPI, U.NearestTrainer, U.GoToTrainer und U.WayLine reichen an ns.Where weiter.
 ]]
 
 local U = {}
@@ -106,6 +117,11 @@ local function LevelTip(tip, entry, level, from, trainerData, pet)
         return
     end
     tip[#tip + 1] = L.UPCOMING_LEVEL:format(level)
+    -- Rang aus einem Buch: die Stufe des Buchs steht in den Tabellen, auch wenn der Client den Rang selbst nennt
+    if entry.bookItem and not pet and from == "tables" then
+        tip[#tip + 1] = { L.UPCOMING_LEVEL_SRC_TABLES:format(U.TableSource() or "?"), "hint" }
+        return
+    end
     if entry.client or pet then return end                -- UPCOMING_FROM_CLIENT bzw. UPCOMING_PET_TIP nennt die Quelle
     if entry.tables then                                   -- nur laut Client-Tabellen: der Rang von dort
         if from == "client" then                           -- die Stufe nennt der Client selbst (Leitlinie 11)
@@ -153,54 +169,75 @@ end
 local function SpellLine(entry, state, withCost, pet, known, shown)
     local now = state == "now"
     local tablesNow = now and entry.tables and not withCost and not pet
+    local ownBook = entry.bookItem ~= nil and not pet            -- Rang aus einem Buch: kein Preis beim Lehrer
     local rank = tonumber(entry.rank) or 0
     local cost = withCost and entry.cost ~= nil and ns.Money(entry.cost) or nil
-    local costText = entry.cost and ns.Money(entry.cost) or (withCost and not pet and L.UPCOMING_COST_UNSEEN) or nil
-    local sub = rank > 0 and L.UPCOMING_RANK:format(rank) or nil
+    local books = pet and entry.book == true        -- Grimoire beim Dämonenausbilder (Core.PetSpells)
+    local costText = entry.cost and ns.Money(entry.cost) or (ownBook and L.UPCOMING_BOOK)
+        or (withCost and not pet and L.UPCOMING_COST_UNSEEN) or nil
+    -- Grimoire: der Rang am Namen, der Dämon in der zweiten Zeile („Rang 1 · Teufelsjäger“ passte nicht hinein)
+    local name = books and SpellText(entry) or entry.name
+    local sub = books and entry.owner or (rank > 0 and L.UPCOMING_RANK:format(rank)) or nil
     local detail                      -- nie nil: sonst zeigte die Ansicht right (Kosten) als dritte Zeile
     local level, from, levelText
     local tip = {}
     if tablesNow then
         levelText = entry.level and L.UPCOMING_LEVEL:format(entry.level) or L.UPCOMING_LEVEL_UNKNOWN
-        detail, sub = LevelDetail(levelText, costText, sub, entry.name)
+        detail, sub = LevelDetail(levelText, costText, sub, name)
         if entry.level then tip[#tip + 1] = L.UPCOMING_LEVEL:format(entry.level) end
         tip[#tip + 1] = { L.UPCOMING_FROM_TABLES:format(U.TableSource() or "?"), "hint" }
     elseif now then
-        local label = Trainable()
-        detail = costText and (label .. " · " .. costText) or label
+        -- Grimoire: nur der Preis („beim Dämonenausbilder · Preis“ kürzte die Ansicht zu „beim…“, Review); der Ort im Tooltip
+        local label = books and L.UPCOMING_PET_AT_TRAINER or Trainable()
+        detail = costText and (books and costText or (label .. " · " .. costText)) or label
         if entry.level then tip[#tip + 1] = L.UPCOMING_LEVEL:format(entry.level) end
     else
         if shown then level, from = shown.level, shown.from else level, from = U.EntryLevel(entry, pet, known) end
         levelText = level and L.UPCOMING_LEVEL:format(level) or L.UPCOMING_LEVEL_UNKNOWN
-        detail, sub = LevelDetail(levelText, costText, sub, entry.name)
+        detail, sub = LevelDetail(levelText, costText, sub, name)
         LevelTip(tip, entry, level, from, withCost, pet)
     end
-    if entry.cost then
+    if books then
+        local item = entry.item and Core.ItemNameByID(entry.item)
+        if item then tip[#tip + 1] = item end
+        if entry.cost then tip[#tip + 1] = L.UPCOMING_PET_PRICE:format(ns.Money(entry.cost)) end
+    elseif entry.cost then
         tip[#tip + 1] = L.UPCOMING_COST:format(ns.Money(entry.cost))
-    elseif not pet then
+    elseif not pet and not ownBook then
         tip[#tip + 1] = L.UPCOMING_COST_UNSEEN
         tip[#tip + 1] = { L.UPCOMING_COST_UNSEEN_TIP, "hint" }
     end
-    if state == "reached" then
+    if entry.bookItem and not pet then
+        local item = Core.ItemNameByID(entry.bookItem) or ("#" .. entry.bookItem)
+        tip[#tip + 1] = { L.UPCOMING_BOOK_TIP:format(item, U.TableSource() or "?"), "normal" }
+        if ns.Enabled("where") then tip[#tip + 1] = { L.UPCOMING_BOOK_WHERE, "hint" } end
+    elseif state == "reached" then
         tip[#tip + 1] = { withCost and L.UPCOMING_REACHED_TIP or L.UPCOMING_REACHED_TIP_NODATA, "normal" }
     end
     if tablesNow then
         tip[#tip + 1] = { L.UPCOMING_NOW_TABLES_TIP, "normal" }
     elseif now then
-        tip[#tip + 1] = { Trainable(), "good" }
+        tip[#tip + 1] = { books and L.UPCOMING_PET_AT_TRAINER or Trainable(), "good" }
     end
-    if pet then tip[#tip + 1] = { L.UPCOMING_PET_TIP, "hint" } end
-    if entry.client then tip[#tip + 1] = { L.UPCOMING_FROM_CLIENT, "hint" } end
+    if books then
+        tip[#tip + 1] = { (state == "open" and L.UPCOMING_PET_BOOK_OPEN_TIP or L.UPCOMING_PET_BOOK_TIP)
+            :format(entry.owner or "?", entry.source or U.TableSource() or "?"), "hint" }
+        if now then tip[#tip + 1] = { L.UPCOMING_PET_RANKS_TIP, "hint" } end
+    elseif pet and entry.tables then
+        tip[#tip + 1] = { L.UPCOMING_PET_TABLES_TIP:format(entry.source or U.TableSource() or "?"), "hint" }
+    elseif pet then
+        tip[#tip + 1] = { L.UPCOMING_PET_TIP, "hint" }
+    end
+    if entry.client and not ownBook then tip[#tip + 1] = { L.UPCOMING_FROM_CLIENT, "hint" } end
     -- Beschreibung statt grauer Angaben (Spieltest 21.11.2026, Bild 4, Antwort des Nutzers „Beschreibung + lesbar
     -- (Empfohlen)“): kennt der Client die Beschreibung, steht der Rang hinter dem Namen, darunter die Beschreibung (zu
     -- lang: gekürzt, ganz im Tooltip, dort mit der Quelle). Die Stufe steht dann in der Stufen-Überschrift (rechts die
     -- Summe bis zu dieser Stufe), Stufe und Einzelpreis im Tooltip;
     -- wo keine Stufen-Überschrift darüber steht (Begleiter, „Jetzt dran“ nur laut Tabellen) bzw. beim Lehrer erlernbar,
     -- bleibt die dritte Zeile. Ohne Beschreibung bleibt der Eintrag wie bisher.
-    local name = entry.name
     local desc = U.Description(entry, pet, known)
     if desc then
-        name, sub = SpellText(entry), desc
+        name, sub = SpellText(entry), books and entry.owner and L.UPCOMING_PET_OWNER:format(entry.owner, desc) or desc
         tip[#tip + 1] = { L.UPCOMING_DESC_SOURCE, "hint" }
         if (pet or tablesNow) and levelText then
             detail = costText and (levelText .. " · " .. costText) or levelText
@@ -224,8 +261,9 @@ end
 -- Funktionen, gleiche Höchststufe) und wird verworfen, sobald sich das Zauberbuch oder die Stufe ändert (unten).
 local bookCache = {}
 local tableCache = {}       -- dasselbe für die Client-Tabellen (U.TableEntries)
+local petCache = {}         -- und für den Begleiter laut Client-Tabellen (U.PetTables)
 
-function U.ForgetClient() bookCache, tableCache = {}, {} end
+function U.ForgetClient() bookCache, tableCache, petCache = {}, {}, {} end
 
 local function EntryKey(name, rank) return tostring(name) .. "#" .. (tonumber(rank) or 0) end
 
@@ -294,7 +332,8 @@ function U.TableEntries(S)
     end
     for _, e in ipairs(type(open) == "table" and open or {}) do
         list[#list + 1] = { id = ns.Num(e.id), name = e.name, rank = ns.Num(e.rank) or 0, level = ns.Num(e.level),
-            base = ns.Num(e.base), icon = e.icon, tables = true }
+            base = ns.Num(e.base), icon = e.icon, variant = e.variant == true or nil, bookItem = ns.Num(e.bookItem),
+            tables = true }
     end
     local has = type(raw) == "table"
     tableCache = { at = now, fn = S.ClientComing, max = maxLevel, list = list, has = has }
@@ -305,18 +344,25 @@ end
 -- Gelerntes), sonst U.BookEntries. → Menge der Schlüssel Name#Rang, Menge der Zauber-IDs, [Name@Stufe] = höchster Rang
 -- dort (0 = ohne Rang). Name@Stufe fängt ab, dass die Tabellen Ränge über den englischen Namen zählen: weicht die
 -- Zählung vom Lehrer ab, stünde derselbe Zauber sonst zweimal da. Ein höherer Rang derselben Stufe gilt nicht als
--- abgedeckt (Feuerball 25306, Rang 12, neben Rang 11 beim Lehrer; Gegenprüfung des Reviews zu PR 454).
+-- abgedeckt (Feuerball 25306, Rang 12, neben Rang 11 beim Lehrer; Gegenprüfung des Reviews zu PR 454). Abwandlungen
+-- (variant: Verwandlung in Schildkröte, Schwein – heißen nur wie ein Zauber mit Rängen) zählen nur über ihre Zauber-ID.
+-- Ein Rang aus einem Buch und einer vom Lehrer decken einander nie ab (LevelKey).
+local function LevelKey(e)
+    return ("%s@%s%s"):format(tostring(e.name), tostring(e.level), e.bookItem ~= nil and "#book" or "")
+end
 local function Covered(S, trainerSeen)
     local keys, ids, levels = {}, {}, {}
     local list
     if trainerSeen and type(S.Trainer) == "function" then list = S.Trainer() else list = U.BookEntries(S) end
     for _, e in ipairs(type(list) == "table" and list or {}) do
         if type(e) == "table" then
-            keys[EntryKey(e.name, e.rank)] = true
             local level = ns.Num(e.level)
-            if level then
-                local key = tostring(e.name) .. "@" .. level
-                levels[key] = math.max(levels[key] or 0, ns.Num(e.rank) or 0)
+            if e.variant ~= true then
+                keys[EntryKey(e.name, e.rank)] = true
+                if level then
+                    local key = LevelKey(e)
+                    levels[key] = math.max(levels[key] or 0, ns.Num(e.rank) or 0)
+                end
             end
             local id = ns.Num(e.id)
             if id then ids[id] = true end
@@ -327,7 +373,7 @@ end
 
 -- Deckt Name@Stufe einen Eintrag der Tabellen ab? (siehe Covered)
 local function LevelCovers(levels, e)
-    local top = levels[tostring(e.name) .. "@" .. tostring(e.level)]
+    local top = levels[LevelKey(e)]
     return top ~= nil and (top == 0 or (ns.Num(e.rank) or 0) <= top)
 end
 
@@ -346,7 +392,8 @@ function U.TableExtra(level, S)
     local keys, ids, levels = Covered(S, type(S.TrainerSeen) == "function" and S.TrainerSeen())
     local known = U.ClientLevels(S)                        -- dieselben Listen dieses Bilds, keine zweite Abfrage
     for _, e in ipairs(entries) do
-        if not ((e.id and ids[e.id]) or keys[EntryKey(e.name, e.rank)] or LevelCovers(levels, e)) then
+        if not ((e.id and ids[e.id])
+            or (not e.variant and (keys[EntryKey(e.name, e.rank)] or LevelCovers(levels, e)))) then
             -- einsortiert nach der Stufe, die der Eintrag zeigt (U.EntryLevel: zuerst laut Client, dann Tabellen)
             local shown = U.EntryLevel(e, nil, known) or e.level
             if shown <= level then reached[#reached + 1] = e else later[#later + 1] = e end
@@ -362,11 +409,14 @@ function U.ClientLevels(S)
     S = S or Spells()
     local byKey = {}
     if not S then return byKey end
-    for _, entry in ipairs((U.BookEntries(S))) do byKey[EntryKey(entry.name, entry.rank)] = entry end
+    -- ohne Abwandlungen: sie tragen ihre eigene ID, und „Verwandlung#0“ wäre sonst eine beliebige von ihnen
+    for _, entry in ipairs((U.BookEntries(S))) do
+        if entry.variant ~= true then byKey[EntryKey(entry.name, entry.rank)] = entry end
+    end
     for _, entry in ipairs((U.TableEntries(S))) do
         local key = EntryKey(entry.name, entry.rank)
         local hit = byKey[key]
-        if not (hit and ns.Num(hit.level)) then byKey[key] = entry end
+        if not entry.variant and not (hit and ns.Num(hit.level)) then byKey[key] = entry end
     end
     return byKey
 end
@@ -381,10 +431,12 @@ end
 -- → Stufe, Quelle; nil, wenn weder Client noch Tabellen noch Lehrer eine nennen
 function U.EntryLevel(entry, pet, known)
     if type(entry) ~= "table" then return nil end
+    -- aus einem Buch: die höhere Stufe von Zauber und Buch, beide laut Client-Tabellen (Core.Spells.Book)
+    if entry.bookItem and ns.Num(entry.level) then return ns.Num(entry.level), "tables" end
     if not pet then
         local S = Spells()
         known = known or U.ClientLevels(S)
-        local hit = known[EntryKey(entry.name, entry.rank)]
+        local hit = not entry.variant and known[EntryKey(entry.name, entry.rank)] or nil
         local id = tonumber(entry.id) or (hit and tonumber(hit.id))
         if id and S and type(S.LevelLearned) == "function" then
             local ok, level, from = pcall(S.LevelLearned, id)
@@ -449,9 +501,12 @@ local function LevelHeader(level)
     return level and L.UPCOMING_LEVEL:format(level) or L.UPCOMING_LEVEL_UNKNOWN
 end
 
--- Ohne Lehrerbesuch „jetzt“: Stufe erreicht oder unbekannt (wie bisher Core.Spells.Waiting). Eine Regel für die
--- Gruppe „Jetzt beim Lehrer“ und die Zahl am Reiter.
-local function BookNow(entry, level) return (tonumber(entry.level) or 0) <= level end
+-- Ohne Lehrerbesuch „jetzt“: Stufe erreicht oder unbekannt, nicht aus einem Buch (ezCores Regel, wie
+-- Core.Spells.Waiting). Eine Regel für die Gruppe „Jetzt beim Lehrer“ und die Zahl am Reiter.
+local function BookNow(entry, level) return Core.Spells.WaitsAtTrainer(entry, level) end
+-- Rang aus einem Buch, Stufe erreicht: steht grau unter seiner Stufe wie „erreicht laut Client-Tabellen“, nicht unter
+-- „Jetzt beim Lehrer“ (Durchsicht 24.11.2026, R2)
+local function BookReached(entry, level) return entry.bookItem ~= nil and (ns.Num(entry.level) or 0) <= level end
 
 -- Ohne Lehrerbesuch: wie viele Einträge aus U.BookEntries jetzt dran sind (dieselben wie unter „Jetzt beim Lehrer“).
 function U.BookWaiting(level, S)
@@ -496,10 +551,14 @@ local function FutureLines(S, level, lines)
         lines[#lines + 1] = { kind = "header", left = L.UPCOMING_NOW }
         for _, entry in ipairs(now) do lines[#lines + 1] = SpellLine(entry, "now", false, nil, known) end
     end
-    ReachedLines(lines, reached, false, known)
+    local all = Core.CopyList(reached)
+    for _, entry in ipairs(future) do
+        if BookReached(entry, level) then all[#all + 1] = entry end
+    end
+    ReachedLines(lines, all, false, known)
     local later = {}
     for _, entry in ipairs(future) do
-        if not BookNow(entry, level) then later[#later + 1] = entry end
+        if not BookNow(entry, level) and not BookReached(entry, level) then later[#later + 1] = entry end
     end
     for _, entry in ipairs(extra) do later[#later + 1] = entry end
     current = false                    -- wie in U.SpellLines: auch ohne Stufe eine Kopfzeile („Stufe unbekannt“)
@@ -514,111 +573,37 @@ local function FutureLines(S, level, lines)
 end
 
 ---------------------------------------------------------------------------
--- Lehrer auf der Karte zeigen (MAP-21, Teil ezMerchant): ezMaps Schnittstelle (ezCore.API("ezMap")) kennt die
--- gemerkten Lehrer und setzt Blizzards Kartenmarkierung; hier nur der Eintrag in „Was kommt wann“ und der Klick.
+-- Lehrer auf der Karte zeigen (MAP-21, Teil ezMerchant): seit dem 24.11.2026 im Reiter „Wo kommt was“ (Where.lua, für
+-- jede Lehrerart). Die bisherigen Funktionen bleiben als Weiterleitung (Leitlinie 8).
 ---------------------------------------------------------------------------
 
-local WAY_ICON = "Interface\\Icons\\INV_Misc_Map_01"
+local function Where() return ns.Where end
 
 -- ezMaps Schnittstelle, wenn ezMap läuft und Lehrer findet; sonst nil.
-function U.MapAPI()
-    local api = Core.API("ezMap")
-    if type(api) == "table" and type(api.NearestTrainer) == "function" and type(api.SetWaypoint) == "function" then
-        return api
-    end
-    return nil
-end
+function U.MapAPI() return Where() and Where().MapAPI() or nil end
 
 -- Nächster gemerkter Lehrer deiner Klasse auf diesem Kontinent (laut ezMap) oder nil.
-function U.NearestTrainer()
-    local api = U.MapAPI()
-    if not api then return nil end
-    local ok, t = pcall(api.NearestTrainer, "class")
-    if not ok or type(t) ~= "table" or not (ns.Num(t.map) and ns.Num(t.x) and ns.Num(t.y)) then return nil end
-    return t
-end
+function U.NearestTrainer() return Where() and Where().Nearest("class") or nil end
 
-local function TrainerName(t)
-    local label = Core.Npcs and Core.Npcs.Label and Core.Npcs.Label(t)
-    return type(label) == "string" and label or (type(t.name) == "string" and t.name) or "?"
-end
+-- Kartenmarkierung auf den nächsten Lehrer deiner Klasse setzen und im Chat sagen, wohin (oder warum nicht).
+function U.GoToTrainer() return Where() ~= nil and Where().GoNearest("class") or false end
 
-local function TrainerPlace(t)
-    local name = Core.MapName and Core.MapName(t.map)
-    return type(name) == "string" and name or ("#" .. tostring(t.map))
-end
+-- Eintrag „Zum Lehrer“ (nur mit ezMap) – steht jetzt in „Wo kommt was“ unter „Klassenlehrer“.
+function U.WayLine() return Where() and Where().WayLine("class") or nil end
 
--- Kennt das Spiel die eigene Position? Ohne sie (Instanz, gesperrter Wert) findet ezMap keinen Lehrer – das heißt
--- dann nicht, dass keiner gemerkt ist.
-local function PositionKnown()
-    local mapID = Core.PlayerPosition and Core.PlayerPosition()
-    return mapID ~= nil
-end
-
--- Kartenmarkierung auf den nächsten Lehrer setzen und im Chat sagen, wohin (oder warum nicht). → true, wenn gesetzt
-function U.GoToTrainer()
-    local api = U.MapAPI()
-    if not api then
-        ns.Print(L.UPCOMING_WAY_NOMAP)
-        return false
-    end
-    local t = U.NearestTrainer()
-    if not t then
-        ns.Print(PositionKnown() and L.UPCOMING_WAY_NONE or L.UPCOMING_WAY_NOPOS)
-        return false
-    end
-    local name = TrainerName(t)
-    local ok, done, err = pcall(api.SetWaypoint, t.map, t.x, t.y, name)
-    if ok and done then
-        ns.Print(L.UPCOMING_WAY_SET:format(name, TrainerPlace(t)))
-        return true
-    end
-    ns.Print(L.UPCOMING_WAY_FAILED:format(tostring(ok and err or done or "?")))
-    return false
-end
-
--- Eintrag „Lehrer auf der Karte zeigen“ (nur mit ezMap); ein Klick darauf ruft U.GoToTrainer (onClick unten).
-function U.WayLine()
-    if not U.MapAPI() then return nil end
-    local t = U.NearestTrainer()
-    local sub
-    if t then
-        sub = L.UPCOMING_WAY_TO:format(TrainerName(t), TrainerPlace(t))
-    else                                        -- wie U.GoToTrainer: ohne Position heißt nil nicht „keiner gemerkt“
-        sub = PositionKnown() and L.UPCOMING_WAY_UNKNOWN or L.UPCOMING_WAY_NOPOS_SHORT
-    end
-    -- Kurzer Name im Eintrag (Spielbefund des Nutzers vom 19.11.2026: „Lehrer auf der...“ stand abgeschnitten), der
-    -- volle Text ist der Titel des Tooltips.
-    return { kind = "spell", action = "trainerWay", left = L.UPCOMING_WAY_SHORT, name = L.UPCOMING_WAY_SHORT,
-        title = L.UPCOMING_WAY,
-        sub = sub, detail = L.UPCOMING_WAY_SOURCE, icon = WAY_ICON, style = "trainable",
-        tooltip = { { L.UPCOMING_WAY_TIP, "highlight" }, { L.UPCOMING_WAY_SOURCE_TIP, "hint" } } }
-end
-
--- Den Eintrag einreihen: unter „Jetzt beim Lehrer“, sonst oben (nach dem Hinweis ohne Lehrerdaten).
-local function AddWay(lines)
-    local way = U.WayLine()
-    if not way then return lines end
-    local at = 1
-    for i, line in ipairs(lines) do
-        if line.kind == "header" and line.left == L.UPCOMING_NOW then at = i + 1 break end
-    end
-    if at == 1 and lines[1] and lines[1].kind == "text" and lines[1].noData then at = 2 end
-    table.insert(lines, at, way)
-    return lines
-end
-
--- Klick auf einen Eintrag der Ansicht (Core.NewSpellbookView: onClick).
+-- Klick auf einen Eintrag der Ansicht (Core.NewSpellbookView: onClick); „Zum Lehrer“ alter Form reicht weiter.
 function U.Click(line)
-    if type(line) == "table" and line.action == "trainerWay" then return U.GoToTrainer() end
+    if type(line) == "table" and (line.action == "trainerWay" or line.action == "way") and Where() then
+        return Where().Click(line)
+    end
     return false
 end
 
 -- Zeilen der Ansicht: { kind = "header" | "spell" | "text", left, right, icon, entry, state = "now" | "later", level }
--- und die Anzeige-Felder von Core.NewSpellbookView (name, sub, detail, spellID, style, tooltip). Mit ezMap steht
--- dazu der Eintrag „Lehrer auf der Karte zeigen“ (action = "trainerWay").
+-- und die Anzeige-Felder von Core.NewSpellbookView (name, sub, detail, spellID, style, tooltip). „Zum Lehrer“ steht seit
+-- dem 24.11.2026 in „Wo kommt was“ (Where.lua).
 function U.Lines(level)
-    return U.PetLines(level, AddWay(U.SpellLines(level)))
+    return U.PetLines(level, U.SpellLines(level))
 end
 
 ---------------------------------------------------------------------------
@@ -644,11 +629,61 @@ function U.PetPresent()
     return type(book) == "table"
 end
 
--- Wie viele Begleiter-Fähigkeiten jetzt beim Ausbilder warten (Core.Spells.Waiting mit der Begleiter-Art; ohne
--- Besuch und ohne gerufenen Begleiter 0).
+-- Was der Begleiter laut Client-Tabellen noch lernen kann (Core.PetSpells.List), solange sein Ausbilder nicht besucht
+-- ist; nil ohne Daten. Wie U.BookEntries für dieses Bild gemerkt (Zahl, Zeilen und Fußzeile fragen im selben Bild).
+-- → Antwort von PetSpells.List | nil
+function U.PetTables(level)
+    local S, kind, P = Spells(), U.PetKind(), Core.PetSpells
+    if not (kind and P and P.List) or (S.TrainerSeen and S.TrainerSeen(kind)) then return nil end
+    level = level or PlayerLevel()
+    local now = type(GetTime) == "function" and GetTime() or nil
+    local c = petCache
+    if now ~= nil and c.at == now and c.fn == P.List and c.level == level and c.kind == kind then return c.res end
+    local ok, res = pcall(P.List, level)
+    if not ok then
+        ns.Error(res, "PetSpells.List")
+        res = nil
+    end
+    res = type(res) == "table" and res or nil
+    petCache = { at = now, fn = P.List, level = level, kind = kind, res = res }
+    return res
+end
+
+-- Dämonen, die ezCore noch nie gesehen hat, mit Zahl der erreichten Grimoires („Leerwandler (4)“); nil, wenn keiner.
+function U.PetUnknown(res)
+    if not (res and type(res.unknown) == "table" and #res.unknown > 0) then return nil end
+    local names = {}
+    for i, u in ipairs(res.unknown) do names[i] = L.UPCOMING_PET_UNKNOWN_ONE:format(u.owner or "?", u.count) end
+    return table.concat(names, ", ")
+end
+
+-- Hinweis, wenn weder der Ausbilder noch die Client-Tabellen etwas liefern. Beim Hexenmeister hilft kein Lehrerfenster (der
+-- Dämonenausbilder hat keins): dann fehlen die Tabellen. → Text für die Ansicht, Text für die Statuszeile
+function U.PetNoData()
+    if U.PetKind() == "WARLOCK:PET" then return L.UPCOMING_PET_NO_TABLES, L.UPCOMING_PET_NO_TABLES end
+    return L.UPCOMING_PET_NO_DATA, L.STATUS_PET_TRAINER_NONE
+end
+
+-- Statuszeile ohne Besuch beim Ausbilder, Hexenmeister: was jetzt fehlt, und welche Dämonen noch nicht gesehen sind.
+function U.PetBooksStatus(res)
+    local total = 0
+    for _, e in ipairs(res.now) do total = total + (e.cost or 0) end
+    local unknown = U.PetUnknown(res)
+    local open = unknown and L.STATUS_PET_BOOKS_OPEN:format(unknown)
+    if #res.now == 0 then return open or L.STATUS_PET_BOOKS_NONE end
+    local text = L.STATUS_PET_BOOKS:format(#res.now, ns.Money(total))
+    return open and (text .. " " .. open) or text
+end
+
+-- Wie viele Begleiter-Fähigkeiten jetzt beim Ausbilder warten (Core.Spells.Waiting mit der Begleiter-Art): mit Besuch
+-- dort nur, solange ein Begleiter gerufen ist (sonst weiß ezCore nicht, was er kann); ohne Besuch beim Hexenmeister die
+-- Grimoires laut Client-Tabellen (je Dämon gemerkt, was er kann), sonst 0.
 function U.PetWaiting(level)
     local S, kind = Spells(), U.PetKind()
-    if not (kind and S.Waiting) or not U.PetPresent() then return 0 end
+    if not (kind and S.Waiting) then return 0 end
+    local res = U.PetTables(level)
+    if res then return res.kind == "book" and #res.now or 0 end
+    if not (S.TrainerSeen and not S.TrainerSeen(kind)) and not U.PetPresent() then return 0 end
     local ok, count = pcall(S.Waiting, level, kind)
     return ok and ns.Num(count) or 0
 end
@@ -670,10 +705,14 @@ function U.Count(level)
     return U.OwnWaiting(level) + U.PetWaiting(level)
 end
 
--- Tooltip des Reiters; bei einer Klasse mit Begleiter mit dem Satz, dass er mitgezählt wird.
+-- Tooltip des Reiters; bei einer Klasse mit Begleiter mit dem Satz, dass er mitgezählt wird, und – solange der Reiter
+-- „Wo kommt was“ an ist – wo die Lehrer jetzt stehen (dorthin ist „Zum Lehrer“ am 24.11.2026 umgezogen).
 function U.TabTip()
-    if U.PetKind() then return L.UPCOMING_TAB_TIP .. "\n" .. L.UPCOMING_TAB_TIP_PET end
-    return L.UPCOMING_TAB_TIP
+    local tip = L.UPCOMING_TAB_TIP
+    if U.PetKind() then tip = tip .. "\n" .. L.UPCOMING_TAB_TIP_PET end
+    if ns.Enabled("where") then tip = tip .. "\n" .. L.UPCOMING_TAB_TIP_WHERE end
+    tip = tip .. "\n" .. L.UPCOMING_TAB_TIP_PROF      -- Berufe am Berufefenster (24.11.2026)
+    return tip
 end
 
 -- Eine Gruppe des Reiter-Tooltips: Kopfzeile, darunter je Zauber eine Zeile mit Rang (und Preis), höchstens fünf
@@ -709,14 +748,19 @@ function U.NowTip(level)
     end
     -- was nur die Client-Tabellen als schon erreicht nennen (Gruppe „Erreicht laut Client-Tabellen“): eine Zeile, nicht
     -- mitgezählt
-    local reached = U.TableExtra(level, S)
-    if #reached > 0 then
-        local line = L.UPCOMING_TAB_REACHED:format(Core.Plural(#reached, L.RANKS_ONE, L.RANKS_MANY))
+    -- ohne Ränge aus Büchern: die sieht beim Lehrer niemand
+    local reached = 0
+    for _, e in ipairs((U.TableExtra(level, S))) do if e.bookItem == nil then reached = reached + 1 end end
+    if reached > 0 then
+        local line = L.UPCOMING_TAB_REACHED:format(Core.Plural(reached, L.RANKS_ONE, L.RANKS_MANY))
         own = own and (own .. "\n" .. line) or line
     end
     local kind, pet = U.PetKind(), nil
     if kind and S.TrainerSeen(kind) and U.PetPresent() then
         pet = NowGroup(T, S.Available(level, kind) or {}, L.UPCOMING_TAB_NOW_PET, true)
+    elseif kind and not S.TrainerSeen(kind) then
+        local res = U.PetTables(level)
+        if res and res.kind == "book" then pet = NowGroup(T, res.now, L.UPCOMING_TAB_NOW_BOOKS, true) end
     end
     if own and pet then return own .. "\n\n" .. pet end
     return own or pet
@@ -731,8 +775,49 @@ function U.TabText()
     return tip
 end
 
+-- Wie viel der gerufene Begleiter laut seinem Zauberbuch schon kann: eine Zeile.
+local function PetBookLine(lines, S)
+    local book = S.PetBook and S.PetBook()
+    if type(book) ~= "table" or #book == 0 then return end
+    local text = #book == 1 and L.UPCOMING_PET_BOOK_ONE or L.UPCOMING_PET_BOOK:format(#book)
+    lines[#lines + 1] = { kind = "text", left = text, pet = true }
+end
+
+-- Ohne Besuch beim Ausbilder, aber mit Client-Tabellen (Core.PetSpells): jetzt (Grimoires, die dem Dämon fehlen), dann
+-- grau, was erreicht ist, ohne dass ezCore weiß, ob er es kann (Hinweis darüber), danach was später kommt.
+local function PetTableLines(lines, header, res)
+    if ns.Enabled("where") then
+        lines[#lines + 1] = { kind = "text", left = L.UPCOMING_PET_WHERE:format(L.WHERE_TITLE, L.UPCOMING_PET), pet = true }
+    end
+    local function Add(list, state)
+        for _, entry in ipairs(list) do
+            entry.source = res.source
+            lines[#lines + 1] = SpellLine(entry, state, true, true)
+        end
+    end
+    local total = 0
+    for _, entry in ipairs(res.now) do total = total + (entry.cost or 0) end
+    if total > 0 then header.right = L.UPCOMING_PET_NOW_SUM:format(ns.Money(total)) end
+    Add(res.now, "now")
+    local unknown = U.PetUnknown(res)
+    if res.kind ~= "book" then
+        local text = L.UPCOMING_PET_TABLES_HUNTER
+        if not U.PetPresent() then text = text .. " " .. L.UPCOMING_PET_TABLES_NOPET end
+        lines[#lines + 1] = { kind = "text", left = text, pet = true }
+        PetBookLine(lines, Spells())
+    elseif unknown then
+        lines[#lines + 1] = { kind = "text", left = L.UPCOMING_PET_UNKNOWN:format(unknown), pet = true }
+    end
+    Add(res.open, "open")
+    Add(res.later, "later")
+    if #res.now == 0 and #res.open == 0 and #res.later == 0 then
+        lines[#lines + 1] = { kind = "text", left = L.UPCOMING_PET_NONE, pet = true }
+    end
+    return lines
+end
+
 -- Abschnitt „Begleiter“ an lines anhängen: jetzt beim Ausbilder (mit Kosten), danach was später kommt (Stufe und
--- Kosten im Eintrag). Ohne Besuch beim Ausbilder ein Hinweis, was fehlt (Leitlinie 11), und wie viel der Begleiter
+-- Kosten im Eintrag). Ohne Besuch beim Ausbilder die Liste laut Client-Tabellen (PetTableLines), ohne sie ein Hinweis, was fehlt (Leitlinie 11), und wie viel der Begleiter
 -- laut seinem Zauberbuch schon kann. → lines
 function U.PetLines(level, lines)
     lines = lines or {}
@@ -742,12 +827,14 @@ function U.PetLines(level, lines)
     local header = { kind = "header", left = L.UPCOMING_PET, pet = true }
     lines[#lines + 1] = header
     if not S.TrainerSeen(kind) then
-        lines[#lines + 1] = { kind = "text", left = L.UPCOMING_PET_NO_DATA, pet = true }
-        local book = S.PetBook and S.PetBook()
-        if type(book) == "table" and #book > 0 then
-            local text = #book == 1 and L.UPCOMING_PET_BOOK_ONE or L.UPCOMING_PET_BOOK:format(#book)
-            lines[#lines + 1] = { kind = "text", left = text, pet = true }
+        local res = U.PetTables(level)
+        if res then return PetTableLines(lines, header, res) end
+        lines[#lines + 1] = { kind = "text", left = (U.PetNoData()), pet = true }
+        -- wo sein Ausbilder steht, zeigt „Wo kommt was“ (Schritt b, 24.11.2026: beide Reiter verweisen aufeinander)
+        if ns.Enabled("where") then
+            lines[#lines + 1] = { kind = "text", left = L.UPCOMING_PET_WHERE:format(L.WHERE_TITLE, L.UPCOMING_PET), pet = true }
         end
+        PetBookLine(lines, S)
         return lines
     end
     local now, nowTotal = S.Available(level, kind)
@@ -813,7 +900,15 @@ function U.Footer()
     local kind = U.PetKind()
     if kind then
         local seen = S.TrainerSeen(kind)
-        text = text .. " " .. (seen and Sentence(L.UPCOMING_SRC_PET:format(SeenText(seen))) or L.UPCOMING_SRC_PET_NONE)
+        local res = not seen and U.PetTables() or nil
+        local pet = L.UPCOMING_SRC_PET_NONE
+        if seen then
+            pet = Sentence(L.UPCOMING_SRC_PET:format(SeenText(seen)))
+        elseif res then
+            pet = res.kind == "book" and L.UPCOMING_SRC_PET_BOOKS or L.UPCOMING_SRC_PET_TABLES
+            pet = pet:format(tableSource and L.UPCOMING_SRC_PET_SAME or res.source)
+        end
+        text = text .. " " .. pet
     end
     return text
 end

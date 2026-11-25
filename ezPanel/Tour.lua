@@ -4,7 +4,7 @@ local L = ns.L
 -- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
 -- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
 -- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
-ns.FEATURE_STEPS = { "bar", { "block", "gold" }, { "block", "bar" }, "bar", false }
+ns.FEATURE_STEPS = { "bar", { "block", "gold" }, { "block", "bar" }, "alts", "bar", false }
 
 --[[
     Rundgang mit Erklärblasen (Abschlussrunde „Tooltip-Guide“, ezCore.NewTour): beim ersten Erscheinen der
@@ -41,7 +41,8 @@ local tour = ezCore.NewTour({
         { key = "block", target = FirstBlock, text = L.TOUR_BLOCK, side = "below" },
         { key = "bar", target = function() return ns.bar end, text = L.TOUR_BAR, side = "below" },
         { key = "gold", target = Block("gold"), text = L.TOUR_GOLD, side = "below" },
-        { key = "alts", target = Block("alts"), text = L.TOUR_ALTS, side = "below" },
+        -- Grenze aus ns.INSTANCE_LIMIT (Core.lua lädt vor dieser Datei), nicht fest im Text
+        { key = "alts", target = Block("alts"), text = L.TOUR_ALTS:format(ns.INSTANCE_LIMIT), side = "below" },
         { key = "alerts", target = Block("alerts"), text = L.TOUR_ALERTS, side = "below" },
         { key = "tools", target = Block("tools"), text = L.TOUR_TOOLS, side = "below" },
     },

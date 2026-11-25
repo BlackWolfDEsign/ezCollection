@@ -193,10 +193,29 @@ local function Register()
     page:Dropdown("showReady", places, GlowTip("showReady", "ready"))
     Slider("sizeReady", Pixels)
     Slider("symbolHold", Seconds)
-    page:Checkbox("symbolCenter")
+    -- Nur die seitlichen Plätze rücken; die nächste Fähigkeit steht immer in der Mitte. Grau, solange keine Meldungsart
+    -- seitlich erscheint (24.11.2026)
+    page:Checkbox("symbolCenter", nil, {
+        parentLabel = L.OPT_symbolCenter_NEEDS:format(L.OPT_showExpiring, L.OPT_showReady),
+        enabledWhen = function() return ns.ShowAt("expiring", "center") or ns.ShowAt("ready", "center") end })
     -- Text unter dem Symbol (S-1811-Symboltext): aus (ab Werk), nur Name, ausführlich
     page:Dropdown("symbolText", Choices("symbolText", function(value) return L["OPT_symbolText_" .. value] end))
+    -- Schadensvergleich unter dem Symbol: eigener Schalter statt „Text unter dem Symbol: ausführlich“ (Spieltest
+    -- 23.11.2026), seit 24.11.2026 direkt unter dieser Auswahl statt im Abschnitt Rotation („nicht austellbar?“)
+    page:Checkbox("rotationValuesText", nil, { parent = "symbolText", parentLabel = L.OPT_rotationValues,
+        enabledWhen = function() return ns.Enabled("rotation") and ns.Enabled("rotationValues") end })
     page:Button(L.OPT_PREVIEW, L.OPT_PREVIEW_BUTTON, function() ns.Symbol.Demo() end, L.OPT_PREVIEW_SYMBOL_TIP)
+
+    -- Fast tot oder vergiftet: Trank im mittigen Symbol (Potions.lua, Wunsch des Nutzers vom 23.11.2026), dazu seit dem
+    -- 24.11.2026 Rettungsfähigkeit (Rescue.lua), Leuchten am Spielerfenster (Danger.lua) – ein Regler für alle drei – und
+    -- der Bann-Zauber am Rahmen (Dispel.lua)
+    page:Header(L.OPT_HEADER_DANGER)
+    page:Checkbox("potions")
+    page:Checkbox("rescue", ns.Rescue.Tip)
+    page:Checkbox("dangerGlow")
+    Slider("potionBelow", Percent)
+    page:Checkbox("dispelHint", ns.Dispel.Tip)
+    page:Button(L.OPT_PREVIEW, L.OPT_PREVIEW_BUTTON, Show("danger"), L.OPT_PREVIEW_DANGER_TIP)
 
     -- Ob „wieder bereit“ erscheint, sagt nur noch die Auswahl oben (Einstellungs-Prüfung 19.11.2026, Nr. 70/71);
     -- „Zahlen auf Abklingzeiten“ steht nur noch in Blizzards Optionen (Abschnitt 4), /ezk status nennt Stand und Ort.
@@ -213,8 +232,6 @@ local function Register()
     page:Header(L.OPT_HEADER_DOTS)
     page:Checkbox("dots", GlowTip("dots", "dot"))
     Slider("dotWarn", Seconds)
-    -- Nur der Regler: ganz links ist Blizzards Größe, also aus (Einstellungs-Prüfung 19.11.2026, Nr. 72)
-    Slider("bigAuraSize", Pixels)
     page:Button(L.OPT_PREVIEW, L.OPT_PREVIEW_BUTTON, Show("dots"), L.OPT_PREVIEW_DOTS_TIP)
 
     page:Header(L.OPT_HEADER_BUFFS)
@@ -245,6 +262,10 @@ local function Register()
     page:Checkbox("rotationSide", GlowTip("rotationSide", "next"), rot())
     -- Welle 27: Vorwarnung vor Ablauf einer Abklingzeit (0 = aus)
     Slider("rotationWarn", Seconds, rot())
+    -- Werte abwägen (23.11.2026): Füller gegen Zauberstab; die Reserve gilt nur mit eingeschaltetem Abwägen
+    page:Checkbox("rotationValues", nil, rot())
+    Slider("rotationManaReserve", Percent, { parent = "rotationValues",
+        enabledWhen = function() return ns.Enabled("rotation") and ns.Enabled("rotationValues") end })
     -- Blizzards Assistent nur, wenn das Spiel ihn anbietet (auf Forever am 15.11.2026 gemessen: IsAvailable → false):
     -- sonst ist der Schalter ausgegraut, der Tooltip nennt den Grund.
     local _, blizzardRow = page:Checkbox("rotationBlizzard", ns.Rotation.BlizzardTip)
@@ -265,10 +286,13 @@ local function Register()
     end, L.OPT_rotationReset_TIP)
     page:Button(L.OPT_PREVIEW, L.OPT_PREVIEW_BUTTON, Show("rotation"), L.OPT_PREVIEW_ROTATION_TIP)
 
+    -- Entscheidung des Nutzers vom 23.11.2026 („Ziel aus, ein Regler“): die Leiste unter dem Spielerfenster, Blizzards
+    -- Punkte am Zielporträt ab Werk aus, ein Regler für die Größe beider (ohne Oberschalter: er gilt für die Leiste und,
+    -- wenn an, das Ziel). Der Tooltip des Schalters nennt ClassicUIForever, solange es die Punkte am Ziel selbst zeichnet.
     page:Header(L.OPT_HEADER_COMBO)
-    -- Nur der Regler: 100 % ist Blizzards Größe, also aus (Einstellungs-Prüfung 19.11.2026, Nr. 73)
-    Slider("comboScale", Percent)
     page:Checkbox("comboBar", LockTip(L.OPT_comboBar_TIP, "combo"))
+    page:Checkbox("comboTarget", ns.Combo.TargetTip)
+    Slider("comboScale", Percent)
     page:Button(L.OPT_PREVIEW, L.OPT_PREVIEW_BUTTON, Show("combo"), L.OPT_PREVIEW_COMBO_TIP)
 
     page:Header(L.OPT_HEADER_SWING)

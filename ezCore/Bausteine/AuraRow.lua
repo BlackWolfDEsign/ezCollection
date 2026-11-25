@@ -81,6 +81,10 @@ local Core = ezCore
                       (SetApplicationCount – Blizzard zeigt sie erst ab 2), Maus aus (tooltip = false) bzw. Blizzards
                       Auren-Tooltip mit eigenem Anker, Reihenfolge stabil (stable: sortMethod AuraInstanceIDOnly – die
                       Instanz-IDs sind nie gesperrt, die Reihenfolge springt nicht).
+                      Dazu (24.11.2026, ezCombats Bann-Hinweis): texture = Symbol (festes Symbol statt dem der Aura –
+                      der Knopf erscheint mit der Aura, zeigt aber z. B. den Zauber dagegen), dispelBorder = true
+                      (Blizzards Rand in der Farbe der Bann-Art, AddDispelTypeTexture), duration = false (ohne Spirale),
+                      count = false (ohne Stapelzahl).
       Pandemie        pandemic = true: Leuchten in der Farbe „dot“ (Core.GlowColor) als Blizzards Pandemie-Region
                       (AddPandemicRegion): Blizzard zeigt sie selbst, auch bei gesperrten Werten, sobald der Client
                       den Pandemie-Wert liefert (C_UnitAuras.GetRefreshCarryOverDuration; AR.PandemicSupported()).
@@ -104,8 +108,10 @@ local Core = ezCore
       Vorschau        reihe:Preview(anzahl, opts) → Beispiel-Knöpfe (true) bzw. false, "combat": eigene Knöpfe in der
                       Optik der Vorlage, als Anhänger mit AR.ANCHOR_TEMPLATE, unter UIParent und am Halter bzw. an der
                       Reihe – zu sehen auch ohne Einheit (für „Zeigen“, „Alles vorführen“, „Teile verschieben“ und den
-                      Bearbeitungsmodus); opts { icons, size, spacing, pandemic = Index }; anzahl 0 blendet sie aus.
-                      Nur außerhalb des Kampfes. reihe:PreviewButtons() → { knopf … }
+                      Bearbeitungsmodus); opts { icons, size, spacing, pandemic = Index, plain = true (nur das Symbol,
+                      ohne Spirale und Stapelzahl), at = { punkt, zu, zuPunkt, x, y } (Lage des ersten statt am Halter
+                      bzw. an der Reihe) }; anzahl 0 blendet sie aus
+                      (auch im Kampf). Sonst nur außerhalb des Kampfes. reihe:PreviewButtons() → { knopf … }
 ]]
 
 local ADDON = "ezCore"
@@ -699,6 +705,7 @@ AR.PANDEMIC = 0.3                    -- Anteil der Gesamtdauer, den ein neues Se
 local SORT = rawget(_G, "AuraContainerSortMethod")
 AR.SORT_STABLE = type(SORT) == "table" and SORT.AuraInstanceIDOnly or 8   -- Forever-Quelle, AuraContainerShared
 AR.GLOW_TEXTURE = "Interface\\Buttons\\UI-ActionButton-Border"
+AR.DISPEL_BORDER = 2                 -- px: so weit ragt Blizzards Bann-Rand über das Symbol (dispelBorder)
 
 local function Try(owner, where, fn, ...)
     local ok, err = pcall(fn, ...)
@@ -712,7 +719,9 @@ local function BuildButton(frame, spec)
     frame:SetSize(size, size)
     local parts = {}
     parts.icon = Core.StyleIcon(frame)
-    local ok, cooldown = pcall(CreateFrame, "Cooldown", nil, frame, "CooldownFrameTemplate")
+    if spec.texture ~= nil then parts.icon:SetTexture(spec.texture) end
+    local ok, cooldown = false, nil
+    if spec.duration ~= false then ok, cooldown = pcall(CreateFrame, "Cooldown", nil, frame, "CooldownFrameTemplate") end
     if ok and cooldown then
         cooldown:SetAllPoints()
         if cooldown.SetReverse then cooldown:SetReverse(true) end
@@ -720,10 +729,19 @@ local function BuildButton(frame, spec)
         if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(spec.numbers == false) end
         parts.cooldown = cooldown
     end
-    local count = frame:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-    count:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
-    count:SetJustifyH("RIGHT")
-    parts.count = count
+    if spec.count ~= false then
+        local count = frame:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+        count:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
+        count:SetJustifyH("RIGHT")
+        parts.count = count
+    end
+    if spec.dispelBorder then
+        -- Blizzards Rand liegt knapp außen um das Symbol (wie an Blizzards Debuff-Knöpfen); Atlas und Farbe setzt Blizzard
+        local border = frame:CreateTexture(nil, "OVERLAY", nil, 3)
+        border:SetPoint("TOPLEFT", frame, "TOPLEFT", -AR.DISPEL_BORDER, AR.DISPEL_BORDER)
+        border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", AR.DISPEL_BORDER, -AR.DISPEL_BORDER)
+        parts.border = border
+    end
     if spec.pandemic then
         local glow = frame:CreateTexture(nil, "OVERLAY", nil, 2)
         glow:SetTexture(AR.GLOW_TEXTURE)
@@ -738,6 +756,13 @@ local function BuildButton(frame, spec)
 end
 AR.BuildButton = BuildButton
 
+-- Blizzards Rand nach Bann-Art ohne Ecksymbol (Enum.CustomAuraButtonDispelTypeTextureStyle.Border)
+function AR.DispelBorderStyle()
+    local enum = rawget(_G, "Enum")
+    local styles = type(enum) == "table" and enum.CustomAuraButtonDispelTypeTextureStyle or nil
+    return type(styles) == "table" and styles.Border or 0
+end
+
 -- Rückruf für Blizzards initializeFrame: läuft einmal je neuem Knopf der Reihe, an Blizzards Objekt-Tabelle.
 -- Jeder Aufruf an Blizzards Knopf geschützt; was der Client nicht kennt, bleibt weg.
 function AR.ButtonTemplate(opts, owner)
@@ -747,9 +772,12 @@ function AR.ButtonTemplate(opts, owner)
         initializeFrame = function(frame)
             Try(owner, "Vorlage", function()
                 local parts = BuildButton(frame, spec)
-                if frame.SetIcon then frame:SetIcon(parts.icon) end
+                if spec.texture == nil and frame.SetIcon then frame:SetIcon(parts.icon) end
                 if parts.cooldown and frame.SetDurationCooldown then frame:SetDurationCooldown(parts.cooldown) end
-                if frame.SetApplicationCount then frame:SetApplicationCount(parts.count) end
+                if parts.count and frame.SetApplicationCount then frame:SetApplicationCount(parts.count) end
+                if parts.border and frame.AddDispelTypeTexture then
+                    frame:AddDispelTypeTexture(parts.border, { style = AR.DispelBorderStyle() })
+                end
                 if parts.glow and frame.AddPandemicRegion then frame:AddPandemicRegion(parts.glow) end
                 if spec.tooltip == false then
                     frame:EnableMouse(false)
@@ -829,22 +857,13 @@ local pandemicCurve
 -- Gesperrte Restzeit: Blizzards Dauer-Objekt wertet den Rest in Prozent über eine Stufenkurve selbst aus
 -- (≤ 30 % → 1, sonst 0). → true, alpha (darf gesperrt sein: nur an SetAlpha geben) | false
 function AR.PandemicAlpha(durationObject)
-    if type(durationObject) ~= "table" and type(durationObject) ~= "userdata" then return false end
-    local evaluate = Core.Peek(durationObject, "EvaluateRemainingPercent")
-    if type(evaluate) ~= "function" then return false end
-    if not pandemicCurve then
-        local util = rawget(_G, "C_CurveUtil")
-        local create = type(util) == "table" and util.CreateCurve
-        if type(create) ~= "function" then return false end
-        local ok, curve = pcall(create)
-        if not ok or curve == nil then return false end
-        local step = Enum and Enum.LuaCurveType and Enum.LuaCurveType.Step
-        if step ~= nil and curve.SetType then pcall(curve.SetType, curve, step) end
-        pcall(curve.AddPoint, curve, 0, 1)
-        pcall(curve.AddPoint, curve, AR.PANDEMIC, 0)
-        pandemicCurve = curve
+    -- im Spiel Userdata (HealthCurve.lua): Core.Peek nimmt nur Tabellen, darum geschützt gerufen
+    if Core.IsSecret(durationObject) or (type(durationObject) ~= "table" and type(durationObject) ~= "userdata") then
+        return false
     end
-    local ok, alpha = pcall(evaluate, durationObject, pandemicCurve)
+    pandemicCurve = pandemicCurve or Core.StepCurve({ { 0, 1 }, { AR.PANDEMIC, 0 } })
+    if not pandemicCurve then return false end
+    local ok, alpha = pcall(function() return durationObject:EvaluateRemainingPercent(pandemicCurve) end)
     if not ok then return false end
     return true, alpha
 end
@@ -1010,7 +1029,8 @@ function Row:Preview(count, opts)
     if Core.IsSecret(count) then return false, "secret" end
     count = Core.Num(count) or 0
     if count < 0 or count > 40 then return false, "invalid" end
-    if Locked() then return false, "combat" end
+    -- Ausblenden geht immer: eigene, ungeschützte Knöpfe unter UIParent (ein Beispiel soll im Kampf nie stehen bleiben)
+    if Locked() and count > 0 then return false, "combat" end
     opts = type(opts) == "table" and opts or {}
     local buttons = self.preview or {}
     self.preview = buttons
@@ -1018,20 +1038,25 @@ function Row:Preview(count, opts)
     local spacing = Core.Num(opts.spacing) or 2
     local anchor = self.holder or self.frame or self.parent
     local icons = type(opts.icons) == "table" and opts.icons or {}
+    local at = type(opts.at) == "table" and opts.at or nil
     for i = 1, count do
         local b = buttons[i]
         if not b then
             local ok, made = pcall(CreateFrame, "Frame", nil, UIParent, AR.ANCHOR_TEMPLATE)
             if not ok or not made then made = CreateFrame("Frame", nil, UIParent) end
             b = made
-            b.parts = BuildButton(b, { size = size, pandemic = true })
+            b.parts = BuildButton(b, opts.plain and { size = size, duration = false, count = false } or { size = size, pandemic = true })
             buttons[i] = b
         end
         b:SetSize(size, size)
         b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", anchor, "TOPLEFT", (i - 1) * (size + spacing), 0)
+        if at then
+            b:SetPoint(at[1], at[2], at[3], at[4] + (i - 1) * (size + spacing), at[5])
+        else
+            b:SetPoint("TOPLEFT", anchor, "TOPLEFT", (i - 1) * (size + spacing), 0)
+        end
         b.parts.icon:SetTexture(icons[(i - 1) % math.max(#icons, 1) + 1] or "Interface\\Icons\\Spell_Shadow_AbominationExplosion")
-        b.parts.count:SetText(i == 2 and "2" or "")
+        if b.parts.count then b.parts.count:SetText(i == 2 and "2" or "") end
         if b.parts.glow then b.parts.glow:SetShown(opts.pandemic == i) end
         if b.parts.cooldown and b.parts.cooldown.SetCooldown then
             pcall(b.parts.cooldown.SetCooldown, b.parts.cooldown, Core.Uptime() - i * 3, 18)

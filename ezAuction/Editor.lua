@@ -84,13 +84,9 @@ local function LinkGoesElsewhere()
     if input and input:HasFocus() then return false end
     local modified = rawget(_G, "IsModifiedClick")
     if type(modified) == "function" and not Core.Call(modified, "CHATLINK") then return true end
-    local util = rawget(_G, "ChatFrameUtil")
-    local active = Core.Call(rawget(_G, "ChatEdit_GetActiveWindow"))
-        or (type(util) == "table" and Core.Call(util.GetActiveWindow))
-    if active then return true end
-    local focus = Core.Call(rawget(_G, "GetCurrentKeyBoardFocus"))
+    local target = Core.LinkInput()
     local bar = AuctionHouseFrame and AuctionHouseFrame.SearchBar
-    return focus ~= nil and focus ~= input and focus ~= (bar and bar.SearchBox)
+    return target ~= nil and target ~= input and target ~= (bar and bar.SearchBox)
 end
 
 -- Shift-Klick auf einen Gegenstand (Tasche, Blizzards Ergebnisliste, Rezept, Link im Chat), solange eine änderbare

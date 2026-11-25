@@ -4,13 +4,13 @@ local L = ns.L
 -- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
 -- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
 -- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
-ns.FEATURE_STEPS = { { "search", "filter" }, "stack", "learnAll", "upcoming", "repair" }
+ns.FEATURE_STEPS = { { "search", "filter" }, "stack", "learnAll", { "upcoming", "where" }, "repair" }
 local Core = ezCore
 
 --[[
     Rundgang mit Erklärblasen (Abschlussrunde „Tooltip-Guide“, Core.NewTour): beim ersten Öffnen des Händlerfensters
     Suche, Filter, „Mehrere kaufen“ und Auto-Reparatur, beim ersten Lehrer „Alles lernen“, am Zauberbuch „Was kommt
-    wann“. „OK“ oder das X führt zur nächsten Blase. Ein Schritt, dessen Knopf gerade nicht zu sehen ist (Händler ohne
+    wann“ und „Wo kommt was“. „OK“ oder das X führt zur nächsten Blase. Ein Schritt, dessen Knopf gerade nicht zu sehen ist (Händler ohne
     Reparatur, keine stapelbare Ware, Tierausbilder, ein anderes Addon lernt schon alles), kommt beim nächsten Mal.
     Gesehen wird für den ganzen Account gemerkt (ezMerchantDB.hints); „Erklärung erneut zeigen“ unter „Erweitert“
     (page:TourButton) setzt zurück.
@@ -40,6 +40,7 @@ ns.tour = Core.NewTour({
           side = "below", parent = merchant },
         { key = "learnAll", target = function() return ns.Trainer.button end, text = L.TOUR_LEARN, side = "above" },
         { key = "upcoming", target = function() return ns.Upcoming.tab end, text = L.TOUR_UPCOMING, side = "right" },
+        { key = "where", target = function() return ns.Where.tab end, text = L.TOUR_WHERE, side = "right" },
     },
 })
 

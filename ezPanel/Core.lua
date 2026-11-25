@@ -81,7 +81,7 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.XPBlocked, Core.Durability.ReportText, Core.SwitchCVar, Core.ItemIconText
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",
-    needs = { "AfterCombat", "OpenPanel", "OpenChatWith", "ItemCount", "ForEachBagItem", "Lockouts.List",
+    needs = { "TrainerSpots.PositionKnown", "AfterCombat", "OpenPanel", "OpenChatWith", "ItemCount", "ForEachBagItem", "Lockouts.List",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Reparatur-Meldung (T16-12), Ersatzsymbol (T16-NM6)
         "Durability.ReportText", "ICON_FALLBACK",
         "Currencies.Known", "ItemLevelOf", "LastFaction", "UnitHealthText", "UnitPowerText", "scaffoldHelpers",
@@ -93,10 +93,14 @@ Core.NewModule(ADDON, ns, {
         "Gathering.SessionStats", "History.AuctionMail",
         -- Welle 17: Helfer und Texte, die ezCore ohne neue Versionsnummer bekam (tools/texte.lua, Regel 4)
         "More",
+        -- Durchsicht 24.11.2026 (ohne neue Versionsnummer): Spezialtaschen erkennt ezCore, Gold „jetzt“ verlässlich
+        "IsSpecialBag", "Characters.MoneyBaseline", "Junk.Limits",
         -- Welle 26 (ezCore-Paket kern/ezcore-reste-24, ohne neue Nummer): Geld-Spalte „money“ (Core.GoldDecimal)
         "GoldDecimal",
         -- Gesamtreview 18.11.2026 (P14): Baustein „Kampf“ schaltet im Kampf nicht um (ohne neue Versionsnummer)
         "SwitchCVar",
+        -- 23.11.2026: nur freier Platz im Taschen-Block, eine Fassung mit ezBag (ohne neue Versionsnummer)
+        "FreeSpaceText", "L.SPACE_FREE",
         -- Gesamtreview 18.11.2026 (P13 Teil D2): Addon-Fach, Hilfe, Zurücksetzen, Klick-Hinweise, Kampfsperre, Menüeintrag
         "compartmentMain", "slashMain", "SlashCmd", "SlashReset", "ClickText", "CombatNotice", "Menu.Settings",
         -- Gesamtreview 18.11.2026 (T9-6): Tooltip-Zeilen in Rollen
@@ -118,6 +122,7 @@ Core.NewModule(ADDON, ns, {
         end
         db.settings.bottomBar, db.settings.autoHideBottom = nil, nil   -- untere Leiste entfällt
         ns.MigrateTipAlts(db)
+        ns.MigrateInstanceLimit(db)
         -- Charakterdaten liegen seit ezCore in ezCoreDB.chars; db.chars bleibt als Sicherung liegen.
     end,
     slash = {
@@ -572,6 +577,44 @@ function ns.MigrateTipAlts(db)
                     if profile.settings.tipAlts == nil then profile.settings.tipAlts = was end
                 end
             end
+        end
+        return true
+    end)
+end
+
+-- Instanzgrenze von WoW Forever: höchstens 5 Instanzen je Stunde (Blizzards Hotfix-Liste im Forum, Eintrag vom
+-- 20.11.2026, https://us.forums.blizzard.com/en/wow/t/2403040 – vorher 10; gelesen am 22.11.2026 im Paket „Daten auf
+-- Build 71037“, Leitlinie 12). Vorgabe und einzige Zahl im Menü des Bausteins „Charaktere“ (Blocks/Alts.lua).
+ns.INSTANCE_LIMIT = 5
+
+-- Die frühere Auswahl 10 (bis zum Hotfix vom 20.11.2026 die Grenze von Forever) wird zur heutigen Grenze; jeder andere
+-- Wert bleibt. Ein Ort für die Umstellung gespeicherter Daten (unten) und den Profil-Import (Profiles.lua, Clean).
+-- cfg: Optionen des Bausteins „Charaktere“ → true, wenn umgestellt.
+function ns.FixInstanceLimit(cfg)
+    if type(cfg) == "table" and cfg.instanceLimit == 10 then
+        cfg.instanceLimit = ns.INSTANCE_LIMIT
+        return true
+    end
+end
+
+-- Einmalige Umstellung (Core.MigrateOnce, Merker db.migrated.instanceLimit2211) in den Arbeitsdaten und jedem
+-- gespeicherten Profil: ns.FixInstanceLimit (10 → 5), dazu „Keine Angabe“ (0) → 5. ezPanel hat die alte Vorgabe 0
+-- beim Laden für jeden angemeldeten Baustein gespeichert (ns.InitBlock, FillDefaults), auch wenn er nie benutzt
+-- wurde; eine gewählte 0 lässt sich davon nicht unterscheiden (Entscheidung des Nutzers vom 22.11.2026: „Ja, 0 auch
+-- zu 5 (Empfohlen)“). Wer danach „Keine Angabe“ wählt, behält es – die Umstellung läuft nur einmal.
+-- → true, wenn die Umstellung lief (nil, wenn schon geschehen).
+function ns.MigrateInstanceLimit(db)
+    if type(db) ~= "table" then return nil end
+    if type(db.migrated) ~= "table" then db.migrated = {} end
+    return Core.MigrateOnce(db.migrated, "instanceLimit2211", function()
+        local function Fix(blocks)
+            local cfg = type(blocks) == "table" and blocks.alts or nil
+            if type(cfg) == "table" and cfg.instanceLimit == 0 then cfg.instanceLimit = ns.INSTANCE_LIMIT
+            else ns.FixInstanceLimit(cfg) end
+        end
+        Fix(db.blocks)
+        for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            if type(profile) == "table" then Fix(profile.blocks) end
         end
         return true
     end)

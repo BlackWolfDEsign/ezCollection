@@ -1,52 +1,32 @@
 name: "Beitrag zur Datenbank / Contribution to the database"
-description: "Deine gesammelte Datei ezWorld.lua an das Projekt schicken / Send your collected file ezWorld.lua to the project"
-title: "Beitrag: Build "
+description: "Deinen anonymen Beitrag aus dem Spiel an das Projekt schicken / Send your anonymous contribution from the game to the project"
+title: "Beitrag zur Datenbank"
 labels: ["beitrag"]
 body:
   - type: markdown
     attributes:
       value: |
         **Danke fürs Mithelfen!** Anleitung: [docs/beitragen.md](https://github.com/BlackWolfDEsign/ezCollection/blob/main/docs/beitragen.md).
-        Drei Schritte: 1. ezCollection samt den Ordnern `ezWorld` und `ezMarket` installieren (nichts einschalten), 2. normal spielen, 3. im Spiel „Beitrag vorbereiten“ anklicken (Esc » Optionen » AddOns » ezCollection » Erweitert, oder `/ez beitrag`) und diese Datei schicken. Die Daten-Probe (`/ez probe auto`) braucht es dafür nicht.
-        Die Datei liegt unter `WTF\Account\<Konto>\SavedVariables\ezWorld.lua` (vorher im Spiel `/reload` oder ausloggen).
-        GitHub nimmt keine `.lua`-Anhänge an: die Datei in `ezWorld.zip` packen oder in `ezWorld.txt` umbenennen.
-        Sie enthält Daten über die Spielwelt: Nummern und Zahlen, dazu Namen von Gegnern, Gegenständen, Zaubern und Orten aus dem Spiel. Keine Namen von Charakteren, Gilden, Realms oder Mitspielern, keine Chat- oder Brieftexte. Vor dem Zusammenführen entfernt das Projekt allen Text und die Realm-Angaben; ausgeliefert werden nur Nummern und Zahlen.
+        Drei Schritte: 1. ezCollection samt den Ordnern `ezWorld` und `ezMarket` installieren (nichts einschalten), 2. normal spielen, 3. im Spiel „Beitrag vorbereiten“ anklicken (Esc » Optionen » AddOns » ezCollection » Erweitert, oder `/ez beitrag`), den Text mit Strg+C kopieren und unten einfügen. Ist er länger als 60 000 Zeichen: im Editor als `beitrag.txt` speichern und hineinziehen. Die Daten-Probe (`/ez probe auto`) braucht es dafür nicht.
+        **Der Text ist anonym:** nur Nummern und Zahlen über die Spielwelt, jeweils mit Build und Tag. Keine Namen von Charakteren, Gilden, Realms oder Mitspielern, keine Realm-Angaben, keine Uhrzeiten, kein freier Text. Dazu eine Zufallskennung, mit der ein Beitrag nicht doppelt zählt und sich zurückziehen lässt. Bereinigt wird schon im Spiel; „Lesbar zeigen“ zeigt den Inhalt.
+        **Dein GitHub-Name** steht öffentlich an diesem Issue. Soll er das nicht, gib den Text jemandem, der ihn für dich einstellt. Bitte **nicht** die Datei `ezWorld.lua` anhängen: Sie ist nicht bereinigt.
 
         **Thank you for helping!** Guide: [docs/beitragen.md](https://github.com/BlackWolfDEsign/ezCollection/blob/main/docs/beitragen.md).
-        Three steps: 1. install ezCollection with the folders `ezWorld` and `ezMarket` (nothing to switch on), 2. play normally, 3. click "Prepare contribution" in the game (Esc » Options » AddOns » ezCollection » Advanced, or `/ez contribute`) and send this file. The data probe (`/ez probe auto`) is not needed for this.
-        The file is `WTF\Account\<account>\SavedVariables\ezWorld.lua` (type `/reload` or log out in the game first).
-        GitHub does not accept `.lua` attachments: put the file into `ezWorld.zip` or rename it to `ezWorld.txt`.
-        It holds data about the game world: numbers, plus names of enemies, items, spells and places from the game. No names of characters, guilds, realms or other players, no chat or mail texts. Before merging, the project removes all text and the realm details; only numbers are shipped.
-  - type: input
-    id: build
-    attributes:
-      label: "Build des Spiels / Game build"
-      description: "Steht unten links im Anmeldebildschirm oder mit /ez status im Chat / Shown at the bottom left of the login screen or with /ez status in the chat"
-      placeholder: "z. B. / e.g. 1.16.0.12345"
-    validations:
-      required: true
-  - type: dropdown
-    id: locale
-    attributes:
-      label: "Sprache des Spiels / Language of the game"
-      options:
-        - "Deutsch (deDE)"
-        - "English (enUS)"
-        - "andere / other"
-    validations:
-      required: true
+        Three steps: 1. install ezCollection with the folders `ezWorld` and `ezMarket` (nothing to switch on), 2. play normally, 3. click "Prepare contribution" in the game (Esc » Options » AddOns » ezCollection » Advanced, or `/ez contribute`), copy the text with Ctrl+C and paste it below. If it is longer than 60,000 characters: save it as `beitrag.txt` in a text editor and drag it in. The data probe (`/ez probe auto`) is not needed for this.
+        **The text is anonymous:** numbers about the game world only, each with build and day. No names of characters, guilds, realms or other players, no realm details, no times of day, no free text. Added is a random ID so a contribution is not counted twice and can be withdrawn. The game cleans it before there is anything to copy; "Show readable" shows the content.
+        **Your GitHub name** is public on this issue. If it should not appear, give the text to someone who posts it for you. Please do **not** attach the file `ezWorld.lua`: it is not cleaned.
   - type: textarea
     id: file
     attributes:
-      label: "Anhang: ezWorld.zip oder ezWorld.txt / attachment: ezWorld.zip or ezWorld.txt"
-      description: "Datei hier hineinziehen (Drag and Drop) – GitHub lädt sie hoch und setzt den Link ein / Drag the file here – GitHub uploads it and inserts the link"
+      label: "Text aus dem Spiel (oder beitrag.txt hineinziehen) / Text from the game (or drag beitrag.txt here)"
+      description: "Beginnt mit / starts with: ezCollection-Beitrag;1;…"
     validations:
       required: true
   - type: textarea
     id: note
     attributes:
       label: "Anmerkung (freiwillig) / Note (optional)"
-      description: "Wo hast du gespielt, was war auffällig? Bitte keine Namen von Mitspielern. / Where did you play, anything unusual? Please no names of other players."
+      description: "Was war auffällig? Bitte keine Namen – auch nicht deine Charaktere. / Anything unusual? Please no names – not your own characters either."
     validations:
       required: false
   - type: checkboxes
@@ -56,5 +36,5 @@ body:
       options:
         - label: "Ich räume dem Autor nach Abschnitt 3 b der Lizenz des Projekts (ezCollection License 1.0, Datei LICENSE) das dauerhafte, weltweite, kostenlose und unwiderrufliche Recht ein, die Datei zu prüfen, zu ändern, mit anderen Beiträgen zusammenzuführen und als Teil von ezCollection zu veröffentlichen und weiterzugeben, auch unter dieser oder einer späteren Lizenz von ezCollection; ich darf das, meine eigenen Rechte daran behalte ich. / Under section 3 b of the project's licence (ezCollection License 1.0, file LICENSE) I grant the author a permanent, worldwide, free and irrevocable right to check the file, change it, merge it with other contributions and publish and pass it on as part of ezCollection, also under this or any later licence of ezCollection; I am allowed to grant this and keep my own rights in it."
           required: true
-        - label: "Ich habe die Datei selbst gesammelt (eigenes Spiel, keine Daten aus anderen Addons hineinkopiert). / I collected the file myself (my own play, no data copied in from other addons)."
+        - label: "Ich habe die Daten selbst gesammelt (eigenes Spiel, keine Daten aus anderen Addons hineinkopiert). / I collected the data myself (my own play, no data copied in from other addons)."
           required: true

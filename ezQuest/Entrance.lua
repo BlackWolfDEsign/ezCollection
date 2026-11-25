@@ -11,6 +11,7 @@ local Core = ezCore
       "client"  das Spiel kennt den Eingang auf der Karte des Gebiets (Dungeons.Entrances, nur Client-Antwort) –
                 Forever liefert keine (Spieltest 14.11.2026), der Weg bleibt für einen späteren Client
       "own"     von dir betreten (Dungeons.EntranceMap, Entdecker-Datenbank von ezCore)
+      "tables"  laut Client-Tabellen (Dungeons.EntranceMap » TableEntrance, seit 24.11.2026)
       "zone"    nur das Gebiet ist bekannt (Dungeons.EntranceZone aus ezCores Dungeon-Tabelle); die Karte des
                 Gebiets sucht ezCore in Blizzards Kartenbaum nach dem Namen (Core.Map.ByName; Welle 23, A6 – vorher
                 eine eigene Suche hier, eine zweite steht in ezMap/Way.lua)
@@ -52,29 +53,29 @@ local function MapName(mapID)
     return type(name) == "string" and name ~= "" and name or nil
 end
 
--- Wohin zeigt der Knopf? → { map, x, y, source = "client" | "own" | "zone", zone } oder nil (keine Karte bekannt).
+-- Wohin zeigt der Knopf? → { map, x, y, source = "client" | "own" | "tables" | "zone", zone } oder nil (keine Karte bekannt).
 function Entrance.Target(entry)
     local D = Core.Dungeons
     if type(entry) ~= "table" or type(D) ~= "table" then return nil end
     local zone = type(D.EntranceZone) == "function" and Core.Plain(Call(D.EntranceZone, entry)) or nil
     if type(zone) ~= "string" or zone == "" then zone = nil end
     local zoneMap = zone and Entrance.ZoneMap(zone)
-    -- 1. das Spiel (nur die Client-Antwort, ohne den eigenen Rückfall)
+    -- 1. das Spiel (nur die Client-Antwort, ohne den eigenen Rückfall und die Client-Tabellen: 2.)
     if zoneMap and type(D.Entrances) == "function" then
-        local list = Call(D.Entrances, zoneMap)
+        local list = Call(D.Entrances, zoneMap, { tables = false })
         for _, e in ipairs(type(list) == "table" and list or {}) do
-            if type(e) == "table" and e.source ~= "own" and SameDungeon(e.entry, entry)
+            if type(e) == "table" and (e.source == nil or e.source == "client") and SameDungeon(e.entry, entry)
                 and Core.Num(e.x) and Core.Num(e.y) then
                 return { map = zoneMap, x = Core.Num(e.x), y = Core.Num(e.y), source = "client", zone = zone }
             end
         end
     end
-    -- 2. von dir betreten
+    -- 2. von dir betreten, sonst laut Client-Tabellen
     if type(D.EntranceMap) == "function" then
-        local map, x, y = Call(D.EntranceMap, entry)
+        local map, x, y, source = Call(D.EntranceMap, entry)
         map, x, y = Core.Num(map), Core.Num(x), Core.Num(y)
         if map and x and y then
-            return { map = map, x = x, y = y, source = "own", zone = MapName(map) or zone }
+            return { map = map, x = x, y = y, source = source == "tables" and "tables" or "own", zone = MapName(map) or zone }
         end
     end
     -- 3. nur das Gebiet
@@ -89,11 +90,11 @@ end
 Entrance.WaypointApi = WaypointApi
 
 -- Ort des Eingangs samt Quelle: „Westfall (bei dir)“ mit ezCores Wortlaut für selbst betretene Eingänge (derselbe
--- Text wie in der Zeile „Eingang: …“ der Questliste, Dungeons.EntranceLabel), „Westfall (laut dem Spiel)“ für die
--- Antwort des Clients.
+-- Text wie in der Zeile „Eingang: …“ der Questliste, Dungeons.EntranceLabel), „Westfall (laut Client-Tabellen)“ und
+-- „Westfall (laut dem Spiel)“ für die Antwort des Clients – der Name ist der der Karte, auf der die Markierung sitzt.
 local function PlaceText(target, zone)
-    if target.source == "own" then
-        local fmt = Core.L and Core.L.DB_ENTRANCE_OWN
+    if target.source == "own" or target.source == "tables" then
+        local fmt = Core.L and (target.source == "own" and Core.L.DB_ENTRANCE_OWN or Core.L.DB_ENTRANCE_TABLES)
         return type(fmt) == "string" and fmt:format(zone) or zone
     end
     return L.ENTRANCE_PLACE_CLIENT:format(zone)

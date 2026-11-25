@@ -24,6 +24,17 @@ local Core = ezCore
                                            » Index | nil, Grund ("combat" | "api" | "long" | "name" | "full" | "failed").
                                              Mit index wird dieses Makro geändert (symbol nil: es behält seins), sonst
                                              angelegt.
+    Viele Makros auf einmal (Leisten-Profile in ezCore, ezMacros Sicherung; Architektur-Review 22.11.2026 – vorher nur in
+    ezMacro/Import.lua, das jetzt hierher weiterleitet):
+      Core.Macro.CleanName(name)           » Name ohne Umbruch und „"“, getrimmt, auf MAX_NAME Zeichen gekürzt
+      Core.Macro.CleanBody(text)           » Text mit „\n“ als Umbruch, ohne Leerraum am Ende
+      Core.Macro.ScriptCommands(text)      » { "/run", … }: Befehle, die Lua-Code ausführen oder Client-Einstellungen
+                                             ändern (Core.RunsCode), in der Reihenfolge ihres ersten Auftretens
+      Core.Macro.Plan(liste, opts)         » { create, replace, same, full, invalid, changes } für liste =
+                                             { { name, body, icon, perChar }, … }. opts.maxChars (Standard MAX_CHARS),
+                                             opts.find(name, perChar) → Index (Standard Core.Macro.Find), opts.body(index)
+                                             → ganzer Text eines vorhandenen Makros (Standard GetMacroInfo)
+      Core.Macro.PlanText(plan)            » „9 neu, 2 ersetzen, 1 unverändert, 3 ohne Platz“ (Texte MACRO_PLAN_* aus ezCore)
 ]]
 
 local Macro = {}
@@ -131,4 +142,92 @@ function Macro.Write(name, icon, body, perChar, index)
     local found = Macro.Find(name, perChar and true or false)
     if found then return found end
     return nil, "failed"
+end
+
+---------------------------------------------------------------------------
+-- Viele Makros auf einmal: erst ein Plan, dann eine gesammelte Rückfrage (Architektur-Review 22.11.2026: die Leisten-
+-- Profile wohnen in ezCore und legen fehlende Makros auch ohne ezMacro an; vorher ezMacro/Import.lua, das weiterleitet)
+---------------------------------------------------------------------------
+
+function Macro.CleanName(name)
+    name = Core.Trim((tostring(name or ""):gsub("[\r\n\"]", "")))
+    return Core.TruncateChars(name, Macro.MAX_NAME)
+end
+
+function Macro.CleanBody(body)
+    body = tostring(body or ""):gsub("\r\n", "\n"):gsub("\r", "\n"):gsub("%s+$", "")
+    return body
+end
+
+-- Welche Befehle Lua-Code ausführen oder Client-Einstellungen ändern, entscheidet Core.RunsCode (Gesamtreview
+-- 18.11.2026, T6-1). Ein Befehl zählt am Zeilenanfang; Doppelte fallen weg.
+function Macro.ScriptCommands(body)
+    local found, seen = {}, {}
+    if type(body) ~= "string" then return found end
+    for line in body:gmatch("[^\r\n]+") do
+        local cmd = line:match("^%s*(/[^%s%[]+)")
+        cmd = cmd and cmd:lower()
+        if cmd and not seen[cmd] and Core.RunsCode(cmd) then
+            seen[cmd] = true
+            found[#found + 1] = cmd
+        end
+    end
+    return found
+end
+
+local function RawBody(index)
+    local _, body = Info(index)
+    return body
+end
+
+function Macro.Plan(list, opts)
+    opts = type(opts) == "table" and opts or {}
+    local find = type(opts.find) == "function" and opts.find or function(name, perChar)
+        return (Macro.Find(name, perChar))
+    end
+    local bodyOf = type(opts.body) == "function" and opts.body or RawBody
+    local maxChars = Core.Num(opts.maxChars) or Macro.MAX_CHARS
+    local plan = { create = {}, replace = {}, same = {}, full = {}, invalid = {} }
+    local maxAccount, maxChar = Macro.Limits()
+    local numAccount, numChar = Macro.Counts()
+    local free = { [true] = maxChar - numChar, [false] = maxAccount - numAccount }
+    local seen = {}
+    for _, macro in ipairs(type(list) == "table" and list or {}) do
+        local name, body = Macro.CleanName(macro.name), Macro.CleanBody(macro.body)
+        local perChar = macro.perChar and true or false
+        local item = { name = name, body = body, icon = macro.icon, perChar = perChar }
+        local key = (perChar and "c:" or "a:") .. name
+        if name == "" or body == "" or #body > maxChars then
+            table.insert(plan.invalid, item)
+        elseif not seen[key] then
+            seen[key] = true
+            local index = find(name, perChar)
+            if index then
+                if Macro.CleanBody(bodyOf(index)) == body then
+                    table.insert(plan.same, item)
+                else
+                    table.insert(plan.replace, item)
+                end
+            elseif free[perChar] > 0 then
+                free[perChar] = free[perChar] - 1
+                table.insert(plan.create, item)
+            else
+                table.insert(plan.full, item)
+            end
+        end
+    end
+    plan.changes = #plan.create + #plan.replace
+    return plan
+end
+
+function Macro.PlanText(plan)
+    local L = Core.L
+    local parts = {}
+    if #plan.create > 0 then parts[#parts + 1] = L.MACRO_PLAN_CREATE:format(#plan.create) end
+    if #plan.replace > 0 then parts[#parts + 1] = L.MACRO_PLAN_REPLACE:format(#plan.replace) end
+    if #plan.same > 0 then parts[#parts + 1] = L.MACRO_PLAN_SAME:format(#plan.same) end
+    if #plan.full > 0 then parts[#parts + 1] = L.MACRO_PLAN_FULL:format(#plan.full) end
+    if #plan.invalid > 0 then parts[#parts + 1] = L.MACRO_PLAN_INVALID:format(#plan.invalid) end
+    if #parts == 0 then return L.MACRO_PLAN_EMPTY end
+    return table.concat(parts, ", ")
 end

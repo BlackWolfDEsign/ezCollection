@@ -573,7 +573,8 @@ end
 --       hops = Zahl der Strecken, source = "tables" } oder nil – günstigster Weg über die Strecken der Tabellen; mit
 --       fraktion nur über Flugpunkte, an denen sie fliegt
 --   Route.MissingFlightNodes(bekannt, kontinent, fraktion) → { Flugpunkt-ID … }: Flugpunkte, die nicht in bekannt
---       ({ [ID] = true }) stehen – „welche Flugpunkte kennt der Twink noch nicht“
+--       ({ [ID] = true }) stehen und zu denen eine Strecke führt – „welche Flugpunkte kennt der Twink noch nicht“
+--       (ohne Nachtruhe 62/63 und den Seuchenwaldturm 84: von dort fliegt man nur weg; 24.11.2026)
 ---------------------------------------------------------------------------
 
 local function FactionOK(node, faction)
@@ -622,8 +623,10 @@ end
 function Route.MissingFlightNodes(known, continent, faction)
     local list = {}
     known = type(known) == "table" and known or {}
+    local CD = Core.ClientData
+    local arrivals = CD and CD.TaxiArrivals and CD.TaxiArrivals() or {}
     for _, node in ipairs(Route.FlightNodes(continent, faction)) do
-        if not known[node.id] then list[#list + 1] = node.id end
+        if not known[node.id] and arrivals[node.id] then list[#list + 1] = node.id end
     end
     return list
 end

@@ -66,10 +66,19 @@ local L = Core.L
                                      G.SkinLines, G.SkinEstimate, G.RequiredItem(itemID), G.KindOfSkillName(name),
                                      G.SkillName(art); G.OwnRank("chest") liest Schlossknacken (633)
       G.ObjectsFor(itemID)        → { [objectID] = Ernten } – Umkehr-Index Gegenstand » Objekte (nur im Arbeitsspeicher)
+      G.ObjectKind(objectID)      → Art eines selbst geplünderten Objekts (herb, ore, chest, fish, quest, container) oder
+                                     nil; G.ItemKind(itemID) → "herb" | "ore" | nil (Klasse laut Client) – beide für
+                                     die Trennung der Objekte laut Questie (Paket „Fundorte“, 22.11.2026)
+      Anbieter „laut Questie“ (SourcesQuestie.lua, Q.GatherSources): Kräuter und Erze laut QuestieDB in G.Sources/G.Line,
+                                     immer als „laut Questie“, nie als eigener Fund
+      Anbieter „aus Beiträgen“ (ezData, 22.11.2026; Abschnitt „Fundorte aus Beiträgen“): G.ShipSources in G.Sources/
+                                     G.Line als „aus Beiträgen (n Spieler), Stand Build x“; G.ShipNodes für ezMaps Karte;
+                                     G.Required nimmt ohne eigene Beobachtung obj.skill aus Beiträgen (T14-7, info.ship)
       G.SkillUp(objectID, art, F?, Fb?) → Farbe (orange, gelb, grün, grau, rot, unbekannt) und Chance auf einen
                                      Fertigkeitspunkt für den eigenen Charakter, berechnet (Abschnitt „Farbe und Chance“;
                                      rot nach dem Rang samt Bonus Fb, Ergebnis mit effective)
-      Nachricht GATHERING_CHANGED: eigene Fundorte oder Objekte haben sich geändert (aus DB_CHANGED, je Bild einmal)
+      Nachricht GATHERING_CHANGED: eigene Fundorte oder Objekte haben sich geändert (aus DB_CHANGED, je Bild einmal),
+                                     ebenso nach dem Laden von ezData (DB_SHIP_READY)
 
     Fremde Sammel-Addons (Welle 16, SAM-30): Die Lese-Brücken zu Gatherer Reforged (RB-02) und GatherMate2 samt der
     Kennungs-Tabelle NODES, ihrer Herleitung zur Laufzeit (NodeIDs, DG-54) und dem Zweig für Zusatzspeicher (RB-03)
@@ -128,12 +137,15 @@ function G.Sources(itemID)
                 local name = ZoneName(e.mapID, e.zone)
                 local entry = byZone[name]
                 if not entry then
-                    entry = { zone = name, mapID = e.mapID, count = 0, source = provider.label, sourceKey = provider.key }
+                    entry = { zone = name, mapID = e.mapID, count = 0, source = provider.label, sourceKey = provider.key,
+                        players = Core.Num(e.players), b = Core.Num(e.b) }
                     byZone[name] = entry
                     list[#list + 1] = entry
                 end
                 if (e.count or 0) > entry.count then
                     entry.count, entry.source, entry.sourceKey = e.count or 0, provider.label, provider.key
+                    -- Spieler und Build nennt nur der Anbieter „aus Beiträgen“ ("ship"); bei anderen bleiben sie leer
+                    entry.players, entry.b = Core.Num(e.players), Core.Num(e.b)
                 end
                 if provider.key == "ezCore" then entry.points = Core.Num(e.points) end
             end
@@ -178,10 +190,25 @@ function G.Line(itemID, max)
         phrases[1] = own > 0 and L.GATHER_SOURCE_OWN_POINTS:format(L.GATHER_SOURCE_OWN,
             Core.Plural(own, L.GATHER_POINTS_ONE, L.GATHER_POINTS_MANY)) or L.GATHER_SOURCE_OWN
     end
+    -- „aus Beiträgen (n Spieler), Stand Build x“ (ezData): eine Angabe für alle gezeigten Gebiete, die meisten Spieler
+    -- und der neueste Build – nie „laut …“ und nie „bei dir“ (Leitlinie 11)
+    local shipN, shipB
+    for i = 1, math.min(max or 3, #list) do
+        local e = list[i]
+        if e.sourceKey == "ship" then
+            shipN = math.max(shipN or 0, Core.Num(e.players) or 0)
+            shipB = math.max(shipB or 0, Core.Num(e.b) or 0)
+        end
+    end
     for i = 1, math.min(max or 3, #list) do
         local e = list[i]
         if e.sourceKey ~= "ezCore" then
-            local phrase = L.GATHER_SOURCE_ADDON:format(e.source or "?")
+            local phrase
+            if e.sourceKey == "ship" then
+                phrase = L.DB_SHIP:format(shipN or 0, tostring(shipB and shipB > 0 and shipB or "?"))
+            else
+                phrase = L.GATHER_SOURCE_ADDON:format(e.source or "?")
+            end
             if not seen[phrase] then seen[phrase] = true phrases[#phrases + 1] = phrase end
         end
     end
@@ -235,7 +262,9 @@ local function DBReady()
 end
 
 local function Version(DB)
+    -- DB.ShipVersion: G.Required nimmt ohne eigene Beobachtung den Wert aus Beiträgen (T14-7) – need in G.Items folgt ihr
     return DB.Version("spot") .. ":" .. DB.Version("obj") .. ":" .. DB.Version("drops") .. ":" .. (DB.Explorer() and 1 or 0)
+        .. ":" .. (DB.ShipVersion and DB.ShipVersion() or 0)
 end
 
 -- Arbeitsspeicher: Objekt-Arten, Umkehr-Index Gegenstand » Objekte, Punkte je gezeigter Karte – je Version neu
@@ -256,27 +285,84 @@ local function StoredKind(DB, m, id)
     return k or nil
 end
 
+-- Funde je Gegenstand aus einem Beute-Block (row.diff[…].items) zählen: add(item, f)
+local function EachFind(row, add)
+    for _, b in pairs(type(row) == "table" and type(row.diff) == "table" and row.diff or {}) do
+        for item, it in pairs(type(b) == "table" and type(b.items) == "table" and b.items or {}) do
+            add(item, Core.Num(it.f) or 0)
+        end
+    end
+end
+
+-- Umkehr-Index Gegenstand » Objekte » Funde aus drops.object; keys/get lesen die eigene Lage (DB.KeysOf/DB.Get) oder
+-- die Auslieferung (DB.ShippedKeys/DB.Shipped) – eine Stelle für beide
+local function ItemIndex(keys, get)
+    local idx = {}
+    for _, id in ipairs(keys("drops", "object")) do
+        EachFind(get("drops", "object", id), function(item, f)
+            local byItem = idx[item] or {}
+            idx[item] = byItem
+            byItem[id] = (byItem[id] or 0) + f
+        end)
+    end
+    return idx
+end
+
+-- Gegenstand » Speicherkarte » Gebiet » Fänge aus drops.fishing (wie ItemIndex)
+local function FishIndex(keys, get)
+    local idx = {}
+    for _, map in ipairs(keys("drops", "fishing")) do
+        for _, area in ipairs(keys("drops", "fishing", map)) do
+            EachFind(get("drops", "fishing", map, area), function(item, f)
+                local byItem = idx[item] or {}
+                idx[item] = byItem
+                byItem[map] = byItem[map] or {}
+                byItem[map][area] = (byItem[map][area] or 0) + f
+            end)
+        end
+    end
+    return idx
+end
+
 function G.ObjectsFor(itemID)
     local DB = DBReady()
     itemID = Core.Num(itemID)
     if not (DB and itemID) then return {} end
     local m = Mem(DB)
-    if not m.items then
-        m.items = {}
-        for _, id in ipairs(DB.KeysOf("drops", "object")) do
-            local row = DB.Get("drops", "object", id)
-            for _, b in pairs(type(row) == "table" and type(row.diff) == "table" and row.diff or {}) do
-                for item, it in pairs(type(b) == "table" and type(b.items) == "table" and b.items or {}) do
-                    local byItem = m.items[item] or {}
-                    m.items[item] = byItem
-                    byItem[id] = (byItem[id] or 0) + (Core.Num(it.f) or 0)
-                end
-            end
-        end
-    end
+    if not m.items then m.items = ItemIndex(DB.KeysOf, DB.Get) end
     local out = {}
     for id, n in pairs(m.items[itemID] or {}) do out[id] = n end
     return out
+end
+
+-- Paket „Fundorte“ (22.11.2026): Art eines Spielobjekts nach deiner Beobachtung – obj.kind der Entdecker-Datenbank
+-- (Sammelzauber bzw. Klasse der Beute laut Client, Discovery.LootKind), öffentlich benannt: herb, ore, chest, fish,
+-- quest, container. Für fremde Listen, die Objekte nicht nach Art trennen (Spawns laut Questie). → Art oder nil (nie
+-- geplündert). Liest nur über den Arbeitsspeicher wie Nodes (neu je Version der Tabellen).
+-- G.ObjectKinds() → fn(objectID) mit demselben Ergebnis, Datenbank und Arbeitsspeicher einmal geholt (für viele
+-- Objekte nacheinander, etwa alle Objekte einer Karte laut Questie)
+function G.ObjectKinds()
+    local DB = DBReady()
+    if not DB then return function() return nil end end
+    local m = Mem(DB)
+    return function(objectID)
+        if objectID == nil then return nil end
+        local k = StoredKind(DB, m, objectID)
+        if not k then return nil end
+        return G.KIND_PUBLIC[k] or k
+    end
+end
+
+function G.ObjectKind(objectID) return G.ObjectKinds()(objectID) end
+
+-- Art eines Rohstoffs laut Client (Handwerkswaren 7: Kraut 9 » herb, Metall und Stein 7 » ore; dieselbe Regel wie
+-- Discovery.LootKind und G.Gatherable) → "herb" | "ore" | nil
+G.ITEM_CLASS_GATHER = 7
+G.ITEM_SUBCLASS_KIND = { [9] = "herb", [7] = "ore" }
+function G.ItemKind(itemID)
+    local classID, subclassID = Core.ItemClass(itemID)   -- Core.ItemInstant: sofort, ohne Server
+    if classID ~= G.ITEM_CLASS_GATHER then return nil end
+    return G.ITEM_SUBCLASS_KIND[subclassID]
 end
 
 -- Welle 23c (A37): Angel-Gebiete je Gegenstand – Umkehr-Index aus drops fishing (Speicherkarte » Gebiet), nur im
@@ -286,28 +372,83 @@ function G.FishAreasFor(itemID)
     itemID = Core.Num(itemID)
     if not (DB and itemID) then return {} end
     local m = Mem(DB)
-    if not m.fish then
-        m.fish = {}
-        for _, map in ipairs(DB.KeysOf("drops", "fishing")) do
-            for _, area in ipairs(DB.KeysOf("drops", "fishing", map)) do
-                local row = DB.Get("drops", "fishing", map, area)
-                for _, b in pairs(type(row) == "table" and type(row.diff) == "table" and row.diff or {}) do
-                    for item, it in pairs(type(b) == "table" and type(b.items) == "table" and b.items or {}) do
-                        local byItem = m.fish[item] or {}
-                        m.fish[item] = byItem
-                        byItem[map] = byItem[map] or {}
-                        byItem[map][area] = (byItem[map][area] or 0) + (Core.Num(it.f) or 0)
-                    end
-                end
-            end
-        end
-    end
+    if not m.fish then m.fish = FishIndex(DB.KeysOf, DB.Get) end
     local out = {}
     for map, areas in pairs(m.fish[itemID] or {}) do
         out[map] = {}
         for area, n in pairs(areas) do out[map][area] = n end
     end
     return out
+end
+
+---------------------------------------------------------------------------
+-- Fundorte aus Beiträgen anderer Spieler (ezData, 22.11.2026; Lage „Auslieferung“, DBShip.lua)
+---------------------------------------------------------------------------
+--[[
+    Dieselben Fragen wie oben, gelesen aus der Auslieferung statt aus der eigenen Lage – nie vermischt (Leitlinie 11):
+      G.ShipNodes(mapID, filter)  → Punkte wie G.Nodes, je mit src = "ship", players (orig: Spieler, die den Ort sahen),
+                                    b (Build) und label („aus Beiträgen (n Spieler), Stand Build x“, L.DB_SHIP). Nur
+                                    Nachschlage-Wissen (Kräuter, Erze, Angelplätze: tools/merge.lua liefert nichts
+                                    anderes aus); filter wie G.Nodes (kind, item, skill)
+      G.ShipSources(itemID)       → { { mapID, count, players, b } … } für die Zeile „Fundorte“ (Anbieter "ship"; nur
+                                    Karten über 0 wie der eigene Anbieter – Instanzen ohne Karte haben keinen Namen)
+    Der Arbeitsspeicher hängt an DB.ShipVersion(); nach dem Laden von ezData (DB_SHIP_READY) meldet ezCore
+    GATHERING_CHANGED, damit Karte und Tooltip neu fragen.
+]]
+
+local shipMem = { ver = nil, kinds = {}, maps = {} }
+local function ShipMem(DB)
+    local ver = DB.ShipVersion and DB.ShipVersion() or 0
+    if shipMem.ver ~= ver then shipMem = { ver = ver, kinds = {}, maps = {} } end
+    return shipMem
+end
+
+local function ShipGet(...)
+    local row = Core.DB.Shipped(...)
+    return row
+end
+
+-- wie ShipGet, dazu info aus DB.Shipped (Spieler und Build des Satzes bzw. der Datei als Rückfall je Eintrag)
+local function ShipGetInfo(...)
+    return Core.DB.Shipped(...)
+end
+
+local function ShipIndex(DB, s)
+    if not s.items then
+        s.items = ItemIndex(DB.ShippedKeys, ShipGet)
+        s.fish = FishIndex(DB.ShippedKeys, ShipGet)
+    end
+    return s
+end
+
+-- Leser der Punkte (Collect): eigene Lage bzw. Auslieferung, dieselbe Umrechnung für beide
+local function OwnReader(DB, m)
+    return { keys = DB.KeysOf, get = DB.Get, kind = function(id) return StoredKind(DB, m, id) end }
+end
+
+local function ShipReader(DB, s)
+    return { ship = true, keys = DB.ShippedKeys, get = ShipGetInfo, kind = function(id)
+        local k = s.kinds[id]
+        if k == nil then
+            local row = DB.Shipped("obj", id)
+            k = type(row) == "table" and type(row.kind) == "string" and row.kind or false
+            s.kinds[id] = k
+        end
+        return k or nil
+    end }
+end
+
+-- Objekte und Angel-Gebiete mit dem Gegenstand – laut Auslieferung und laut eigener Beute (eine Menge für die Karte
+-- und die Zeile „Fundorte“) → { [objectID] = Funde }, { [Karte] = { [Gebiet] = Fänge } }
+local function ShipWant(DB, s, itemID)
+    local wantItem, wantFish = G.ObjectsFor(itemID), G.FishAreasFor(itemID)
+    ShipIndex(DB, s)
+    for id, n in pairs(itemID and s.items[itemID] or {}) do wantItem[id] = (wantItem[id] or 0) + n end
+    for map, areas in pairs(itemID and s.fish[itemID] or {}) do
+        wantFish[map] = wantFish[map] or {}
+        for area, n in pairs(areas) do wantFish[map][area] = (wantFish[map][area] or 0) + n end
+    end
+    return wantItem, wantFish
 end
 
 ---------------------------------------------------------------------------
@@ -334,10 +475,10 @@ end
     "estimated" (Leitlinie 11).
     Herkunft (how): "client" laut Client-Meldung | "tables" Schloss-Stufe laut Client-Tabellen, eingegrenzt durch deine
     Beobachtung | "seen" ab etwa, bei dir beobachtet | "upto" höchstens, bei dir beobachtet | "estimated" geschätzt
-    „Laut Beiträgen“ gibt es noch nicht (Gesamtreview 18.11.2026, T14-7): Die Herkunft kommt erst mit der vorgefüllten
-    Auslieferung der Entdecker-Datenbank (Stufe 2, Lage „Auslieferung“ DB.Ship) – nicht gebaut, über die Variante wird am
-    Entwurf entschieden (docs/roadmap/ezCore.md, „Datenbank“). tools/merge.lua trägt die Felder schon zusammen; bis zur
-    Auslieferung liest sie im Spiel nichts, und Bounds nennt nie „laut Beiträgen“.
+    „Aus Beiträgen“ (T14-7, gebaut mit ezData am 22.11.2026): Hat das Objekt keine eigene Beobachtung, gilt obj.skill
+    aus der Auslieferung (DB.Shipped, Rangfolge wie DB.Best: der eigene Satz zuerst). Herkunft und Eingrenzung bleiben
+    dieselben (how), info.ship = { players, b, label } nennt die Quelle, info.cnt fehlt (keine eigene Beobachtung) –
+    G.NeedText sagt dann „… – aus Beiträgen (n Spieler), Stand Build x“ statt „bei dir“.
 ]]
 
 -- gespeicherte Objekt-Art » Schloss-Art der Client-Tabelle (ClientData.LOCK_KIND); Schwärme (pool) bewusst nicht
@@ -387,11 +528,21 @@ function G.Required(objectID)
     local DB = DBReady()
     local row = DB and DB.Get("obj", objectID)
     local skill = type(row) == "table" and type(row.skill) == "table" and row.skill or nil
+    local ship
+    -- T14-7: ohne eigene Beobachtung die Auslieferung (der eigene Satz geht vor, wie DB.Best)
+    if not (skill and Bounds(skill)) and DB and DB.Shipped and objectID ~= nil then
+        local srow, sinfo = DB.Shipped("obj", objectID)
+        if type(srow) == "table" and type(srow.skill) == "table" and Bounds(srow.skill) then
+            row, skill = srow, srow.skill
+            ship = { players = sinfo.contributors, b = sinfo.b, label = sinfo.label }
+        end
+    end
     if not skill then return nil end
     local need, how = Bounds(skill)
     if not need then return nil end
     local lockKind = G.LOCK_KIND_OF[row.kind]
-    local info = { cnt = Core.Num(skill.cnt), kind = G.KIND_PUBLIC[row.kind] or row.kind, lock = lockKind }
+    local info = { cnt = not ship and Core.Num(skill.cnt) or nil, kind = G.KIND_PUBLIC[row.kind] or row.kind,
+        lock = lockKind, ship = ship }
     if how ~= "client" then
         local stage = Narrow(lockKind, Core.Num(skill.lo), Core.Num(skill.hi))
         if stage then need, how = stage, "tables" end
@@ -496,12 +647,17 @@ end
 
 -- Wortlaut einer nötigen Fertigkeit samt Quelle (Leitlinie 11): „ab 125, laut Client-Meldung“, mit Zahl der eigenen
 -- Beobachtungen „… (bei dir 3×)“; Kisten und Schwärme nennen den Beruf davor („Schlossknacken ab 75 …“).
--- named = false: ohne Beruf (Kürschnern hat seine eigene Zeile)
-function G.NeedText(rank, how, cnt, kind, named)
+-- named = false: ohne Beruf (Kürschnern hat seine eigene Zeile). ship = info.ship aus G.Required (T14-7): der Wert
+-- stammt aus Beiträgen anderer Spieler – „ab etwa 125, beobachtet – aus Beiträgen (3 Spieler), Stand Build 71037“
+function G.NeedText(rank, how, cnt, kind, named, ship)
     rank, cnt = Core.Num(rank), Core.Num(cnt)
     if not (rank and G.SKILL_HOWS[how]) then return nil end
     local text
-    if cnt and cnt > 0 and how ~= "estimated" then
+    local shipText = type(ship) == "table" and type(ship.label) == "string" and G.SHIP_HOWS[how]
+        and L["GATHER_SKILL_SHIP_" .. how] or nil
+    if shipText then
+        text = shipText:format(rank, ship.label)
+    elseif cnt and cnt > 0 and how ~= "estimated" then
         text = L["GATHER_SKILL_" .. how .. "_n"]:format(rank, cnt)
     else
         text = L["GATHER_SKILL_" .. how]:format(rank)
@@ -514,11 +670,13 @@ function G.NeedText(rank, how, cnt, kind, named)
     return text
 end
 G.SKILL_HOWS = { client = true, tables = true, seen = true, upto = true, estimated = true }
+-- Herkünfte mit eigenem Wortlaut für Werte aus Beiträgen (GATHER_SKILL_SHIP_<how>; T14-7)
+G.SHIP_HOWS = { client = true, tables = true, seen = true, upto = true }
 
 function G.SkillText(objectID)
     local rank, how, info = G.Required(objectID)
     if not rank then return nil end
-    return G.NeedText(rank, how, info and info.cnt, info and info.kind)
+    return G.NeedText(rank, how, info and info.cnt, info and info.kind, nil, info and info.ship)
 end
 
 -- Schließkassetten (Gegenstände mit Schloss): nötige Fertigkeit laut Client-Tabellen (ClientData.ItemLockSkill)
@@ -601,34 +759,43 @@ function G.SkinLines(npcID, level)
     return { { text = L.GATHER_SKIN_LINE:format(text), r = r, g = g, b = b, color = color } }
 end
 
--- Alle eigenen Punkte, die auf der Karte mapID liegen (Speicherkarte direkt, andere über Weltkoordinaten)
-local function Collect(DB, m, mapID)
+-- Alle Punkte, die auf der Karte mapID liegen (Speicherkarte direkt, andere über Weltkoordinaten). R: Leser der eigenen
+-- Lage (ohne R) oder der Auslieferung (ShipReader, ezData 22.11.2026) – dieselbe Umrechnung für beide
+local function Collect(DB, m, mapID, R)
     local hit = m.maps[mapID]
     if hit then return hit end
+    R = R or OwnReader(DB, m)
     local out = {}
     local Map = Core.Map
     local convertible = Map and Map.WorldPos and Map.WorldPos(mapID, 0.5, 0.5) ~= nil
-    for _, store in ipairs(DB.KeysOf("spot")) do
+    for _, store in ipairs(R.keys("spot")) do
         local direct = store == mapID
         if direct or (convertible and Core.Num(store) and store > 0) then
             for _, sk in ipairs({ "object", "fishing" }) do
-                for _, id in ipairs(DB.KeysOf("spot", store, sk)) do
-                    local stored = sk == "fishing" and "fishing" or StoredKind(DB, m, id)
+                for _, id in ipairs(R.keys("spot", store, sk)) do
+                    local stored = sk == "fishing" and "fishing" or R.kind(id)
                     -- Quest-Objekte und neutrale Behälter (Welle 13) sind keine Sammelknoten: nicht in Nodes. Ein
-                    -- Fundort ohne obj-Satz bleibt wie bisher eine Kiste (Altbestand, wie Core.Finds.IsGatherObject).
-                    local keep = sk == "fishing" or stored == nil or G.KIND_PUBLIC[stored]
-                    local list = keep and DB.Get("spot", store, sk, id) or nil
-                    for _, el in ipairs(list or {}) do
+                    -- Fundort ohne obj-Satz bleibt wie bisher eine Kiste (Altbestand, wie Core.Finds.IsGatherObject);
+                    -- aus Beiträgen nur Objekte mit ausgelieferter Art (Nachschlage-Wissen, tools/merge.lua)
+                    local keep = sk == "fishing" or G.KIND_PUBLIC[stored] or (stored == nil and not R.ship)
+                    local list, linfo
+                    if keep then list, linfo = R.get("spot", store, sk, id) end
+                    linfo = R.ship and type(linfo) == "table" and linfo or nil
+                    for _, el in ipairs(type(list) == "table" and list or {}) do
                         local x, y = DB.Keys.Unpack(el.xy)
                         local sx, sy = x, y
                         if x and not direct then x, y = Map.PosOn(mapID, store, x, y) end
                         if x then
+                            local players = R.ship and (Core.Num(el.orig) or (linfo and Core.Num(linfo.contributors))) or nil
+                            local b = R.ship and (Core.Num(el.b) or (linfo and Core.Num(linfo.b))) or nil
                             out[#out + 1] = { id = id, sx = sx, sy = sy,
                                 kind = G.KIND_PUBLIC[stored] or (sk == "fishing" and "fish") or "chest",
                                 stored = stored, map = store, x = x, y = y, cnt = el.cnt, t = el.t,
                                 fallback = DB.Keys.IsFallback(id) and sk == "object" or nil,
                                 explorer = stored == "chest" or nil,
-                                src = el.src == "backup" and "backup" or nil }
+                                src = R.ship and "ship" or (el.src == "backup" and "backup" or nil),
+                                players = players, b = b,
+                                label = R.ship and L.DB_SHIP:format(players or 0, tostring(b or "?")) or nil }
                         end
                     end
                 end
@@ -639,7 +806,8 @@ local function Collect(DB, m, mapID)
     return out
 end
 
-local function Pass(node, filter, explorer, wantItem, wantFish)
+-- req: { [objectID] = { need, how } } je Aufruf von Nodes bzw. ShipNodes (G.Required liest zwei Lagen)
+local function Pass(node, filter, explorer, wantItem, wantFish, req)
     if node.explorer and not explorer then return false end
     if filter.kind and node.kind ~= (PUBLIC_ALIAS[filter.kind] or filter.kind) then return false end
     if node.stored == "fishing" then
@@ -653,8 +821,13 @@ local function Pass(node, filter, explorer, wantItem, wantFish)
         -- Entscheidung des Nutzers vom 16.11.2026 (Nr. 36): nur ein sicher bekannter Wert („client“ laut Client, „seen“
         -- bei dir beobachtet) blendet aus. „upto“ ist nur eine obere Schranke aus der Ernte eines Charakters mit
         -- höherem Rang – das Vorkommen kann sammelbar sein und bleibt sichtbar (wie G.SkillUp: „unbekannt“)
-        local need, how = G.Required(node.id)
-        if need and how ~= "upto" and need > rank then return false end
+        local r = req and req[node.id]
+        if not r then
+            local need, how = G.Required(node.id)
+            r = { need = need or false, how = how }
+            if req then req[node.id] = r end
+        end
+        if r.need and r.how ~= "upto" and r.need > rank then return false end
     end
     return true
 end
@@ -668,14 +841,84 @@ function G.Nodes(mapID, filter)
     local explorer = filter.explorer == true or DB.Explorer()
     local wantItem = filter.item and G.ObjectsFor(filter.item) or nil
     local wantFish = filter.item and G.FishAreasFor(filter.item) or nil
-    local out = {}
+    local out, req = {}, {}
     for _, node in ipairs(Collect(DB, m, mapID)) do
-        if Pass(node, filter, explorer, wantItem, wantFish) then
+        if Pass(node, filter, explorer, wantItem, wantFish, req) then
             local copy = {}
             for k, v in pairs(node) do copy[k] = v end
             out[#out + 1] = copy
         end
     end
+    return out
+end
+
+-- Punkte aus Beiträgen anderer Spieler (Abschnitt „Fundorte aus Beiträgen“ oben). filter.item: Objekte und
+-- Angel-Gebiete mit dem Gegenstand laut Auslieferung und laut eigener Beute
+function G.ShipNodes(mapID, filter)
+    local DB = Core.DB
+    mapID = Core.Num(mapID)
+    if not (DB and DB.ShippedKeys and DB.Keys and mapID) then return {} end
+    filter = type(filter) == "table" and filter or {}
+    local s = ShipMem(DB)
+    local wantItem, wantFish
+    if filter.item then wantItem, wantFish = ShipWant(DB, s, Core.Num(filter.item)) end
+    local out, req = {}, {}
+    for _, node in ipairs(Collect(DB, s, mapID, ShipReader(DB, s))) do
+        if Pass(node, filter, false, wantItem, wantFish, req) then
+            local copy = {}
+            for k, v in pairs(node) do copy[k] = v end
+            out[#out + 1] = copy
+        end
+    end
+    return out
+end
+
+-- Anbieter „aus Beiträgen“ der Zeile „Fundorte“: Ernten je Karte an den ausgelieferten Orten der Objekte, die den
+-- Gegenstand geben, und Fänge je Angel-Gebiet – mit der größten Zahl an Spielern und dem neuesten Build
+function G.ShipSources(itemID)
+    local DB = Core.DB
+    itemID = Core.Num(itemID)
+    if not (itemID and DB and DB.ShippedKeys) then return {} end
+    local s = ShipIndex(DB, ShipMem(DB))
+    local objs = ShipWant(DB, s, itemID)
+    local byMap, out = {}, {}
+    local function Add(map, n, players, b)
+        map = Core.Num(map)
+        if not (map and map > 0) then return end
+        local e = byMap[map]
+        if not e then
+            e = { mapID = map, count = 0 }
+            byMap[map] = e
+            out[#out + 1] = e
+        end
+        e.count = e.count + (n or 0)
+        if players and players > (e.players or 0) then e.players = players end
+        if b and b > (e.b or 0) then e.b = b end
+    end
+    if next(objs) ~= nil then
+        for _, map in ipairs(DB.ShippedKeys("spot")) do
+            -- nur die Objekte dieser Karte, die den Gegenstand geben (ohne Kopie der übrigen)
+            for _, id in ipairs(DB.ShippedKeys("spot", map, "object")) do
+                if objs[id] then
+                    local list, info = DB.Shipped("spot", map, "object", id)
+                    for _, el in ipairs(type(list) == "table" and list or {}) do
+                        Add(map, Core.Num(el.cnt) or 1, Core.Num(el.orig) or (info and Core.Num(info.contributors)),
+                            Core.Num(el.b) or (info and Core.Num(info.b)))
+                    end
+                end
+            end
+        end
+    end
+    for map, areas in pairs(s.fish[itemID] or {}) do
+        for area, n in pairs(areas) do
+            local _, info = DB.Shipped("drops", "fishing", map, area)
+            Add(map, n, info and Core.Num(info.contributors), info and Core.Num(info.b))
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.count ~= b.count then return a.count > b.count end
+        return a.mapID < b.mapID
+    end)
     return out
 end
 
@@ -867,27 +1110,40 @@ Core.Listen("DB_CHANGED", function(name)
         Core.Fire("GATHERING_CHANGED")
     end
 end, "ezCore.Gathering")
-Core.RegisterMessage("GATHERING_CHANGED", "Gathering.lua", "Eigene Sammel-Fundorte oder Objekte haben sich geändert (neue Ernte, Vergessen); höchstens einmal je Bild.", "mapID | nil")
+-- ezData geladen (einmal nach dem Einloggen): Tooltip und Karte fragen neu (Fundorte aus Beiträgen)
+Core.Listen("DB_SHIP_READY", function()
+    cache = {}
+    Core.Fire("GATHERING_CHANGED")
+end, "ezCore.Gathering")
+-- Anbieter „aus Beiträgen“ (ezData) hinter „bei dir“ (DiscoveryView.lua, opts.first) und vor „laut Questie“
+-- (SourcesQuestie.lua lädt später); liefert nur, solange ezData Sätze ausliefert
+G.AddProvider("ship", L.GATHER_SOURCE_SHIP, G.ShipSources, { active = function()
+    local DB = Core.DB
+    return DB and DB.ShipStats and DB.ShipStats().rows > 0 or false
+end })
+Core.RegisterMessage("GATHERING_CHANGED", "Gathering.lua", "Eigene Sammel-Fundorte oder Objekte haben sich geändert (neue Ernte, Vergessen) oder die Beiträge anderer Spieler sind geladen; höchstens einmal je Bild.", "mapID | nil")
 
 ---------------------------------------------------------------------------
 -- Sichtbarkeit je Art und Fläche (SAM-08, Welle 13)
 ---------------------------------------------------------------------------
 --[[
     G.Visible(art, fläche)       → true/false, Grund ("explorer" | "never" | "profession" | "tracking" | "kind")
-        art: herb, ore, fish, chest, treasure, rare, book; fläche: "map" (Weltkarte) oder "minimap"
+        art: herb, ore, fish, chest, rare, book; fläche: "map" (Weltkarte) oder "minimap"
     G.Visibility(art, fläche)    → Modus: "always" (immer), "profession" (mit Beruf), "tracking" (bei aktiver Suche aus
                                    dem Menü „Aufspüren“), "never" (nie)
     G.SetVisibility(art, fläche, modus) → true; Nachricht GATHERING_VISIBILITY (art, fläche, modus)
     G.HasProfession(art), G.Tracking(art) → bool
     Wissen an EINER Stelle (Leitlinie 11): Kräuter, Erze und Angeln sind Nachschlage-Wissen (G.KNOWLEDGE "lookup"),
-    Kisten, Schätze, seltene Gegner und Bücher Entdecker-Wissen ("explorer") – sie zeigt nur der Schalter
+    Kisten (auch Schätze), seltene Gegner und Bücher Entdecker-Wissen ("explorer") – sie zeigt nur der Schalter
     „Entdecker-Wissen“ (OPT_explorer, DB.Explorer(), ab Werk aus), gleich welcher Modus gilt. Quest-Objekte und neutrale
-    Behälter (quest, container) sind keine Sammelknoten und nie sichtbar.
+    Behälter (quest, container) sind keine Sammelknoten und nie sichtbar. Eine eigene Art „treasure“ gab es seit Welle 13
+    nur in dieser Liste (52b10191) – ohne Erzeuger (KIND_PUBLIC kennt sie nicht) und ohne Aufrufer; entfernt im Paket
+    „Fundorte“ (22.11.2026, Leitlinie 8): Schätze sind Kisten (chest), auch laut Questie (ObjectKind unten).
     Die Schalter je Art zeigt ezMap im Filtermenü der Karte und im Menü „Aufspüren“ (SAM-10, Welle 14); ezCore hält
     nur Modus und Regel.
 ]]
-G.KNOWLEDGE = { herb = "lookup", ore = "lookup", fish = "lookup", chest = "explorer", treasure = "explorer",
-    rare = "explorer", book = "explorer" }
+G.KNOWLEDGE = { herb = "lookup", ore = "lookup", fish = "lookup", chest = "explorer", rare = "explorer",
+    book = "explorer" }
 G.VISIBILITY_MODES = { "always", "profession", "tracking", "never" }
 G.SURFACES = { map = true, minimap = true }
 -- Sammelberufe je Art: G.PROFESSION_LINES steht seit Welle 27 weiter oben (vor G.SKILL_LINE_OF). Dazu der Schlüssel
@@ -2010,8 +2266,7 @@ G.OriginText = OriginText
 
 -- Kraut oder Erz (Handwerkswaren, Unterklasse 9 bzw. 7) – nur dort sagt die Zeile ohne Fundort, warum (Leitlinie 11)
 local function Gatherable(itemID)
-    local classID, subclassID = Core.ItemClass(itemID)   -- Core.ItemInstant (Gesamtreview 18.11.2026, T16-16)
-    return classID == 7 and (subclassID == 9 or subclassID == 7)
+    return G.ItemKind(itemID) ~= nil   -- Core.ItemInstant (Gesamtreview 18.11.2026, T16-16), seit „Fundorte“ über ItemKind
 end
 G.Gatherable = Gatherable
 

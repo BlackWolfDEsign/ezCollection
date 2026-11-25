@@ -2,23 +2,26 @@ local _, ns = ...
 local L = ns.L
 local Core = ezCore
 
--- Flugzeiten: ezMap lernt jede Strecke beim Fliegen (keine mitgelieferte Tabelle) und zeigt sie im Tooltip
+-- Flugzeiten: ezMap lernt jede Strecke beim Fliegen und zeigt sie im Tooltip
 -- der Flugpunkte (Blizzards Flugkarte, beide Varianten) sowie während des Flugs in einer Leiste im Stil von
--- Blizzards Zauberleiste. Zeigt ein anderes Addon schon Flugzeiten (Erkennung über ezCore, ns.FlightTimesElsewhere), lernt
+-- Blizzards Zauberleiste. Noch nicht geflogene Strecken schätzt ezCore aus ihrer Länge (Client-Tabelle TaxiPathNode) und der
+-- an deinen Flügen gemessenen Geschwindigkeit (Core.Flights.Estimate; Entscheidung des Nutzers vom 24.11.2026, „Ja, laden
+-- (Recommended)“) – immer als „geschätzt“ gekennzeichnet, die gemessene Zeit geht vor. Dazwischen steht, was andere
+-- Spieler gemessen haben (ezData, Core.Flights.Shipped; seit 25.11.2026), als „aus Beiträgen“ gekennzeichnet. Zeigt ein anderes Addon schon Flugzeiten (Erkennung über ezCore, ns.FlightTimesElsewhere), lernt
 -- ezMap nur still mit.
 local Flights = {}
 ns.Flights = Flights
 
 -- Forever: „Vielflieger“ macht Flüge 20 % schneller. Quelle ist der Client: Zauber 1225490 in seiner Zauberdatenbank
 -- (C_Spell.GetSpellName nennt „Vielflieger“, C_Spell.GetSpellDescription die 20 %); ob du ihn hast, fragt
--- IsPlayerSpell zur Laufzeit. Bestätigung im Spiel und eigene Messung: Punkt 26 in docs/roadmap/ezMap.md.
+-- Core.KnowsSpell zur Laufzeit. Bestätigung im Spiel und eigene Messung: Punkt 26 in docs/roadmap/ezMap.md.
 -- Gespeichert wird immer die Zeit bei normaler Geschwindigkeit.
 local FREQUENT_FLIER_SPELL, FREQUENT_FLIER_SPEED = 1225490, 1.2
 local TOLERANCE = 15        -- Sekunden: kleinere Abweichungen melden sich nicht als „neu gelernt“
 local MIN_FLIGHT = 5        -- kürzere „Flüge“ sind abgebrochen
 
 local function Speed()
-    if IsPlayerSpell and IsPlayerSpell(FREQUENT_FLIER_SPELL) then return FREQUENT_FLIER_SPEED end
+    if Core.KnowsSpell(FREQUENT_FLIER_SPELL) then return FREQUENT_FLIER_SPEED end
     return 1
 end
 
@@ -154,11 +157,56 @@ function Flights.Seconds(key)
     return seconds
 end
 
--- Erwartete Dauer in Sekunden (mit Vielflieger) oder nil, wenn die Strecke noch nicht geflogen wurde.
+-- Geschätzte Dauer einer noch nicht geflogenen Strecke in Sekunden bei normaler Geschwindigkeit, dazu die Zahl der
+-- gemessenen Strecken dahinter. nil: Länge unbekannt oder noch keine Geschwindigkeit gemessen (zweiter Wert 0).
+function Flights.Estimate(key)
+    if not (key and ns.Discovery.Usable()) then return nil end
+    local from, to, hops = Flights.Parts(key)
+    if not from then return nil end
+    local est = Core.Flights.Estimate(from, to, hops)
+    if type(est) == "table" then return ns.Num(est.sec), ns.Num(est.flights) or 0 end
+    return nil, Core.Flights.Length(from, to, hops) and 0 or nil
+end
+
+-- Geschätztes steht in Schritten von fünf Sekunden da.
+Flights.ESTIMATE_STEP = 5
+local function Rough(seconds)
+    local step = Flights.ESTIMATE_STEP
+    return math.max(step, math.floor(seconds / step + 0.5) * step)
+end
+
+-- Dauer dieser Strecke aus Beiträgen anderer Spieler in Sekunden bei normaler Geschwindigkeit und deren Herkunft („aus
+-- Beiträgen (n Spieler), Stand Build x“) oder nil. Nie als gelernt gespeichert, nie Grundlage der Schätzung.
+local function Shipped(from, to, hops)
+    if from == nil or to == nil or type(Core.Flights.Shipped) ~= "function" then return nil end
+    local way, info = Core.Flights.Shipped(from, to, hops)
+    local seconds = type(way) == "table" and ns.Num(way.sec) or nil
+    if not seconds or seconds <= 0 then return nil end
+    return seconds, type(info) == "table" and info.label or Core.L["SOURCES_SHIP"]
+end
+
+function Flights.Shared(key)
+    if not (key and ns.Discovery.Usable()) then return nil end
+    return Shipped(Flights.Parts(key))
+end
+
+-- Erwartete Dauer in Sekunden (mit Vielflieger), Art und Beleg. Art: false = bei dir gemessen, "ship" = aus Beiträgen
+-- (Beleg: deren Herkunft), true = geschätzt (Beleg: Zahl der Flüge hinter der Schätzung). nil, wenn die Strecke noch
+-- nicht geflogen wurde, niemand sie beigetragen hat und sie sich nicht schätzen lässt.
 function Flights.Expected(key)
     local seconds = Flights.Seconds(key)
-    if not seconds then return nil end
-    return seconds / Speed()
+    if seconds then return seconds / Speed(), false end
+    local shared, label = Flights.Shared(key)
+    if shared then return shared / Speed(), "ship", label end
+    local estimate, flights = Flights.Estimate(key)
+    if not estimate then return nil, false, flights end
+    return Rough(estimate / Speed()), true, flights
+end
+
+-- Woher die Angabe kommt (Leitlinie 11): estimated = "ship" mit der Herkunft oder true mit der Zahl der Flüge
+local function EstimateSource(estimated, flights)
+    if estimated == "ship" then return L.FLIGHT_TIME_SHIP_SOURCE:format(tostring(flights or Core.L["SOURCES_SHIP"])) end
+    return Core.Plural(flights or 0, L.FLIGHT_TIME_EST_SOURCE_ONE, L.FLIGHT_TIME_EST_SOURCE_MANY)
 end
 
 -- Alle gelernten Wege: { from, to, hops, sec } (Datenbank) bzw. { key, sec, name } (alter Speicher).
@@ -262,11 +310,15 @@ local function AddTooltipLine(dest)
     if not Showing("flightTimes") then return end
     local key = Flights.Route(dest)
     if not key then return end
-    local seconds = Flights.Expected(key)
-    if seconds then
+    local seconds, estimated, flights = Flights.Expected(key)
+    if seconds and estimated then
+        local text = estimated == "ship" and L.FLIGHT_TIME_SHIP or L.FLIGHT_TIME_EST
+        Core.TipLine(GameTooltip, text:format(ns.Clock(seconds)), "highlight")
+        Core.TipLine(GameTooltip, EstimateSource(estimated, flights), "hint", true)
+    elseif seconds then
         Core.TipLine(GameTooltip, L.FLIGHT_TIME:format(ns.Clock(seconds)), "highlight")
     else
-        Core.TipLine(GameTooltip, L.FLIGHT_TIME_UNKNOWN, "hint", true)
+        Core.TipLine(GameTooltip, flights == 0 and L.FLIGHT_TIME_UNKNOWN_FIRST or L.FLIGHT_TIME_UNKNOWN, "hint", true)
     end
     GameTooltip:Show()
 end
@@ -300,7 +352,7 @@ end)
 -- Leiste während des Flugs (Blizzards Zauberleisten-Grafik)
 ---------------------------------------------------------------------------
 
-local flight        -- { key, names, start (time()), began (Core.Uptime()), speed, expected, started, interrupted, hidden,
+local flight        -- { key, names, start (time()), began (Core.Uptime()), speed, expected, estimated, flights, started, interrupted, hidden,
                     --   gained, offSince (Core.Uptime() des Ereignisses bzw. der ersten Antwort „kein Flugtier“), unsure }
 local preview       -- dasselbe für die Vorschau
 local bar
@@ -319,12 +371,13 @@ local function UpdateBar()
     local f = Active()
     if not f or f.hidden then return bar:Hide() end
     local elapsed = Core.Uptime() - f.began
-    if f.expected then
+    -- geschätzt bzw. aus Beiträgen und schon länger unterwegs: wieder die bisherige Dauer (die Angabe war zu kurz)
+    if f.expected and not (f.estimated and elapsed >= f.expected) then
         local left = math.max(0, f.expected - elapsed)
         bar:SetMinMaxValues(0, f.expected)
         bar:SetValue(left)
         bar:SetRole("normal")
-        bar.Text:SetText(L.FLIGHT_BAR:format(Destination(f), ns.Clock(left)))
+        bar.Text:SetText((f.estimated and L.FLIGHT_BAR_EST or L.FLIGHT_BAR):format(Destination(f), ns.Clock(left)))
     else
         bar:SetMinMaxValues(0, 1)
         bar:SetValue(1)
@@ -333,7 +386,8 @@ local function UpdateBar()
     end
 end
 
--- Nur diesen Flug (bzw. die Vorschau) ausblenden: Knopf an der Leiste, Rechtsklick zusätzlich. Ganz abschalten
+-- Nur diesen Flug (bzw. die Vorschau) ausblenden: Rechtsklick auf die Leiste (ohne Kreuz, Ausnahme von Leitlinie 3 vom
+-- 22.11.2026). Ganz abschalten
 -- geht mit dem Schalter „Leiste während des Flugs“.
 function Flights.HideForFlight()
     local f = Active()
@@ -358,21 +412,8 @@ local function BuildBar()
     bar.Text:ClearAllPoints()
     bar.Text:SetPoint("TOP", bar, "TOP", 0, 5)
     bar.Text:SetSize(185, 16)
-    -- Sichtbarer Knopf zum Ausblenden: Blizzards Schließen-Knopf rechts neben dem Rahmen (Leitlinie 3).
-    local close = CreateFrame("Button", "ezMapFlightBarClose", bar, "UIPanelCloseButton")
-    close:SetSize(20, 20)
-    close:SetPoint("LEFT", bar, "RIGHT", 10, 0)
-    close:SetScript("OnClick", function() Flights.HideForFlight() end)
-    close:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, Core.TipAnchor(self))
-        Core.TipTitle(GameTooltip, L.FLIGHT_BAR_HIDE)
-        Core.TipText(GameTooltip, L.FLIGHT_BAR_HIDE_TIP)
-        -- Weg zur Einstellung in ezCores Form (T18-18); der Haken steht im Baum „Karte: was zeigen“
-        Core.TipLine(GameTooltip, Flights.BarSettingPath(), "hint", true)
-        GameTooltip:Show()
-    end)
-    close:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    bar.CloseButton = close
+    -- Ausblenden für diesen Flug nur per Rechtsklick, ohne Kreuz daneben (Ausnahme von Leitlinie 3, vom Nutzer am
+    -- 22.11.2026: „Ja, X weg“); ganz abschalten über den Schalter „Leiste während des Flugs“, der Tooltip nennt den Weg.
     bar:EnableMouse(true)
     bar:SetScript("OnMouseUp", function(_, button)
         if button == "RightButton" then Flights.HideForFlight() end
@@ -383,7 +424,10 @@ local function BuildBar()
         Core.TipTitle(GameTooltip, L.FLIGHT_BAR_TITLE)
         if f and f.names then Core.TipText(GameTooltip, table.concat(f.names, " › ")) end
         if f and not f.expected then Core.TipLine(GameTooltip, L.FLIGHT_TIME_UNKNOWN, "hint", true) end
+        if f and f.estimated then Core.TipLine(GameTooltip, EstimateSource(f.estimated, f.flights), "hint", true) end
         Core.TipClick(GameTooltip, L.FLIGHT_BAR_HINT)
+        -- Weg zur Einstellung in ezCores Form (T18-18)
+        Core.TipLine(GameTooltip, L.FLIGHT_BAR_OFF .. " " .. Flights.BarSettingPath(), "hint", true)
         Core.TipLine(GameTooltip, L.FLIGHT_BAR_MOVE .. " " .. Core.SettingsPathText("ezMap", nil, "MOVER_BUTTON_LABEL", L),
             "hint", true)
         Core.TipClick(GameTooltip, L.FLIGHT_BAR_LIST)
@@ -475,8 +519,11 @@ function Flights.Bar() return bar end
 -- Flug verfolgen und lernen
 ---------------------------------------------------------------------------
 
+-- Eine Zeit aus Beiträgen wird nicht gespeichert (nach /reload neu gefragt), nur eigene Messung und Schätzung.
 local function Save(f)
-    ns.db.inflight = f and { key = f.key, names = f.names, start = f.start, speed = f.speed, expected = f.expected } or nil
+    local keep = f and f.estimated ~= "ship"
+    ns.db.inflight = f and { key = f.key, names = f.names, start = f.start, speed = f.speed, expected = keep and f.expected or nil,
+        estimated = keep and f.estimated or nil, flights = keep and f.flights or nil } or nil
 end
 
 local function Stop()
@@ -525,8 +572,9 @@ local function OnTakeTaxi(slot)
     local key, names = Flights.Route(slot)
     if not key then return end
     local speed = Speed()
+    local expected, estimated, flights = Flights.Expected(key)
     flight = { key = key, names = names, start = time(), began = Core.Uptime(), speed = speed,
-        expected = Flights.Expected(key) }
+        expected = expected, estimated = estimated or nil, flights = estimated and flights or nil }
     Save(flight)
     C_Timer.After(1, function()
         if not flight or flight.key ~= key then return end
@@ -556,7 +604,7 @@ end
       - die laufende Leiste (UpdateBar) und ein eigener Takt (Watch, alle WATCH_EVERY Sekunden) fragen selbst; zwei
         Antworten „kein Flugtier“ im Abstand von OFF_CONFIRM Sekunden beenden den Flug (Zeitpunkt: die erste)
       - Deckel: weit über der erwarteten Zeit (OVERDUE_FACTOR, mindestens OVERDUE_MIN Sekunden darüber; ohne
-        erwartete Zeit FLIGHT_MAX) endet die Leiste und ezMap lernt nichts
+        gemessene Zeit, auch mit einer geschätzten, FLIGHT_MAX) endet die Leiste und ezMap lernt nichts
       - gesperrte Antwort = kein Flugtier (Leitlinie 6); gelernt wird dann nichts (f.unsure)
 ]]
 Flights.RECHECK = { 1, 3 }
@@ -568,7 +616,7 @@ Flights.FLIGHT_MAX = 1800
 -- Längste Dauer dieses Flugs, bevor der Deckel greift (Sekunden seit dem Start).
 function Flights.Limit(f)
     if type(f) ~= "table" then return Flights.FLIGHT_MAX end
-    local expected = f.expected
+    local expected = not f.estimated and f.expected or nil
     if type(expected) ~= "number" or expected <= 0 then return Flights.FLIGHT_MAX end
     return expected + math.max(Flights.OVERDUE_MIN, expected * (Flights.OVERDUE_FACTOR - 1))
 end
@@ -627,8 +675,13 @@ ns.On("PLAYER_ENTERING_WORLD", function()
     local saved = ns.db and ns.db.inflight
     if type(saved) ~= "table" or not saved.key then return end
     if not OnTaxi() then return Stop() end
+    local expected, estimated, flights = saved.expected, saved.estimated, saved.flights
+    if not expected then
+        local seconds, how, label = Flights.Expected(saved.key)
+        if how == "ship" then expected, estimated, flights = seconds, how, label end
+    end
     flight = { key = saved.key, names = saved.names or { "?" }, start = saved.start, speed = saved.speed or 1,
-        expected = saved.expected, began = Core.Uptime() - math.max(0, time() - (saved.start or time())) }
+        expected = expected, estimated = estimated, flights = flights, began = Core.Uptime() - math.max(0, time() - (saved.start or time())) }
     Started()
 end)
 
@@ -771,8 +824,9 @@ end
 
 -- Kleine Stufe statt Routenplaner (Vollprüfung 14.11.2026, Frage 30 – Empfehlung umgesetzt, Antwort offen): ezMap
 -- nennt den Flugmeister, der dem Ziel am nächsten liegt, und die Flugzeit von deinem nächsten entdeckten Flugmeister
--- dorthin (von einem unentdeckten kann keine Strecke gelernt sein) – aber nur, wenn du genau diese Strecke schon
--- geflogen bist (Quelle „bei dir gemessen“). Sonst „noch unbekannt“. Kein Umsteigen, keine Schätzung, keine Tabelle.
+-- dorthin (von einem unentdeckten kann keine Strecke gelernt sein), wenn du genau diese Strecke schon geflogen bist
+-- (Quelle „bei dir gemessen“). Sonst schätzt sie ezCore für eine direkte Strecke („geschätzt“, seit 24.11.2026); mit
+-- Zwischenhalt wählt der Flugmeister den Weg, dann „noch unbekannt“.
 
 -- Erster und letzter Halt einer gelernten Strecke („12>7>3“ bzw. „n:Sturmwind>n:Goldhain“) oder nil.
 local function RouteEnds(key)
@@ -833,17 +887,33 @@ function Flights.TimeBetween(from, to)
     return best
 end
 
--- Zur gesetzten Markierung: Flugmeister am Ziel, dein nächster entdeckter Flugmeister (oder nil) und die gelernte
--- Flugzeit zwischen beiden in Sekunden (oder nil). Ohne Markierung oder ohne Flugpunkte vom Client: nil.
+-- Zur gesetzten Markierung: Flugmeister am Ziel, dein nächster entdeckter Flugmeister (oder nil), die Flugzeit zwischen
+-- beiden in Sekunden (oder nil), Art und Beleg wie bei Flights.Expected (nil = bei dir gemessen, "ship", true = geschätzt,
+-- direkte Strecke). Ohne Markierung oder ohne Flugpunkte vom Client: nil.
 function Flights.AtWaypoint()
     local mapID, x, y = ns.Way.Get()
     if not mapID then return nil end
     local dest = Flights.NearestMasterTo(mapID, x, y)
     if not dest then return nil end
     local own = Flights.NearestMaster(true)
-    local seconds
-    if own and not Flights.SameMaster(own, dest) then seconds = Flights.TimeBetween(own, dest) end
-    return dest, own, seconds
+    local seconds, estimated, flights
+    if own and not Flights.SameMaster(own, dest) then
+        seconds = Flights.TimeBetween(own, dest)
+        -- zu einem noch nicht entdeckten Flugmeister fliegt man nicht: dann weder Beitrag noch Schätzung
+        if not seconds and own.id and dest.id and not dest.undiscovered then
+            local key = own.id .. ">" .. dest.id
+            local from, to = Flights.Parts(key)
+            seconds, flights = Shipped(from, to, {})      -- direkt wie auf der Flugkarte, sonst der kürzeste Weg
+            if not seconds then seconds, flights = Shipped(from, to) end
+            if seconds then
+                seconds, estimated = seconds / Speed(), "ship"
+            else
+                seconds, flights = Flights.Estimate(key)
+                if seconds then seconds, estimated = Rough(seconds / Speed()), true end
+            end
+        end
+    end
+    return dest, own, seconds, estimated, flights
 end
 
 -- „Flugmeister am Ziel: Späherkuppe“
@@ -852,12 +922,17 @@ function Flights.DestinationLabel(dest)
     return text:format(dest.name)
 end
 
--- Zeile darunter mit der Quelle der Angabe: „Flugzeit Goldhain – Späherkuppe: 3:20 (bei dir gemessen)“, „… noch
--- unbekannt (noch nicht geflogen)“ oder der Hinweis, dass es derselbe Flugmeister ist. Ohne eigenen Flugmeister nil.
-function Flights.DestinationTimeLabel(dest, own, seconds)
+-- Zeile darunter mit der Quelle der Angabe: „Flugzeit Goldhain – Späherkuppe: 3:20 (bei dir gemessen)“, „… etwa 3:20
+-- (geschätzt)“, „… 3:20 (aus Beiträgen)“, „… noch unbekannt (noch nicht geflogen)“ oder der Hinweis, dass es derselbe Flugmeister ist. Ohne eigenen
+-- Flugmeister nil.
+function Flights.DestinationTimeLabel(dest, own, seconds, estimated)
     if not own then return nil end
     if Flights.SameMaster(own, dest) then return L.MENU_FLIGHT_DEST_SAME end
-    if seconds then return L.MENU_FLIGHT_DEST_TIME:format(own.name, dest.name, ns.Clock(seconds)) end
+    if seconds then
+        local text = estimated == "ship" and L.MENU_FLIGHT_DEST_TIME_SHIP
+            or estimated and L.MENU_FLIGHT_DEST_TIME_EST or L.MENU_FLIGHT_DEST_TIME
+        return text:format(own.name, dest.name, ns.Clock(seconds))
+    end
     return L.MENU_FLIGHT_DEST_TIME_UNKNOWN:format(own.name, dest.name)
 end
 
@@ -892,6 +967,19 @@ function Flights.Reset()
     wipe(ns.db.flightNames)
     ns.Print(L.FLIGHT_RESET_DONE)
 end
+
+-- Tooltip der Zeile darüber: gemessen oder woher Beitrag bzw. Schätzung kommt
+function Flights.DestinationTimeTip(estimated, flights)
+    return estimated and EstimateSource(estimated, flights) or L.MENU_FLIGHT_DEST_TIME_TIP
+end
+
+-- Geschwindigkeit, mit der ezCore schätzt (zum Nachprüfen im Spiel)
+ns.AddStatusLine(function()
+    if not ns.Discovery.Usable() then return nil end
+    local speed, flights = Core.Flights.Speed()
+    if not speed then return L.STATUS_FLIGHT_SPEED_NONE end
+    return Core.Plural(flights, L.STATUS_FLIGHT_SPEED_ONE, L.STATUS_FLIGHT_SPEED_MANY, Core.Decimal(speed, 1))
+end)
 
 ns.AddStatusLine(function()
     local other = ns.FlightTimesElsewhere()

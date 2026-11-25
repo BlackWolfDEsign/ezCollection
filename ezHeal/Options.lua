@@ -4,7 +4,8 @@ local L = ns.L
 -- Einstellungen unter Esc → Optionen → AddOns → ezCollection → ezHeal (Seite von ezCore):
 -- Allgemein (Blizzards Fenster „Klick-Zauber“ öffnen, weitere Einstiege an Blizzards Fenstern, am Zauberbuch
 -- andocken) → Klick-Belegung
--- (Vorlage, Tasten wählen, Vorschau im Chat, Übernehmen, Zurück, Belegung vor dem ersten Übernehmen) → Makros
+-- (Vorlage, Tasten wählen, Vorschau im Chat, Übernehmen, Zurück, Belegung vor dem ersten Übernehmen, Menü und Ziel
+-- zurückholen, Blizzards Selbstwirken) → Makros
 -- (Heil-Makros für die Klasse anlegen, Vorschau im Chat, eigene Makros entfernen) → Profile
 -- (speichern, laden/teilen/löschen, einfügen) → Anzeige (eigene HoTs am Rahmen, Klick-Legende im Rahmen-Tooltip,
 -- Blizzards Raidrahmen-Optionen) →
@@ -23,7 +24,9 @@ local function Register()
     page:Checkbox("entrySpellbook")
     page:Checkbox("entryMacro")
     page:Checkbox("dockSpellbook", nil, { feature = "moveFrames" })   -- Blizzards Fenster rechts am Zauberbuch (Dock.lua)
-    page:Checkbox("pairSpellbook")   -- Zauberbuch und Klick-Zauber zusammen schließen (Dock.lua)
+    -- Zauberbuch und Klick-Zauber zusammen schließen (Dock.lua); ausgeblendet, solange ezCore Klick-Zauber nicht aus
+    -- Addon-Code öffnen darf (Entscheidung des Nutzers vom 23.11.2026 „Ausblenden (Empfohlen)“)
+    page:Checkbox("pairSpellbook", nil, { shown = function() return ns.PairSpellbookShown() end })
 
     page:Header(L.OPT_HEADER_BINDINGS)
     page:Dropdown("template", {
@@ -37,6 +40,11 @@ local function Register()
     page:Button(L.OPT_RESTORE, L.OPT_RESTORE_BUTTON, function() ns.AskRestore() end, L.OPT_RESTORE_TIP)
     page:Button(L.OPT_RESTORE_FIRST, L.OPT_RESTORE_FIRST_BUTTON, function() ns.AskRestore("first") end,
         L.OPT_RESTORE_FIRST_TIP)
+    -- Rechtsklick öffnet kein Menü, Linksklick wählt kein Ziel (MenuClick.lua, Spieltest 24.11.2026)
+    page:Button(L.OPT_MENUCLICK, L.OPT_MENUCLICK_BUTTON, function() ns.MenuClick.Ask() end, L.OPT_MENUCLICK_TIP)
+    -- Blizzards „Selbstwirken“ (Fehler vom 23.11.2026): Taste und „Automatisch“ lenken Klicks auf dich um (Core.lua)
+    page:Checkbox("noAutoSelfCast")   -- „Selbstwirken: Automatisch“ einmal aus, aus = alter Wert zurück (Core.lua)
+    page:Button(L.OPT_SELFCAST, L.OPT_SELFCAST_BUTTON, function() ns.OpenSelfCastOptions() end, L.OPT_SELFCAST_TIP)
 
     -- Heil-Makros je Klasse in Blizzards Makrofenster (Macros.lua)
     page:Header(L.OPT_HEADER_MACROS)

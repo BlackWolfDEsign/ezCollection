@@ -26,7 +26,9 @@ ns.DEFAULTS = {
     button = true,          -- Knopf an Blizzards Buff-Leiste
     food = true,            -- Buff-Essen („Satt“)
     flask = true,           -- Fläschchen oder Elixier
-    when = "group",         -- Buff-Essen und Fläschchen prüfen: "always" | "group" | "instance"
+    -- Buff-Essen und Fläschchen prüfen: "always" | "group" | "instance". Ab Werk "always" seit der Entscheidung des
+    -- Nutzers vom 23.11.2026 („Auch allein prüfen“; vorher "group" – allein unterwegs fehlte das Buff-Essen)
+    when = "always",
     selfBuffs = true,       -- eigene Klassen-Buffs auf dir
     -- lange Selbst-Buffs aus Talenten bzw. für eine Rolle, je Buff abwählbar (Buffs.LONG_SELF, T14-2; Entscheidung
     -- des Nutzers vom 19.11.2026). Zorn der Gerechtigkeit ab Werk aus: er nützt nur dem tankenden Paladin
@@ -80,7 +82,7 @@ Core.NewModule(ADDON, ns, {
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",
     -- Welle 22 (ezCore 1.12.0 auf main): Symbolgröße aus dem Design-System, Dienst „Makro anlegen“, Kennzeichen am Knopf
-    needs = { "Style.ICON", "Macro.Find", "Macro.Write", "Macro.Limits", "MacroBadge.Register",
+    needs = { "NewSettingsProfiles", "Style.ICON", "Macro.Find", "Macro.Write", "Macro.Limits", "MacroBadge.Register",
         -- Einstellungs-Prüfung 19.11.2026: gespeicherte Werte einmal umstellen (Core.MigrateOnce)
         "MigrateOnce",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Takt mit Griff (T7-3)
@@ -92,11 +94,15 @@ Core.NewModule(ADDON, ns, {
         "Menu.PlayerMenus", "Debug.AddLine",
         -- A3 gemeinsamer Leser der Waffenverzauberung, A4 Waffenzauber des Schamanen
         "WeaponEnchantInfo", "Spells.WeaponImbues", "Spells.BestImbueRank",
+        -- heutige Zauber-Abfrage statt IsPlayerSpell (Paket kern/abgeloeste-namen, 24.11.2026, ohne neue Nummer)
+        "KnowsSpell",
         -- Paket ezmacro/gifte-waffenzauber (ohne neue Nummer): Regel „bester Gegenstand“, Makro „Gegenstand auf die
         -- Waffe“ und Reihenfolge der Waffenzauber aus ezCore (eine Quelle mit ezMacro)
         "BestItems.Score", "BestItems.Usable", "Macro.WeaponItem", "Spells.IMBUE_ORDER", "Spells.OrderedImbues", "Spells.ChooseImbue", "WeaponEnchantable",
         -- Paket ezcore/klinge-wucht (ohne neue Nummer): je Hand nur, was die Waffe annimmt (Client-Tabelle SpellEquippedItems)
         "BestItems.PickWeaponEnchant",
+        -- Fehler vom Nutzer vom 23.11.2026 (ohne neue Nummer): Buff-Essen bei jeder Klasse, „passt zur Klasse?“ aus ezCore
+        "BestItems.Fit",
         -- A2 Profil-Gerüst (vergisst Charaktere selbst) und Übernehmen eines Werts
         "NewProfiles", "ApplySetting",
         -- Welle 26 (ezCore-Paket kern/ezcore-reste-24, ohne neue Nummer): „Was fehlt für diesen Zauber?“ aus ezCore
@@ -121,6 +127,7 @@ Core.NewModule(ADDON, ns, {
     onLoad = function(db)
         for _, c in pairs(db.chars) do ns.MigratePrefer(c) end
         ns.MigrateSettings1911(db)
+        ns.MigrateWhen2311(db)
     end,
     login = true,
     -- „test“ und „makro“ versteht ezBuff selbst; „optionen“, „status“, „hilfe“ und „zuruecksetzen“ (Rückfrage wie der
@@ -172,6 +179,27 @@ function ns.MigrateSettings1911(db)
         ns.AdoptSettings1911(db.settings)
         for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
             ns.AdoptSettings1911(type(profile) == "table" and profile.settings or nil)
+        end
+        return true
+    end)
+end
+
+-- Entscheidung des Nutzers vom 23.11.2026 („Auch allein prüfen“, auf die Frage „Soll ezBuff Buff-Essen und
+-- Fläschchen auch prüfen, wenn du allein unterwegs bist?“; Anlass: „fehlendes bufffood (in tasche vorhanden) beim
+-- hexer wird nicht angezeigt“): „Wann prüfen“ ab Werk "always" statt "group". Einmal umgestellt wird der alte
+-- Werkswert "group" – in den Einstellungen und in jedem gesicherten Profil (Merker when2311). ezCore schreibt alle
+-- Standardwerte in den Speicher; ein gespeichertes "group" ist vom alten Standard nicht zu unterscheiden (wie bei
+-- weapon in settings1911) und wird mit umgestellt, umkehrbar über das Auswahlfeld. "instance" war nie Standard, also
+-- selbst gewählt, und bleibt.
+function ns.AdoptWhen2311(settings)
+    if type(settings) == "table" and settings.when == "group" then settings.when = "always" end
+end
+
+function ns.MigrateWhen2311(db)
+    return Core.MigrateOnce(db, "when2311", function()
+        ns.AdoptWhen2311(db.settings)
+        for _, profile in pairs(type(db.profiles) == "table" and db.profiles or {}) do
+            ns.AdoptWhen2311(type(profile) == "table" and profile.settings or nil)
         end
         return true
     end)

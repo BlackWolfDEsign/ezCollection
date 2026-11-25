@@ -78,6 +78,8 @@ local function Clean(data)
                         if chars[key] == nil then cfg.hidden[key] = nil end
                     end
                 end
+                -- ein Export von vor dem 22.11.2026 kann die frühere Instanzgrenze 10 tragen (Core.lua)
+                if id == "alts" then ns.FixInstanceLimit(cfg) end
                 blocks[id] = cfg
             end
         end

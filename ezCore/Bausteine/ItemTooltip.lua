@@ -142,7 +142,7 @@ function ItemTooltip.AddKnowledge(tooltip, itemID, data)
     local link = Core.Tooltip.ItemLink(tooltip, data)
     local ok, facts = pcall(K.Get, link or itemID)
     if not ok or type(facts) ~= "table" then return 0 end
-    local lines = K.DescribeLines(facts)
+    local lines = K.DescribeLines(facts, { tip = { link = link, data = data } })
     if type(lines) ~= "table" or #lines == 0 then return 0 end
     Core.Tooltip.Gap(tooltip)   -- ezCores einer Trenner (S-1811-Tooltipabstand)
     local n = 0

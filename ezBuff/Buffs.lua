@@ -124,7 +124,7 @@ end
 -- Mitglied dieser Klasse ihn auf seiner Stufe lernen kann (Buffs.LearnLevel). Quellen nach Leitlinie 11: zuerst der
 -- Client (C_Spell.DoesSpellExist, C_Spell.GetSpellLevelLearned, C_CooldownViewer.GetGroupBuffItems), dann ezCores
 -- Zauber-Wissen (Spells.LevelLearned nennt die Quelle: Client, Zauberbuch, Lehrer oder levels aus SpellData.lua).
--- Für dich selbst zählt weiter nur, was du gelernt hast (Spells.BestBuffRank über IsPlayerSpell und das Zauberbuch).
+-- Für dich selbst zählt weiter nur, was du gelernt hast (Spells.BestBuffRank über Core.KnowsSpell und das Zauberbuch).
 ---------------------------------------------------------------------------
 
 -- Zauber-IDs eines Buffs (Ränge und Gruppenfassungen): aus dem Eintrag (ClassBuffs) bzw. aus ezCore (Buffs.Info).

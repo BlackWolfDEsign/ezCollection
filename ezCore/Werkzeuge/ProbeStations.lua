@@ -17,7 +17,7 @@ local Probe = Core.Probe
     Rückgaben sind roh und können geheim sein: vor jeder Verwendung über r:Num(i), r:Str(i), r:Tab(i), r:Field(name)
     bzw. Probe.Field(tabelle, name) lesen – die liefern nil statt eines geheimen Werts.
     Nichts hier schreibt: keine Käufe, kein Senden, kein Lernen, kein Zielwechsel, keine Filter. Ausnahmen sind die
-    Sonderproben am Ende (X2, X3, X4, X6, X7, X8, F7) – Entwicklerwerkzeuge: jede nur auf eigenen Knopf mit Rückfrage
+    Sonderproben (X2, X3, X4, X6, X7, X8, X9, F7) – Entwicklerwerkzeuge: jede nur auf eigenen Knopf mit Rückfrage
     und nur mit dem Entwicklerschalter (Core.Debug.Developer, /ez debug entwickler; Gesamtreview 18.11.2026,
     Entscheidung 1). Ohne ihn sind ihre Knöpfe ausgeblendet, Befehl und Hinweis „noch offen“ nennen sie nicht.
 ]]
@@ -656,10 +656,13 @@ P.A13 = function(run)
     for _, line in ipairs(lines) do run:Q("A13", "C_TradeSkillUI.GetProfessionInfoBySkillLineID", line) end
     run:Q("A13", "C_TradeSkillUI.GetAllProfessionTradeSkillLines")
     run:Step(function(r)
-        -- ein Rezept ohne offenes Fenster (2330: Schwacher Heiltrank)
-        Many(r, "A13", { { "C_TradeSkillUI.GetRecipeInfo", 2330 }, { "C_TradeSkillUI.GetRecipeSchematic", 2330, false },
-            { "C_TradeSkillUI.GetRecipeOutputItemData", 2330 }, { "C_TradeSkillUI.GetTradeSkillLineForRecipe", 2330 },
-            { "C_TradeSkillUI.IsRecipeProfessionLearned", 2330 }, { "C_TradeSkillUI.GetGatheringOperationInfo", 2330 } })
+        -- ein Rezept eines fremden Berufs ohne offenes Fenster (Core.ForeignRecipe; bis 24.11.2026 2330, das es auf
+        -- Forever nicht gibt)
+        local id, line = Core.ForeignRecipe()
+        r:Tag(("Rezept %d (Linie %d, nicht gelernt)"):format(id, line))
+        Many(r, "A13", { { "C_TradeSkillUI.GetRecipeInfo", id }, { "C_TradeSkillUI.GetRecipeSchematic", id, false },
+            { "C_TradeSkillUI.GetRecipeOutputItemData", id }, { "C_TradeSkillUI.GetTradeSkillLineForRecipe", id },
+            { "C_TradeSkillUI.IsRecipeProfessionLearned", id }, { "C_TradeSkillUI.GetGatheringOperationInfo", id } })
         -- Nachprobe: ein Rezept des EIGENEN Berufs bei geschlossenem Fenster (Nummer aus einem früheren Lauf am
         -- Berufefenster, J2) – trennt „ohne Fenster“ von „ohne den Beruf“; GetSalvagableItemIDs verlangt eine recipeID
         -- (vorher ohne gefragt: ein Fehler der Probe)
@@ -1315,10 +1318,10 @@ local function Auras(run, id, unit, filter)
     local spellID = Num(Field(data, "spellId"))
     if unit == "player" and spellID then run:Q(id, "C_UnitAuras.GetPlayerAuraBySpellID", spellID) end
     run:Q(id, "C_UnitAuras.GetAuraBaseDuration", unit, aura)
-    local duration = run:Q(id, "C_UnitAuras.GetAuraDuration", unit, aura):Tab()
-    local has = Field(duration, "HasSecretValues")
-    if type(has) == "function" then
-        run:Record(id, "AuraDuration:HasSecretValues", nil, run:Call(function() return has(duration) end))
+    -- im Spiel Userdata (LuaDurationObject): Tab und Field nehmen nur Tabellen
+    local duration = run:Q(id, "C_UnitAuras.GetAuraDuration", unit, aura)[1]
+    if not Core.IsSecret(duration) and (type(duration) == "userdata" or type(duration) == "table") then
+        run:Record(id, "AuraDuration:HasSecretValues", nil, run:Call(function() return duration:HasSecretValues() end))
     end
 end
 
@@ -1518,10 +1521,12 @@ P.J3 = function(run)
         end
     end
     run:Step(function(r)
-        -- Nachprobe: ein Rezept eines anderen Berufs (2330, Alchimie) bei OFFENEM Berufefenster – Gegenstück zu A13
-        r:Tag("Rezept 2330 bei offenem Fenster")
-        Many(r, "J3", { { "C_TradeSkillUI.GetRecipeInfo", 2330 }, { "C_TradeSkillUI.GetRecipeSchematic", 2330, false },
-            { "C_TradeSkillUI.IsRecipeProfessionLearned", 2330 } })
+        -- Nachprobe: ein Rezept eines anderen Berufs (Core.ForeignRecipe: weder gelernt noch das offene Fenster) bei
+        -- OFFENEM Berufefenster – Gegenstück zu A13
+        local id, line = Core.ForeignRecipe()
+        r:Tag(("Rezept %d (Linie %d, nicht gelernt) bei offenem Fenster"):format(id, line))
+        Many(r, "J3", { { "C_TradeSkillUI.GetRecipeInfo", id }, { "C_TradeSkillUI.GetRecipeSchematic", id, false },
+            { "C_TradeSkillUI.IsRecipeProfessionLearned", id } })
     end)
     run:Step(function(r)
         -- der Link des eigenen Berufs nennt den Charakter: maskiert der Filter
@@ -2000,6 +2005,461 @@ Probe.KindOf.O = function()
     return list
 end
 
+---------------------------------------------------------------------------
+-- R – Restschaden und Restheilung am Lebensbalken (Zweig ezcombat/restschaden, 22.11.2026). Auftrag und Belege:
+-- docs/roadmap/ezCore.md, „Restschaden und Restheilung – Kern“; Katalog: docs/datenprobe.md, Abschnitt „R“.
+-- Nur von Hand: /ez probe rest – die Station hat kein „when“, Probe.Detect und die Automatik starten sie nie. Im
+-- Kampf gestartet, schneidet R4 Probe.REST_SECONDS lang UNIT_COMBAT mit; nach dem Kampf liest R6 den Schadensmesser.
+-- R2 des Plans (eine Addon-Nachricht senden) ist die Sonderprobe X9 unten – Senden ist eine Nebenwirkung.
+-- Ausnahme von „nie weitergereicht“: R5 gibt gesperrte Werte an eine eigene, unsichtbare StatusBar ohne Elternrahmen
+-- (SetMinMaxValues, SetValue, SetAlpha – laut Blizzards Doku „AllowedWhenTainted“). Genau das prüft die Probe;
+-- festgehalten wird nur, ob der Aufruf gelang und ob das Ergebnis gesperrt ist.
+---------------------------------------------------------------------------
+
+-- Einheiten, deren Kennung (R3) die Station ansieht; R4 zählt jede Einheit, die UNIT_COMBAT nennt
+Probe.REST_UNITS = { "target", "focus", "party1", "party2", "party3", "party4", "nameplate1", "nameplate2",
+    "nameplate3", "nameplate4", "nameplate5" }
+Probe.REST_SECONDS = 10        -- so lange schneidet R4 UNIT_COMBAT mit
+Probe.REST_UNIT_MAX = 16       -- so viele Einheiten hält R4 auseinander, der Rest zählt unter „weitere“
+Probe.REST_GAPS = 8            -- so viele Abstände gleicher Schule je Einheit (Takt der Ticks)
+Probe.REST_SPELLS = 8          -- so viele eigene DoT- und HoT-Zauber beschreibt R7
+
+-- Zustand einer Antwort, ohne sie festzuhalten: "fehlt", "Fehler", "gesperrt", "leer", "lesbar"
+local function Readable(result)
+    if not result.ok then return result.missing and "fehlt" or "Fehler" end
+    local value = result[1]
+    if Core.IsSecret(value) then return "gesperrt" end
+    if value == nil or value == "" then return "leer" end
+    return "lesbar"
+end
+Probe.Readable = Readable
+
+-- „Schlüssel×Zahl, …“ nach Schlüssel geordnet (Zählungen als ein Text in der Ablage)
+local function CountText(map)
+    local keys = {}
+    for key in pairs(map) do keys[#keys + 1] = key end
+    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+    local parts = {}
+    for _, key in ipairs(keys) do parts[#parts + 1] = tostring(key) .. "×" .. tostring(map[key]) end
+    return table.concat(parts, ", ")
+end
+
+P.R1 = function(run)
+    Restrictions(run, "R1")
+    Many(run, "R1", { "C_ChatInfo.AreOutgoingAddonChatMessagesRestricted", "C_ChatInfo.InChatMessagingLockdown",
+        "C_CombatLog.IsCombatLogRestricted", "IsInGroup", "IsInRaid", "IsInInstance", "GetNumGroupMembers" })
+end
+
+-- Kennungen: die GUID nie im Wortlaut (Spieler-GUIDs sind privat), nur ob sie lesbar ist; dazu, ob die Liste der
+-- eigenen Auren im Kampf antwortet oder wirft (die Nachprobe zu G7 zeigte dort schon Fehler).
+P.R3 = function(run)
+    for _, unit in ipairs(Probe.REST_UNITS) do
+        if run:Call("UnitExists", unit):True() then
+            run:Q("R3", "C_Secrets.ShouldUnitIdentityBeSecret", unit)
+            run:Note("R3", "UnitGUID " .. unit, Readable(run:Call("UnitGUID", unit)))
+            run:Q("R3", "UnitCreatureID", unit)
+        end
+    end
+    if run:Call("UnitExists", "target"):True() then
+        run:Q("R3", "C_UnitAuras.GetUnitAuraInstanceIDs", "target", "HARMFUL|PLAYER")
+    end
+    run:Q("R3", "C_UnitAuras.GetUnitAuraInstanceIDs", "player", "HELPFUL|PLAYER")
+    -- Bann-Hinweis (ezCombat/Dispel.lua, 24.11.2026): genau die Abfrage, die ein Hinweis aus dem Addon bräuchte – im Kampf
+    -- warf GetUnitAuraInstanceIDs bisher mit jedem Filter (RequiresUnitAuraAccess, UnitAuraDocumentation.lua); dazu, ob der
+    -- Client Blizzards Auren-Container kennt (darüber zeigt ezCombat den Hinweis) und was Core.Spells als bannbar kennt.
+    for _, unit in ipairs({ "player", "party1" }) do
+        if run:Call("UnitExists", unit):True() then
+            run:Q("R3", "C_UnitAuras.GetUnitAuraInstanceIDs", unit, "HARMFUL|RAID_PLAYER_DISPELLABLE", 1)
+            run:Q("R3", "C_UnitAuras.GetUnitAuraInstanceIDs", unit, "HARMFUL|RAID", 1)
+        end
+    end
+    run:Note("R3", "Auren-Container (Bann-Hinweis)", Core.AuraRows and Core.AuraRows.Available())
+    local spells = {}
+    for _, entry in ipairs(Core.Spells and Core.Spells.DispelsBySpell and Core.Spells.DispelsBySpell() or {}) do
+        spells[#spells + 1] = entry.base .. ":" .. table.concat(entry.kinds, "+")
+    end
+    run:Note("R3", "gelernte Bann-Zauber", #spells > 0 and table.concat(spells, " ") or "keine")
+end
+
+-- Mitschnitt für R4 und R6 – eigener Rahmen (Regel der Probe). rest.open: UNIT_COMBAT ist angemeldet und wird gezählt
+-- (nur im Fenster von R4); rest.casts: eigene Würfe je Zauber vom Start von R4 bis zum Kampfende, rest.final: die
+-- gesicherten Würfe für R6; rest.owner: der Lauf, der das Fenster geöffnet hat (nur er schließt es und startet R6).
+local rest = { casts = {}, units = {}, order = {}, open = false, listening = false }
+local restFrame
+
+local function RestStats(unit)
+    if not rest.units[unit] and #rest.order >= Probe.REST_UNIT_MAX then unit = "weitere" end
+    local stats = rest.units[unit]
+    if not stats then
+        stats = { n = 0, pairs = {}, schools = {}, secretAmount = 0, secretOther = 0, gaps = {}, last = {} }
+        rest.units[unit] = stats
+        rest.order[#rest.order + 1] = unit
+    end
+    return stats
+end
+
+-- Ein Treffer (UNIT_COMBAT: Einheit, Art, Zusatz, Betrag, Schule). Jeder Wert geht zuerst über Core.IsSecret; ein
+-- gesperrter zählt nur als „gesperrt“. Der Betrag wird nie gelesen, nur ob er gesperrt ist.
+local function OnRestCombat(unit, event, flag, amount, school)
+    local secretUnit, secretEvent = Core.IsSecret(unit), Core.IsSecret(event)
+    local secretFlag, secretSchool = Core.IsSecret(flag), Core.IsSecret(school)
+    local stats = RestStats(secretUnit and "<gesperrt>" or tostring(unit))
+    stats.n = stats.n + 1
+    if Core.IsSecret(amount) then stats.secretAmount = stats.secretAmount + 1 end
+    if secretUnit or secretEvent or secretFlag or secretSchool then stats.secretOther = stats.secretOther + 1 end
+    local what = secretEvent and "<gesperrt>" or tostring(event)
+    local extra = secretFlag and "<gesperrt>" or ((flag == nil or flag == "") and "–" or tostring(flag))
+    local key = what .. "/" .. extra
+    stats.pairs[key] = (stats.pairs[key] or 0) + 1
+    local mask = not secretSchool and tonumber(school) or nil
+    if mask then
+        stats.schools[mask] = (stats.schools[mask] or 0) + 1
+        local now = GetTime()
+        local before = stats.last[mask]
+        if before and #stats.gaps < Probe.REST_GAPS then
+            stats.gaps[#stats.gaps + 1] = string.format("%d:%.1f", mask, now - before)
+        end
+        stats.last[mask] = now
+    end
+end
+
+local function RestFrame()
+    if restFrame then return restFrame end
+    restFrame = CreateFrame("Frame")
+    restFrame:SetScript("OnEvent", function(_, event, ...)
+        if event == "UNIT_COMBAT" then
+            if rest.open then OnRestCombat(...) end
+        elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+            local unit, _, spellID = ...
+            if Core.IsSecret(unit) or unit ~= "player" then return end
+            local id = Core.Num(spellID)
+            if id then rest.casts[id] = (rest.casts[id] or 0) + 1 end
+        end
+    end)
+    return restFrame
+end
+
+local function RestListen(on)
+    local frame = RestFrame()
+    rest.listening = on and true or false
+    if on then
+        pcall(frame.RegisterEvent, frame, "UNIT_COMBAT")
+        if frame.RegisterUnitEvent then
+            pcall(frame.RegisterUnitEvent, frame, "UNIT_SPELLCAST_SUCCEEDED", "player")
+        else
+            pcall(frame.RegisterEvent, frame, "UNIT_SPELLCAST_SUCCEEDED")
+        end
+    else
+        rest.open = false
+        pcall(frame.UnregisterEvent, frame, "UNIT_COMBAT")
+        pcall(frame.UnregisterEvent, frame, "UNIT_SPELLCAST_SUCCEEDED")
+    end
+end
+
+-- Ende des Fensters von R4: UNIT_COMBAT gleich abmelden (auch im Kampf erlaubt); die Würfe zählen weiter bis R6.
+local function RestCloseWindow()
+    rest.open = false
+    if restFrame then pcall(restFrame.UnregisterEvent, restFrame, "UNIT_COMBAT") end
+end
+
+-- Ende des Mitschnitts: die Würfe für R6 sichern, alles abmelden.
+local function RestStop()
+    rest.final, rest.casts, rest.owner = rest.casts, {}, nil
+    RestListen(false)
+end
+Probe.RestState = function() return rest end   -- für die Prüfungen
+
+P.R4 = function(run)
+    -- ein zweiter Lauf, solange das Fenster eines ersten offen ist: nicht neu anfangen (sonst mischten sich die Zahlen)
+    if rest.open then return run:Note("R4", "Mitschnitt läuft schon (anderer Lauf)", true) end
+    if not rest.listening then rest.casts = {} end
+    rest.units, rest.order, rest.open, rest.owner = {}, {}, true, run
+    RestListen(true)
+    run:Note("R4", "Mitschnitt UNIT_COMBAT (Sekunden, im Kampf)", Probe.REST_SECONDS, Core.InCombat() and true or false)
+    run:After(Probe.REST_SECONDS, function(r)
+        RestCloseWindow()
+        if #rest.order == 0 then r:Note("R4", "UNIT_COMBAT", 0) end
+        -- je Einheit: Anzahl, Paare Art/Zusatz, Schulen, Betrag gesperrt, sonst etwas gesperrt, Abstände Schule:Sekunden
+        for _, unit in ipairs(rest.order) do
+            local s = rest.units[unit]
+            r:Note("R4", "UNIT_COMBAT " .. unit, s.n, CountText(s.pairs), CountText(s.schools), s.secretAmount,
+                s.secretOther, table.concat(s.gaps, " "))
+        end
+    end)
+end
+
+local restBar   -- unsichtbare StatusBar ohne Elternrahmen, nur für R5
+
+local function RestBar()
+    if not restBar then
+        restBar = CreateFrame("StatusBar")
+        restBar:Hide()
+    end
+    return restBar
+end
+
+-- Stufenkurve: unter der Schwelle 1, ab ihr 0 (wie „Leben unter X %“ im Plan). → Kurve | nil, Befund
+local function RestCurve(at)
+    local api = rawget(_G, "C_CurveUtil")
+    if type(api) ~= "table" or type(api.CreateCurve) ~= "function" then return nil, "fehlt" end
+    local ok, curve = pcall(api.CreateCurve)
+    if not ok then return nil, "Fehler" end
+    if Core.IsSecret(curve) then return nil, "gesperrt" end
+    if type(curve) ~= "table" and type(curve) ~= "userdata" then return nil, "Rückgabe " .. type(curve) end
+    local step = Probe.Resolve("Enum.LuaCurveType.Step")
+    local built, err = pcall(function()
+        if step ~= nil then curve:SetType(step) end
+        curve:AddPoint(0, 1)
+        curve:AddPoint(at, 0)
+    end)
+    if not built then return curve, "Aufbau: " .. Probe.MaskText(tostring(err)) end
+    return curve, step == nil and "ohne Enum.LuaCurveType.Step" or "ok"
+end
+
+-- Bausteine: nimmt eine eigene StatusBar gesperrtes Leben und Maximal-Leben, liefert die Kurve ein Ergebnis und nimmt
+-- SetAlpha es an? Wie es aussieht und welchen Maßstab der Prozentwert hat, zeigt erst eine sichtbare Probe.
+P.R5 = function(run)
+    local bar = RestBar()
+    local curve, how = RestCurve(0.2)
+    run:Note("R5", "Stufenkurve bei 0.2 (C_CurveUtil.CreateCurve)", how)
+    for _, unit in ipairs({ "target", "player" }) do
+        if run:Call("UnitExists", unit):True() then
+            run:Tag("StatusBar:SetMinMaxValues(0, UnitHealthMax(" .. unit .. "))"):Q("R5", function()
+                bar:SetMinMaxValues(0, UnitHealthMax(unit))
+                return true
+            end)
+            run:Tag("StatusBar:SetValue(UnitHealth(" .. unit .. ", false))"):Q("R5", function()
+                bar:SetValue(UnitHealth(unit, false))
+                return true
+            end)
+            run:Tag("StatusBar:GetValue " .. unit):Q("R5", function() return bar:GetValue() end)
+            run:Tag("StatusBar:SetMinMaxValues(0, UnitHealth(" .. unit .. ", false)) wie „tödlich“"):Q("R5", function()
+                bar:SetMinMaxValues(0, UnitHealth(unit, false))
+                bar:SetValue(1)
+                return true
+            end)
+            if curve then
+                local result = run:Tag("Stufenkurve bei 0.2"):Q("R5", "UnitHealthPercent", unit, false, curve)
+                if result.ok then
+                    run:Tag("SetAlpha(Ergebnis der Kurve, " .. unit .. ")"):Q("R5", function()
+                        bar:SetAlpha(result[1])
+                        return true
+                    end)
+                end
+            end
+        end
+    end
+    for _, unit in ipairs({ "player", "party1", "party2", "party3", "party4" }) do
+        if run:Call("UnitExists", unit):True() then run:Q("R5", "UnitHealthMax", unit) end
+    end
+end
+
+-- Schadensmesser nach dem Kampf für die eigene Quelle, Schaden und Heilung; dazu die eigenen Würfe je Zauber aus dem
+-- Kampf. Namen in den Zauber-Einzelheiten (Ziel der Heilung kann ein Spieler sein) nur als Pseudonym.
+P.R6 = function(run)
+    if rest.listening then RestStop() end   -- R6 ohne die Station (sonst hat ihr Abschluss schon gesichert)
+    local casts = rest.final or {}
+    rest.final = nil
+    local session = EnumValue("DamageMeterSessionType", "Current")
+    local guid = run:Call("UnitGUID", "player"):Str()
+    if session ~= nil and guid then
+        for _, kind in ipairs({ "DamageDone", "HealingDone" }) do
+            local value = EnumValue("DamageMeterType", kind)
+            if value ~= nil then
+                run:Tag("Current, " .. kind .. ", eigene GUID")
+                    :With({ samples = 3, fields = { name = "unit", unitName = "player", creatureName = "player" } })
+                    :Q("R6", "C_DamageMeter.GetCombatSessionSourceFromType", session, value, guid)
+            end
+        end
+    else
+        run:Note("R6", "Schadensmesser oder eigene GUID", session == nil and "fehlt" or "gesperrt")
+    end
+    run:Note("R6", "eigene Würfe je Zauber (UNIT_SPELLCAST_SUCCEEDED)", CountText(casts))
+end
+
+-- Eigene DoT- und Heilzauber laut ezCores Art der Klassenzauber (Grund-IDs, Rang 1; „heal“ umfasst alle Heilungen,
+-- nicht nur HoTs): je Art höchstens die Hälfte von Probe.REST_SPELLS, der Rest füllt mit der anderen Art auf.
+local function RestSpellIDs(run)
+    local class = run:Call("UnitClass", "player"):Str(2)
+    local kinds = class and Core.SpellKinds and type(Core.SpellKinds.ForClass) == "function"
+        and Core.SpellKinds.ForClass(class) or nil
+    local lists = {}
+    for i, kind in ipairs({ "dot", "heal" }) do
+        lists[i] = type(kinds) == "table" and type(kinds[kind]) == "table" and kinds[kind] or {}
+    end
+    local half = math.floor(Probe.REST_SPELLS / 2)
+    local ids, used = {}, { 0, 0 }
+    for i = 1, 2 do
+        for j = 1, math.min(half, #lists[i]) do ids[#ids + 1], used[i] = lists[i][j], j end
+    end
+    for i = 1, 2 do
+        for j = used[i] + 1, #lists[i] do
+            if #ids < Probe.REST_SPELLS then ids[#ids + 1] = lists[i][j] end
+        end
+    end
+    return ids
+end
+
+-- Beschreibung eigener DoT- und Heilzauber: Länge und die Zahlen darin (kein Text – Sekunden und Höhe genügen)
+P.R7 = function(run)
+    run:Q("R7", "GetLocale")
+    local ids = RestSpellIDs(run)
+    if #ids == 0 then return run:Note("R7", "keine DoT- oder Heilzauber der Klasse bekannt", nil) end
+    for _, id in ipairs(ids) do
+        run:Q("R7", "C_SpellBook.IsSpellKnown", id)
+        local result = run:Call("C_Spell.GetSpellDescription", id)
+        local text = result:Str()
+        if text and text ~= "" then
+            local numbers = {}
+            for number in text:gmatch("%d+[%.,]?%d*") do
+                if #numbers < 8 then numbers[#numbers + 1] = number end
+            end
+            run:Note("R7", "Beschreibung " .. id, #text, table.concat(numbers, " "))
+        else
+            run:Note("R7", "Beschreibung " .. id, Readable(result))
+        end
+    end
+end
+
+---------------------------------------------------------------------------
+-- Sonderprobe X9 – eine Addon-Nachricht an die eigene Gruppe: ohne Kampf, im Kampf und am Boss (Probe R2 des Plans;
+-- Weg A, Entscheidung des Nutzers vom 22.11.2026). Nebenwirkung: höchstens drei unsichtbare Addon-Nachrichten mit
+-- festem Inhalt „R2:<Fassung>:<Zufallszahl>“ – kein Name, keine GUID, kein Ort. Nach „Ja“ (nur außerhalb des Kampfes,
+-- nur in einer Gruppe, nur mit Entwicklerschalter): eine sofort; danach ist X9 Probe.X9_ARMED Sekunden scharf und
+-- sendet je einmal Probe.X9_DELAY Sekunden nach Kampfbeginn (X9K) und nach Beginn eines Bosskampfs (X9B,
+-- ENCOUNTER_START) – jeweils als eigener Lauf, nie öfter, und nur, solange der Entwicklerschalter an ist; meldet der
+-- Client eine Chat-Sperre oder ist PvP möglich (Core.PvPPossible), sendet X9 nichts und hält nur den Grund fest. Nach
+-- Ablauf der scharfen Zeit meldet X9
+-- seine Ereignisse ab. Jede Sendung hält fest: Sperren, Kanal, Rückgabe von SendAddonMessage und ob
+-- das eigene Echo kam (Kanal und Absender nur als lesbar/gesperrt). Nachrichten anderer ezCollection-Nutzer mit
+-- demselben Präfix zählt X9, solange es scharf ist – die Zahl steht im nächsten Lauf.
+---------------------------------------------------------------------------
+
+Probe.X9_PREFIX = "ezProbeR2"
+Probe.X9_ARMED = 600     -- Sekunden scharf nach „Ja“
+Probe.X9_DELAY = 2       -- Sekunden nach Kampf- bzw. Bossbeginn
+Probe.X9_ECHO = 3        -- Sekunden Warten auf das eigene Echo
+
+local X9_EVENTS = { "CHAT_MSG_ADDON", "PLAYER_REGEN_DISABLED", "ENCOUNTER_START" }
+local x9 = { armedUntil = 0, sent = {}, pending = {}, received = 0, serial = 0, listening = false }
+local x9Frame
+
+-- scharf: Zeit nicht abgelaufen und der Entwicklerschalter weiter an (wer ihn ausschaltet, beendet X9 sofort)
+local function X9Armed() return x9.armedUntil > GetTime() and Probe.SpecialsAllowed() end
+Probe.X9State = function() return x9 end   -- für die Prüfungen
+
+-- Ziel der Nachricht: Instanzgruppe (LFR, Schlachtfeld, Dungeonbrowser) vor der eigenen Gruppe – IsInRaid() ohne
+-- Kategorie ist auch in einem Instanz-Schlachtzug wahr, RAID ginge dort ins Leere.
+local function X9Channel(run)
+    local instance = Probe.Resolve("LE_PARTY_CATEGORY_INSTANCE")
+    if instance ~= nil and run:Call("IsInGroup", instance):True() then return "INSTANCE_CHAT" end
+    local home = Probe.Resolve("LE_PARTY_CATEGORY_HOME")
+    if run:Call("IsInRaid", home):True() then return "RAID" end
+    if run:Call("IsInGroup", home):True() then return "PARTY" end
+    return nil
+end
+
+-- Meldet der Client eine Sperre, ist die Antwort selbst gesperrt oder scheitert die Abfrage, sendet X9 nichts – keine
+-- Umgehung einer Sperre (Grenze des Nutzers vom 22.11.2026: nichts bei AddOnMessageLockdown). Fehlt die Abfrage im
+-- Client ganz, entscheidet der Client beim Senden selbst (Rückgabe steht im Bericht).
+local function X9Blocked(result)
+    if not result.ok and not result.missing then return true end
+    local value = result[1]
+    return Core.IsSecret(value) or value == true
+end
+
+local function X9Send(run, lage)
+    local lockdown = run:Q("X9", "C_ChatInfo.InChatMessagingLockdown")
+    local restricted = run:Q("X9", "C_ChatInfo.AreOutgoingAddonChatMessagesRestricted")
+    Many(run, "X9", { "InCombatLockdown", "IsInInstance" })
+    for i = 0, 5 do run:Q("X9", "C_RestrictedActions.GetAddOnRestrictionState", i) end
+    local chat = type(Core.RestrictionState) == "function" and Core.RestrictionState("chat") or nil
+    if X9Blocked(lockdown) or X9Blocked(restricted) or chat == "active" or chat == "activating" then
+        return run:Note("X9", "Sperre gemeldet – nichts gesendet", lage)
+    end
+    -- im PvP ganz aus (Entscheidung des Nutzers vom 22.11.2026, wie später Weg A)
+    local pvp, why = Core.PvPPossible()
+    if pvp then return run:Note("X9", "PvP möglich – nichts gesendet", lage, why) end
+    local channel = X9Channel(run)
+    if not channel then return run:Note("X9", "keine Gruppe – nichts gesendet", lage) end
+    x9.serial = x9.serial + 1
+    local token = tostring(x9.serial) .. "-" .. tostring(math.random(100000, 999999))
+    -- ohne Echo: der Eintrag in pending geht mit „keine Antwort“
+    local release = run:Hold("X9", "Echo " .. lage .. " (Kanal, Absender)", Probe.X9_ECHO,
+        function() x9.pending[token] = nil end)
+    x9.pending[token] = release
+    run:Tag(lage .. ", " .. channel):Q("X9", "C_ChatInfo.SendAddonMessage", Probe.X9_PREFIX,
+        "R2:" .. tostring(Probe.REV) .. ":" .. token, channel)
+    run:Note("X9", "Nachrichten anderer ezCollection-Nutzer bisher", x9.received)
+end
+
+local function OnX9Message(prefix, text, channel, sender)
+    if Core.IsSecret(prefix) or prefix ~= Probe.X9_PREFIX then return end
+    local token = not Core.IsSecret(text) and type(text) == "string" and text:match("^R2:[^:]*:(.+)$") or nil
+    local release = token and x9.pending[token]
+    if release then
+        x9.pending[token] = nil
+        -- der Absender nie im Wortlaut (ein Wort wie „Absender“ könnte selbst ein Charaktername sein und würde maskiert)
+        release(Core.IsSecret(channel) and "gesperrt" or tostring(channel), Core.IsSecret(sender) and "gesperrt" or "lesbar")
+    elseif X9Armed() then
+        x9.received = x9.received + 1
+    end
+end
+
+-- je Lage eine eigene Probe: die Lage reist mit der Kennung, nicht über ein gemeinsames Feld (zwei Auslöser im selben
+-- Bild überschrieben es sonst)
+local X9_LAGE = { Kampf = "X9K", Boss = "X9B" }
+
+local function X9Listen(on)
+    if not x9Frame then return end
+    x9.listening = on and true or false
+    for _, event in ipairs(X9_EVENTS) do
+        pcall(on and x9Frame.RegisterEvent or x9Frame.UnregisterEvent, x9Frame, event)
+    end
+end
+
+local function X9Frame()
+    if x9Frame then return x9Frame end
+    x9Frame = CreateFrame("Frame")
+    x9Frame:SetScript("OnEvent", function(_, event, ...)
+        if event == "CHAT_MSG_ADDON" then OnX9Message(...) end
+        if not X9Armed() then
+            -- nicht mehr scharf: abmelden, sobald kein Echo mehr aussteht
+            if next(x9.pending) == nil then X9Listen(false) end
+            return
+        end
+        if event == "CHAT_MSG_ADDON" then return end
+        local lage = event == "ENCOUNTER_START" and "Boss" or "Kampf"
+        if x9.sent[lage] then return end
+        x9.sent[lage] = true
+        C_Timer.After(Probe.X9_DELAY, function()
+            if not X9Armed() then return end
+            Probe.RunProbes("X9", { X9_LAGE[lage] }, { combat = true, quiet = true, key = "X9", title = L.OPT_probeAddonSend,
+                lg = Probe.Lage() })
+        end)
+    end)
+    return x9Frame
+end
+
+P.X9 = function(run)
+    run:Q("X9", "C_ChatInfo.RegisterAddonMessagePrefix", Probe.X9_PREFIX)
+    X9Frame()
+    X9Listen(true)
+    x9.armedUntil, x9.sent, x9.received = GetTime() + Probe.X9_ARMED, {}, 0
+    X9Send(run, "ohne Kampf")
+    run:Note("X9", "scharf (Sekunden): je eine Nachricht nach Kampfbeginn und nach Bossbeginn", Probe.X9_ARMED)
+end
+
+-- Sendung im Kampf bzw. am Boss (von X9 ausgelöst, nie von selbst; ohne Schalter oder nach Ablauf nichts)
+local function X9Later(lage)
+    return function(run)
+        if not X9Armed() then return run:Note("X9", "nicht mehr scharf – nichts gesendet", lage) end
+        X9Send(run, lage)
+    end
+end
+P.X9K = X9Later("Kampf")
+P.X9B = X9Later("Boss")
+
 Probe.AddStation("A", { words = { "allein", "alone", "basis" },
     probes = { "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13", "A14", "A15", "A16", "A17",
         "A18", "A19", "A20", "L2", "F8", "G7" } })
@@ -2041,6 +2501,21 @@ Probe.AddStation("W", { st = "A", words = { "karte", "map" }, probes = { "A17", 
 -- /ez probe objekt (Maus auf das Objekt, Makro drücken), von selbst mit der Automatik. extra: verdrängt „allein“ nicht.
 Probe.AddStation("O", { words = { "objekt", "object", "vignette" }, probes = { "F8", "F9" }, extra = true,
     when = function() return Probe.ObjectNear() or Probe.VignettesNear() end })
+-- Restschaden (Abschnitt R oben): nur von Hand, ohne „when“ – die Automatik und „Probe an dieser Stelle“ starten sie nie
+Probe.AddStation("R", { words = { "rest", "restschaden", "remaining" }, probes = { "R1", "R3", "R5", "R7", "R4" },
+    combat = true,
+    -- der Schadensmesser gibt erst nach dem Kampf Auskunft (ohne Kampf gleich, dann zum letzten Kampf). Nur der Lauf,
+    -- der das Fenster von R4 geöffnet hat: Fenster sofort zu (auch wenn der Lauf vorzeitig endete, etwa bei voller
+    -- Ablage), nach dem Kampf die Würfe sichern und abmelden, dann R6 – auch wenn R6 selbst nicht mehr laufen kann.
+    after = function(run)
+        if rest.owner ~= run then return end
+        RestCloseWindow()
+        Core.AfterCombat(function()
+            RestStop()
+            Probe.RunProbes("R", { "R6" }, { quiet = true, ev = "PLAYER_REGEN_ENABLED", title = Probe.StationTitle("R"),
+                key = "R" })
+        end, "ezCore.probe.R6", ADDON)
+    end })
 
 -- Abfragen an einem Ereignis, solange der Mitschnitt läuft (das Fenster ist danach gleich wieder zu)
 Probe.autoProbes.LOOT_READY = { station = "G10", ids = { "G10", "G13" }, combat = true, max = 30 }
@@ -2275,6 +2750,8 @@ local SPECIALS = {
     { key = "Quantity", id = "X7", words = { "x7", "menge", "quantity" },
         ready = function() return CommodityQuantityInput() ~= nil end, need = "PROBE_NEED_COMMODITY" },
     { key = "Minimap", id = "X8", words = { "x8", "minikarte", "minimap" } },
+    { key = "AddonSend", id = "X9", words = { "x9", "senden", "send" },
+        ready = function() return Yes("IsInGroup") end, need = "PROBE_NEED_GROUP" },
     { key = "Waypoint", id = "X3", words = { "x3", "wegpunkt", "waypoint" } },
     { key = "Recipes", id = "X4", words = { "x4", "rezepte", "recipes" },
         ready = function() return Probe.OpenWindows().profession end, need = "PROBE_NEED_PROFESSION" },
@@ -2350,4 +2827,5 @@ function Probe.AddSpecialButtons(page)
     page:Button(L.OPT_probeKeys, L.PROBE_SPECIAL_BUTTON, function() Probe.Special("Keys") end, L.OPT_probeKeys_TIP, opts)
     page:Button(L.OPT_probeQuantity, L.PROBE_SPECIAL_BUTTON, function() Probe.Special("Quantity") end, L.OPT_probeQuantity_TIP, opts)
     page:Button(L.OPT_probeMinimap, L.PROBE_SPECIAL_BUTTON, function() Probe.Special("Minimap") end, L.OPT_probeMinimap_TIP, opts)
+    page:Button(L.OPT_probeAddonSend, L.PROBE_SPECIAL_BUTTON, function() Probe.Special("AddonSend") end, L.OPT_probeAddonSend_TIP, opts)
 end

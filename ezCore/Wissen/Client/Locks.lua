@@ -1,11 +1,11 @@
--- Nötige Fertigkeit je Schloss (F4) – laut wago.tools, Produkt wowf, Build 1.60.1.70938 (Client-Tabellen Lock, LockType, ItemSparse, SkillLine).
--- Erzeugt am 2026-11-16 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
+-- Nötige Fertigkeit je Schloss (F4) – laut wago.tools, Produkt wowf, Build 1.60.1.71037 (Client-Tabellen Lock, LockType, ItemSparse, SkillLine).
+-- Erzeugt am 2026-11-24 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
 -- tools/wago.lua <Rohordner> --aus=tools/daten/wago). Nicht von Hand ändern – die wago-Prüfung in sh tools/test.sh
 -- meldet rot, wenn diese Datei nicht zu tools/daten/wago/ passt. Herkunft und Regeln: docs/wago-tools.md, Abschnitt 7.
 -- Leser: ezCore.ClientData (Wissen/ClientData.lua). Felder: types[Schloss-Art] = Fertigkeitslinie (Schlossknacken, Kräuterkunde, Bergbau, Angeln); locks[Schloss] = { { Schloss-Art, nötige Fertigkeit } … }; items[Gegenstand] = Schloss – welches Spielobjekt welches Schloss hat, weiß nur der Server
 local _, ns = ...
 ns.ClientTables = ns.ClientTables or {}
-ns.ClientTables.locks = {build="1.60.1.70938",data={items={
+ns.ClientTables.locks = {build="1.60.1.71037",data={items={
 [3746]=2,
 [4632]=5,
 [4633]=23,
@@ -142,4 +142,4 @@ ns.ClientTables.locks = {build="1.60.1.70938",data={items={
 [4338]={{1,255}},
 [4390]={{1,225}},
 [4529]={{1,70}},
-},types={[1]=633,[2]=182,[3]=186,[19]=356}},date="2026-11-16"}
+},types={[1]=633,[2]=182,[3]=186,[19]=356}},date="2026-11-24"}

@@ -109,10 +109,11 @@ end
 -- Wie viele Makros stehen in der Gruppe, wie viele davon gibt es schon in Blizzards Makroverwaltung?
 function SM.Counts()
     local total, existing = 0, 0
-    local find = ns.Import and ns.Import.Find
+    -- auch unter dem Namen der anderen Fassung (Schalter „Maus über“ umgestellt, Import.FindEntry)
+    local find = ns.Import and ns.Import.FindEntry
     for _, entry in ipairs(SM.Entries()) do
         total = total + 1
-        if type(find) == "function" and find(ns.EntryName(entry)) then existing = existing + 1 end
+        if type(find) == "function" and find(entry, ns.EntryName(entry)) then existing = existing + 1 end
     end
     return total, existing
 end
@@ -200,12 +201,14 @@ end
 -- (Core.Macro.NameLength); ob Forever bei Umlauten Bytes zählt, zeigt erst der Spieltest (docs/roadmap/ezMacro.md,
 -- „Im Spiel prüfen (Welle 27)“). taken(name) → true, wenn belegt: dann eine Zahl vor dem Kürzel, damit zwei Einträge
 -- nicht gleich heißen („Sengender 2 (MO)“, SM.UniqueNames). Die Zählung macht ezCore (Core.UniqueName mit Kürzel).
-function SM.Name(spell, kind, taken)
+-- plain == true: ohne Kürzel (Schalter „Maus über“ für dieses Makro aus, Resolver.lua – ohne Maus kein „(MO)“).
+function SM.Name(spell, kind, taken, plain)
     local logic = SM.LOGIC[kind]
     local name = ns.SpellName(spell)
     if type(name) ~= "string" or name == "" then name = "#" .. tostring(spell) end
+    local suffix = not plain and logic and logic.suffix or nil
     return Core.UniqueName(name, taken, { format = "%s %d", maxChars = ns.MACRO_NAME_MAX,
-        suffix = " " .. (logic and logic.suffix or ""), default = "#" .. tostring(spell) })
+        suffix = suffix and (" " .. suffix) or nil, default = "#" .. tostring(spell) })
 end
 
 -- Name in Stamm und Kürzel der Makros aus deinen Fähigkeiten zerlegen („Sengender S (MO)“ → „Sengender S“, „ (MO)“;
@@ -248,10 +251,25 @@ function SM.UniqueNames(list)
         if edit and type(edit.name) == "string" then Take(edit.name) else order[#order + 1] = e end
     end
     table.sort(order, function(a, b) return (tonumber(a.spell) or 0) < (tonumber(b.spell) or 0) end)
+    -- Schalter „Maus über“ (Resolver.lua): ohne Maus ohne Kürzel (namePlain merkt, für welche Fassung name gilt).
+    -- otherName = Name der anderen Fassung mit eigener Zählung (zweiter Durchlauf über dieselbe Grundmenge), damit ein
+    -- schon übernommenes Makro wiedergefunden wird (Import.FindEntry) und nie das eines anderen Eintrags
+    local base = {}
+    for name in pairs(taken) do base[name] = true end
     local function Taken(name) return taken[name] end
     for _, e in ipairs(order) do
-        e.name = SM.Name(e.spell, e.kind, Taken)
+        e.namePlain = ns.MouseoverActive(e) == false
+        e.name = SM.Name(e.spell, e.kind, Taken, e.namePlain)
         taken[e.name] = true
+    end
+    local other = {}
+    local function OtherTaken(name) return base[name] or other[name] end
+    for _, e in ipairs(order) do
+        e.otherName = nil
+        if ns.MouseoverActive(e) ~= nil then
+            e.otherName = SM.Name(e.spell, e.kind, OtherTaken, not e.namePlain)
+            other[e.otherName] = true
+        end
     end
     return list
 end
@@ -403,7 +421,7 @@ function SM.TipLines(entry)
     local lines = { L.SPELLMACRO_TIP_KIND:format(SM.KindLabel(entry.kind)) }
     if entry.notSelf then lines[#lines + 1] = SM.NotSelfText() end
     lines[#lines + 1] = L.SPELLMACRO_TIP_BODY
-    for line in ((ns.Resolve(entry.body)) .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = line end
+    for line in ((ns.EntryBody(entry)) .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = line end
     local source = SK and SK.SourceText and SK.SourceText(entry.source) or ""
     lines[#lines + 1] = L.SPELLMACRO_TIP_SOURCE:format(source)
     return lines

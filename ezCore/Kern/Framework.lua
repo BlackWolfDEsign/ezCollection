@@ -25,6 +25,7 @@ Core.MESSAGES = {
     ERRORS_CHANGED = { from = "Core.lua", text = "Die Fehlerliste hat sich geändert (neuer Eintrag, Wiederholung höchstens einmal je Sekunde, geleert)." },
     CHARS_READY = { from = "Characters.lua", args = "me", text = "Beim Anmelden: Charakterdaten sind zusammengeführt, Core.me steht." },
     CHAR_FORGOTTEN = { from = "Characters.lua", args = "charKey", text = "Ein Twink wurde vergessen (Core.ForgetChar); Module streichen ihre Daten zu diesem Schlüssel." },
+    CHAR_KEY_MOVED = { from = "Characters.lua", args = "alterSchlüssel, neuerSchlüssel", text = "Beim Anmelden: ein Satz ohne echten Realm („Name-“) wurde mit dem passenden Satz zusammengeführt (Chars.AdoptRealmless); Module können ihre Daten zum alten Schlüssel umhängen. Noch ohne Zuhörer in den Modulen." },
     CONTACTS_CHANGED = { from = "Contacts.lua", text = "Der Kontakt-Index (Freunde, Battle.net, Gilde) wurde neu gebaut – nur, wenn jemand zuhört, spätestens 0,5 s nach dem Ereignis." },
     INVENTORY_CHANGED = { from = "Inventory.lua", text = "Taschen, Bank, Post oder Angelegtes des gespielten Charakters wurden neu gezählt." },
     BANK_OPENED = { from = "Inventory.lua", text = "Die Bank ist offen." },
@@ -48,7 +49,7 @@ Core.MESSAGES = {
     PRICES_CHANGED = { from = "Prices.lua", args = "itemID | nil", text = "Preis-Wissen geändert: ein Gegenstand oder (nil) viele." },
     PRICES_SCAN_PROGRESS = { from = "Prices.lua", args = "gelesen, gesamt", text = "Fortschritt des Komplett-Scans im Auktionshaus." },
     PRICES_SCAN_DONE = { from = "Prices.lua", args = "anzahl, grund (nil | \"timeout\" | \"other\")", text = "Der Komplett-Scan ist fertig – oder nach Prices.SCAN_TIMEOUT ohne Liste beendet (\"timeout\"), oder ein anderes Addon hat ihn ausgelöst (\"other\")." },
-    LISTS_CHANGED = { from = "Lists.lua", args = "liste | nil", text = "Eine gemeinsame Liste (Core.Lists, ezCoreDB.lists) wurde angelegt, umbenannt, gelöscht oder ihre Einträge geändert; nil = mehrere oder eine gelöschte. Zuhörer: ezCraft, ezAuction." },
+    LISTS_CHANGED = { from = "Lists.lua", args = "liste | nil", text = "Eine gemeinsame Liste (Core.Lists, ezCoreDB.lists) wurde angelegt, umbenannt, gelöscht oder ihre Einträge geändert; nil = mehrere oder eine gelöschte. Zuhörer: ezCraft, ezAuction, ezBag." },
     LOCKOUTS_CHANGED = { from = "Lockouts.lua", args = "charKey", text = "Die Instanz- und Raidsperren des gespielten Charakters haben sich geändert." },
     INSTANCES_CHANGED = { from = "Lockouts.lua", args = "anzahl", text = "Eine Instanz wurde betreten: „Instanzen der letzten Stunde“ ist gewachsen." },
     GEAR_CHANGED = { from = "CharData.lua", args = "charKey", text = "Gegenstandsstufe oder ein angelegter Platz des gespielten Charakters hat sich geändert." },
@@ -56,7 +57,9 @@ Core.MESSAGES = {
     FACTION_CHANGED = { from = "CharData.lua", args = "factionID, differenz", text = "Der Ruf bei einer Fraktion hat sich geändert (die mit der größten Änderung)." },
     NPCS_CHANGED = { from = "Npcs.lua", args = "npcID | nil, art | nil", text = "Ein Lehrer oder Händler wurde gemerkt oder vergessen (NPC-Ortswissen)." },
     PROFESSIONS_CHANGED = { from = "Professions.lua", args = "berufe", text = "Die Berufe des gespielten Charakters wurden neu gelesen." },
+    TALENTS_CHANGED = { from = "Talents.lua", args = "hauptbaum | nil, stand", text = "Die bestätigten Talentpunkte je Baum des gespielten Charakters wurden nach dem Einloggen gelesen oder haben sich geändert, oder die Spezialisierungsgruppe hat gewechselt (Core.Talents)." },
     PROF_COOLDOWNS_CHANGED = { from = "Professions.lua", text = "Berufs-Abklingzeiten haben sich geändert." },
+    PROFICIENCY_CHANGED = { from = "Proficiency.lua", text = "Der Charakter hat eine Waffen- oder Rüstungsfertigkeit gelernt (bzw. der Client nennt sie erst jetzt)." },
     RECIPES_CHANGED = { from = "Recipes.lua", args = "beruf", text = "Rezept-Wissen wurde aus einem offenen Berufefenster gelernt." },
     SPELLS_KNOWN_CHANGED = { from = "Spells.lua", text = "Das Zauberbuch wurde neu gelesen (neuer Zauber oder Rang)." },
     SPELLS_TRAINER_CHANGED = { from = "Spells.lua", args = "art", text = "Bei einem Lehrer wurde Neues gelernt (Liste je Klasse bzw. Tierausbilder)." },
@@ -138,6 +141,8 @@ Core.FEATURES = {
                               -- Rotwert für AddLine)
     -- Gemeinsame Texte: Core.L füllt sich erst beim Lesen, Core.Has fände sie nicht über den Namen (Welle 17)
     ["L.ALL_CHARS"] = true, -- „Alle Charaktere“ (Verläufe von ezAuction, ezBag, ezLoot, ezMail)
+    ["L.SPACE_FREE"] = true, -- „16 frei“ (Core.FreeSpaceText; ezBag, ezPanel – 23.11.2026)
+    panelReagentBag = true, -- Core.OpenPanel("reagentBag") öffnet bzw. schließt Blizzards Reagenzientasche (ezBag, 23.11.2026)
 }
 
 -- Kann dieses ezCore das? Name einer Fähigkeit (Core.FEATURES) oder einer Funktion bzw. Tabelle von ezCore,

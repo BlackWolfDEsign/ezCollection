@@ -14,8 +14,8 @@ local Core = ezCore
     Auswahlfeld, über der Liste, ohne die Portrait-Knöpfe zu überdecken. Er ist ein Kind von Blizzards Fenster (kein
     eigenes Fenster, Leitlinie 1) und wandert mit ihm; von Blizzards Fenster wird nur gelesen. Ein Klick öffnet ein
     Menü: „Vorschau und Tasten wählen“ (Preview.lua), jede Vorlage der Klasse (mit Rückfrage und Vorschau), „Zurück“,
-    „Belegung vor dem ersten Übernehmen“ (beide mit Rückfrage), „Profile der Klick-Belegung“ (Profiles.lua) und die
-    Einstellungsseite.
+    „Belegung vor dem ersten Übernehmen“ (beide mit Rückfrage), „Menü und Ziel zurückholen“ (MenuClick.lua), „Profile der
+    Klick-Belegung“ (Profiles.lua) und die Einstellungsseite.
 ]]
 
 local B = {}
@@ -38,6 +38,8 @@ function B.FillMenu(_, root)
     root:CreateDivider()
     root:CreateButton(L.MENU_RESTORE, function() ns.AskRestore() end)
     root:CreateButton(L.MENU_RESTORE_FIRST, function() ns.AskRestore("first") end)
+    -- Blizzards „Menü“ (Rechtsklick) und „Ziel“ (Linksklick) zurück auf ihre Tasten (MenuClick.lua, Spieltest 24.11.2026)
+    root:CreateButton(L.MENU_MENUCLICK, function() ns.MenuClick.Ask() end)
     -- benannte Profile der Klick-Belegung (HL-08, Profiles.lua): Untermenü
     ns.Profiles.FillMenu(root:CreateButton(L.MENU_PROFILES))
     -- Heil-Makros je Klasse in Blizzards Makrofenster (Macros.lua): anlegen und wieder entfernen, je mit Rückfrage
@@ -81,6 +83,8 @@ function B.Create()
     B.button = button
     -- Rundgang beim ersten Öffnen von Blizzards Fenster (Tour.lua, UE-28; nur zuhören)
     parent:HookScript("OnShow", function() ns.Tour.Start() end)
+    -- dort „Menü“ oder „Ziel“ verloren (Zauber auf Rechts- bzw. Linksklick gespeichert): einmal sagen (MenuClick.lua)
+    parent:HookScript("OnHide", function() C_Timer.After(0.5, function() ns.Try("Menü per Klick", ns.MenuClick.Say) end) end)
     if parent:IsShown() then ns.Tour.Start() end
     return button
 end

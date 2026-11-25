@@ -17,9 +17,12 @@ local Spells = Core.Spells
 -- Eigener erfolgreicher Zauber (UNIT_SPELLCAST_SUCCEEDED, gerufen aus Auras.lua) – der Name in dieser Reihenfolge:
 --   1. Zauber-ID lesbar → ihr Name
 --   2. sonst der Schritt, dessen Zauber bei der letzten Bewertung (höchstens 0,5 s alt) „wird gerade gewirkt“ war
---      (C_Spell.IsCurrentSpell, nie gesperrt)
+--      (C_Spell.IsCurrentSpell, nie gesperrt) – je Name nur für einen Erfolg (ConsumeCurrent). Ist nur Dauerfeuer
+--      „aktuell“ (Stab, Automatischer Schuss) und wurde eben ein anderer Zauber gedrückt, der gelungen sein kann
+--      (Decisive: seine Abklingzeit läuft nicht, der Druck lag nicht in der globalen Abklingzeit), gilt 3 statt 2
 --   3. sonst – nur mit „Mitzählen“ (rotationEstimate) – der zuletzt gedrückte Aktionsknopf, wenn der Druck höchstens
---      Zauberzeit + 1 s zurückliegt (erschlossen, nicht gelesen)
+--      Zauberzeit + 1 s zurückliegt (erschlossen, nicht gelesen) – je Druck nur für einen Erfolg, gleich woher dessen
+--      Name kam (spent)
 --   4. sonst nichts; für once-Schritte mit Abklingzeit gilt zusätzlich: Beginnt im Kampf ihre Abklingzeit, sind sie
 --      gewirkt (State.WatchCooldowns). Ein solcher Zauber ohne Namen entwertet jedes zuletzt offen gelesene „bereit“
 --      bzw. „fehlt“ (ForgetStaleReads) – er kann es überholt haben.
@@ -42,6 +45,8 @@ local Estimating = State.Estimating
 
 local CURRENT_WINDOW = 0.5      -- Sekunden: so alt darf „wird gerade gewirkt“ sein
 local BUTTON_EXTRA = 1          -- Sekunden über der Zauberzeit, die ein Knopfdruck zurückliegen darf
+local QUEUE_WINDOW = 0.4        -- Sekunden vor dem Ende, in denen das Spiel einen Druck einreiht (SpellQueueWindow ab Werk)
+local SAME_CAST = 0.2           -- Sekunden, in denen Kanalbeginn und Erfolg desselben Zaubers zusammen eintreffen
 local CAST_MAX = 60             -- Sekunden: länger läuft kein eigener Zauber oder Kanal (Schutz vor verpasstem Ende)
 -- Grenzen der Zähler (rotation.counters; Gesamtreview 18.11.2026, T7-NE1): max ist eine ganze Zahl von 1 bis
 -- COUNTER_MAX, gain/spend ganze Zahlen von 0 bis max, fallback.seconds über 0 bis COUNTER_SECONDS_MAX. Die Prüfung
@@ -53,6 +58,9 @@ State.COUNTER_SECONDS_MAX = 600
 local opening = true
 local done = {}                 -- [Schlüssel] = "target" | "combat"
 local castAt = {}               -- [Zaubername] = { at = Zeit, epoch = Ziel-Zähler }
+local lastCastAt                -- Zeit des letzten eigenen Zaubers (gleich welcher, nur kein Schuss; Vorlauf: gezählte
+                                -- globale Abklingzeit)
+local lastBeganAt               -- Beginn dieses Zaubers (Zauberzeit davor): ab da läuft die globale Abklingzeit
 local counters = {}             -- [Name] = { value, at } oder { entries = { Zeit … } } (each)
 local cooldownSeen = {}         -- [Schlüssel] = lief die Abklingzeit beim letzten Blick?
 local casting                   -- { name, since, channel }
@@ -291,10 +299,10 @@ function State.OwnAura(unit, names, seconds, now, any)
     else
         -- gewirkt, Restzeit nur durch Mitzählen zu erfahren: auch der Zustand ist unbekannt (Fund 3 des code-reviewers
         -- vor dem Merge – vorher "running" mit Herkunft "uncounted"; die Aufrufer werteten die Herkunft schon aus)
-        return nil, nil, nil, nil, "uncounted"
+        return nil, nil, nil, nil, "uncounted", best.when
     end
-    if left and left <= 0 then return "missing", left, total, guessed, source end
-    return "running", left, total, guessed, source
+    if left and left <= 0 then return "missing", left, total, guessed, source, best.when end
+    return "running", left, total, guessed, source, best.when
 end
 
 ---------------------------------------------------------------------------
@@ -302,6 +310,10 @@ end
 ---------------------------------------------------------------------------
 
 function State.CastSource() return castSource end
+
+-- Zeit des letzten eigenen Zaubers (gleich welcher) oder nil – nur ein Merker; als „globale Abklingzeit läuft“ gilt das
+-- erst mit „Mitzählen“ (Rotation.RefreshLead, wie ns.SharedOnCooldown)
+function State.LastCastAt() return lastCastAt end
 
 -- Zeitpunkt des letzten eigenen Zaubers dieses Namens; unit = "target": nur, wenn er auf das jetzige Ziel ging.
 function State.CastAt(name, unit)
@@ -312,10 +324,45 @@ function State.CastAt(name, unit)
 end
 
 -- Rotation.Evaluate meldet die Zauber, die gerade gewirkt werden bzw. eingereiht sind.
-function State.NoteCurrent(names)
-    if type(names) == "table" and names[1] then
-        current = { names = names, at = GetTime() }
+-- since: seit wann jeder Name ohne Unterbrechung „wird gerade gewirkt“ ist. Ein eingereihter Zauber kommt erst kurz vor
+-- dem Ende des laufenden dazu – gelingt einer, ist es der älteste (Zweitmeinung zum Spieltest vom 23.11.2026: die Namen
+-- stehen in der Reihenfolge der Liste, Verderbnis eingereiht während Feuerbrand gab Feuerbrand den Namen Verderbnis).
+-- repeating: Namen von Dauerfeuer-Schritten (Stab, Automatischer Schuss) – sie sind fast immer „aktuell“ und zählen nur,
+-- wenn sonst keiner dasteht (Review 23.11.2026: sonst hieß ein Zielschuss oder eine Verderbnis „Schießen“).
+local currentSince = {}
+function State.NoteCurrent(names, repeating)
+    if type(names) ~= "table" or not names[1] then
+        currentSince = {}
+        return
     end
+    local now, since = GetTime(), {}
+    for _, name in ipairs(names) do since[name] = currentSince[name] or now end
+    currentSince = since
+    current = { names = names, at = now, since = since, repeating = type(repeating) == "table" and repeating or {} }
+end
+
+-- Dauerfeuer: Schießen (Zauberstab), Automatischer Schuss
+State.AUTO_FIRE = { 5019, 75 }
+local function IsAutoFire(name, id)
+    if current and current.repeating and current.repeating[name] == true then return true end
+    for _, spell in ipairs(State.AUTO_FIRE) do
+        if id == spell or ns.SpellName(spell) == name then return true end
+    end
+    return false
+end
+
+-- Der Name aus „wird gerade gewirkt“, der am längsten dabei ist (gleich alt: der erste der Liste); Dauerfeuer zuletzt.
+-- → Name, Dauerfeuer?
+local function OldestCurrent()
+    local best, bestAt, bestRepeat
+    for _, name in ipairs(current and current.names or {}) do
+        local at = current.since and current.since[name] or current.at
+        local again = current.repeating and current.repeating[name] == true
+        if not best or (bestRepeat and not again) or (again == bestRepeat and at < bestAt) then
+            best, bestAt, bestRepeat = name, at, again
+        end
+    end
+    return best, bestRepeat == true
 end
 
 local function Amount(map, name)
@@ -383,6 +430,10 @@ function State.OnOwnCast(name, id)
     if type(name) ~= "string" or name == "" then return false end
     local now = GetTime()
     castAt[name] = { at = now, epoch = targetEpoch, id = ns.Num(id) }
+    if not IsAutoFire(name, ns.Num(id)) then        -- ein Schuss löst keine globale Abklingzeit aus
+        lastCastAt = now
+        lastBeganAt = now - ns.CastTime(name)
+    end
     State.NoteOwnCast(name, id, now)
     local steps, rotation = ActiveSteps()
     for _, step in ipairs(steps) do
@@ -396,23 +447,55 @@ function State.OnOwnCast(name, id)
     return true
 end
 
--- UNIT_SPELLCAST_SUCCEEDED des Spielers: id kann gesperrt sein, used = zuletzt gedrückter Aktionsknopf
--- ({ name, when } aus Auras.lua). Bestimmt den Namen (Reihenfolge im Dateikopf) und ruft State.OnOwnCast.
-local function CastName(id, used)
+-- Kürzlich gedrückter Knopf (used = { name, when } aus Auras.lua), der noch keinem Erfolg zugeordnet ist. began: Frage
+-- beim Beginn eines Zaubers oder Kanals – dann zählt auch der Druck, dessen Erfolg eben erst kam (Kanäle: die
+-- Reihenfolge von CHANNEL_START und SUCCEEDED steht nicht fest).
+local spent                     -- { name, when, at }: zuletzt einem Erfolg zugeordneter Druck
+local function Pressed(used, now, began)
+    if type(used) ~= "table" or type(used.name) ~= "string" or not used.when then return nil end
+    if spent and used.when == spent.when and used.name == spent.name then
+        return began and now - spent.at <= SAME_CAST and used.name or nil
+    end
+    if now - used.when > ns.CastTime(used.name) + BUTTON_EXTRA then return nil end
+    return used.name
+end
+
+-- Kann der gedrückte Zauber gelungen sein? Nein, wenn seine eigene Abklingzeit noch läuft (offen gelesen oder gelernt,
+-- nichts Geratenes; ein späteres „bereit“ hebt sie auf) oder der Druck in der globalen Abklingzeit bzw. der Zauberzeit
+-- des letzten eigenen Zaubers lag und das Spiel ihn noch nicht einreihte. Nur gegen Dauerfeuer gefragt.
+local function Decisive(used, now)
+    local run, cast = cdRun[used.name], castAt[used.name]
+    if run and run.expires and run.expires - now > BUTTON_EXTRA then return false end
+    local learned = cast and cdLearned[used.name]
+    local ready = run and run.ready and cast and (run.when or 0) > cast.at
+    -- eben erst gelungen (SAME_CAST): das ist derselbe Zauber, kein zweiter in seiner Abklingzeit
+    local since = cast and now - cast.at
+    if learned and not ready and since > SAME_CAST and learned - since > BUTTON_EXTRA then return false end
+    if lastCastAt and used.when > lastBeganAt
+        and used.when < math.max(lastCastAt, lastBeganAt + Spells.GCD_MAX) - QUEUE_WINDOW then return false end
+    return true
+end
+
+-- Name des eigenen Zaubers (Reihenfolge im Dateikopf), ohne etwas zu merken → Name, Quelle
+local function CastName(id, used, began)
     local now = GetTime()
     id = ns.Num(id)
     if id then
         local name = ns.SpellName(id)
         if name then return name, "id" end
     end
-    if current and now - current.at <= CURRENT_WINDOW and current.names[1] then
-        return current.names[1], "current"
+    local pressed = Pressed(used, now, began)
+    if current and now - current.at <= CURRENT_WINDOW then
+        local name, autoFire = OldestCurrent()
+        -- Steht nur Dauerfeuer da (Stab, Automatischer Schuss) und wurde eben ein anderer Zauber gedrückt, geht der
+        -- Knopfdruck vor: ein Sofortzauber ist nie „aktuell“ und hieße sonst „Schießen“ (Durchsicht 24.11.2026, C1).
+        -- Ohne „Mitzählen“ bleibt der Name dann unbekannt statt falsch.
+        if name and not (autoFire and pressed and pressed ~= name and Decisive(used, now)) then
+            return name, "current"
+        end
     end
     -- erschlossen statt gelesen: nur mit „Mitzählen“ (Blizzards Regeln, Risiko 1)
-    if Estimating() and type(used) == "table" and type(used.name) == "string" and used.when
-        and now - used.when <= ns.CastTime(used.name) + BUTTON_EXTRA then
-        return used.name, "button"
-    end
+    if Estimating() and pressed then return pressed, "button" end
     return nil
 end
 
@@ -437,12 +520,36 @@ local function ForgetStaleReads(now)
     end
 end
 
+-- „Wird gerade gewirkt“ gilt für genau einen Erfolg: Der benannte Zauber fällt aus der Liste. Sonst bekam ein
+-- Sofortzauber, der bis 0,5 s nach einem Zauber mit Zauberzeit gelingt, dessen Namen (Zweitmeinung zum Spieltest vom
+-- 23.11.2026: Verderbnis direkt nach Feuerbrand zählte als Feuerbrand – Verderbnis blieb ohne Restzeit, kein Vorlauf).
+local function ConsumeCurrent(name)
+    local names = current and current.names
+    if type(names) ~= "table" then return end
+    for i = #names, 1, -1 do
+        if names[i] == name then table.remove(names, i) end
+    end
+    currentSince[name] = nil    -- ein neuer Zauber desselben Namens beginnt seine Zeit neu
+end
+
+-- UNIT_SPELLCAST_SUCCEEDED des Spielers: id kann gesperrt sein, used = zuletzt gedrückter Aktionsknopf
+-- ({ name, when } aus Auras.lua). Bestimmt den Namen (Reihenfolge im Dateikopf) und ruft State.OnOwnCast.
 function State.OnSpellcast(id, used)
     local name, source = CastName(id, used)
+    -- Werte abwägen zählt die Kosten eigener Würfe; bei gesperrter ID mit dem Namen von hier (RotationValue.lua)
+    local Value = ns.IsSecret(id) and ns.RotationValue or nil
     if not name then
         ForgetStaleReads(GetTime())
+        if Value and Value.OnUnnamedCast then Value.OnUnnamedCast() end
         return false
     end
+    ConsumeCurrent(name)
+    -- der Druck ist verbraucht, gleich ob der Name von ihm, von „wird gerade gewirkt“ oder aus der ID kam – sonst hieße
+    -- der nächste Schuss noch einmal so
+    if type(used) == "table" and used.when and used.name == name then
+        spent = { name = name, when = used.when, at = GetTime() }
+    end
+    if Value and Value.OnNamedCast then Value.OnNamedCast(name) end
     castSource = source
     if casting and not casting.channel then casting = nil end
     return State.OnOwnCast(name, ns.Num(id))
@@ -642,7 +749,7 @@ local function IsPlayer(unit) return not ns.IsSecret(unit) and unit == "player" 
 local function OnCastStart(channel)
     return function(_, unit, _, spellID)
         if not IsPlayer(unit) then return end
-        local name = CastName(spellID, ns.Auras and ns.Auras.LastUsed and ns.Auras.LastUsed())
+        local name = CastName(spellID, ns.Auras and ns.Auras.LastUsed and ns.Auras.LastUsed(), true)
         casting = name and { name = name, since = GetTime(), channel = channel } or nil
         if ns.Rotation and ns.Rotation.UpdateSoon then ns.Rotation.UpdateSoon() end
     end
@@ -791,11 +898,12 @@ function State.Reset(what)
             end
         end
         done, cooldownSeen, counters, castAt = {}, {}, {}, {}
+        lastCastAt, lastBeganAt = nil, nil
         -- cdRun und cdLearned bleiben: laufende Abklingzeiten und gelernte Dauern gehören zum Charakter, nicht zur Wahl
         -- der Rotation (Wahl, Anpassung, „Nach Talentbaum“ riefen sonst den alten Fehler bis zum nächsten Zauber
         -- hervor; Fund des code-reviewers vor dem Merge); State.ForgetCooldowns() leert sie ausdrücklich
         own, forever, described = NewOwn(), {}, {}
-        casting, current = nil, nil
+        casting, current, currentSince = nil, nil, {}
         targetEpoch = targetEpoch + 1
         opening = true
     end

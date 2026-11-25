@@ -36,7 +36,7 @@ local Core = ezCore
       Keys.Taxi(nodeID, name)        → nodeID oder Notschlüssel (Altbestand ezMapDB.flights)
       Keys.Realm()                   → Laufnummer des Realms in ezCoreDB.realms (Namen nur dort); ohne Kennung und Namen
                                        der feste Eintrag „ohne Kennung“ (anon, 4. Spieltest vom 21.11.2026)
-      Keys.RealmName()               → Realmname wie GetNormalizedRealmName, sonst aus GetRealmName, sonst Core.realm
+      Keys.RealmName()               → Realmname wie GetNormalizedRealmName, sonst aus GetRealmName, sonst Core.realm (nur vom Client)
       Keys.MarketWhy()               → Text: was der Client für Realm und Seite liefert (Komplett-Scan, Grund "realm")
       Keys.Side()                    → Seite des eigenen Charakters ("A", "H", "N")
       Keys.Market(ablage)            → Laufnummer des Preis-Bereichs (Realm + Seite) im Träger der Preise, Realm-
@@ -344,9 +344,11 @@ local function RealmName()
             if name ~= "" then return name end
         end
     end
-    -- Dritter Weg: der Realm, den Core.InitIdentity beim Anmelden gemerkt hat (Names.lua; „?“ heißt unbekannt).
+    -- Dritter Weg: der Realm, den Core.InitIdentity beim Anmelden vom Client gelesen hat (Names.lua). Einen aus
+    -- gespeicherten Sätzen erschlossenen Realm oder einen Platzhalter „#…“ (Core.realmSource ~= "client", Spielbefund vom
+    -- 22.11.2026) nimmt der Preis-Bereich nicht: sonst wechselte er vom Eintrag „ohne Kennung“ auf einen anderen.
     local known = Plain(Core.realm)
-    if type(known) == "string" and known ~= "" and known ~= "?" then return known end
+    if Core.realmSource == "client" and Core.RealmKnown and Core.RealmKnown(known) then return known end
     return nil
 end
 Keys.RealmName = RealmName

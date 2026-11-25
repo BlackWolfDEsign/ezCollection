@@ -1,11 +1,11 @@
--- Fläschchen und Elixiere (A75) – laut wago.tools, Produkt wowf, Build 1.60.1.70938 (Client-Tabellen Item, ItemSparse, ItemXItemEffect, ItemEffect, SkillLineAbility, SpellEffect, SpellName).
--- Erzeugt am 2026-11-16 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
+-- Fläschchen und Elixiere (A75) – laut wago.tools, Produkt wowf, Build 1.60.1.71037 (Client-Tabellen Item, ItemSparse, ItemXItemEffect, ItemEffect, SkillLineAbility, SpellEffect, SpellName).
+-- Erzeugt am 2026-11-24 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
 -- tools/wago.lua <Rohordner> --aus=tools/daten/wago). Nicht von Hand ändern – die wago-Prüfung in sh tools/test.sh
 -- meldet rot, wenn diese Datei nicht zu tools/daten/wago/ passt. Herkunft und Regeln: docs/wago-tools.md, Abschnitt 7.
 -- Leser: ezCore.ClientData (Wissen/ClientData.lua). Felder: [Gegenstand] = { Unterklasse (2 Elixier, 3 Fläschchen), nötige Stufe, Zauber der Aura (über ItemXItemEffect, Rückfall über den englischen Namen) oder 0 (keine Aura: Trank der Giftreinigung, Noggenfogger-Elixier) } – im Spiel gilt zuerst C_Item.GetItemSpell
 local _, ns = ...
 ns.ClientTables = ns.ClientTables or {}
-ns.ClientTables.consumables = {build="1.60.1.70938",data={
+ns.ClientTables.consumables = {build="1.60.1.71037",data={
 [2454]={2,1,2367},
 [2457]={2,2,2374},
 [2458]={2,2,2378},
@@ -98,4 +98,4 @@ ns.ClientTables.consumables = {build="1.60.1.70938",data={
 [289321]={2,1,1328032},
 [289329]={2,1,1328118},
 [289334]={2,1,1328127},
-},date="2026-11-16"}
+},date="2026-11-24"}

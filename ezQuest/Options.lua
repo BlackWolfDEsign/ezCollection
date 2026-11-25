@@ -36,9 +36,15 @@ local function Register()
     page:Checkbox("autoReward", nil, { parent = "autoQuest" })
 
     -- Quests teilen (Share.lua): automatisch ab Werk aus (sendet ohne Klick), dazu der Knopf für ein Teilen per Klick
-    -- (dieselben zwei Einträge stehen im Zahnrad-Menü am Questlog)
+    -- (beide Haken und der Knopf stehen auch im Zahnrad-Menü am Questlog). Beim Beitritt (ShareJoin.lua, 24.11.2026):
+    -- ohne Klick ab Werk aus, Knopf an der Questverfolgung, Auswahl der Quests für beide
     page:Header(L.OPT_HEADER_SHARE)
     page:Checkbox("autoShare")
+    page:Checkbox("joinShare")
+    page:Checkbox("joinButton")
+    local which = {}
+    for _, value in ipairs(ns.CHOICES.joinShareWhich) do which[#which + 1] = { value, L["JOIN_WHICH_" .. value] } end
+    page:Dropdown("joinShareWhich", which)
     page:Button(L.OPT_SHARE_NOW, L.OPT_SHARE_NOW_BUTTON, function() ns.Share.Now() end, L.SHARE_MENU_NOW_TIP)
 
     page:Header(L.OPT_HEADER_TINT)
@@ -110,9 +116,12 @@ local function Register()
     page:Slider("routeDetour", 0, 200, 10, function(value) return L.GATHER_YARDS:format(value) end, nil, route())
     page:Checkbox("routeHard", nil, route())
     page:Checkbox("routeLine", nil, route())
+    page:Checkbox("routeArea", nil, route())      -- Nester und Rundgang des laufenden Schritts (RouteAreas.lua)
     page:Checkbox("routeMiniArrow", nil, route())
     -- Größe des Pfeils (Spieltest 20.11.2026): eingerückt und grau, solange der Pfeil aus ist
-    page:Slider("routeMiniArrowSize", 12, 48, 2, ezCore.Pixels, nil, { parent = "routeMiniArrow",
+    page:Slider("routeMiniArrowSize", 12, 64, 2, ezCore.Pixels, nil, { parent = "routeMiniArrow",
+        enabledWhen = function() return ns.Enabled("levelRoute") and ns.Enabled("routeMiniArrow") end })
+    page:Checkbox("routeArrowText", nil, { parent = "routeMiniArrow",
         enabledWhen = function() return ns.Enabled("levelRoute") and ns.Enabled("routeMiniArrow") end })
     page:Checkbox("routeWatch", nil, route())
 

@@ -21,6 +21,8 @@ local L = ns.L
                    Questlog und ezMaps Kartenknopf, Blizzards Kartenmarkierung über ezMap; Idee des Nutzers vom 16.11.2026)
       Share.lua    angenommene Quests in der Gruppe über Blizzards Teilen anbieten (ab Werk aus, gedrosselt, nie im Kampf;
                    Haken im Zahnrad-Menü am Questlog; Wunsch des Nutzers vom 18.11.2026)
+      ShareJoin.lua  kommt ein Mitspieler dazu: die Quests anbieten, die ihm fehlen (ab Werk aus; Knopf an der
+                   Questverfolgung; Wunsch des Nutzers vom 24.11.2026)
       XPPreview.lua  Quest-Erfahrung als Vorschau auf Blizzards Erfahrungsleiste: fertige Quests hell, alle blass, Tooltip
                    „nach Abgabe Stufe X, Y %“ (Feature I1 des Gesamtreviews vom 18.11.2026)
     Rücksicht: Erledigt Questie, Leatrix Plus, Forever Tweaks oder ein Tönungs-Addon dieselbe Sache, hält sich
@@ -64,8 +66,12 @@ ns.DEFAULTS = {
     routeDetour = 60,       -- Grenze eines Abstechers in Yards (Antwort 6, Schieber 0–200)
     routeHard = true,       -- Elite-, Dungeon- und Quests über drei Stufen einplanen (Antwort 9; aus beim Leveln allein)
     routeLine = true,       -- Linie der Route auf der Weltkarte über ezMap (Antwort 3)
+    -- Nester und Rundgang des laufenden Schritts auf der Weltkarte über ezMap (Entscheidung des Nutzers vom 22.11.2026,
+    -- „Gebiet mit Rundgang“; RouteAreas.lua): reine Anzeige, darum ab Werk an
+    routeArea = true,
     routeMiniArrow = true,  -- Pfeil auf der Minikarte zum nächsten Schritt über ezMap (Spieltest 19.11.2026)
-    routeMiniArrowSize = 24, -- seine Größe in Bildpunkten (Spieltest 20.11.2026: 16 war zu klein; Schieber 12–48)
+    routeArrowText = true,  -- Zeile in der Minikarte: Teilziel mit Stand, Stelle im Gebiet, „Weiter: …“ (24.11.2026)
+    routeMiniArrowSize = 32, -- seine Größe in Bildpunkten (Spieltest 24.11.2026: erst 44, dann „auf 32 default“; Schieber 12–64)
     -- ohne Klick an Blizzards Zuständen: ab Werk aus, mit Hinweis im Menü (Grundsatz des Nutzers vom 17.11.2026, wörtlich
     -- „user muss auf sowas hingewiesen werden, er kann es nutzen muss es aber einschalten“). Den Pfeil beim
     -- Weiterrücken (routeArrow) gibt es seit Nr. 94 der Einstellungs-Prüfung vom 19.11.2026 nur über ezMaps wayTrack.
@@ -80,7 +86,14 @@ ns.DEFAULTS = {
     -- automatisch teilen“): sendet ohne Klick an die Mitspieler, darum ab Werk aus, mit Hinweis an der Questverfolgung
     -- (Grundsatz des Nutzers vom 17.11.2026, Entscheidung 2 vom 18.11.2026)
     autoShare = false,
+    -- Fehlende Quests teilen, wenn ein Mitspieler dazukommt (ShareJoin.lua; Wunsch des Nutzers vom 24.11.2026): ohne Klick
+    -- ab Werk aus wie autoShare; der Knopf an der Questverfolgung sendet erst auf Klick und ist ab Werk an
+    joinShare = false,
+    joinButton = true,
+    joinShareWhich = "near",    -- "near": verfolgt oder im jetzigen Gebiet | "all": alle teilbaren
 }
+
+ns.CHOICES = { joinShareWhich = { "near", "all" } }
 
 -- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
 -- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
@@ -90,6 +103,12 @@ ns.DEFAULTS = {
 ns.AGREE = {
     autoRepeatable = "risk", autoReward = "risk", autoTrivial = "choice",
 }
+
+-- Neu seit v1.0.0-beta3 und ab Werk an; Einträge bleiben stehen (ezCore, Werkzeuge/ConsentNews.lua: Intro.NewsOnRows;
+-- Nutzer am 24.11.2026): Die Blase „Neu seit dem Update“ nennt sie einmal mit gesetztem Häkchen. tools/Tests/agree_test.lua
+-- ist rot, wenn ein neuer Schalter mit true hier fehlt.
+ns.NEWS = { { "routeArea", needs = "levelRoute" }, "joinButton",
+    { "routeArrowText", needs = { "levelRoute", "routeMiniArrow" } } }
 
 -- Schalter für /ezq <befehl> (deutsches Wort, englisches im Feld en – T10-1: „/ezq sort“ im englischen Client –,
 -- sonst der Schlüssel klein geschrieben).
@@ -143,6 +162,23 @@ function ns.MigrateSettings1911(db)
     end)
 end
 
+-- Pfeil auf der Minikarte (Spieltest des Nutzers vom 24.11.2026, wörtlich „routenpfeil auf der minimap knapp doppelt so
+-- groß“, danach „der pfeil ist zu groß bitte auf 32 default setzen“): Wer einen alten Standard (24, dann 44) gespeichert
+-- hat, bekommt je einmal den neuen; eine selbst gewählte Größe bleibt. → true, wenn umgestellt
+ns.MINI_ARROW_OLD = { { flag = "miniArrow2411", size = 24 }, { flag = "miniArrow2411b", size = 44 } }
+function ns.MigrateMiniArrow(db)
+    if type(db) ~= "table" or type(db.settings) ~= "table" then return nil end
+    local changed
+    for _, old in ipairs(ns.MINI_ARROW_OLD) do
+        changed = Core.MigrateOnce(db, old.flag, function()
+            if db.settings.routeMiniArrowSize ~= old.size then return nil end
+            db.settings.routeMiniArrowSize = ns.DEFAULTS.routeMiniArrowSize
+            return true
+        end) or changed
+    end
+    return changed
+end
+
 -- Print, Error, Try, On, OnReady, RunReady, OnSettingChanged, SettingChanged, SetSetting,
 -- Enabled(key), Throttle(fn, delay), WhenAddOnLoaded, AfterCombat … (ezCore gibt sie jedem Modul).
 -- Das Gerüst (ezCore, Core.ModuleScaffold) übernimmt, was vorher hier stand:
@@ -159,8 +195,9 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.QuestLogEntries, Core.XPLevelCap, Core.AtlasTexCoord, Core.SlashCmd
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",   -- Dungeons.EntranceLabel/EntranceMap prüft das Modul selbst (Rückfall auf EntranceZone)
-    needs = { "scaffold", "scaffoldHelpers", "AfterCombat", "TogglePanel", "tourOwner", "AskText", "Menu.Toggle", "UnitIs",
+    needs = { "Inventory.QuestUseItems", "Inventory.QuestWatched", "Inventory.QuestInZone", "scaffold", "scaffoldHelpers", "AfterCombat", "TogglePanel", "tourOwner", "AskText", "Menu.Toggle", "UnitIs",
         "Style.ColorText", "Style.BUTTON", "MigrateOnce",   -- Umzug der Einstellungs-Prüfung vom 19.11.2026
+        "Ticker",           -- Leveling-Route: Blick auf deinen Ort beim Rundgang von Nest zu Nest (RouteAreas.lua, 22.11.2026)
         -- Welle 23 (ezCore 23c ohne neue Versionsnummer): Menü-Tooltip, Quest-Abfrage, Spielobjekte, Karte nach Namen
         "Menu.Tip", "QuestTitle", "QuestDone", "ObjectID", "Tooltip.AddObjectSection", "Tooltip.ObjectName",
         "Tooltip.ObjectID", "Discovery.LootNames", "Map.ByName", "Map.NameKey",
@@ -174,6 +211,8 @@ Core.NewModule(ADDON, ns, {
         "QuestLogEntries", "XPLevelCap", "AtlasTexCoord",
         -- Quests teilen (Share.lua, 18.11.2026; ezCore ohne neue Versionsnummer)
         "Flag", "Uptime",
+        -- Fehlende Quests beim Beitritt (ShareJoin.lua, 24.11.2026; ezCore ohne neue Versionsnummer)
+        "More", "GroupChannel", "FormatToPattern",
         -- Oberflächen-Einheit (Gesamtreview 18.11.2026, P13 D2; ezCore ohne neue Versionsnummer): Hilfe, Addon-Fach,
         -- Kampfsperre, Wege zur Einstellung, Tooltip-Rollen
         "compartmentMain", "SlashCmd", "HelpLines", "CombatNotice", "SettingsPathText", "TipLine", "TipTitle", "TipClick",
@@ -195,6 +234,7 @@ Core.NewModule(ADDON, ns, {
         ns.MigrateSortOptIn(db)
         ns.worldSwitched = ns.MigrateWorldOptIn(db)
         ns.MigrateSettings1911(db)      -- Einstellungs-Prüfung vom 19.11.2026
+        ns.MigrateMiniArrow(db)         -- Pfeil auf der Minikarte: Vorgabe 24 → 44 → 32 (24.11.2026)
         -- alter Wert von questIdTip einmal an ezCores „IDs in Tooltips“ (ns.SHARED unten; ein „an“ bleibt an)
         Core.AdoptModuleShared(ns, db)
     end,
@@ -269,7 +309,8 @@ end
 --   questItemTooltip  Quest-Zeile im Item-Tooltip (Questie)
 --   questTint         neue Forever-Quests markieren (Forever Quest Tint, Forever Quests, Forever++)
 --   questSparkle      Quest-Objekte in der Welt funkeln lassen (Forever Loot Sparkles; Sparkle.lua)
---   questShare        angenommene Quests automatisch teilen (Stand 18.11.2026 keines bekannt; Share.lua)
+--   questShare        angenommene oder fehlende Quests automatisch teilen (Stand 24.11.2026 keines bekannt; Share.lua,
+--                     ShareJoin.lua)
 ---------------------------------------------------------------------------
 
 -- Rückgabe: Name des Addons, das die Funktion übernimmt, sonst nil. Weiterleitung auf ns.OtherFor aus dem Gerüst
@@ -311,6 +352,7 @@ function ns.StatusLines()
     if ns.Tracker and ns.Tracker.waiting and ns.Enabled("sortTracker") then lines[#lines + 1] = L.TRACKER_WAITING end
     Line(L.OPT_autoQuest, "autoQuest", ns.OtherHandles("questAccept") or ns.OtherHandles("questTurnIn"))
     Line(L.OPT_autoShare, "autoShare", ns.Share and ns.Share.Other())
+    Line(L.OPT_joinShare, "joinShare", ns.Share and ns.Share.Other())
     if ns.Share then
         for _, line in ipairs(ns.Share.StatusLines()) do lines[#lines + 1] = line end
     end

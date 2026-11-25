@@ -608,9 +608,10 @@ function UI.Place(host, panel, roomOK)
     return inside
 end
 
--- Knöpfe eines Seitenteils als Raster von unten nach oben: order = Knöpfe in Lesereihenfolge, wide = Knopf über die
--- ganze Breite in der untersten Reihe (oder nil). Drei je Reihe ab UI.BUTTON_COLUMNS_AT, sonst zwei.
--- → Höhe des Knopfbereichs (für die Unterkante der Liste)
+-- Knöpfe eines Seitenteils als Raster von unten nach oben: order = Knöpfe in Lesereihenfolge, wide = Knopf (oder Haken)
+-- über die ganze Breite in der untersten Reihe, eine Liste solcher Zeilen von unten nach oben (in „Vorlagen“ der Haken
+-- „Auf meine Punkte rechnen“ unter „Zurücksetzen und übernehmen“) oder nil. Drei je Reihe ab UI.BUTTON_COLUMNS_AT,
+-- sonst zwei. → Höhe des Knopfbereichs (für die Unterkante der Liste)
 function UI.LayoutButtons(panel, width, order, wide)
     -- Maße aus ezCore (Core.PANEL_BUTTONS; Abstand nebeneinander 6, Entscheidung des Nutzers vom 21.11.2026 „6 für alle“)
     local B = Core.PANEL_BUTTONS
@@ -619,11 +620,16 @@ function UI.LayoutButtons(panel, width, order, wide)
     local buttonW = math.floor((width - 2 * left - (cols - 1) * gapX) / cols)
     local rows = math.ceil(#order / cols)
     local base = bottom
-    if wide then
-        wide:ClearAllPoints()
-        wide:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", left, bottom)
-        wide:SetWidth(width - 2 * left)
-        base = bottom + rowH
+    -- ein Rahmen hat ClearAllPoints, eine Liste nicht
+    local wides = (type(wide) == "table" and wide.ClearAllPoints == nil) and wide or { wide }
+    for i = 1, #wides do
+        local w = wides[i]
+        if w then
+            w:ClearAllPoints()
+            w:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", left, base)
+            w:SetWidth(width - 2 * left)
+            base = base + rowH
+        end
     end
     for i, button in ipairs(order) do
         local row, col = math.floor((i - 1) / cols), (i - 1) % cols
@@ -1453,10 +1459,21 @@ function UI.ComputedLines(preset)
     local assume, values = ns.CmdText(Lang(info.assumptions)), Lang(info.values)
     if assume then lines[#lines + 1] = L.PRESET_COMPUTED_ASSUME:format(assume) end
     if values then lines[#lines + 1] = UI.StyleText("gray", L.PRESET_COMPUTED_VALUES:format(values)) end
-    -- die passende berechnete Rotation desselben Rechenlaufs (ezCombat, Welle 23 A4)
-    local rotation = Templates.RotationForBuild(preset.key)
-    if rotation then lines[#lines + 1] = L.PRESET_COMPUTED_ROTATION:format(rotation.name or rotation.key) end
     return lines
+end
+
+-- Passende Rotationen einer Vorauswahl für den Tooltip („Vorlagen“ und „Empfehlung“; n:m, 24.11.2026): die Vorgabe zuerst.
+-- Ohne Zuordnung der Grund (Core.RotationBuilds). → Text | nil ohne ezCombat
+function UI.RotationTip(preset, all)
+    if type(preset) ~= "table" then return nil end
+    local list = Templates.RotationsForBuild(preset.key, nil, all)
+    if not list then return nil end
+    if #list == 0 then return Core.RotationBuilds.WhyBuild(Core.PlayerClass(), preset.key) or L.ROTATION_NONE end
+    local names, default = {}, Templates.DefaultRotation(preset.key)
+    for i, rotation in ipairs(list) do
+        names[i] = (rotation.name or rotation.key) .. (#list > 1 and rotation.key == default and (" (" .. L.ROTATION_DEFAULT .. ")") or "")
+    end
+    return L.ROTATIONS_TIP:format(table.concat(names, ", "))
 end
 
 -- Kategorie einer Vorauswahl für die Listenzeile: wofür sie gedacht ist („Leveln, Solo“, „Dungeon, Raid“, „Tank“ …).
@@ -1576,7 +1593,7 @@ end
 -- Die Quellen mit Stand und Art stehen in der Liste unter der geladenen Vorauswahl, die Adressen zeigt „Quellen mit
 -- Adressen zeigen »“ (UI.ShowSources) – vorher standen alle Adressen im Tooltip und zogen ihn bis zum Bildschirmrand.
 -- how (freiwillig): { spell, pos, name } aus Templates.ResolvePreset – wie viele Talente über welchen Weg.
-function UI.PresetTip(preset, found, total, missing, how)
+function UI.PresetTip(preset, found, total, missing, how, rotations)
     local lines = {}
     local grade = preset.grade or "unchecked"
     local category, why, raid = UI.PresetCategory(preset), UI.PresetWhy(preset), false
@@ -1590,6 +1607,7 @@ function UI.PresetTip(preset, found, total, missing, how)
     lines[#lines + 1] = ns.Tone(GRADE_TONE[grade], L["PRESET_GRADE_" .. grade .. "_TIP"] or "")
     if raid then lines[#lines + 1] = L.PRESET_RAID_THEORY end
     for _, line in ipairs(UI.ComputedLines(preset)) do lines[#lines + 1] = line end
+    lines[#lines + 1] = UI.RotationTip(preset, rotations)
     if total and total > 0 then
         lines[#lines + 1] = L.PRESET_MATCH:format(found or 0, total)
         if how and (how.name or 0) > 0 then lines[#lines + 1] = L.PRESET_MATCH_NAMES:format(how.name) end
@@ -1604,11 +1622,28 @@ function UI.PresetTip(preset, found, total, missing, how)
         end
     end
     local fixes = Templates.PresetHotfixes(nil, preset)
-    for _, fix in ipairs(fixes) do
-        lines[#lines + 1] = ns.Tone("orange", L.PRESET_HOTFIX:format(fix.name, UI.Date(fix.date)))
+    -- ein Vermerk: eigene Zeile; mehrere (seit dem Nachlesen am 22.11.2026 bis zu vier je Baum): eine Zeile, damit der
+    -- Tooltip kurz bleibt
+    if #fixes == 1 then
+        lines[#lines + 1] = ns.Tone("orange", L.PRESET_HOTFIX:format(fixes[1].name, UI.Date(fixes[1].date)))
+    elseif #fixes > 1 then
+        local items = {}
+        for _, fix in ipairs(fixes) do items[#items + 1] = L.PRESET_HOTFIX_ITEM:format(fix.name, UI.Date(fix.date)) end
+        lines[#lines + 1] = ns.Tone("orange", L.PRESET_HOTFIX_LIST:format(table.concat(items, ", ")))
     end
     -- Erklärung und Quelle des Vermerks (vorher im Tooltip der eigenen Zeile unter dem Baum)
     if #fixes > 0 then lines[#lines + 1] = ns.Tone("hint", L.PRESET_HOTFIX_TIP:format(UI.Date(ns.PRESET_HOTFIX_READ))) end
+    -- zweite Quelle: die Client-Tabellen des Builds (Leitlinie 12) – je Build die Talente, deren Werte dort stehen
+    local byBuild, builds = {}, {}
+    for _, fix in ipairs(fixes) do
+        if fix.build then
+            if not byBuild[fix.build] then byBuild[fix.build] = {}; builds[#builds + 1] = fix.build end
+            table.insert(byBuild[fix.build], fix.name)
+        end
+    end
+    for _, build in ipairs(builds) do
+        lines[#lines + 1] = ns.Tone("hint", L.PRESET_HOTFIX_CLIENT:format(UI.JoinNames(byBuild[build], UI.TIP_NAMES), build))
+    end
     local sites = UI.SourceSites(preset)
     if #sites > 0 then
         lines[#lines + 1] = L.PRESET_SOURCES_SHORT:format(table.concat(sites, ", "), UI.Date(preset.read))
@@ -1971,12 +2006,46 @@ function UI.LinkLines(host, ctx, Add)
     end
 end
 
-function UI.Rotation(host)
-    local ctx = UI.Context(host)
-    local plan = ctx and UI.ActivePlan(host, ctx)
-    local rotation = plan and Templates.RotationForPlan(plan)
-    if not rotation then ns.Print(L.ROTATION_NONE) return end
-    if Templates.SelectRotation(rotation) then ns.Print(L.ROTATION_SELECTED:format(rotation.name or rotation.key)) end
+-- Klick auf eine Rotation: in ezCombat wählen (feste Wahl für diesen Charakter).
+function UI.PickRotation(rotation)
+    if not Templates.SelectRotation(rotation) then
+        ns.Print(L.ROTATION_REFUSED:format(rotation.name or rotation.key))
+        UI.Refresh()
+        return false
+    end
+    ns.Print(L.ROTATION_SELECTED:format(rotation.name or rotation.key))
+    UI.Refresh()
+    return true
+end
+
+-- Abschnitt „Passende Rotationen (ezCombat)“ im Seitenteil „Vorlagen“ (n:m, 24.11.2026): jede Rotation zu dem, was im
+-- Fenster liegt (Vorschau oder übernommene Verteilung), je Zeile anklickbar; die Vorgabe steht vorn, die in ezCombat
+-- gewählte ist markiert. Nichts ohne ezCombat, ohne Punkte und beim Betrachten (fremde Klasse).
+function UI.RotationLines(host, ctx, plan, Add)
+    if ctx.inspecting then return end
+    local list, build = Templates.RotationsForPlan(plan, ctx)
+    if not list then return end
+    Add({ text = L.ROTATIONS_TITLE, font = UI.FONTS.section, before = UI.SECTION_GAP - UI.ENTRY_GAP, section = true,
+        tipTitle = L.ROTATIONS_TITLE, tip = L.ROTATIONS_TITLE_TIP })
+    if #list == 0 then
+        local why = build and Core.RotationBuilds.WhyBuild(Core.PlayerClass(), build)
+        Add({ text = why or L.ROTATION_NONE, font = UI.FONTS.sub, indent = UI.ENTRY_INDENT, gap = UI.ENTRY_GAP })
+        return
+    end
+    local chosen, auto = Templates.SelectedRotation()
+    local default = build and Templates.DefaultRotation(build) or nil
+    for _, rotation in ipairs(list) do
+        local parts = {}
+        if #list > 1 and default ~= nil and rotation.key == default then parts[#parts + 1] = L.ROTATION_DEFAULT end
+        if Templates.IsOwnRotation(rotation) then parts[#parts + 1] = L.ROTATION_OWN end
+        if rotation.key == chosen then parts[#parts + 1] = auto and L.ROTATION_BY_TREE or L.ROTATION_CHOSEN end
+        local tip = L.ROTATION_ROW_TIP
+        if rotation.how then tip = rotation.how .. "\n" .. tip end
+        Add({ text = (rotation.name or rotation.key) .. " »", sub = table.concat(parts, " · "), font = UI.FONTS.row,
+            indent = UI.ENTRY_INDENT, gap = UI.ENTRY_GAP, selected = rotation.key == chosen and not auto,
+            tipTitle = rotation.name or rotation.key, tip = tip, tipWide = true, rotation = rotation.key,
+            onClick = function() UI.PickRotation(rotation) end })
+    end
 end
 
 -- Zeilen des Seitenteils „Vorlagen“ (ohne Rahmen – auch für die Tests).
@@ -2036,18 +2105,16 @@ function UI.TemplateLines(host, ctx)
     if #names == 0 then Add({ text = L.TEMPLATES_NONE, font = UI.FONTS.sub, indent = UI.ENTRY_INDENT, gap = UI.ENTRY_GAP }) end
 
     if ctx.kind == "class" then
-        -- berechnete Verteilung: die berechnete Rotation desselben Rechenlaufs (Welle 23, A4), sonst die für den Hauptbaum
-        local rotation, built = Templates.RotationForPlan(plan)
-        if rotation then
-            Add({ text = L.ROTATION_LINE:format(rotation.name or rotation.key), indent = UI.ENTRY_INDENT, gap = UI.ENTRY_GAP,
-                tipTitle = L.ROTATION_TITLE, tip = built and L.ROTATION_TIP_BUILD or L.ROTATION_TIP,
-                onClick = function() UI.Rotation(host) end })
-        end
+        UI.RotationLines(host, ctx, plan, Add)
         UI.LinkLines(host, ctx, Add)
         Add({ text = L.PRESETS_TITLE, font = UI.FONTS.section, before = UI.SECTION_GAP - UI.ENTRY_GAP, section = true })
         local presets = Templates.Presets()
         local index = #presets > 0 and Templates.PresetIndex(ctx.configID, ctx.treeID) or nil
+        local rotations = #presets > 0 and Templates.AllRotations() or nil      -- für die Tooltips, einmal je Zeichnen
         local computedShown = false
+        -- im eigenen Baum gilt der Haken „Auf meine Punkte rechnen“ auch hier – dieselbe Bedingung wie der Klick
+        -- (UI.ClickPreset: UI.AdviceContext)
+        local ownPoints = Advice.Answers().ownPoints == true and UI.AdviceContext(host) ~= nil
         local gaps = #presets > 0 and UI.PresetGaps(presets) or nil
         local function AddGaps()
             if not gaps then return end
@@ -2070,10 +2137,12 @@ function UI.TemplateLines(host, ctx)
                 _, found, total, missing, how = Templates.ResolvePreset(preset, ctx.configID, ctx.treeID, index)
             end
             local loaded = UI.PresetLoaded(plan, preset)
+            local tip = UI.PresetTip(preset, found, total, missing, how, rotations)
+            -- Haken „Auf meine Punkte rechnen“: was ein Klick lädt, wie in „Empfehlung“ (UI.AdviceTip)
+            if ownPoints and Templates.IsComputed(preset) then tip = tip .. "\n" .. ns.Tone("gold", L.ADVICE_TIP_LOAD_OWN) end
             Add({ text = Templates.PresetName(preset), sub = UI.PresetRowSub(preset, found, total), font = entry,
                 indent = UI.ENTRY_INDENT, tipTitle = Templates.PresetName(preset), selected = loaded, gap = UI.ENTRY_GAP,
-                tip = UI.PresetTip(preset, found, total, missing, how), tipWide = true,
-                onClick = function() UI.SelectPreset(host, preset) end })
+                tip = tip, tipWide = true, onClick = function() UI.ClickPreset(host, preset) end })
             -- Unter der geladenen Vorauswahl: ihre Quellen zum Aufklappen (mit Stand und Art, ohne Adressen) und der Weg
             -- zu den Adressen
             if loaded and type(preset.sources) == "table" and #preset.sources > 0 then
@@ -2425,6 +2494,9 @@ local function BuildTemplatesPanel(host)
     -- Vermächtnis: „Vor dem Übernehmen zurücksetzen“ als Kästchen direkt bei „Übernehmen“ (Einstellungs-Prüfung
     -- 19.11.2026, Abschnitt 3: diese Wahl trifft man beim Übernehmen; vorher auf der Einstellungsseite)
     if host.kind == "legacy" then panel.legacyReset = UI.LegacyResetBox(panel) end
+    -- Klassentalente: derselbe Haken „Auf meine Punkte rechnen“ wie in „Empfehlung“ (Spieltest 23.11.2026, eine
+    -- Einstellung: UI.OwnPointsBox) – ganz unten wie dort, darüber „Zurücksetzen und übernehmen“
+    if host.kind == "class" then panel.ownPoints = UI.OwnPointsBox(panel, host, true) end
     -- Knopf „?“ rechts neben der ersten Kopfzeile: Legende der Farben, alle Hinweise und Einzelheiten (Spieltest
     -- 15.11.2026: die Legende stand als Fließtext im Kopf). Klick zeigt dasselbe (Leitlinie 3: sichtbarer Knopf).
     local function ShowHelp(self) UI.ShowRowTip(self, L.HELP_TITLE, UI.HelpText(host)) end
@@ -2436,8 +2508,11 @@ local function BuildTemplatesPanel(host)
     local order = { b.apply, b.edit, b.save }
     if host.kind == "class" then order[#order + 1] = b.rate else b.rate:Hide() end
     for _, button in ipairs({ b.share, b.import, b.roster, b.rename, b.delete }) do order[#order + 1] = button end
+    -- breite Zeilen von unten: Haken, dann „Zurücksetzen und übernehmen“ (Liste ohne Lücken)
+    local wide = { panel.ownPoints or panel.legacyReset }
+    if host.kind == "class" then wide[#wide + 1] = b.resetApply end
     function panel:LayoutButtons(width)
-        return UI.LayoutButtons(self, width, order, host.kind == "class" and b.resetApply or panel.legacyReset) + 8
+        return UI.LayoutButtons(self, width, order, wide) + 8
     end
     panel:Layout(panel.width or UI.PANEL_WIDTH)
     -- „Speichern“ sagt im Tooltip, was es gerade ablegt: die geladene Vorschau oder den Baum, wie er steht
@@ -2494,6 +2569,7 @@ local function BuildTemplatesPanel(host)
         b.rate:SetEnabled(ctx.configID ~= nil and ctx.kind == "class" and not ctx.inspecting)
         if ctx.kind == "class" then b.resetApply:SetEnabled(UI.ResetBlocker(host, ctx) == nil) end
         if self.legacyReset then self.legacyReset.check:SetChecked(ns.Enabled("legacyReset")) end
+        if self.ownPoints then self.ownPoints:Sync() end
     end
     return panel
 end
@@ -2790,11 +2866,13 @@ function UI.LoadAdvice(host, i, alt)
     UI.LoadAdvicePreset(host, ctx, cand.preset)
 end
 
--- Eine Vorauswahl so laden, wie der Haken „Auf meine Punkte rechnen“ steht (LoadAdvice, ToggleOwnPoints).
+-- Eine Vorauswahl so laden, wie der Haken „Auf meine Punkte rechnen“ steht (LoadAdvice, ToggleOwnPoints, Klick in
+-- „Vorlagen“ – UI.ClickPreset). Mit Haken baut „Bestes mit n Punkten“ auf den schon vergebenen Punkten auf und hält die
+-- Reihen-Sperre (Spieltest 23.11.2026, Advice.BestPlan mit keep).
 -- onCancel: bei „Nein“ auf die Rückfrage wegen ungespeicherter Änderungen.
 function UI.LoadAdvicePreset(host, ctx, preset, onCancel)
     if Advice.Answers().ownPoints then
-        local plan, why = Advice.BestPlan(ctx, preset, Advice.OwnPoints(ctx))
+        local plan, why = Advice.BestPlan(ctx, preset, Advice.OwnPoints(ctx), true)
         if plan then UI.LoadPlan(host, plan, onCancel) return end
         -- volle Verteilung, mit dem Grund: recherchiert (keine Werte), keine Punkte, noch nichts mit Wert
         local name = Templates.PresetName(preset)
@@ -2804,12 +2882,43 @@ function UI.LoadAdvicePreset(host, ctx, preset, onCancel)
     UI.SelectPreset(host, preset, onCancel)
 end
 
+-- Klick auf eine Vorauswahl in „Vorlagen“: im eigenen Klassen-Talentbaum wie in „Empfehlung“ nach dem Haken „Auf meine
+-- Punkte rechnen“ (Spieltest 23.11.2026: „bei vorlagen fehlt zudem die möglicheit "auf meine punkte rechnen"“), sonst
+-- (Betrachten, Vermächtnis) die volle Vorauswahl.
+function UI.ClickPreset(host, preset)
+    local ctx = UI.AdviceContext(host)
+    if ctx then UI.LoadAdvicePreset(host, ctx, preset) else UI.SelectPreset(host, preset) end
+end
+
+-- Haken „Auf meine Punkte rechnen“ – eine Einstellung (Advice.Answers().ownPoints, je Charakter) und ein Verhalten
+-- (UI.ToggleOwnPoints) in beiden Seitenteilen: „Empfehlung“ (Entscheidung des Nutzers vom 20.11.2026) und „Vorlagen“
+-- (Spieltest 23.11.2026). quiet = true („Vorlagen“): ohne Vorschau lädt der Haken nichts (aus „Empfehlung“ lädt er dann
+-- die Empfehlung). Gesperrt, wo er nichts bewirkt (betrachteter Spieler: UI.AdviceContext) – der Tooltip nennt den Grund.
+-- → CheckRow mit row:Sync() (Stand und Sperre, aus Render)
+function UI.OwnPointsBox(panel, host, quiet)
+    local row = UI.CheckRow(panel, L.ADVICE_OWN_POINTS, L.ADVICE_OWN_POINTS_TIP,
+        function() return Advice.Answers().ownPoints == true end,
+        function(on) UI.ToggleOwnPoints(host, on, quiet) end)
+    Core.Toolbar.ShowTipWhileDisabled(row.check)
+    row.check:SetScript("OnEnter", function(self)
+        local tip = L.ADVICE_OWN_POINTS_TIP
+        if not self:IsEnabled() then tip = tip .. "\n\n" .. ns.Tone("bad", L.RATE_BLOCKED) end
+        UI.ShowRowTip(self, L.ADVICE_OWN_POINTS, tip)
+    end)
+    function row:Sync()
+        self.check:SetChecked(Advice.Answers().ownPoints == true)
+        self.check:SetEnabled(UI.AdviceContext(host) ~= nil)
+    end
+    return row
+end
+
 -- Haken „Auf meine Punkte rechnen“: lädt sofort neu, beim Setzen wie beim Rausnehmen (Spieltest 21.11.2026: „auf
 -- meine punkte rechnen muss autom. laden egal ob gesetzt oder rausgenommen wird der haken“): die Vorauswahl der
 -- Vorschau (auch „Bestes mit n Punkten“ über seine Herkunft, auch eine außerhalb von „Passt zu dir“) im neuen Zustand;
 -- ohne Vorschau die Empfehlung. Eine eigene Vorlage oder ein „Anpassen“ ohne Herkunft bleibt, wie sie ist (es gibt
 -- nichts umzurechnen). „Nein“ auf die Rückfrage wegen ungespeicherter Änderungen nimmt den Haken zurück.
-function UI.ToggleOwnPoints(host, on)
+-- quiet (Haken in „Vorlagen“, Spieltest 23.11.2026): ohne Vorschau nichts laden – die Empfehlung käme dort überraschend.
+function UI.ToggleOwnPoints(host, on, quiet)
     local was = Advice.Answers().ownPoints
     Advice.Set("ownPoints", on or nil)
     UI.Refresh()
@@ -2817,7 +2926,7 @@ function UI.ToggleOwnPoints(host, on)
     if not ctx then return end
     local plan = UI.ActivePlan(host, ctx)
     if not plan then
-        if #Advice.Recommend(ctx, Core.PlayerClass()) > 0 then UI.LoadAdvice(host, 1) end
+        if not quiet and #Advice.Recommend(ctx, Core.PlayerClass()) > 0 then UI.LoadAdvice(host, 1) end
         return
     end
     local key = (plan.kind == "preset" and plan.key) or (plan.kind == "new" and plan.from) or nil
@@ -2920,6 +3029,7 @@ function UI.AdviceTip(cand, answers)
     if why and why ~= "" then lines[#lines + 1] = why end
     for _, line in ipairs(UI.ComputedLines(p)) do lines[#lines + 1] = line end
     if not Templates.IsComputed(p) then lines[#lines + 1] = UI.GradeText(p) end
+    lines[#lines + 1] = UI.RotationTip(p)
     local own = answers.ownPoints and Templates.IsComputed(p)
     if cand.facts then lines[#lines + 1] = UI.StyleText("gray", L.ADVICE_TIP_SOURCE) end   -- Quelle (Leitlinie 11)
     lines[#lines + 1] = ns.Tone("gold", own and L.ADVICE_TIP_LOAD_OWN or L.ADVICE_TIP_LOAD)
@@ -3001,8 +3111,10 @@ local function AdviceRating(host, ctx, Add)
     if host.adviceDetails then AdviceDetails(host, rating, Add) end
     -- Grundlage (Leitlinie 11): Modell und Annahmen der Verteilung im Tooltip
     local c = r.preset.computed or {}
+    local basis = UI.ComputedLines(r.preset)
+    basis[#basis + 1] = UI.RotationTip(r.preset)
     Add({ text = ns.Tone("hint", (c.provisional and L.ADVICE_BASIS_PROVISIONAL or L.ADVICE_BASIS):format(tostring(c.model or "?"))),
-        indent = UI.ENTRY_INDENT, gap = 8, tipTitle = Templates.PresetName(r.preset), tip = table.concat(UI.ComputedLines(r.preset), "\n"),
+        indent = UI.ENTRY_INDENT, gap = 8, tipTitle = Templates.PresetName(r.preset), tip = table.concat(basis, "\n"),
         tipWide = true })
 end
 
@@ -3086,9 +3198,7 @@ local function BuildAdvicePanel(host)
     local b = panel.buttons
     b.load.whyDisabled, b.best.whyDisabled, b.reset.whyDisabled = L.ADVICE_RESULT_NONE, L.RATE_EMPTY, L.ADVICE_RESULT_NONE
     -- Haken „Auf meine Punkte rechnen“ (Entscheidung des Nutzers vom 20.11.2026), je Charakter gemerkt
-    panel.ownPoints = UI.CheckRow(panel, L.ADVICE_OWN_POINTS, L.ADVICE_OWN_POINTS_TIP,
-        function() return Advice.Answers().ownPoints == true end,
-        function(on) UI.ToggleOwnPoints(host, on) end)
+    panel.ownPoints = UI.OwnPointsBox(panel, host)
     function panel:LayoutButtons(width)
         return UI.LayoutButtons(self, width, { b.load, b.best, b.reset }, self.ownPoints) + 8
     end
@@ -3099,6 +3209,7 @@ local function BuildAdvicePanel(host)
             SetHead(self, why or "")
             UI.Fill(self.scroll, {})
             for _, button in pairs(b) do button:SetEnabled(false) end
+            self.ownPoints:Sync()
             return
         end
         SetHead(self, UI.HeadText(ctx))
@@ -3108,7 +3219,7 @@ local function BuildAdvicePanel(host)
         b.reset:SetEnabled(answered)
         -- eben in UI.AdviceLines bewertet; ohne Wert im Modell wäre „das Beste“ leer
         b.best:SetEnabled(host.adviceRating ~= nil and not host.adviceRating.ref.flat)
-        self.ownPoints.check:SetChecked(Advice.Answers().ownPoints == true)
+        self.ownPoints:Sync()
     end
     return panel
 end
@@ -3257,15 +3368,74 @@ end
 -- false = Rückfall Text (Roster.Show)
 function UI.ShowRoster()
     if not ns.Enabled("rosterTab") then return false end
+    UI.pendingBuild = nil       -- eine vorgemerkte Vorlage (ShowBuild) klappte sonst darüber „Vorlagen“ auf
     local host = UI.hosts.class
     if not (host and Read(host.parent, "IsVisible") == true) then
         if Core.InCombat() then return false end
-        ns.OpenTalents()
+        if Core.PanelShown("talents") ~= true then ns.OpenTalents() end
         host = UI.hosts.class
     end
     if not (host and Read(host.parent, "IsVisible") == true) then return false end
     host.restored = true      -- nicht danach noch das gemerkte Seitenteil aufklappen (RestoreOpen)
     return UI.Open(host, "roster")
+end
+
+-- Eine Vorauswahl im Talentfenster zeigen (Knopf auf ezCombats Seite „Deine Rotation“, 24.11.2026): Seitenteil
+-- „Vorlagen“, Vorschau laden – wie ein Klick dort, gesetzt wird nichts. Ist Blizzards Fenster offen, aber nicht auf den
+-- Talenten (Zauberbuch, auch im Kampf), schaltet ezTalent nicht um – das verunreinigte Blizzards Aktionsleisten
+-- (ezCore/Kern/Panels.lua, „selfOnly“; Spielbefund „leiste weg“ vom 23.11.2026). Dann wartet die Vorlage, bis der Spieler selbst zu den Talenten wechselt (höchstens UI.BUILD_WAIT Sekunden). Nur bei
+-- geschlossenem Fenster öffnet ezTalent es, außerhalb des Kampfes.
+-- → true (zu sehen, Rückfrage läuft oder vorgemerkt) | false (der Grund steht im Chat)
+UI.BUILD_WAIT = 300
+
+local function LoadBuild(host, preset)
+    local ctx = UI.Context(host)
+    if ctx and ctx.inspecting then ns.Print(L.BUILD_INSPECT) return false end
+    if not UI.AdviceContext(host) then ns.Print(L.APPLY_FAIL_noconfig) return false end
+    host.restored = true      -- nicht danach noch das gemerkte Seitenteil aufklappen (RestoreOpen)
+    if not UI.Open(host, "templates") then ns.Print(L.BUILD_NO_WINDOW) return false end
+    UI.ClickPreset(host, preset)
+    return true
+end
+
+-- Das Talentfenster ist aufgegangen: eine vorgemerkte Vorlage zeigen. Beim Betrachten eines anderen und solange der
+-- Client noch keine Konfiguration nennt, wartet sie weiter. → true, wenn sie jetzt zu sehen ist
+function UI.ShowPendingBuild(host)
+    local pending = UI.pendingBuild
+    if not pending or host.kind ~= "class" or Read(host.parent, "IsVisible") ~= true then return false end
+    if GetTime() > pending.till then
+        UI.pendingBuild = nil
+        return false
+    end
+    if not UI.AdviceContext(host) then return false end
+    UI.pendingBuild = nil
+    local preset = Templates.PresetByKey(pending.key)
+    return preset ~= nil and LoadBuild(host, preset)
+end
+
+function UI.ShowBuild(key)
+    local preset = Templates.PresetByKey(key)
+    if not preset then ns.Print(L.BUILD_UNKNOWN) return false end
+    UI.pendingBuild = nil
+    local host = UI.hosts.class
+    local shown = host and Read(host.parent, "IsVisible") == true
+    if not shown then
+        local why = Core.Panels.SelfOpen("talents")     -- Zauberbuch, Klick-Zauber oder bei Alt+Z die Talente selbst
+        if not why then
+            if Core.InCombat() then Core.CombatNotice(ns, L.BUILD_COMBAT_WHAT) return false end
+            local _, reason = ns.OpenTalents(true)
+            why = reason == "self" and reason or nil     -- ezCore lässt auch das Öffnen beim Spieler
+        end
+        if why then
+            UI.pendingBuild = { key = key, till = GetTime() + UI.BUILD_WAIT }
+            ns.Print(L.BUILD_WAIT:format(Templates.PresetName(preset), Core.Panels.SelfWay("talents")))
+            return true
+        end
+        host = UI.hosts.class
+        shown = host and Read(host.parent, "IsVisible") == true
+    end
+    if not shown then ns.Print(L.BUILD_NO_WINDOW) return false end
+    return LoadBuild(host, preset)
 end
 
 -- Beim ersten Öffnen des Fensters in dieser Sitzung das zuletzt offene Seitenteil wieder aufklappen – nur wenn es
@@ -3457,6 +3627,7 @@ function UI.Attach(kind, parent, anchor, source, opts)
     local function Shown()
         C_Timer.After(0, function()
             ns.Try("UI", UI.PlaceOpen, host)
+            ns.Try("UI", UI.ShowPendingBuild, host)      -- vor dem Merken: klappt „Vorlagen“ selbst auf
             ns.Try("UI", UI.RestoreOpen, host)
             UI.Refresh()
             TourSoon(host)
@@ -3507,6 +3678,8 @@ ns.OnReady(function()
         ns.On(event, function() refreshSoon() end)
     end
     ns.Listen("TEMPLATES_CHANGED", function() refreshSoon() end)
+    -- ezCore hat den Stand der Talente neu gelesen (auch nachträglich): „Passende Rotationen“ hängen daran
+    Core.Listen("TALENTS_CHANGED", function() refreshSoon() end, ADDON)
     -- Blizzard (oder ezCores „Blizzard-Fenster verschieben“) hat Fenster neu gesetzt: offenes Seitenteil neu prüfen –
     -- ein gerücktes Fenster kann wieder an Blizzards Platz stehen (TL-13)
     Core.Listen("FRAME_MOVED", function()

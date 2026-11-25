@@ -499,6 +499,9 @@ Core.OTHER_ADDONS = {
     Details = { label = "Details! Damage Meter", folders = { "Details" }, features = { damageMeter = true } },
     -- ForeverMeter (GPL-3.0-or-later): Ordner ForeverMeter laut TOC im öffentlichen Quelltext (ForeverMeter.toc)
     ForeverMeter = { label = "ForeverMeter", folders = { "ForeverMeter" }, features = { damageMeter = true } },
+    -- Does It Die (MIT): Ordner DoesItDie laut TOC im öffentlichen Quelltext (DoesItDie.toc, „## Interface: 16001“);
+    -- zeigt den Restschaden eigener DoTs am Lebensbalken des Ziels. Vorerst nur „läuft es?“.
+    DoesItDie = { label = "Does It Die", folders = { "DoesItDie" }, features = {} },
     Capping = { label = "Capping", folders = { "Capping" }, features = { battlegroundTimers = true } },
     -- Beute im Gegner-Tooltip: Tnny's Mob Loot zeigt seine Liste neben dem Tooltip nur mit dem Schalter „hover“
     -- (TnnysMobLootDB.settings.hover, Standard aus) und nur, solange seine Taste gehalten wird (keys.unitLoot,

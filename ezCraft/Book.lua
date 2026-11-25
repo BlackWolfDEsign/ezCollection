@@ -297,6 +297,23 @@ function Book.BuildMenu(root, kind, prof)
     ns.Icons.Apply(title, ns.Icons.Profession(kind))
     local build = Book.MENUS[kind] or GatherMenu
     build(root, kind, prof)
+    Book.TeachEntries(root, prof)
+end
+
+-- „Was kommt wann“ und „Wo kommt was“ für diesen Sammelberuf (Nutzer am 24.11.2026): Kräuterkunde und Kürschnerei haben in
+-- Forever kein Fenster mit Rezepten, an dem die zwei Reiter stehen könnten – das Menü öffnet sie auf der Seite „Berufe“.
+-- → Zahl der Einträge
+function Book.TeachEntries(root, prof)
+    local fn = Core.Knowledge and Core.Knowledge.ProfessionOfLine
+    local key = prof.line and type(fn) == "function" and Core.Call(fn, prof.line) or nil
+    local panel = ns.Panel
+    if not (key and panel and panel.CanTeach and panel.CanTeach()) then return 0 end
+    Core.Menu.Divider(root)
+    for _, tab in ipairs({ "when", "where" }) do
+        local entry = Core.Menu.Button(root, L["TAB_" .. tab], function() panel.OpenTeach(key, tab) end)
+        Core.Menu.Tip(entry, L["TAB_" .. tab], L["TAB_" .. tab .. "_TIP"])
+    end
+    return 2
 end
 
 function Book.OpenMenu(button)

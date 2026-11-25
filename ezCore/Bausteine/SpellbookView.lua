@@ -35,9 +35,10 @@ local Core = ezCore
     Tooltip wählt die Seite nach dem Platz (Core.TipAnchor). Eine Fußzeile (opts.footer) nennt z. B. die Quelle.
 
     Knöpfe (EC-35, nur mit opts.buttons = true): Ein Eintrag trägt bis zu drei Knöpfe (line.buttons, Kästchen oder
-    Pfeil) in einer Spalte am rechten Rand, die Zeilenart „action“ einen Knopf unter ihrem Text (mit line.second einen
-    zweiten rechts daneben). Ein Klick ruft nur opts.onButton des Moduls (nichts Geschütztes, kein Zauber) und zeichnet
-    die Seite neu. Ziehen eines Eintrags auf einen anderen (line.drag, opts.onDrop): SV.DragStart/SV.DragStop.
+    Pfeil) in einer Spalte am rechten Rand, die Zeilenart „action“ einen Knopf unter ihrem Text (mit line.second und
+    line.third einen zweiten und dritten rechts daneben). Ein Klick ruft nur opts.onButton des Moduls (nichts Geschütztes,
+    kein Zauber) und zeichnet die Seite neu. Ziehen eines Eintrags auf einen anderen (line.drag, opts.onDrop):
+    SV.DragStart/SV.DragStop.
 
     Taint-sicher: eigene Rahmen als Kinder von SpellBookFrame bzw. PlayerSpellsFrame, nur an Blizzards Teilen
     verankert (PagedSpellsFrame und seine Ansichten View1/View2, Buchseiten); die Ansicht deckt die Zauberliste ab,
@@ -93,7 +94,9 @@ SV.ICON_W = 50                        -- Symbol links im Eintrag (Text beginnt d
 SV.HEADER_GAP = 12                    -- fester Abstand über einer Kopfzeile (nicht ganz oben auf der Seite)
 SV.HEADER_CHAR_W, SV.SUM_CHAR_W = 12, 8.5   -- Überschrift (SystemFont_Huge2), Text rechts (SystemFont_Med3)
 SV.HEADER_SUM_Y = 4                   -- Unterkante des Texts rechts über der Mitte der Kopfzeile (Überschrift: +14)
+SV.HEADER_BUTTON = 20                 -- Knopf neben der Überschrift (line.button), Seitenlänge
 SV.HEADER_LINE_H, SV.SUM_LINE_H = 26, 17    -- Zeilenhöhe der Überschrift und des Texts rechts (SV.CellRects)
+SV.FOLD_W = 22                        -- Platz des Aufklapp-Pfeils links vor einem Absatz (line.fold)
 local ELLIPSIS = "…"
 local ARROW = "Interface\\Buttons\\Arrow-%s-%s"   -- klassische Dateien: Arrow-Up-Up, Arrow-Down-Disabled …
 
@@ -303,7 +306,9 @@ end
 
 -- Zeilen eines Eintrags vorab (reine Funktion, Befund 3): höchstens SV.ENTRY_LINES, verteilt in der Reihenfolge
 -- Name, dritte Zeile, zweite Zeile, zweite Zeile des Namens, zweite der zweiten Zeile, zweite der dritten Zeile (je
--- Teil höchstens SV.NAME_LINES, SV.SUB_LINES, SV.DETAIL_LINES). w: Breite des Eintrags.
+-- Teil höchstens SV.NAME_LINES, SV.SUB_LINES, SV.DETAIL_LINES). w: Breite des Eintrags. line.lines: mehr Zeilen für diesen
+-- Eintrag (Bild vom 24.11.2026: in der Auswahl der Rotationen endeten Namen mit „…“) – jeder Teil darf dann so lang werden;
+-- der Eintrag wird höher, die Reihe mit ihm (SV.EntryHeight).
 -- → { name = { text, lines, full }, sub = …, detail = …, height (Höhe des Texts), cut (etwas ist gekürzt) };
 -- lines = 0: der Teil fehlt oder hat keinen Platz (dann steht er nur im Tooltip).
 function SV.EntryText(line, w)
@@ -311,18 +316,23 @@ function SV.EntryText(line, w)
     local name, sub, detail = EntryFields(line)
     local texts = { name = name, sub = sub, detail = detail }
     local charW = { name = SV.NAME_CHAR_W, sub = SV.CHAR_W, detail = SV.CHAR_W }
-    local caps = { name = SV.NAME_LINES, sub = SV.SUB_LINES, detail = SV.DETAIL_LINES }
+    local left = math.max(SV.ENTRY_LINES, math.floor(tonumber(line.lines) or 0))
+    local more = left > SV.ENTRY_LINES
+    local caps = { name = more and left or SV.NAME_LINES, sub = more and left or SV.SUB_LINES, detail = more and left or SV.DETAIL_LINES }
     local want, got = {}, { name = 0, sub = 0, detail = 0 }
     for _, part in ipairs({ "name", "sub", "detail" }) do
         want[part] = texts[part] and #(SV.Wrap(texts[part], width, 99, charW[part])) or 0
     end
     want.name = math.max(1, want.name)
-    local left = SV.ENTRY_LINES
-    for _, part in ipairs({ "name", "detail", "sub", "name", "sub", "detail" }) do
+    local function Give(part)
         if left > 0 and got[part] < want[part] and got[part] < caps[part] then
             got[part] = got[part] + 1
             left = left - 1
         end
+    end
+    for _, part in ipairs({ "name", "detail", "sub", "name", "sub", "detail" }) do Give(part) end
+    for _ = 1, more and left or 0 do
+        for _, part in ipairs({ "name", "sub", "detail" }) do Give(part) end
     end
     local result, cut, parts = { height = 0 }, false, 0
     for _, part in ipairs({ "name", "sub", "detail" }) do
@@ -361,6 +371,8 @@ function SV.HeaderText(line, w)
     local rightW = right ~= "" and math.min(math.ceil(Chars(right) * SV.SUM_CHAR_W),
         math.max(span - leftNeed - 8, math.floor(span / 2))) or 0
     local leftW = span - (rightW > 0 and rightW + 8 or 0)
+    -- Platz für den Knopf hinter der Überschrift (line.button; Hinweis des Reviews vom 24.11.2026)
+    if type(line.button) == "table" then leftW = leftW - SV.HEADER_BUTTON - 6 end
     local lines, cutL = SV.Wrap(left, leftW, 1, SV.HEADER_CHAR_W)
     local rlines, cutR = SV.Wrap(right, rightW, 1, SV.SUM_CHAR_W)
     return { left = cutL and (lines[1] or "") or left, right = cutR and (rlines[1] or "") or right,
@@ -420,7 +432,8 @@ function SV.Layout(lines, pageW, pageH)
         if line.kind == "header" then return math.min(HEADER_H, pageH) end
         local h = tonumber(Plain(line.height))
         if not h then
-            h = line.kind == "action" and SV.ACTION_H or SV.TextHeight(Plain(line.text) or Plain(line.left), pageW)
+            h = line.kind == "action" and SV.ACTION_H or SV.TextHeight(Plain(line.text) or Plain(line.left),
+                (tonumber(pageW) or PAGE_W) - (line.fold ~= nil and SV.FOLD_W or 0))
         end
         return math.min(h, pageH)
     end
@@ -501,7 +514,33 @@ end
 local function Color(fs) fs:SetTextColor(BookColor()) end
 
 -- Kopfzeile: Blizzards SpellBookHeaderTemplate (Schrift, Trennlinie, Hintergrund), rechts ein zweiter Text.
-local function NewHeader(parent)
+-- Klick einer Zeile an den Rückruf des Moduls (wie bei Zauber-Einträgen; Fehler landen in der Fehlerliste)
+local function LineClick(view, line, button, f)
+    local onClick = view and view.opts and view.opts.onClick
+    if not (onClick and line) then return end
+    local ok, err = pcall(onClick, line, button or "LeftButton", f)
+    if not ok then Core.Error(view.owner, err, "onClick") end
+end
+
+-- Kleiner Knopf neben der Überschrift (line.button = { icon, tip }; Spieltest-Befund des Nutzers vom 24.11.2026:
+-- „Zum Lehrer“ als Kartenmarkierungs-Knopf direkt neben dem Titel). Klick ruft opts.onClick(Kopfzeile).
+local function NewHeaderButton(h, view)
+    local b = CreateFrame("Button", nil, h)
+    b:SetSize(SV.HEADER_BUTTON, SV.HEADER_BUTTON)
+    b.Icon = b:CreateTexture(nil, "ARTWORK")
+    b.Icon:SetAllPoints()
+    if b.SetHighlightTexture then b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD") end
+    b:SetScript("OnClick", function(self, button) LineClick(view, h.line, button, self) end)
+    b:SetScript("OnEnter", function(self)
+        local tip = h.line and type(h.line.button) == "table" and h.line.button.tip
+        if tip then Core.ShowTip(self, tip) end
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:Hide()
+    return b
+end
+
+local function NewHeader(parent, view)
     local ok, h = pcall(CreateFrame, "Frame", nil, parent, "SpellBookHeaderTemplate")
     if not (ok and h and type(h.Text) == "table") then
         h = CreateFrame("Frame", nil, parent)
@@ -524,6 +563,7 @@ local function NewHeader(parent)
     if h.Text.SetMaxLines then h.Text:SetMaxLines(1) end
     Color(h.Sum)
     h.Right = h.Sum
+    h.Button = NewHeaderButton(h, view)
     return h
 end
 
@@ -817,7 +857,7 @@ local function FillSpell(f, line, fit)
     f.caps = { name = fit.name.lines, sub = fit.sub.lines, detail = fit.detail.lines }
 end
 
-local function NewText(parent)
+local function NewText(parent, view)
     local f = CreateFrame("Frame", nil, parent)
     f.Text = f:CreateFontString(nil, "ARTWORK", "SystemFont_Med1")
     f.Text:SetPoint("TOPLEFT", 4, -4)
@@ -826,22 +866,61 @@ local function NewText(parent)
     f.Text:SetJustifyV("TOP")
     if f.Text.SetWordWrap then f.Text:SetWordWrap(true) end
     Color(f.Text)
+    f.Fold = f:CreateTexture(nil, "ARTWORK")
+    f.Fold:SetSize(16, 16)
+    f.Fold:SetPoint("TOPLEFT", 4, -4)
+    f.Fold:Hide()
     f:SetScript("OnEnter", function(self)
-        if self.full then Core.ShowTip(self, self.full) end
+        local tip = self.full
+        local hint = self.line and self.line.action ~= nil and self.line.tip or nil
+        if hint then tip = tip and (tip .. "\n" .. hint) or hint end
+        if tip then Core.ShowTip(self, tip) end
+    end)
+    -- nur Zeilen mit line.action rufen den Rückruf des Moduls
+    f:SetScript("OnMouseUp", function(self, button)
+        if self.line and self.line.action ~= nil then LineClick(view, self.line, button, self) end
     end)
     f:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return f
 end
 
--- Absatz auf seine Zeile begrenzen: so viele Zeilen, wie in die Höhe passen; gekürzt zeigt der Tooltip alles.
-local function FillText(f, text, h)
+-- Passt der ganze Text (schon gesetzt, ohne Zeilengrenze) laut Client in seinen Kasten? Nur mit klarer Antwort: der
+-- Kasten hat schon seine Breite (sonst misst der Client mit der alten und meldet zu wenig, Review 25.11.2026), nicht
+-- gekürzt (IsTruncated) und eine gemessene Höhe, die hineinpasst. → true | false (nein oder unbekannt)
+local function FitsWhole(fs, width, room)
+    local got = Core.Num(fs:GetWidth())
+    if type(fs.IsTruncated) ~= "function" or not got or math.abs(got - width) > 1 then return false end
+    local truncated = Plain(fs:IsTruncated())
+    local height = TextHeightOf(fs, nil)
+    return truncated == false and height ~= nil and height <= room
+end
+
+-- Absatz auf seine Zeile begrenzen: so viele Zeilen, wie in die Höhe passen; gekürzt zeigt der Tooltip alles. Die Höhe ist
+-- vor dem Zeichnen nur geschätzt (SV.TextHeight, ohne Umbruch an Wortgrenzen, mit breiteren Zeichen): Passt der Text in
+-- Wahrheit ganz hinein, steht er ganz da (Spieltest 25.11.2026: „So funktioniert sie“ endete mit „kämpfst…“). fold:
+-- Aufklappzeile (false = zu, true = offen) – Blizzards Pfeil davor (Core.FoldTexture), der Text rückt ein.
+local function FillText(f, text, h, fold)
     h = Core.Num(h) or TEXT_H
+    local indent = fold ~= nil and SV.FOLD_W or 0
+    f.Text:SetPoint("TOPLEFT", 4 + indent, -4)
+    if fold ~= nil then f.Fold:SetTexture(Core.FoldTexture(fold)) end
+    f.Fold:SetShown(fold ~= nil)
+    local width = (Core.Num(f:GetWidth()) or PAGE_W) - indent
+    if text ~= "" then
+        f.Text:SetText(text)
+        if f.Text.SetMaxLines then f.Text:SetMaxLines(0) end
+        if FitsWhole(f.Text, width - 8, h - 8) then
+            f.full = nil
+            if f.EnableMouse then f:EnableMouse(false) end
+            return
+        end
+    end
     local maxLines = math.max(1, math.floor((h - 8) / SV.TEXT_LINE_H))
     -- gekürzt an einer Wortgrenze (Befund 3), nicht erst vom Spiel mitten im Wort
-    local lines, wrapped = SV.Wrap(text, (Core.Num(f:GetWidth()) or PAGE_W) - 8, maxLines, SV.CHAR_W)
+    local lines, wrapped = SV.Wrap(text, width - 8, maxLines, SV.CHAR_W)
     f.Text:SetText(wrapped and table.concat(lines, "\n") or text)
     if f.Text.SetMaxLines then f.Text:SetMaxLines(maxLines) end
-    local cut = wrapped or TextHeightOf(f.Text, 0) > h - 8 or SV.TextHeight(text, Core.Num(f:GetWidth())) > h
+    local cut = wrapped or TextHeightOf(f.Text, 0) > h - 8 or SV.TextHeight(text, width) > h
     f.full = (cut and text ~= "") and text or nil
     if f.EnableMouse then f:EnableMouse(f.full ~= nil) end
 end
@@ -962,57 +1041,83 @@ local function NewAction(parent, view)
     if f.Text.SetWordWrap then f.Text:SetWordWrap(true) end
     if f.Text.SetMaxLines then f.Text:SetMaxLines(2) end
     Color(f.Text)
-    local ok, button = pcall(CreateFrame, "Button", nil, f, "UIPanelButtonTemplate")
-    if not (ok and button) then
-        button = CreateFrame("Button", nil, f)
-        button:SetNormalFontObject("GameFontNormal")
-        button:SetHighlightFontObject("GameFontHighlight")
-        button:SetDisabledFontObject("GameFontDisable")
+    local function Add(previous)
+        local ok, button = pcall(CreateFrame, "Button", nil, f, "UIPanelButtonTemplate")
+        if not (ok and button) then
+            button = CreateFrame("Button", nil, f)
+            button:SetNormalFontObject("GameFontNormal")
+            button:SetHighlightFontObject("GameFontHighlight")
+            button:SetDisabledFontObject("GameFontDisable")
+        end
+        button:SetHeight(SV.ACTION_BUTTON_H)
+        if previous then
+            button:SetPoint("LEFT", previous, "RIGHT", SV.ACTION_GAP, 0)
+            button:Hide()
+        else
+            button:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 4, 2)
+        end
+        return Wire(button, view)
     end
-    button:SetHeight(SV.ACTION_BUTTON_H)
-    button:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 4, 2)
-    f.Button = Wire(button, view)
-    -- zweiter Knopf rechts daneben (line.second = { key, button, tip, disabled }), z. B. „Andere wählen“ und „Erstellen“
-    local okSecond, second = pcall(CreateFrame, "Button", nil, f, "UIPanelButtonTemplate")
-    if not (okSecond and second) then
-        second = CreateFrame("Button", nil, f)
-        second:SetNormalFontObject("GameFontNormal")
-        second:SetHighlightFontObject("GameFontHighlight")
-        second:SetDisabledFontObject("GameFontDisable")
-    end
-    second:SetHeight(SV.ACTION_BUTTON_H)
-    second:SetPoint("LEFT", button, "RIGHT", 6, 0)
-    second:Hide()
-    f.Second = Wire(second, view)
+    f.Button = Add()
+    -- zweiter und dritter Knopf rechts daneben (line.second, line.third = { key, button, tip, disabled }), z. B. „Andere
+    -- wählen“ und „Erstellen“ oder „Ablegen“, „Ordnen“ und „Zurück“
+    f.Second = Add(f.Button)
+    f.Third = Add(f.Second)
     return f
 end
 
-SV.ACTION_BUTTON_W, SV.ACTION_PAIR_W = 150, 100   -- Mindestbreite eines Knopfs allein bzw. zu zweit
+SV.ACTION_BUTTON_W, SV.ACTION_PAIR_W = 150, 100   -- Mindestbreite eines Knopfs allein bzw. neben einem weiteren
+SV.ACTION_GAP = 6                                 -- Abstand zwischen zwei Knöpfen
+SV.ACTION_PAD, SV.ACTION_PAD_MIN = 30, 12         -- Rand um die Beschriftung (beide Seiten zusammen), wenigstens
 
-local function FillActionButton(button, line, key, label, tip, disabled, minWidth)
+-- Breiten der Knöpfe einer Zeile aus den Breiten ihrer Beschriftungen (reine Funktion): jeder mit SV.ACTION_PAD Rand und
+-- Mindestbreite; sind sie zusammen breiter als room, geben zuerst die Mindestbreiten nach, dann der Rand (nie unter
+-- SV.ACTION_PAD_MIN). → { Breite … }
+function SV.ActionWidths(texts, room)
+    local n = #texts
+    local minWidth = n > 1 and SV.ACTION_PAIR_W or SV.ACTION_BUTTON_W
+    local widths, plain = {}, 0
+    local sum = math.max(0, n - 1) * SV.ACTION_GAP
+    for i, width in ipairs(texts) do
+        widths[i] = math.max(minWidth, width + SV.ACTION_PAD)
+        sum, plain = sum + widths[i], plain + width
+    end
+    room = tonumber(room)
+    if not room or n < 2 or sum <= room then return widths end
+    local pad = math.floor((room - (n - 1) * SV.ACTION_GAP - plain) / n)
+    pad = math.max(SV.ACTION_PAD_MIN, math.min(SV.ACTION_PAD, pad))
+    for i, width in ipairs(texts) do widths[i] = width + pad end
+    return widths
+end
+
+local function FillActionButton(button, line, key, label, tip, disabled)
     button.line, button.key = line, key
     button.spec = { title = Plain(label), tip = tip }
     button:SetText(Plain(label) or "")
-    local width = button.GetTextWidth and Core.Num((button:GetTextWidth())) or 0
-    button:SetWidth(math.max(minWidth, (width or 0) + 30))
     button:SetEnabled(not disabled)
+    return button.GetTextWidth and Core.Num((button:GetTextWidth())) or 0
 end
 
-local function FillAction(f, line)
+local function FillAction(f, line, w)
     f.line = line
     f.Text:SetText(Plain(line.left) or Plain(line.text) or "")
     local second = type(line.second) == "table" and line.second or nil
-    local minWidth = second and SV.ACTION_PAIR_W or SV.ACTION_BUTTON_W
-    FillActionButton(f.Button, line, line.key, line.button, line.tip, line.disabled, minWidth)
-    if f.Second then
-        if second then
-            FillActionButton(f.Second, line, second.key, second.button, second.tip, second.disabled, minWidth)
-            f.Second:Show()
+    local third = second and type(line.third) == "table" and line.third or nil
+    local texts = { FillActionButton(f.Button, line, line.key, line.button, line.tip, line.disabled) }
+    local buttons = { f.Button }
+    local function Extra(button, spec)
+        if spec then
+            buttons[#buttons + 1] = button
+            texts[#texts + 1] = FillActionButton(button, line, spec.key, spec.button, spec.tip, spec.disabled)
+            button:Show()
         else
-            f.Second.key = nil
-            f.Second:Hide()
+            button.key = nil
+            button:Hide()
         end
     end
+    Extra(f.Second, second)
+    Extra(f.Third, third)
+    for i, width in ipairs(SV.ActionWidths(texts, (Core.Num(w) or PAGE_W) - 8)) do buttons[i]:SetWidth(width) end
 end
 
 local BUILD = { header = NewHeader, spell = NewSpell, text = NewText, action = NewAction, buttons = NewButtons }
@@ -1233,6 +1338,20 @@ function View:Render()
                 f.Text:SetPoint("LEFT", f, "LEFT", -8, 14)
                 f.Text:SetPoint("RIGHT", f, "RIGHT", -60 - (head.rightW > 0 and head.rightW + 8 or 0), 14)
                 f.head = head
+                f.line = line
+                -- Knopf direkt hinter dem Text der Überschrift (line.button)
+                if f.Button then
+                    if type(line.button) == "table" then
+                        f.Button.Icon:SetTexture(line.button.icon or "Interface\\Icons\\INV_Misc_Map_01")
+                        local textW = Core.Num(f.Text.GetStringWidth and f.Text:GetStringWidth()) or 0
+                        textW = math.min(textW, head.leftW)      -- nie über den Platz der Überschrift hinaus
+                        f.Button:ClearAllPoints()
+                        f.Button:SetPoint("LEFT", f.Text, "LEFT", textW + 6, 0)
+                        f.Button:Show()
+                    else
+                        f.Button:Hide()
+                    end
+                end
             elseif kind == "spell" then
                 FillSpell(f, line, cell.text)
                 if native and type(line.buttons) == "table" then
@@ -1244,9 +1363,12 @@ function View:Render()
                     holder:Show()
                 end
             elseif kind == "action" then
-                FillAction(f, line)
+                FillAction(f, line, cell.w)
             else
-                FillText(f, Plain(line.text) or Plain(line.left) or "", cell.h)
+                FillText(f, Plain(line.text) or Plain(line.left) or "", cell.h, line.fold)
+                -- Text mit line.action ist klickbar (etwa „… und n weitere“ aufklappen, Befund vom 24.11.2026)
+                f.line = line
+                if line.action ~= nil and f.EnableMouse then f:EnableMouse(true) end
             end
             f:Show()
         end
@@ -1281,7 +1403,9 @@ function View:Widgets()
     for _, f in ipairs(self.pools.action or {}) do
         if f:IsShown() then
             widgets.actions[#widgets.actions + 1] = f.Button
-            if f.Second and f.Second:IsShown() then widgets.actions[#widgets.actions + 1] = f.Second end
+            for _, button in ipairs({ f.Second, f.Third }) do
+                if button:IsShown() then widgets.actions[#widgets.actions + 1] = button end
+            end
         end
     end
     return widgets
@@ -1462,7 +1586,7 @@ end
       title, tip Tooltip des Reiters (Text oder fn), count fn() → Zahl/Text unten rechts am Reiter
       onClick    fn(zeile, maustaste, eintrag) bei Klick auf einen Zauber-Eintrag
       buttons    true: ezCore zeichnet line.buttons (bis zu drei: { key, check | arrow | texture, title, tip, disabled,
-                 place }) und Zeilen kind = "action" ({ left, button, tip, disabled, key, height }) selbst
+                 place }) und Zeilen kind = "action" ({ left, button, tip, disabled, key, height, second, third }) selbst
       onButton   fn(zeile, knopfSchlüssel, knopf) bei Klick auf einen Knopf; danach zeichnet die Seite neu
       footer     Text oder fn() → Text der Fußzeile (z. B. „Quelle: …“), nil = keine
       enabled    fn() → bool (aus: Reiter und Ansicht weg). Beim Schließen des Zauberbuchs (auch Wechsel auf „Talente“)

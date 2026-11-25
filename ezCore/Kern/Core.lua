@@ -10,10 +10,10 @@ local ADDON, ns = ...
                    SlotText, EditMode, Mover, Tooltip, UnitTooltip, ItemTooltip, ActionSlots, Glow, SecureButton,
                    GroupFrames, ClickBindings, AuraRow, ChatBar, SlotMarks, MoveFrames, Keys, Comfort
       Charakter    Daten je Charakter und Twink: Characters, Contacts, Inventory, Mail, MailQueue, Profiles,
-                   Professions, Lockouts, CharData, Durability, Junk, History
+                   Professions, Talents, Lockouts, CharData, Durability, Junk, History
       Wissen       Wissen über Gegenstände, Zauber, Orte und Quellen: Gathering, KnowledgeData, Knowledge, Collections,
                    Recipes, SpellData, MacroLogic, Spells, Auras, Npcs, DungeonData, Dungeons, Prices, SalvageData,
-                   Salvage, Sources, SourcesQuestie, OtherAddOns
+                   Salvage, Sources, SourcesQuestie, OtherAddOns, RotationBuilds
       Datenbank    Entdecker-Datenbank und Preis-Schicht: DBKeys, DB, DBMarket, Discovery, DiscoveryView,
                    DiscoveryLegacy (nur hier stehen die Träger, Lint-Regel 10)
       Werkzeuge    Fehlerliste, Diagnose, Daten-Probe, Sichern, Erster Start, Beitragen, Übersicht: ErrorList,
@@ -65,6 +65,7 @@ local ADDON, ns = ...
                       der Ereignisse, Tempo-Messung, Dokumentation des Clients; Ablage ezCoreDB.probe)
       Backup.lua      alle Einstellungen der Module als ein Text sichern und übernehmen
       FirstStart.lua  Erster Start: Übersicht (Module, fremde Addons, Vortritt), Rundgang, alle Erklärblasen neu
+      ConsentNews.lua Nachfrage nach einem Update: nur die Zeilen der Einführung, die neu dazukamen (Core.Intro)
       Comfort.lua     Abschnitt „Komfort“: Beta-Hinweise ausblenden, Kamera weiter herauszoomen, CVar-Schalter
       MoveFrames.lua  Blizzard-Fenster an der Titelleiste verschieben (Mover, Teil 2) und skalieren
       Keys.lua        Tasten-Dienst: Einträge in Blizzards Tastaturbelegung (mit Bindings.xml)
@@ -83,13 +84,16 @@ local ADDON, ns = ...
       Glow.lua        Leucht-Dienst: ein Leuchtrahmen und eine Tooltip-Zeile je Aktionsknopf (Core.Glow)
       Auras.lua       Auren lesen, geheime gezählt statt verglichen (ezCombat, ezBuff)
       Profiles.lua    Profile je Charakter, Klasse, Spezialisierung, Export/Import (ezBag, ezPanel)
+      BarProfiles.lua Leisten-Profile: Aktionsleisten samt Makros und Tasten speichern und laden (ezMacro, ezBars)
       Professions.lua Berufe und Berufs-Abklingzeiten aller Twinks
+      Talents.lua     Talentbäume des gespielten Charakters: Punkte je Baum, Hauptbaum (ezCombat, ezTalent)
       Lockouts.lua    Instanz-Sperren aller Twinks, Instanzen der letzten Stunde
       CharData.lua    Gegenstandsstufe je Platz, Währungen, zuletzt geänderte Fraktion je Twink
       Npcs.lua        NPC-Ortswissen: Lehrer und Händler mit Gebiet und Koordinaten
       SalvageData.lua, Salvage.lua   Tabelle „Zerlegen“ (Entzaubern) als Daten
       Durability.lua  Haltbarkeit je Platz, Summe, Reparaturkosten, je Twink gemerkt
       OtherAddOns.lua fremde Addons an einer Stelle erkennen (Rücksicht, Leitlinie 9)
+      RotationBuilds.lua  welche Rotation (ezCombat) zu welcher Talentvorlage (ezTalent) gehört, n:m
       ChatBar.lua     gemeinsame Knopfleiste am Chat (ezChat, ezMacro)
       Collection.lua  Übersicht in den Einstellungen (Seite „ezCollection“ samt Unterseite „Charaktere“), /ezcollection
 
@@ -904,6 +908,56 @@ function Core.API(name)
     local mod = modules[name]
     local api = mod and mod.ns and mod.ns.API
     return type(api) == "table" and api or nil
+end
+
+-- Auskunft eines anderen Moduls, sicher: Core.AskModule(ns, "ezGear", "Status", link) → Antworten der Funktion aus dessen
+-- ns.API, nil ohne Modul oder Funktion. Wirft sie, landet der Fehler im Log des fragenden Moduls (ns.Error), Antwort nil.
+-- (Durchsicht 24.11.2026: vorher je eine gleiche Hülle in ezAuction, ezMerchant und ezCraft.)
+local function Answer(mns, name, fn, ok, ...)
+    if ok then return ... end
+    if type(mns) == "table" and type(mns.Error) == "function" then
+        mns.Error((...), fn .. " (" .. name .. ")")
+    end
+    return nil
+end
+function Core.AskModule(mns, name, fn, ...)
+    local api = Core.API(name)
+    local ask = api and api[fn]
+    if type(ask) ~= "function" then return nil end
+    return Answer(mns, name, fn, pcall(ask, ...))
+end
+
+-- Stand eines Gegenstands laut ezGear (Schnittstelle Status) und Text dazu; „noslot“, wenn ezGear diesen Platz nicht
+-- bewertet (Hemd, Wappenrock); nil ohne ezGear, ohne Link oder bei einem Fehler (dann im Log von ns).
+function Core.GearStatus(mns, link)
+    local api = Core.API("ezGear")
+    if not (api and link and type(api.Status) == "function") then return nil end
+    local ok, kind, text = pcall(api.Status, link)
+    if not ok then
+        Answer(mns, "ezGear", "Status", false, kind)
+        return nil
+    end
+    return kind or "noslot", text
+end
+
+-- Schützt ezGear diesen Gegenstand vor Verkaufen, Wegwerfen und Zerlegen? true für Ausrüstung mit grünem oder gelbem
+-- Pfeil (besser – jetzt oder sobald gelernt bzw. die Stufe reicht) und vorsichtshalber, solange ezGear lädt, der Link
+-- fehlt oder die Frage scheitert; false ohne ezGear. Eine Regel für „Platz schaffen“ (ezBag), Plunder (Core.Junk) und
+-- Zerlegen (ezCraft). Ein älteres ezGear ohne WorthKeeping kennt nur den grünen Pfeil.
+function Core.GearProtects(mns, item, link)
+    local api = Core.API("ezGear")
+    if not api or not Core.IsEquipment(item) then return false end
+    local fn, old = api.WorthKeeping, false
+    if type(fn) ~= "function" then fn, old = api.IsUpgrade, true end
+    if type(fn) ~= "function" then return false end
+    if type(link) ~= "string" or Core.IsSecret(link) then return not old end
+    local ok, keep = pcall(fn, link)
+    if not ok then
+        Answer(mns, "ezGear", old and "IsUpgrade" or "WorthKeeping", false, keep)
+        return not old
+    end
+    if old then return keep == true end
+    return keep ~= false
 end
 
 -- Version eines Addons aus der TOC.

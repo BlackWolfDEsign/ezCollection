@@ -24,9 +24,13 @@ Jederzeit erreichbar:
 
 Was ohne dein Zutun Gold kostet, etwas sendet oder Blizzards Einstellungen umstellt (Plunder verkaufen, reparieren, Briefe einsammeln, automatisch antworten, Quests annehmen …), ist **ab Werk aus**. Auf der Seite „Einführung“ steht unter **„Einverständnis“** je Ablauf ein Häkchen mit einem Satz, was passiert, wenn es an ist. Es sind dieselben Schalter wie auf den Seiten der Module – du kannst sie hier oder dort setzen. Darunter stehen die Abläufe, die ab Werk an sind, weil sie nur auf deine eigene Handlung folgen; dort lassen sie sich abschalten. Im Kampf schaltet die Einführung nichts um.
 
+### Nach einem Update
+
+Bringt ein Update neue Funktionen, die dein Einverständnis brauchen, fragt ezCollection einmal nach – kurz nach dem Einloggen, mit einer Blase am Addon-Fach der Minikarte. Darin steht nur das Neue: je Funktion ein Häkchen (was sie tut, steht im Tooltip), dazu **„Alle annehmen“** und **„Fertig“**. Was du früher entschieden hast, bleibt, wie es ist. Beim ersten Mal (wenn du ezCollection schon vor dieser Fassung hattest) stehen dort alle Funktionen, die dein Einverständnis brauchen und bei dir aus sind; sind es viele, blätterst du mit „Weiter“ (schließt du schon auf einer früheren Seite mit dem X, kommen die übrigen Seiten beim nächsten Einloggen). „Fertig“ oder das X lässt das Neue aus; gefragt wird erst wieder, wenn ein späteres Update Neues bringt. Wieder zeigen: **Esc » Optionen » AddOns » ezCollection » Einführung**, Knopf **„Neu seit dem Update“**.
+
 ### Mithelfen
 
-Freiwillig: Du kannst dem Projekt deine Entdeckungen (Fundorte, Beute, Flugzeiten) schicken, damit alle sie bekommen. Versandt wird nie etwas von selbst; der Knopf „Mithelfen“ auf der Seite „Einführung“ (oder `/ez mithelfen`) erklärt den Weg. Mehr dazu: [beitragen.md](beitragen.md).
+Freiwillig: Du kannst dem Projekt deine Entdeckungen (Fundorte, Beute, Flugzeiten) als anonymen Text schicken, damit alle sie bekommen. Versandt wird nie etwas von selbst; der Knopf „Mithelfen“ auf der Seite „Einführung“ (oder `/ez mithelfen`) erklärt den Weg. Mehr dazu: [beitragen.md](beitragen.md).
 
 ### Abschalten
 

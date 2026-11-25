@@ -48,7 +48,7 @@ local Core = ezCore
                                        dort ungespeicherte Änderungen (pendingChanges), bleibt das Fenster offen, und
                                        ein Hinweis im Chat sagt, dass Speichern dort die neue Belegung überschriebe
                                        (nach dem Schreiben immer, auch bei opts.quiet; nur Reload(true) schweigt).
-                                       War die Makroverwaltung offen (ezMacro „Als Klick-Zauber belegen“), ist sie
+                                       War die Makroverwaltung offen (ezMacro „Ränge aktualisieren“), ist sie
                                        danach wieder offen statt des Zauberbuchs, das Blizzard beim Öffnen zeigt
 
     Zusammenbauen (ändern nur die übergebene Liste, nie das Spiel):
@@ -70,6 +70,11 @@ local Core = ezCore
       .KeyText(knopf, umschalttasten) → „Umschalt + Strg + Linksklick“
       .Describe(eintrag, zaubername) → was auf einer Taste liegt: Zaubername (zaubername oder Core.SpellName, sonst
                                        „#id“), „Makro „Name““, Blizzards „Ziel“/„Menü“, sonst „belegt“; ohne Eintrag „frei“
+
+    Blizzards Selbstwirken (nur gelesen; warum es beim Klick-Zaubern zählt: Kommentar bei .SelfCastKey):
+      .SelfCastKey() → "ALT" | "CTRL" | "SHIFT" | nil (keine Taste)   Blizzards Selbstwirk-Taste (ModifiedClick SELFCAST)
+      .HitsSelfCast(umschalttasten, selbstwirktaste) → selbstwirktaste | nil   liegt die Taste darauf (Umschalt+Alt trifft Alt)?
+      .AutoSelfCast() → true | false | nil                               „Selbstwirken: Automatisch“ (CVar autoSelfCast)
       .Spell(spellID, knopf, umschalttasten) → eintrag | nil, "invalid" | "secret" | "missing" | "unbindable"
       .Macro(name | nummer, knopf, umschalttasten) → eintrag | nil, "invalid" | "secret" | "missing" | "unknown"
       .Interaction("target" | "menu", knopf, umschalttasten) → eintrag | nil, grund
@@ -80,6 +85,10 @@ local Core = ezCore
                                        Taste mit weg – so verschwinden alte Belegungen beim nächsten Schreiben (T4-NG4)
       .Replace(liste, kind, alteID, neueID) → Anzahl (für „Ränge aktualisieren“)
       .KeepDefaults(liste, aktuell) → neue Liste, verdrängte Einträge
+      .Interactions(liste) → { { action, button, state = "ok" | "moved" | "missing", entry, on } } | nil: wo Blizzards
+                                       „Ziel“ und „Menü“ liegen (Spieltest 24.11.2026); entry = der Eintrag, on = was
+                                       sonst auf der Taste des Standards liegt
+      .RestoreInteractions(liste) → neue Liste, Anzahl: beides wieder auf Blizzards Standardtaste (Links, Rechts)
       .Assign(eintrag, opts) / .Unassign(knopf, umschalttasten, opts) → lesen, ändern, Set (ein Aufruf fürs Modul).
                                        Wartet schon ein Wunsch (im Kampf), bauen sie auf dessen Liste auf statt auf
                                        Blizzards Belegung: zwei Assign im Kampf schreiben beide, Load + Assign das
@@ -224,10 +233,7 @@ local function SlotKey(button, modifiers)
     return tostring(button) .. ":" .. tostring(modifiers or 0)
 end
 
--- Ist das Bit (Zweierpotenz) in der Maske gesetzt? Lua 5.1 ohne Bit-Operatoren.
-local function HasBit(mask, value)
-    return math.floor(mask / value) % 2 == 1
-end
+local HasBit = Core.HasBit
 
 local MODIFIER_LIMIT = 2 ^ 16   -- CB.ModifierBits fragt die Bits 0 bis 15
 
@@ -610,6 +616,56 @@ function CB.ModifierText(modifiers)
     return table.concat(parts, "+")
 end
 
+---------------------------------------------------------------------------
+-- Blizzards Selbstwirken (Fehler des Nutzers vom 23.11.2026: Klick auf einen Mitspieler wirkte auf ihn selbst)
+---------------------------------------------------------------------------
+
+-- Blizzards Option „Selbstwirken“ (Einstellungen » Gameplay » Kampf) steht ab Werk auf „Automatisch und Tastendruck“
+-- mit der Taste Alt (Forever-Quelle, Gethe/wow-ui-source Zweig forever: Blizzard_SettingsDefinitions_Frame/Combat.lua,
+-- Vorgabe 4; Blizzard_FrameXML/Bindings_Camelot.xml, ModifiedClick SELFCAST = ALT). Beides gilt auch beim Klick-Zaubern
+-- auf Blizzards Rahmen (SecureUnitButton_OnClick ruft C_ClickBindings.ExecuteBinding mit der Einheit des Rahmens; wohin
+-- der Zauber geht, entscheidet danach das Spiel):
+--   - mit gedrückter Selbstwirk-Taste wirkt der Zauber auf dich statt auf den geklickten Rahmen;
+--   - mit „Automatisch“ fällt ein Zauber auf einen Mitspieler außer Reichweite auf dein Ziel bzw. auf dich zurück
+--     (Fehler des Spiels seit der Engine von Wrath 3.4.1, Stanzilla/WoWUIBugs #382, von Blizzard nicht behoben).
+-- Nur gelesen – ezCore ändert die Option nie; umstellen kann sie der Spieler in Blizzards Fenster (Core.OpenPanel("combat",
+-- "SELF_CAST")).
+
+-- Selbstwirk-Taste → "ALT" | "CTRL" | "SHIFT" (mehrere in fester Reihenfolge, mit "-" verbunden) | nil (keine Taste
+-- („NONE“) oder nicht lesbar)
+function CB.SelfCastKey()
+    local ok, value = Core.PCall(rawget(_G, "GetModifiedClick"), "SELFCAST")
+    if not ok or not Text(value) then return nil end
+    local names = CB.ModifierNames(value)
+    if not names or #names == 0 then return nil end
+    return table.concat(names, "-")
+end
+
+-- Liegt eine Taste auf der Selbstwirk-Taste? modifiers: Text, Liste oder Blizzards Maske (wie .ModifierNames);
+-- selfKey: Selbstwirk-Taste (ohne Angabe .SelfCastKey()). → selfKey, wenn jede ihrer Umschalttasten in modifiers
+-- steckt, sonst nil. Vorsichtig gezählt: Umschalt+Alt trifft Alt (ob das Spiel bei einer weiteren gedrückten
+-- Umschalttaste auch auf dich wirkt, ist am Forever-Client zu bestätigen – lieber gewarnt als auf dich gewirkt).
+function CB.HitsSelfCast(modifiers, selfKey)
+    if selfKey == nil then selfKey = CB.SelfCastKey() end
+    if type(selfKey) ~= "string" then return nil end
+    local have, need = CB.ModifierNames(modifiers or ""), CB.ModifierNames(selfKey)
+    if not (have and need and #need > 0) then return nil end
+    local set = {}
+    for _, name in ipairs(have) do set[name] = true end
+    for _, name in ipairs(need) do
+        if not set[name] then return nil end
+    end
+    return selfKey
+end
+
+-- „Automatisch“ an (CVar autoSelfCast)? → true | false | nil (nicht lesbar)
+function CB.AutoSelfCast()
+    local ok, value = Core.PCall(Core.CVar, "autoSelfCast")
+    if not ok or Core.IsSecret(value) or value == nil then return nil end
+    value = tostring(value)
+    return value ~= "0" and value ~= ""
+end
+
 -- Was liegt auf einer Taste? spellName: Name des Zaubers, wenn das Modul ihn besser kennt (Rang, Ersatzname).
 function CB.Describe(entry, spellName)
     local L = Core.L
@@ -782,6 +838,53 @@ function CB.KeepDefaults(list, current)
     return out, dropped
 end
 
+-- Wo liegen Blizzards „Ziel“ und „Menü“? Auf Blizzards Einheiten-, Gruppen- und Raidrahmen öffnet ein Rechtsklick das
+-- Menü nur, wenn das Klick-Zauber-Profil ihm „Menü“ gibt (Forever-Quelle Blizzard_FrameXML/SecureTemplates.lua,
+-- SecureUnitButton_OnClick): Liegt dort ein Zauber, wird gezaubert, liegt dort nichts, geschieht nichts. Blizzards Fenster
+-- nimmt der Interaktion die Taste weg, sobald ein Zauber dorthin kommt, und speichert sie dann nicht mit (Spieltest des
+-- Nutzers vom 24.11.2026, wörtlich „ich kann nicht das menü beim gruppenmitglied oder mir aufrufen“).
+function CB.Interactions(list)
+    if type(list) ~= "table" then return nil end
+    local out = {}
+    for _, default in ipairs(CB.DEFAULTS) do
+        if InteractionID(default.action) ~= nil then
+            local info = { action = default.action, button = default.button, state = "missing" }
+            for _, entry in ipairs(list) do
+                if type(entry) == "table" and entry.kind == "interaction" and entry.action == default.action
+                    and not CB.Dead(entry) then
+                    if entry.button == default.button and (entry.modifiers or 0) == 0 then
+                        info.state, info.entry = "ok", entry
+                    elseif info.state == "missing" then
+                        info.state, info.entry = "moved", entry
+                    end
+                end
+            end
+            if info.state ~= "ok" then info.on = CB.Find(list, default.button, 0) end
+            out[#out + 1] = info
+        end
+    end
+    return out
+end
+
+-- „Ziel“ und „Menü“ wieder auf ihre Standardtaste: Was dort liegt, weicht; von der verlegten Taste geht die Interaktion weg.
+function CB.RestoreInteractions(list)
+    local out, count = Core.CopyTable(list), 0
+    for _, info in ipairs(CB.Interactions(list) or {}) do
+        local entry = info.state ~= "ok" and CB.Interaction(info.action, info.button) or nil
+        if entry then
+            for index = #out, 1, -1 do
+                local old = out[index]
+                if type(old) == "table" and old.kind == "interaction" and old.action == info.action then
+                    table.remove(out, index)
+                end
+            end
+            CB.Put(out, entry)
+            count = count + 1
+        end
+    end
+    return out, count
+end
+
 ---------------------------------------------------------------------------
 -- Sichern
 ---------------------------------------------------------------------------
@@ -919,7 +1022,7 @@ local function Apply(list, opts, also)
         return Finish(false, "error", detail)
     end
     -- Blizzards offenes Fenster zeigte sonst den alten Stand und schriebe ihn beim Speichern zurück (T4-NG2) – eine
-    -- Stelle für alle Schreibwege: ezHeal, ezMacro („Als Klick-Zauber belegen“, „Ränge aktualisieren“), Nachholen
+    -- Stelle für alle Schreibwege: ezHeal, ezMacro („Ränge aktualisieren“), Nachholen
     -- nach dem Kampf. Ohne opts.quiet: Der Hinweis auf ungespeicherte Änderungen dort warnt vor Datenverlust und ist
     -- keine Kampf- oder Fehlermeldung, die der Aufrufer selbst gibt (Gegenprüfung: ezMacros „Ränge aktualisieren“
     -- schreibt immer mit quiet, Speichern im Fenster schriebe sonst still die alten Ränge zurück).
@@ -1066,7 +1169,7 @@ function CB.Reloading() return reloading end
 -- Blizzards Fenster blendet beim Schließen sein „fokussiertes“ Fenster aus, auch die Makroverwaltung (OnHide →
 -- ClearFocusedFrame → HideUIPanel), und zeigt beim Öffnen das Zauberbuch (OnShow → SetFocusedFrame(FramePortraits[1]),
 -- Porträt 1 = PlayerSpellsFrame; Forever-Quelle Blizzard_ClickBindingUI.lua/.xml). Wer gerade in der Makroverwaltung
--- arbeitet (ezMacro „Als Klick-Zauber belegen“), bekommt sie nach dem Neuladen zurück; das Zauberbuch schließt
+-- arbeitet (ezMacro „Ränge aktualisieren“), bekommt sie nach dem Neuladen zurück; das Zauberbuch schließt
 -- wieder, wenn es vorher zu war. Nur über den Panel-Dienst, kein eigenes SetFocusedFrame (Leitlinie 5).
 local function RestoreMacro(bookBefore)
     if not bookBefore and Core.Panels.FrameVisible("PlayerSpellsFrame") == true then
@@ -1076,6 +1179,8 @@ local function RestoreMacro(bookBefore)
 end
 
 -- Offenes Fenster neu laden: schließen und öffnen über ezCores Panel-Dienst (Blizzard liest die Belegung in OnShow).
+-- Heute schließt und öffnet Klick-Zauber nur der Spieler (Panels.SelfOnly): Es bleibt beim Hinweis, der auch vor dem
+-- Speichern im noch offenen Fenster warnt. Das Neuladen selbst gilt, falls selfOnly wieder entfällt.
 -- Nichts in Blizzards Tabellen schreiben (Leitlinie 5); nur außerhalb des Kampfes. Ungespeicherte Änderungen des
 -- Spielers verwirft ezCore nicht: Dann bleibt das Fenster offen, und ein Hinweis nennt die Gefahr beim Speichern
 -- (quiet = true nur für Aufrufer, die selbst warnen; Apply ruft ohne quiet).
@@ -1086,6 +1191,12 @@ function CB.Reload(quiet)
     if Unsaved() then
         if not quiet then Core.Print(ADDON, Core.L.CLICKBIND_UNSAVED) end
         return false, "unsaved"
+    end
+    -- Klick-Zauber öffnet und schließt seit dem 23.11.2026 nur der Spieler (Kern/Panels.lua, selfOnly; Entscheidung des
+    -- Nutzers „Weg nennen“): Hinweis, dass die neue Belegung nach erneutem Öffnen erscheint
+    if Core.Panels.SelfOnly(CB.PANEL) then
+        if not quiet then Core.Print(ADDON, Core.L.CLICKBIND_REOPEN) end
+        return false, "self"
     end
     local macro = Core.PanelShown("macro") == true
     local book = Core.Panels.FrameVisible("PlayerSpellsFrame") == true

@@ -255,7 +255,9 @@ local function BuildIcon(frame, blizzard)
     frame.Text:SetPoint("BOTTOMRIGHT", 2, -2)
     frame:SetScript("OnEnter", ShowTooltip)
     frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    frame:SetScript("PreClick", function(self) Group.IconPreClick(self) end)
     frame:SetScript("PostClick", function(self)
+        if Group.IconPostClick(self) then return end
         local data = GF.Data(OWNER, iconOf[self])
         if data and data.unit and data.need then Group.MarkCast(data.unit, data.need) end
         C_Timer.After(0.5, function() ns.Check.Request() end)
@@ -520,6 +522,49 @@ local function InRangeNow(need, unit)
     local check = ns.Check.InRange
     if type(check) == "function" then return check(need.spell, unit) ~= false end
     return need.inRange == true
+end
+
+-- Symbol am Rahmen außer Reichweite: der Klick wirkt nichts (Folgeaufgabe aus dem Fehler des Nutzers vom 23.11.2026,
+-- wörtlich „klick auf rahmen von freund außerhalb der reichweite gibt mir den heal oder buff das ist aber dumm“). Mit
+-- Blizzards „Selbstwirken: Automatisch“ wirkt das Spiel einen Zauber auf einen Mitspieler außer Reichweite auf dein
+-- Ziel bzw. dich (Spielfehler, Stanzilla/WoWUIBugs #382; Ursache in docs/roadmap/ezHeal.md). Das Symbol gibt es nur
+-- außerhalb des Kampfes, dort darf ezBuff Attribute setzen: Der PreClick fragt die Reichweite frisch (wie Durchbuffen)
+-- und leert außer Reichweite die Aktion für diesen einen Klick; der PostClick setzt sie über Group.Fill wieder und sagt
+-- „<Name> ist außer Reichweite“. Im Kampf ändert der PreClick nichts (Risiko 25, Tests/welle30_kampf.lua).
+-- Ebenso, wenn das Mitglied seit der letzten Prüfung tot, offline oder nicht mehr sichtbar ist (Check.Reachable; die
+-- Reichweite ist dann „unbekannt“ und zählte sonst als „ja“ – Review vom 23.11.2026).
+local farClick = {}   -- [Symbol] = { name, gone }, solange ein Klick außer Reichweite läuft
+function Group.IconPreClick(self)
+    farClick[self] = nil
+    if ns.InCombat() then return false end
+    local frame = iconOf[self]
+    local data = frame and GF.Data(OWNER, frame)
+    if not (data and data.icon and data.need) then return false end
+    local unit = GF.Unit(frame)
+    if ns.IsSecret(unit) or type(unit) ~= "string" then unit = data.unit end
+    if ns.IsSecret(unit) or type(unit) ~= "string" then return false end
+    local reachable = ns.Check.Reachable(unit)
+    if reachable and InRangeNow(data.need, unit) then
+        -- fiel ein PostClick aus, wäre die Aktion noch leer: vor dem Klick wieder belegen
+        if data.icon:Get("type") == nil then Group.Fill(frame) end
+        return false
+    end
+    if reachable then data.need.inRange = false end   -- Group.Fill zeichnet das Symbol danach halb durchsichtig
+    data.icon:SetAction(nil)
+    farClick[self] = { name = (data.entry and data.entry.name) or unit, gone = not reachable }
+    return true
+end
+
+-- → true, wenn der Klick nichts wirken durfte (dann kein „gewirkt“ merken)
+function Group.IconPostClick(self)
+    local far = farClick[self]
+    if far == nil then return false end
+    farClick[self] = nil
+    local name = Core.ShortName(far.name) or far.name
+    ns.Print((far.gone and L.GROUP_ICON_GONE or L.GROUP_ICON_FAR):format(name))
+    local frame = iconOf[self]
+    if frame and not ns.InCombat() then Group.Fill(frame) end
+    return true
 end
 
 -- Nächster Zauber: Einheit, Eintrag – erst alles, was fehlt, dann was ausläuft; nur in Reichweite.

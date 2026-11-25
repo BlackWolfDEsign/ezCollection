@@ -33,10 +33,21 @@ local Core = ezCore
       - Nicht allein, nicht für Quests, die sich nicht teilen lassen.
       - Rücksicht (Leitlinie 9): übernimmt ein anderes Addon das automatische Teilen (ezCores Erkennung, Funktion
         questShare), hält sich ezQuest zurück. Stand 18.11.2026 kennt ezCore keines (docs/fremd-addons.md).
+      - Einer nach dem anderen (24.11.2026): meldet Blizzard, dass die Quest einem Mitspieler gerade angeboten wird, wartet
+        die Reihe auf seine Antwort (ShareJoin.lua, Join.Hold) – solange sein Fenster offen ist, ginge die nächste als
+        „beschäftigt“ verloren.
+      - Nichts geht verloren (Fehler des Nutzers vom 24.11.2026, wörtlich „quest teilen funktioniert aber bei mehreren quest
+        eines npcsw wird nur die erste geteitl“): Meldet Blizzard für einen Mitspieler „beschäftigt“, „tot“ oder „zu weit
+        entfernt“, kommt die Quest nach Share.RETRY Sekunden noch einmal, höchstens Share.TRIES mal (Share.Later) – nur,
+        solange sie jemandem fehlt, der beim ersten Mal dabei war und noch nicht gefragt wurde, nie, wenn ein anderer sie
+        abgelehnt hat, und nicht in großen Gruppen (Join.GROUP_MAX: jeder Versuch geht an alle).
       - Chat: keine Zeile je Quest (Blizzard meldet im Chat, wer sie angenommen hat oder schon hat); die zuletzt geteilte
         Quest und die Zahl dieser Sitzung stehen in /ezq status. Nur „Jetzt teilen“ (ein Klick) sagt eine Zeile.
     Sichtbar (Leitlinie 3): Haken „Angenommene Quests automatisch teilen“ und „Teilbare Quests jetzt teilen“ im
     Zahnrad-Menü am Questlog (Abschnitt „ezQuest“, QuestId.BuildMenu) und auf ezQuests Einstellungsseite.
+
+    Kommt ein Mitspieler dazu, bietet ShareJoin.lua die Quests an, die ihm fehlen (Wunsch vom 24.11.2026; eigener Schalter
+    joinShare) – über dieselbe Reihe (Share.Add mit join = true).
 ]]
 
 local Share = {}
@@ -44,14 +55,29 @@ ns.Share = Share
 
 Share.DELAY = 0.5   -- Sekunden nach dem Annehmen, bis die erste Quest hinausgeht (bündelt mehrere)
 Share.GAP = 2       -- höchstens eine Quest je so viele Sekunden
+Share.RETRY = 10    -- Sekunden bis zum nächsten Versuch, wenn sie bei einem Mitspieler nicht ankam
+Share.TRIES = 6     -- so oft versucht es ezQuest noch einmal
 
-Share.queue = {}        -- { { id = questID, manual = bool } … } in der Reihenfolge des Annehmens
+Share.queue = {}        -- { { id = questID, manual = bool, join = bool } … } in der Reihenfolge des Annehmens
 Share.queued = {}       -- [questID] = true, solange sie in der Reihe steht
 Share.shared = {}       -- [questID] = true: in dieser Sitzung schon geteilt (automatisch keine Wiederholung)
 Share.fromPlayer = {}   -- [questID] = true: ein Spieler hat sie dir geteilt (nicht zurückteilen)
 Share.count = 0         -- in dieser Sitzung geteilt
 Share.lastID = nil      -- zuletzt geteilte Quest
+Share.lastEntry = nil   -- ihr Eintrag der Reihe (für Share.Later)
 Share.last = nil        -- Laufzeit (Core.Uptime) des letzten Teilens
+
+-- Beitritt (ShareJoin.lua füllt dieselbe Tabelle). Leer, falls die neue Datei nach einem Update ohne Neustart des Spiels
+-- noch nicht geladen ist: Teilen und Status gehen dann wie vorher.
+Share.Join = {
+    Hold = function() return nil end,
+    Ready = function() return false end,
+    Pushed = function() end,
+    AskAgain = function() return false end,
+    Guids = function() return nil end,
+    Big = function() return false end,
+    StatusLines = function() return {} end,
+}
 
 local Call, Num, Flag = Core.Call, Core.Num, Core.Flag
 
@@ -103,15 +129,20 @@ function Share.Members()
     return units
 end
 
+-- Hat dieser Mitspieler die Quest? true | false | nil (Funktion fehlt, gesperrt, unbekannt)
+function Share.OnQuest(unit, questID)
+    local log = C_QuestLog
+    if type(log) ~= "table" then return nil end
+    return Core.Bool(Call(log.IsUnitOnQuest, unit, questID), nil)
+end
+
 -- Haben alle Mitspieler die Quest schon? Nur true, wenn es für JEDEN lesbar „ja“ ist; sonst (unbekannt, gesperrt,
 -- jemand ohne) false – dann teilt ezQuest einfach, Blizzard meldet den Rest.
 function Share.AllHave(questID)
-    local log = C_QuestLog
-    if type(log) ~= "table" or type(log.IsUnitOnQuest) ~= "function" then return false end
     local units = Share.Members()
     if #units == 0 then return false end
     for _, unit in ipairs(units) do
-        if Core.Bool(Call(log.IsUnitOnQuest, unit, questID), nil) ~= true then return false end
+        if Share.OnQuest(unit, questID) ~= true then return false end
     end
     return true
 end
@@ -144,7 +175,9 @@ function Share.Push(questID)
     if not index then return false end
     local before = Num(Call(log.GetSelectedQuest))
     Call(log.SetSelectedQuest, questID)
+    Share.pushing = true        -- ShareJoin.lua beobachtet QuestLogPushQuest: das hier meldet Next selbst
     local ok = pcall(push, index)
+    Share.pushing = nil
     -- Zurück wie Blizzards QuestMapQuestOptions_AbandonQuest (setzt die vorher gewählte Quest ohne Bedingung zurück):
     -- auch 0 („keine gewählt“), sonst bliebe die geteilte Quest ohne Klick in Blizzards Questlog gewählt
     -- (Gegenprüfung W-1811 vom 18.11.2026)
@@ -156,12 +189,26 @@ end
 local function Next(entry)
     local questID = entry.id
     if not Share.InGroup() then return false end
-    if not entry.manual and not Share.Active() then return false end      -- inzwischen ausgeschaltet
+    if entry.join then
+        if not Share.Join.Ready(questID) then return false end            -- inzwischen aus, zu weit weg oder schon da
+    elseif not entry.manual and not Share.Active() then
+        return false                                                      -- inzwischen ausgeschaltet
+    end
     if not Share.Pushable(questID) or Share.AllHave(questID) then return false end
-    if not Share.Push(questID) then return false end
+    if entry.again then
+        local again = Share.Join.AskAgain(questID, entry.guids)
+        if again == nil then Share.Later(entry) end     -- wem sie fehlt, ist gerade nicht in der Nähe
+        if not again then return false end
+    end
+    if not Share.Push(questID) then
+        if entry.join then Share.Join.broken = true end     -- Blizzards Teilen scheitert: nicht alle paar Sekunden wieder
+        return false
+    end
     Share.shared[questID] = true
     Share.count = Share.count + 1
-    Share.lastID = questID
+    Share.lastID, Share.lastEntry = questID, entry
+    entry.guids = entry.guids or Share.Join.Guids()
+    Share.Join.Pushed(questID)
     return true
 end
 
@@ -191,6 +238,10 @@ function Share.Pump()
         Schedule(Share.last + Share.GAP - now)
         return 0
     end
+    if Share.Join.Hold(now) then        -- ein Mitspieler hat die vorige noch nicht beantwortet
+        Schedule(Share.GAP)
+        return 0
+    end
     local done = 0
     while #Share.queue > 0 and done == 0 do
         local entry = table.remove(Share.queue, 1)
@@ -204,15 +255,54 @@ function Share.Pump()
     return done
 end
 
--- Quest in die Reihe stellen. manual: ein Klick („Jetzt teilen“) – dann auch, wenn sie schon geteilt wurde.
+-- Quest in die Reihe stellen. manual: ein Klick („Jetzt teilen“) – dann auch, wenn sie schon geteilt wurde; join: sie
+-- fehlt jemandem, der gerade dazukam (ShareJoin.lua merkt selbst, wer schon gefragt wurde).
 -- → true, wenn sie neu in der Reihe steht.
-function Share.Add(questID, manual)
+function Share.Add(questID, manual, join)
     questID = Num(questID)
-    if not questID or questID <= 0 or Share.queued[questID] then return false end
-    if not manual and (Share.shared[questID] or Share.fromPlayer[questID]) then return false end
-    Share.queue[#Share.queue + 1] = { id = questID, manual = manual == true }
+    if not questID or questID <= 0 then return false end
+    if Share.queued[questID] then
+        -- ein Klick geht vor: aus dem wartenden Eintrag ohne Klick wird einer mit Klick (sonst ginge der Klick verloren,
+        -- sobald der Eintrag wegen seiner eigenen Regeln entfällt)
+        for _, entry in ipairs(Share.queue) do
+            if entry.id == questID and manual and (entry.again or not entry.manual) then
+                entry.manual, entry.join, entry.again, entry.guids = true, false, nil, nil
+                return true
+            end
+        end
+        return false
+    end
+    if not manual and not join and (Share.shared[questID] or Share.fromPlayer[questID]) then return false end
+    Share.queue[#Share.queue + 1] = { id = questID, manual = manual == true, join = join == true }
     Share.queued[questID] = true
     Schedule(Share.DELAY)
+    return true
+end
+
+-- Die Quest kam bei einem Mitspieler nicht an: später noch einmal (Beitritt, entry.join: das übernimmt ShareJoin.lua
+-- selbst). → true, wenn vorgemerkt
+function Share.Later(entry)
+    if type(entry) ~= "table" or entry.join or entry.later or (entry.tries or 0) >= Share.TRIES or Share.Join.Big() then
+        return false
+    end
+    entry.tries, entry.later = (entry.tries or 0) + 1, true
+    C_Timer.After(Share.RETRY, function()
+        entry.later = nil
+        ns.Try("Share", function()
+            if not Share.InGroup() then return end
+            entry.again = true
+            if Share.queued[entry.id] then
+                -- steht sie inzwischen nur wegen eines Beitritts in der Reihe, gelten die Regeln dieses Eintrags
+                for i, waiting in ipairs(Share.queue) do
+                    if waiting.id == entry.id and waiting.join then Share.queue[i] = entry end
+                end
+                return
+            end
+            Share.queue[#Share.queue + 1] = entry
+            Share.queued[entry.id] = true
+            Schedule(0)
+        end)
+    end)
     return true
 end
 
@@ -266,6 +356,8 @@ function Share.AddMenu(root)
     local Menu = Core.Menu
     Menu.Tip(Menu.Toggle(root, L.OPT_autoShare, function() return ns.Enabled("autoShare") end,
         function(on) ns.SetSetting("autoShare", on) end), L.OPT_autoShare, L.OPT_autoShare_TIP)
+    Menu.Tip(Menu.Toggle(root, L.OPT_joinShare, function() return ns.Enabled("joinShare") end,
+        function(on) ns.SetSetting("joinShare", on) end), L.OPT_joinShare, L.OPT_joinShare_TIP)
     local count = Share.InGroup() and #Share.PushableInLog(true) or 0
     local entry = Menu.Button(root, L.SHARE_MENU_NOW:format(count), function() ns.Try("Share", Share.Now) end)
     local tip = L.SHARE_MENU_NOW_TIP
@@ -286,8 +378,11 @@ function Share.StatusLines()
     end
     if #Share.queue > 0 then
         lines[#lines + 1] = L.STATUS_SHARE_QUEUED:format(#Share.queue)
-            .. (Share.waitingCombat and (" – " .. L.STATUS_SHARE_COMBAT) or "")
+            .. (Share.waitingCombat and (" – " .. L.STATUS_SHARE_COMBAT)
+                or Share.Join.Hold(Core.Uptime()) and (" – " .. L.STATUS_SHARE_ANSWER) or "")
     end
+    if Share.lastID and Share.Join.AnswerLine then lines[#lines + 1] = Share.Join.AnswerLine() end
+    for _, line in ipairs(Share.Join.StatusLines()) do lines[#lines + 1] = line end
     return lines
 end
 

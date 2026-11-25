@@ -1,0 +1,33 @@
+## Interface: 16001
+## Title: ezCollection |cff9d9d9d(Contributions)|r
+## Title-deDE: ezCollection |cff9d9d9d(Beiträge)|r
+## Notes: Data contributed by other players (gathering spots, loot counts, vendors, trainers …), checked and merged by the project. Loaded once after login, never in combat. No own functions and no saved data: ezCore reads it. Without this folder everything keeps working.
+## Notes-deDE: Von anderen Spielern beigetragene Daten (Fundorte, Beute-Zählung, Händler, Lehrer …), vom Projekt geprüft und zusammengeführt. Wird einmal nach dem Einloggen geladen, nie im Kampf. Ohne eigene Funktionen und ohne gespeicherte Daten: ezCore liest es. Ohne diesen Ordner läuft alles weiter.
+## Author: BlackWolf-Design
+## Version: 0.1.0
+## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_Note_04
+## RequiredDeps: ezCore
+## LoadOnDemand: 1
+## X-ezCollection-Data: ezCore
+## X-Website: https://github.com/BlackWolfDEsign/ezCollection
+
+classObs.lua
+drops.lua
+entrance.lua
+map.lua
+npc.lua
+obj.lua
+offer.lua
+recipe.lua
+recipeObs.lua
+route.lua
+salvage.lua
+spell.lua
+spellFam.lua
+spellObs.lua
+spot.lua
+taxiNode.lua
+trait.lua
+vendor.lua
+zoneLv.lua

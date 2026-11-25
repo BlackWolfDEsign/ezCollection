@@ -36,6 +36,17 @@ local L = Core.L
                                    "pet" (Tierausbilder), sonst "other"
       Npcs.IsWeaponMasterTitle(titel) → Waffenmeister? (Wort in der Sprache des Clients oder englisch); Einträge
                                    der Art "other" mit diesem Titel tragen weapon = true
+      Npcs.IsRidingTrainerTitle(titel) → Reitlehrer? (Wort in der Sprache des Clients oder englisch, für den
+                                   Reiter „Wo kommt was“ von ezMerchant, 24.11.2026); Einträge der Art "other" mit
+                                   diesem Titel tragen riding = true
+      Npcs.IsDemonTrainerTitle(titel) → Dämonenausbilder des Hexenmeisters? (Wort in der Sprache des Clients oder
+                                   englisch, Schritt (b) von „Wo kommt was“, 24.11.2026); Einträge der Art "other" mit
+                                   diesem Titel tragen demon = true. Die Art des Lehrers bleibt "other" – „pet“ bleibt
+                                   der Tierausbilder des Jägers (ezMaps Menü „Tierausbilder“ unverändert). Er verkauft
+                                   Zauberbücher (Grimoires; Leitfaden zu Forever, method.gg, gelesen am 24.11.2026), ist
+                                   also ein Händler: mit diesem Titel gilt er auch ohne Lehrerfenster bzw. ohne Questies
+                                   Lehrer-Merkmal als Lehrer „other“ (Feld demonVendor) – nur für Hexenmeister; gemerkt
+                                   bleibt er als Händler (Count und Forget)
       Npcs.SourceLabel(eintrag)  → „laut Questie“ bzw. „von dir besucht“
       Npcs.ROLES                 → { "innkeeper", "banker", "auctioneer", "stablemaster", "battlemaster" }: weitere
                                    Arten für filter.kind, nur laut Questie (22.11.2026, Pfeile im Menü „Aufspüren“)
@@ -125,6 +136,15 @@ function Npcs.IsPetTrainerTitle(title)
     return title:lower():find(word:lower(), 1, true) ~= nil
 end
 
+-- Ist ein Eintrag (Kopie aus Npcs.Get/List bzw. ezMap) ein Tierausbilder? Art „pet“ oder – ältere Einträge, die
+-- ezCore vor der Art „pet“ gemerkt hat – Art „other“ mit dem Wort am Titel (Npcs.IsPetTrainerTitle). Eine Regel für
+-- ezMaps Trainers.KindOf und ezMerchants „Wo kommt was“ (Fund des code-reviewers vom 24.11.2026, Leitlinie 2).
+function Npcs.IsPetTrainer(e)
+    if type(e) ~= "table" then return false end
+    if e.trainer == "pet" then return true end
+    return e.trainer == "other" and Npcs.IsPetTrainerTitle(e.title) == true
+end
+
 -- Wort im Titel (Sprache des Clients bzw. englisch), ohne Groß- und Kleinschreibung
 local function TitleHas(title, word, english)
     if Core.IsSecret(title) or type(title) ~= "string" or title == "" then return false end
@@ -140,6 +160,38 @@ function Npcs.IsWeaponMasterTitle(title)
     local word = L.NPC_WEAPON_MASTER_TITLE
     if word == "NPC_WEAPON_MASTER_TITLE" then word = nil end
     return TitleHas(title, word, "Weapon Master")
+end
+
+-- Reitlehrer (Auftrag „Wo kommt was“ vom 23.11.2026: „Reitlehrer“). Titel in der Sprache des Clients („Reitlehrer“,
+-- „Widderreitlehrerin“) bzw. englisch („Riding Instructor“, „Riding Trainer“); ob Forever weitere Titel führt
+-- (Classic: „Mechanostrider Pilot“), klärt der Spieltest – ein Titel ohne das Wort bleibt „Lehrer“ (other).
+function Npcs.IsRidingTrainerTitle(title)
+    local word = L.NPC_RIDING_TRAINER_TITLE
+    if word == "NPC_RIDING_TRAINER_TITLE" then word = nil end
+    return TitleHas(title, word, "Riding")
+end
+
+-- Dämonenausbilder (Hexenmeister: Fähigkeiten des Begleiters; Auftrag „Wo kommt was“ vom 23.11.2026, „Begleiter-
+-- Fähigkeiten … und dessen lehrer zu "wo kommt was"“). Titel „Dämonenausbilder“ bzw. „Demon Trainer“. Er verkauft
+-- Grimoires (Händler; Spieltest vom 24.11.2026: „Noch kein Dämonenausbilder auf diesem Kontinent bekannt“, obwohl Questie
+-- die Händler kennt) – DemonVendor unten.
+function Npcs.IsDemonTrainerTitle(title)
+    local word = L.NPC_DEMON_TRAINER_TITLE
+    if word == "NPC_DEMON_TRAINER_TITLE" then word = nil end
+    return TitleHas(title, word, "Demon Trainer")
+end
+
+-- Dämonenausbilder, der nur als Händler geführt wird (kein Lehrerfenster bzw. kein Lehrer-Merkmal laut Questie)? Nur für
+-- Hexenmeister – allen anderen Klassen ist er ein Händler wie jeder andere.
+local function DemonVendor(trainer, vendor, title)
+    return not trainer and vendor == true and Core.PlayerClass() == "WARLOCK" and Npcs.IsDemonTrainerTitle(title) == true
+end
+
+-- Merkmale eines Lehrers der Art "other" am Titel: Waffenmeister, Reitlehrer bzw. Dämonenausbilder (nil = nein)
+local function OtherFlags(trainer, title)
+    if trainer ~= "other" then return nil, nil, nil end
+    return Npcs.IsWeaponMasterTitle(title) or nil, Npcs.IsRidingTrainerTitle(title) or nil,
+        Npcs.IsDemonTrainerTitle(title) or nil
 end
 
 -- Art eines Lehrers allein am Titel (für Einträge laut Questie, ohne offenes Lehrerfenster). Klassennamen aus dem
@@ -240,10 +292,13 @@ end
 ---------------------------------------------------------------------------
 
 local function Copy(id, e)
-    return { id = id, name = e.name, title = e.title, trainer = e.trainer, vendor = e.vendor, repair = e.repair,
+    local demonVendor = DemonVendor(e.trainer, e.vendor, e.title) or nil
+    local trainer = demonVendor and "other" or e.trainer
+    local weapon, riding, demon = OtherFlags(trainer, e.title)
+    return { id = id, name = e.name, title = e.title, trainer = trainer, vendor = e.vendor, repair = e.repair,
         class = e.class, faction = e.faction, map = e.map, x = e.x, y = e.y, zone = e.zone, seen = e.seen,
-        kind = e.trainer and "trainer" or (e.vendor and "vendor" or nil),
-        weapon = (e.trainer == "other" and Npcs.IsWeaponMasterTitle(e.title)) or nil }
+        kind = trainer and "trainer" or (e.vendor and "vendor" or nil), weapon = weapon, riding = riding,
+        demon = demon, demonVendor = demonVendor }
 end
 
 -- Art am Titel je Eintrag laut Questie nur einmal bestimmen (die Menüs lesen die Liste mehrmals je Öffnen); schwach
@@ -260,15 +315,17 @@ local function FromQuestie(q, NameOf)
     local e = { id = q.id, name = q.name, title = q.title, vendor = q.vendor or nil, repair = q.repair or nil,
         faction = q.faction, hostile = q.hostile or nil, map = q.map, x = q.x, y = q.y, source = "questie" }
     for _, r in ipairs(Npcs.ROLES) do e[r] = q[r] or nil end
-    if q.trainer then
+    e.demonVendor = DemonVendor(q.trainer, q.vendor, q.title) or nil
+    if q.trainer or e.demonVendor then
         local k = kindOf[q]
         if not k then
             local trainer, class = Npcs.TitleKind(q.title)
-            k = { trainer = trainer, class = trainer == "class" and class or nil,
-                weapon = (trainer == "other" and Npcs.IsWeaponMasterTitle(q.title)) or nil }
+            local weapon, riding, demon = OtherFlags(trainer, q.title)
+            k = { trainer = trainer, class = trainer == "class" and class or nil, weapon = weapon, riding = riding,
+                demon = demon }
             kindOf[q] = k
         end
-        e.trainer, e.class, e.weapon = k.trainer, k.class, k.weapon
+        e.trainer, e.class, e.weapon, e.riding, e.demon = k.trainer, k.class, k.weapon, k.riding, k.demon
     end
     e.zone = NameOf(q.map)
     e.kind = e.trainer and "trainer" or (e.vendor and "vendor" or nil)
@@ -280,7 +337,7 @@ end
 
 -- Passt ein Eintrag laut Questie überhaupt zur gefragten Art? (vor dem Umwandeln – die Menüs fragen oft nur Lehrer)
 local function RoleWanted(q, filter)
-    if filter.kind == "trainer" and not q.trainer then return false end
+    if filter.kind == "trainer" and not q.trainer and not DemonVendor(q.trainer, q.vendor, q.title) then return false end
     if filter.kind == "vendor" and not q.vendor then return false end
     if IS_ROLE[filter.kind] and not q[filter.kind] then return false end
     if filter.repair and not q.repair then return false end
@@ -341,10 +398,11 @@ end
 
 local function Matches(e, filter)
     if not filter then return true end
-    if filter.kind == "trainer" and not e.trainer then return false end
+    local trainer = DemonVendor(e.trainer, e.vendor, e.title) and "other" or e.trainer
+    if filter.kind == "trainer" and not trainer then return false end
     if filter.kind == "vendor" and not e.vendor then return false end
     if IS_ROLE[filter.kind] and not e[filter.kind] then return false end    -- Gastwirt … (nur laut Questie)
-    if filter.trainer and e.trainer ~= filter.trainer then return false end
+    if filter.trainer and trainer ~= filter.trainer then return false end
     if filter.repair and not e.repair then return false end
     if filter.map and e.map ~= filter.map then return false end
     if filter.located and not (e.map and e.x and e.y) then return false end
@@ -433,10 +491,14 @@ function Npcs.KindLabel(e)
     return nil
 end
 
+-- Gemerkte NPCs (als Lehrer, als Händler, alle). Dämonenausbilder ohne Lehrerfenster zählen als Händler: als solche
+-- sind sie gemerkt, und Npcs.Forget("trainer") lässt sie stehen.
 function Npcs.Count(kind)
     local n = 0
     for id, e in pairs(Entries()) do
-        if type(id) == "number" and Valid(e) and Matches(e, kind and { kind = kind } or nil) then n = n + 1 end
+        if type(id) == "number" and Valid(e) and (kind ~= "trainer" or e.trainer) and Matches(e, kind and { kind = kind } or nil) then
+            n = n + 1
+        end
     end
     return n
 end

@@ -3,7 +3,7 @@
 ## Notes: Out of combat: reports missing buff food, flask or elixir, class buffs and the campfire buff. A button next to Blizzard's buff bar uses the right item or spell; return a buff with a thank-you emote. Part of ezCollection.
 ## Notes-deDE: Außerhalb des Kampfes: meldet fehlendes Buff-Essen, Fläschchen oder Elixier, Klassen-Buffs und den Lagerfeuer-Buff. Ein Knopf neben Blizzards Buff-Leiste benutzt den passenden Gegenstand oder Zauber; Buff zurückgeben mit Danke-Emote. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.9.1
+## Version: 1.10.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Misc_Food_15
 ## RequiredDeps: ezCore

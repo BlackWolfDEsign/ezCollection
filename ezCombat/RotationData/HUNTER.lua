@@ -73,7 +73,7 @@ ns.RotationData.Add("HUNTER", {
           need = { enemy = { rank = STRONG } },
           text = T("Fehlt es in einem langen Kampf: neu setzen.", "Missing in a long fight: apply it again.") },    -- Mal des Jägers / Hunter's Mark
         { id = 1978, kind = "maintain", when = "dot", refresh = "missing", need = { leveling = false, outrange = 2973 },
-          text = T("Auf dem Ziel halten; erst nach Ablauf erneuern.", "Keep it on the target; renew only after it ends.") },    -- Schlangenbiss / Serpent Sting
+          text = T("Auf dem Ziel halten; zum Ablauf erneuern.", "Keep it on the target; renew it as it ends.") },    -- Schlangenbiss / Serpent Sting
         { id = 1978, key = "level:sting", kind = "maintain", when = "dot", refresh = "missing", once = "target",
           need = { leveling = true, outrange = 2973 },
           text = T("Beim Leveln einmal je Gegner, sobald der Begleiter dran ist.", "Levelling: once per enemy, after your pet engages.") },    -- Schlangenbiss / Serpent Sting
@@ -236,7 +236,7 @@ ns.RotationData.Add("HUNTER", {
           text = T("Aus der Ferne vorzaubern, dann hineinlaufen.", "Pre-cast from range, then run in.") },    -- Gezielter Schuss / Aimed Shot
         -- Im Kampf, weiter -----------------------------------------------------------------------------------
         { id = 1978, kind = "maintain", when = "dot", refresh = "missing", need = { outrange = 2973 },
-          text = T("Im Heranlaufen; erst nach Ablauf erneuern.", "While running in; renew only after it ends.") },    -- Schlangenbiss / Serpent Sting
+          text = T("Im Heranlaufen; zum Ablauf erneuern.", "While running in; renew it as it ends.") },    -- Schlangenbiss / Serpent Sting
         { id = 3045, kind = "cooldown", burst = true, when = "ready",
           text = T("Mit allen anderen Abklingzeiten; beschleunigt auch Schläge.", "With all other cooldowns; speeds up melee swings too.") },    -- Schnellfeuer / Rapid Fire
         { id = 13813, kind = "aoe", when = "ready", need = { inrange = 2973 },
@@ -265,8 +265,8 @@ ns.RotationData.Add("HUNTER", {
       source = "https://www.icy-veins.com/wow-forever/survival-hunter-melee-dps-pve-rotation-cooldowns-abilities",
       sources = { "https://www.icy-veins.com/wow-forever/survival-hunter-leveling",
           "https://www.icy-veins.com/wow-forever/survival-hunter-melee-dps-pve-guide" },
-      how = T("Die Spielweise aus der Ferne, auch zum Leveln, bis der Nahkampf-Ausbau steht: {1978} halten und erst nach Ablauf erneuern, {19434} und {3044}, sobald sie bereit sind. Kommt der Gegner an dich heran, schlag mit {2973}, {1495} und {1317257} zu und geh danach wieder auf Abstand. Beim Leveln {3044} nur mit Mana übrig.",
-              "The ranged playstyle, also for levelling until your melee build is complete: keep {1978} up and renew it only after it ends, {19434} and {3044} whenever they are ready. When the enemy reaches you, strike with {2973}, {1495} and {1317257}, then get back to range. While levelling use {3044} only with mana to spare."),
+      how = T("Die Spielweise aus der Ferne, auch zum Leveln, bis der Nahkampf-Ausbau steht: {1978} halten und zum Ablauf erneuern, {19434} und {3044}, sobald sie bereit sind. Kommt der Gegner an dich heran, schlag mit {2973}, {1495} und {1317257} zu und geh danach wieder auf Abstand. Beim Leveln {3044} nur mit Mana übrig.",
+              "The ranged playstyle, also for levelling until your melee build is complete: keep {1978} up and renew it as it ends, {19434} and {3044} whenever they are ready. When the enemy reaches you, strike with {2973}, {1495} and {1317257}, then get back to range. While levelling use {3044} only with mana to spare."),
       note = T("Icy Veins widerspricht sich bei {19434} beim Leveln (einmal „immer nutzen“, einmal „oft weglassen“). Wie lange der Gegner noch lebt, sieht ezCombat nicht: Bei fast toten Gegnern lohnt {1978} nicht mehr.",
                "Icy Veins contradicts itself on {19434} while levelling (“always use” versus “often skipped”). ezCombat can't see how long the enemy will live: {1978} isn't worth it on nearly dead enemies."),
       steps = {
@@ -295,7 +295,7 @@ ns.RotationData.Add("HUNTER", {
         { id = 2973, kind = "phase", when = "ready", side = true, need = { inrange = 2973, queued = false },
           text = T("Vormerken, wenn der Gegner an dir steht.", "Queue it when the enemy is on top of you.") },    -- Raptorstoß / Raptor Strike
         { id = 1978, kind = "maintain", when = "dot", refresh = "missing", need = { outrange = 2973 },
-          text = T("Halten; erst nach Ablauf erneuern.", "Keep it up; renew only after it ends.") },    -- Schlangenbiss / Serpent Sting
+          text = T("Halten; zum Ablauf erneuern.", "Keep it up; renew it as it ends.") },    -- Schlangenbiss / Serpent Sting
         { id = 2643, kind = "aoe", when = "ready", need = { outrange = 2973 },
           text = T("Bei mehreren Gegnern statt {19434}.", "With several enemies instead of {19434}.") },    -- Mehrfachschuss / Multi-Shot
         { id = 19434, kind = "priority", when = "ready", need = { moving = false, outrange = 2973 },

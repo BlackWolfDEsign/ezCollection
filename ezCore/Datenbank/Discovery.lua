@@ -1671,6 +1671,7 @@ ns.On("TRAINER_UPDATE", scanTrainer)
 
 local seenUnits, seenN = {}, 0
 local RARE = { rare = true, rareelite = true }
+Discovery.RARE = RARE      -- für den anonymen Beitrag (Werkzeuge/Contribute.lua); tools/merge.lua liest die Zeile darüber
 
 function Discovery.OnUnit(unit)
     if not DB.Collecting() or type(unit) ~= "string" then return end

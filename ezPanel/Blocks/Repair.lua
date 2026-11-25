@@ -98,14 +98,17 @@ local function BagFn(name)
     return type(fn) == "function" and fn or nil
 end
 
--- Plunder auf dem Platz? Mit ezBags IsJunk dessen Urteil (Schlösser, Markierungen), sonst grau.
+-- Plunder auf dem Platz? Mit ezBags IsJunk dessen Urteil (Schlösser, Markierungen), sonst grau mit denselben Grenzen wie
+-- beim Verkauf (Core.Junk.Limits: nichts von der Einkaufsliste, nichts, was laut ezGear besser ist).
 local function IsJunk(bag, slot, info)
     local isJunk = BagFn("IsJunk")
     if isJunk then
         local ok, junk = pcall(isJunk, bag, slot)
         return ok and junk and true or false
     end
-    return info.quality == 0
+    if info.quality ~= 0 then return false end
+    SellPrice(info.itemID)      -- noch unbekannt: merkt sich, dass nach dem Laden neu zu zählen ist
+    return (ezCore.Junk.Limits(info, false))
 end
 
 local ScheduleScan
@@ -170,6 +173,8 @@ ns.On("PLAYER_EQUIPMENT_CHANGED", function() ScheduleScan() end)
 ns.On("BAG_UPDATE_DELAYED", function() ScheduleScan(1) end)
 -- Im Kampf verschobene Prüfung: ns.AfterCombat in Scan() statt eines eigenen Zuhörers.
 ns.On("GET_ITEM_INFO_RECEIVED", function() if missingInfo then ScheduleScan(1) end end)
+-- ezGear hat fertig geladen oder rechnet anders (Stufe, Gewichtung): was verschont wird, kann sich ändern
+ezCore.Listen("GEAR_SCORES_CHANGED", function() ScheduleScan(1) end, "ezPanel.repair")
 
 ---------------------------------------------------------------------------
 -- Händler: automatisch reparieren
@@ -351,14 +356,15 @@ local function SellGrey()
     -- Händlerwert aus den Taschen von Core.BagList("sell"), in gedrosselten Runden, nie im Kampf – im Kampf sagt ezCore
     -- das im Chat (byHand), hört ein Verkauf wegen des Kampfes auf, ebenso. Vorher stand hier eine eigene Schleife mit
     -- UseContainerItem ohne Kampfprüfung und ohne Drosselung (Prüfung auf Blizzards Regeln vom 17.11.2026, Risiko 11;
-    -- Fund des code-reviewers, Welle 28). ezPanels Meldung bleibt: Anzahl und Erlös (REPAIR_SOLD).
+    -- Fund des code-reviewers, Welle 28). ezPanels Meldung bleibt: Anzahl und Erlös (REPAIR_SOLD_ONE/_MANY). ezCore zählt
+    -- verkaufte Plätze (ein Stapel aus drei Pelzen ist einer), darum nennt der Satz Taschenplätze, nicht Gegenstände.
     -- „Im Auktionshaus Wertvolles behalten“ (ezMerchants Schalter): fragt ezCore (Core.Junk.MerchantKeeps) wie ezBag;
     -- was liegen bleibt, nennt ezMerchant (Core.Junk.ShowKept) – nie still weniger verkaufen.
     local J = ezCore.Junk
     if not (J and J.Sell) then return end
     local opts = { owner = "ezPanel", quiet = true, byHand = true, onDone = function(sold, gained, _, kept)
         sold, gained = tonumber(sold) or 0, tonumber(gained) or 0
-        if sold > 0 then ns.Print(L.REPAIR_SOLD:format(sold, ns.Money(gained))) end
+        if sold > 0 then ns.Print(ezCore.Plural(sold, L.REPAIR_SOLD_ONE, L.REPAIR_SOLD_MANY, ns.Money(gained))) end
         if J.ShowKept then J.ShowKept(kept, "ezPanel") end
         ScheduleScan(1)
     end }

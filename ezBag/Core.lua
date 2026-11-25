@@ -8,13 +8,17 @@ ns.DEFAULTS = {
     dockBank = true,
     newItems = true,
     compressEmpty = true,
+    -- Reagenzientasche als Abschnitt unten in der Tasche (Entscheidung des Nutzers vom 23.11.2026: „Abschnitt unten
+    -- (Empfohlen)“, Schalter ab Werk an; Reagent.lua)
+    reagentSection = true,
+    reagentAutoFill = true,   -- Entscheidung des Nutzers vom 23.11.2026: „ja zu automatisches Nachrücken“
     highlight = true,
     -- itemLevel, boe, autoSell und auctionWorth sind seit der Einstellungs-Prüfung vom 19.11.2026 gemeinsame Schalter
     -- in ezCore (ns.SHARED unten) – ihre Standardwerte stehen dort
     -- Wunsch des Nutzers vom 16.11.2026: Tasche geht mit dem Handelsfenster auf und danach wieder zu (Trade.lua)
     openOnTrade = true,
     dockWindow = true,
-    -- Belegt/frei an Rucksack und Bank – ein Schalter seit der Einstellungs-Prüfung (Nr. 56/57, Entscheidung des
+    -- Freie Plätze an Rucksack und Bank (bis 23.11.2026 „belegt/gesamt (frei)“) – ein Schalter seit der Einstellungs-Prüfung (Nr. 56/57, Entscheidung des
     -- Nutzers vom 19.11.2026); der frühere Bank-Schalter bankCount wurde einmal übernommen (ns.MigrateSettings1911)
     bagCount = true,
     transferArrows = true,
@@ -23,6 +27,7 @@ ns.DEFAULTS = {
     collectMark = true,
     craftMark = true,
     makeSpace = true,
+    lootSpace = true,   -- Vorschlag am Plündernfenster bei voller Tasche (Nutzer am 24.11.2026; LootSpace.lua)
     -- ab Werk aus seit der Einstellungs-Prüfung (Nr. 97): „LÖSCHEN“ vorausfüllen hebelt Blizzards Schutz gegen
     -- versehentliches Zerstören aus – eine bewusste Wahl; gespeichertes „an“ einmal umgestellt (ns.MigrateSettings1911)
     easyDelete = false,
@@ -45,6 +50,11 @@ ns.AGREE = {
     compactStacks = "choice", easyDelete = "risk", transferStacksOnly = "choice",
 }
 
+-- Neu seit v1.0.0-beta3 und ab Werk an; Einträge bleiben stehen (ezCore, Werkzeuge/ConsentNews.lua: Intro.NewsOnRows;
+-- Nutzer am 24.11.2026): Die Blase „Neu seit dem Update“ nennt sie einmal mit gesetztem Häkchen. tools/Tests/agree_test.lua
+-- ist rot, wenn ein neuer Schalter mit true hier fehlt.
+ns.NEWS = { { "reagentSection", needs = "grouping" }, "reagentAutoFill", "lootSpace" }
+
 -- Reihenfolge für Einstellungen und Slash-Befehle (Schlüssel, deutscher Befehl, Abschnitt der Einstellungsseite,
 -- optional der Funktionsschlüssel aus ezCores Liste fremder Addons für den Hinweis „Übernimmt schon: …“ im Tooltip;
 -- en: das englische Wort für den englischen Client – T10-1).
@@ -55,6 +65,8 @@ ns.TOGGLES = {
     { "dockBank", "andocken", "bank", en = "dock" },
     { "newItems", "neu", "groups", en = "new" },
     { "compressEmpty", "frei", "groups", en = "free" },
+    { "reagentSection", "reagenz", "groups", en = "reagent" },
+    { "reagentAutoFill", "nachruecken", "groups", en = "refill" },
     { "highlight", "hervorheben", "display", en = "highlight" },
     { "itemLevel", "itemlevel", "display", en = "itemlevel" },
     { "boe", "boe", "display", en = "boe" },
@@ -69,6 +81,7 @@ ns.TOGGLES = {
     { "craftMark", "einkauf", "display", en = "shopping" },
     { "auctionWorth", "auktionswert", "display", en = "auctionworth" },
     { "makeSpace", "platzschaffen", "space", en = "makespace" },
+    { "lootSpace", "beuteplatz", "space", en = "lootspace" },
     { "easyDelete", "zerstoeren", "space", en = "destroy" },
     { "compactStacks", "zusammenfassen", "groups", en = "compact" },
     { "showPlace", "fundort", "display", en = "location" },
@@ -89,11 +102,19 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.CancelConfirm, Core.CombatNotice, Core.OptInOnce, Core.Ticker
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",
-    needs = { "scaffold", "OpenPanel", "BagList", "ItemClassName", "tourOwner", "CompartmentHandlers", "Plural", "ClickText", "EmptyBagSlot", "AskNumber",
+    needs = { "scaffold", "OpenPanel", "BagList", "ItemClassName", "tourOwner", "CompartmentHandlers", "Plural", "ClickText", "EmptyBagSlot", "BagKind", "IsSpecialBag", "GearProtects", "Junk.Limits",
+        -- Marken zeichnen (eine Fassung mit ezCore)
+        "SlotMarks.NewDrawer", "AskNumber",
+        -- 24.11.2026 (ohne neue Versionsnummer): Erlös im Auktionshaus, ohne gemessene Gebühr brutto mit Hinweis
+        "Prices.Proceeds", "Prices.FeeNote",
         "Junk.Sell", "Junk.SetRule", "ItemTooltip.AddCounts", "BagSpaceOf", "Menu.Tip", "OpenedOrDeferred",
         "Style.ColorText", "Style.Color", "Style.AllText", "Style.BUTTON", "Style.ICON", "Menu.AllToggle",
         -- Welle 17: Helfer und Texte, die ezCore ohne neue Versionsnummer bekam (tools/texte.lua, Regel 4)
         "L.ALL_CHARS",
+        -- 23.11.2026: nur freier Platz (Auftrag des Nutzers), eine Fassung mit ezPanel
+        "FreeSpaceText", "L.SPACE_FREE",
+        -- 23.11.2026: Reagenzientasche als Abschnitt in der Tasche öffnet und schließt über Core.OpenPanel("reagentBag")
+        "panelReagentBag", "SettingsPathText",
         -- Welle 23: ezCores eine Fassung für Stapelgröße, „Auktionshaus offen?“ und ezCrafts Einkaufsliste
         "MaxStack", "AuctionHouseOpen", "Junk.CraftNeed", "Junk.ClearCraftNeeds",
         -- Oberflächen-Einheit (Gesamtreview 18.11.2026, P13 D2; ezCore ohne neue Versionsnummer)

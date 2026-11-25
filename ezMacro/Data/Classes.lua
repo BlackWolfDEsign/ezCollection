@@ -794,6 +794,8 @@ ns.AddMacros("class", "PRIEST", {
     {
         id = "priest_dispel",
         name = { "Bannen (MO)", "Dispel (MO)" },
+        -- ohne Maus (Schalter „Maus über“): nicht „Bannen“/„Dispel“, so heißt die Ansage „Bitte bannen!“ (DataAnnounce.lua)
+        plainName = { "Magie bannen", "Dispel Magic" },
         desc = { "Magiebannung auf die Einheit unter der Maus, sonst aufs Ziel, ohne Ziel auf dich: entfernt bei Freunden schädliche, bei Gegnern nützliche Magie.",
                  "Dispel Magic on the unit under your mouse, otherwise your target, without one on you: removes harmful magic from friends and helpful magic from enemies." },
         why = { "Magiebannung auf die Einheit unter der Maus – für Freund und Feind, ohne Zielwechsel.",
@@ -944,6 +946,8 @@ ns.AddMacros("class", "SHAMAN", {
     {
         id = "shaman_wave",
         name = { "Welle (MO)", "Wave (MO)" },
+        -- ohne Maus (Schalter „Maus über“): englisch nicht „Wave“, so heißt das Emote-Makro „Winken“ (Data\Emotes.lua)
+        plainName = { "Welle", "Healing Wave" },
         desc = { "Geringe Welle der Heilung (schnell), mit Shift Welle der Heilung (stark) – auf den Spieler unter der Maus, sonst aufs Ziel.",
                  "Lesser Healing Wave (fast), with Shift Healing Wave (strong) – on the player under your mouse, otherwise your target." },
         why = { "Geringe Welle der Heilung (Shift: Welle der Heilung) auf wen die Maus zeigt – Ziel bleibt.",
@@ -1585,6 +1589,8 @@ ns.NO_TEMPLATE = {
     [1277331] = "Züchtigung: Volkszauber der Zwergen-Priester; „Aus deinen Fähigkeiten“ bietet ihn an, wer ihn hat.",
     -- Magier
     [28270] = "Verwandlung: Kuh – Spielart von Verwandlung; die Vorlage „Verwandlung (F)“ deckt den Zweck ab.",
+    [28271] = "Verwandlung: Schildkröte – Spielart von Verwandlung; die Vorlage „Verwandlung (F)“ deckt den Zweck ab.",
+    [28272] = "Verwandlung: Schwein – Spielart von Verwandlung; die Vorlage „Verwandlung (F)“ deckt den Zweck ab.",
     [401502] = "Frostfeuerblitz: Hauptzauber mit kurzem Nachbrennen aufs Ziel; die Maus-Fassung bietet „Aus deinen Fähigkeiten“ an.",
     -- Hexenmeister
     [1098] = "Dämon unterwerfen: beherrscht einen Dämon dauerhaft, ohne Eile; die Fokus-Fassung bietet „Aus deinen Fähigkeiten“ an.",
@@ -1610,6 +1616,8 @@ ns.NO_GENERATE = {
     [703] = true,     -- Erdrosseln
     [1943] = true,    -- Blutung
     [28270] = true,   -- Verwandlung: Kuh (Vorlage „Verwandlung (F)“)
+    [28271] = true,   -- Verwandlung: Schildkröte
+    [28272] = true,   -- Verwandlung: Schwein
     [5211] = true,    -- Hieb
     [1822] = true,    -- Krallenhieb
     [1328617] = true, -- Aufschlitzen (Druide)
@@ -1618,13 +1626,13 @@ ns.NO_GENERATE = {
 -- Paket modul/ezmacro-reste (17.11.2026; Fund c des Reviews vor dem Merge von Welle 27): Klassenzauber für Mitspieler,
 -- die nicht auf dich selbst gehen. Für sie endet ein Makro aus „Aus deinen Fähigkeiten“ nicht auf „[@player]“, sondern
 -- auf dem Ziel (SpellMacros.lua). Merkmal laut Client-Tabelle SpellMisc, Feld Attributes_1, Bit 0x80000 („Exclude
--- Caster“, nicht auf den Zaubernden) des Produkts „wowf“, Build ns.NOT_SELF_BUILD (wago.tools, im Rohordner nachgesehen am
+-- Caster“, nicht auf den Zaubernden) des Produkts „wowf“, Build ns.NOT_SELF_BUILD (wago.tools, im Rohordner nachgesehen am 22.11.2026 – unverändert seit 1.60.1.70938, erstmals am
 -- 17.11.2026, docs/wago-tools.md); geprüft über alle Grund-IDs der Arten Heilung, Stärkung und Ziel beliebig in ezCores
 -- Client-Tabelle SpellKinds – genau diese vier tragen das Bit. Namen laut SpellName (deDE, enUS) derselben Tabellen.
 -- Begründete Liste von Hand, weil ezCores ausgelieferte Tabellen das Merkmal nicht führen (Folgepunkt in
 -- docs/roadmap/ezCore.md unter „Offen“: das Merkmal in SpellKinds aufnehmen, dann liest ezMacro es dort). Tests/reste27.lua
 -- hält die Liste an ezCores Tabelle fest (nur Zauber dieser Arten, ns.NOT_SELF_BUILD gleich dem Build der Tabelle).
-ns.NOT_SELF_BUILD = "1.60.1.70938"
+ns.NOT_SELF_BUILD = "1.60.1.71037"
 ns.NOT_SELF = {
     [6940] = true,    -- Segen der Opferung (Blessing of Sacrifice), Paladin, Stärkung
     [19752] = true,   -- Göttliches Eingreifen (Divine Intervention), Paladin, Stärkung

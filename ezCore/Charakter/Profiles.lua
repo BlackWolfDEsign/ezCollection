@@ -163,8 +163,7 @@ function Core.NewProfiles(opts)
     ---------------------------------------------------------------------------
 
     function P.SpecGroup()
-        local get = (C_SpecializationInfo and C_SpecializationInfo.GetActiveSpecGroup) or rawget(_G, "GetActiveTalentGroup")
-        return Core.Num((Core.Call(get)))
+        return Core.Num((Core.Call(C_SpecializationInfo and C_SpecializationInfo.GetActiveSpecGroup)))
     end
 
     local function ScopeKey(scope)
@@ -517,4 +516,128 @@ function Core.NewProfiles(opts)
     end
 
     return P
+end
+
+--[[
+    Core.NewSettingsProfiles(ns, opts) → Profiles: Profile, die genau die Einstellungen eines Moduls halten (ns.DEFAULTS,
+    Arbeitsdaten ns.S). Vorher je eine gleiche Fassung in ezBuff und ezCombat (Durchsicht 24.11.2026, C9).
+      opts = { owner = ADDON, kind = "ezBuff.profile", version = 1,
+               skip = { schlüssel = true },      -- nie im Profil (je Charakter)
+               adopt = function(settings) … end, -- Werte eines alten Textes umstellen → Tabelle (nie die übergebene ändern)
+               maxText = 40,                     -- längere Texte sind kein Wert eines Auswahlfelds
+               texts = L, print = ns.Print }
+      Profiles.P (das Gerüst), .Valid(key, value), .Snapshot(), .Apply(data), .Clean(data), .Adopted(settings),
+      .Active(), .Label(name), .Login() → true, wenn das Ausgangsprofil eben angelegt wurde, .StatusText(format)
+    Geprüft wird mit Core.ValidSetting (Grenzen ns.LIMITS, Auswahl ns.CHOICES). Beim Wechsel übernimmt Core.ApplySetting
+    jeden geänderten Wert (er meldet sich wie von Hand umgestellt); beim Einloggen (Login, vor allen übrigen Aufgaben des
+    Moduls) still in ns.S – die Teile lesen die Werte erst danach beim Einrichten.
+]]
+function Core.NewSettingsProfiles(mns, opts)
+    opts = opts or {}
+    local Profiles = { DEFAULT = "Standard", KIND = opts.kind, VERSION = opts.version or 1, SKIP = opts.skip or {},
+        MAX_TEXT = opts.maxText or 40 }
+
+    -- Gültiger Wert für eine Einstellung im Profil oder nil (unbekannt, nicht im Profil, falscher Typ, gesperrt,
+    -- außerhalb der Auswahl)
+    function Profiles.Valid(key, value)
+        if type(key) ~= "string" or Profiles.SKIP[key] then return nil end
+        return Core.ValidSetting(mns, key, value, Profiles.MAX_TEXT)
+    end
+
+    -- Arbeitsdaten → Profil (Kopie)
+    function Profiles.Snapshot()
+        local settings = {}
+        for key in pairs(mns.DEFAULTS) do
+            local value = Profiles.Valid(key, mns.S and mns.S[key])
+            if value ~= nil then settings[key] = value end
+        end
+        return { settings = settings }
+    end
+
+    function Profiles.Adopted(settings)
+        if opts.adopt then settings = opts.adopt(settings) end
+        return settings
+    end
+
+    local starting = false      -- Profiles.Login läuft: die Teile sind noch nicht eingerichtet
+    local function Set(key, value)
+        if starting then
+            mns.S[key] = value
+        else
+            Core.ApplySetting(mns, key, value)
+        end
+    end
+
+    -- Profil → Arbeitsdaten: jeder Wert geprüft, Fehlendes und Ungültiges aus dem Standard; opts.skip bleibt
+    function Profiles.Apply(data)
+        if not mns.S then return false end
+        local src = type(data) == "table" and type(data.settings) == "table" and Profiles.Adopted(data.settings) or nil
+        if type(src) ~= "table" then src = {} end
+        for key, default in pairs(mns.DEFAULTS) do
+            if not Profiles.SKIP[key] then
+                local value = Profiles.Valid(key, src[key])
+                if value == nil then value = default end
+                if mns.S[key] ~= value then Set(key, value) end
+            end
+        end
+        return true
+    end
+
+    -- Import: nur bekannte Einstellungen mit gültigem Wert (der Text kann von irgendwoher kommen). nil = unbrauchbar.
+    function Profiles.Clean(data)
+        if type(data) ~= "table" or type(data.settings) ~= "table" then return nil end
+        local src = Profiles.Adopted(data.settings)
+        if type(src) ~= "table" then return nil end
+        local settings, any = {}, false
+        for key in pairs(mns.DEFAULTS) do
+            local value = Profiles.Valid(key, src[key])
+            if value ~= nil then
+                settings[key] = value
+                any = true
+            end
+        end
+        if not any then return nil end
+        return { settings = settings }
+    end
+
+    local P = Core.NewProfiles({
+        owner = opts.owner,
+        db = function() return mns.db end,
+        snapshot = function() return Profiles.Snapshot() end,
+        apply = function(data) return Profiles.Apply(data) end,
+        clean = function(data) return Profiles.Clean(data) end,
+        kind = Profiles.KIND, version = Profiles.VERSION, wrap = "profile", default = Profiles.DEFAULT,
+        perChar = true,                             -- die Auswahl gilt für diesen Charakter
+        scopes = { class = true, spec = true },     -- dazu: ein Profil für die Klasse, auf Wunsch je Spezialisierung
+        texts = opts.texts, print = opts.print,
+    })
+    Profiles.P = P
+
+    function Profiles.Active() return P.Active() end
+    function Profiles.Label(name) return P.Label(name) end
+
+    -- Einloggen: Beim ersten Mal die bisherigen Einstellungen als „Standard“ sichern (Ausgangsprofil), dann das Profil
+    -- dieses Charakters laden (Spezialisierung → Charakter → Klasse → Standard).
+    function Profiles.Login()
+        local db = mns.db
+        local created = false
+        if type(db) == "table" and (type(db.profiles) ~= "table" or db.profiles[P.Active()] == nil) then
+            P.Save()
+            created = true
+        end
+        starting = true
+        local ok, err = pcall(P.Load, true)
+        starting = false
+        if not ok then error(err, 0) end
+        return created
+    end
+
+    -- Zeile für den Status: „Profil: Standard – je Spezialisierung“ (format mit %s für den Namen)
+    function Profiles.StatusText(format)
+        local line = format:format(P.Label())
+        if P.SpecMode() then line = line .. " – " .. Core.L.PROFILE_FOR_SPEC end
+        return line
+    end
+
+    return Profiles
 end

@@ -259,7 +259,12 @@ function Chat.RestoreTell()
     if not saved or not saved.set then return false end
     local box, set = saved.box, saved.set
     local ok, sticky, target = pcall(function() return box:GetStickyType(), box:GetTellTarget() end)
-    if not ok or sticky ~= set.chatType or target ~= set.target then return false end   -- der Spieler hat gewechselt
+    if not ok then return false end
+    if ezCore.IsSecret(sticky) or ezCore.IsSecret(target) then   -- gesperrt: nichts vergleichen (Leitlinie 6), beim nächsten Mal
+        tellSaved = saved
+        return false
+    end
+    if sticky ~= set.chatType or target ~= set.target then return false end   -- der Spieler hat gewechselt
     -- Geschlossene Zeile: Chattyp = klebender Typ wie bei Blizzard (ClearChat); ein flüchtiger Typ von damals
     -- (Schreien, Antwort an einen Dritten) gilt nur in einer gerade offenen Zeile weiter.
     local util = ChatFrameUtil

@@ -1,11 +1,11 @@
--- Abklingzeiten der Zauber (Rückfall, wenn der Client sie nicht nennt) – laut wago.tools, Produkt wowf, Build 1.60.1.70938 (Client-Tabellen SpellCooldowns).
--- Erzeugt am 2026-11-16 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
+-- Abklingzeiten der Zauber (Rückfall, wenn der Client sie nicht nennt) – laut wago.tools, Produkt wowf, Build 1.60.1.71037 (Client-Tabellen SpellCooldowns).
+-- Erzeugt am 2026-11-24 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
 -- tools/wago.lua <Rohordner> --aus=tools/daten/wago). Nicht von Hand ändern – die wago-Prüfung in sh tools/test.sh
 -- meldet rot, wenn diese Datei nicht zu tools/daten/wago/ passt. Herkunft und Regeln: docs/wago-tools.md, Abschnitt 7.
 -- Leser: ezCore.ClientData (Wissen/ClientData.lua). Felder: [Zauber] = Abklingzeit in ms (die größere von RecoveryTime und CategoryRecoveryTime), nur länger als die globale Abklingzeit – Talente, die sie verkürzen, nicht eingerechnet; im Spiel gilt zuerst GetSpellBaseCooldown bzw. die offen gelesene Dauer
 local _, ns = ...
 ns.ClientTables = ns.ClientTables or {}
-ns.ClientTables.cooldowns = {build="1.60.1.70938",data={
+ns.ClientTables.cooldowns = {build="1.60.1.71037",data={
 [17]=4000,
 [72]=12000,
 [100]=15000,
@@ -381,7 +381,7 @@ ns.ClientTables.cooldowns = {build="1.60.1.70938",data={
 [17329]=60000,
 [17354]=300000,
 [17359]=300000,
-[17364]=6000,
+[17364]=8000,
 [17559]=82800000,
 [17560]=82800000,
 [17561]=82800000,
@@ -848,13 +848,6 @@ ns.ClientTables.cooldowns = {build="1.60.1.70938",data={
 [1259817]=120000,
 [1259821]=120000,
 [1259823]=120000,
-[1262636]=300000,
-[1262638]=300000,
-[1262643]=300000,
-[1262647]=300000,
-[1262650]=300000,
-[1262654]=300000,
-[1262662]=300000,
 [1264455]=60000,
 [1264478]=60000,
 [1264479]=60000,
@@ -975,4 +968,4 @@ ns.ClientTables.cooldowns = {build="1.60.1.70938",data={
 [1329283]=10000,
 [1329549]=10000,
 [1329555]=15000,
-},date="2026-11-16"}
+},date="2026-11-24"}

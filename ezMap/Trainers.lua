@@ -8,7 +8,8 @@ local Core = ezCore
 -- eigenen Kartensymbole: Questie zeigt alle Lehrer auf der Karte (Questie-Menü → Stadtbewohner).
 -- Seit dem 22.11.2026 (Entscheidung des Nutzers: „Ja, Questie zuerst“, dazu „und noch waffenmeister“) kommen die
 -- Lehrer deines Kontinents laut Questie dazu (Core.Npcs.List mit questie = Trainers.QuestieMaps(); nur zur Laufzeit,
--- nichts gespeichert; ein besuchter Lehrer geht vor). Waffenmeister bleiben Art „other“ mit weapon = true.
+-- nichts gespeichert; ein besuchter Lehrer geht vor). Waffenmeister bleiben Art „other“ mit weapon = true,
+-- Reitlehrer ebenso mit riding = true (ezCore am Titel; für ezMerchants Reiter „Wo kommt was“, 24.11.2026).
 -- Der Schalter „trainers“ entscheidet nur noch, ob ezMap sie anbietet – gemerkt wird in ezCore immer.
 local Trainers = {}
 ns.Trainers = Trainers
@@ -30,10 +31,11 @@ end
 -- Lehrer, die ezCore gemerkt hat, bevor es „pet“ kannte, stehen dort noch als „other“: ezMap ordnet sie beim Laden
 -- der Liste neu ein – mit derselben Regel wie Npcs.TrainerKind für Tierausbilder (Titel). TrainerKind selbst fragt
 -- zuerst das gerade offene Lehrerfenster (IsTradeskillTrainer) und taugt deshalb nur für den NPC vor dir.
--- ezCores Speicher bleibt unberührt (er gehört ezCore).
+-- ezCores Speicher bleibt unberührt (er gehört ezCore). Die Regel selbst steht seit dem 24.11.2026 in ezCore
+-- (Npcs.IsPetTrainer – dieselbe für ezMerchants „Wo kommt was“).
 function Trainers.KindOf(t)
     if type(t) ~= "table" then return nil end
-    if t.trainer == "other" and Trainers.IsPetTitle(t.title) then return "pet" end
+    if t.trainer == "other" and Npcs.IsPetTrainer(t) then return "pet" end
     return t.trainer
 end
 
@@ -70,11 +72,20 @@ function Trainers.QuestieMaps(map)
     return maps
 end
 
+-- Passt ein Lehrer (Kopie mit kind wie Trainers.KindOf) zur gefragten Art? "weapon", "riding" und "demon"
+-- (Dämonenausbilder, 24.11.2026) sind Merkmale an Lehrern der Art „other“ (ezCore, am Titel); nil = jede Art.
+local function KindFits(t, kind)
+    return kind == nil or t.kind == kind or (kind == "weapon" and t.weapon) or (kind == "riding" and t.riding)
+        or (kind == "demon" and t.demon) or false
+end
+Trainers.KindFits = KindFits
+
 -- Lehrer mit Koordinaten, die zu diesem Charakter passen (Kopien), sortiert nach Zone und Name: besuchte (alle
 -- Kontinente) und laut Questie (dein Kontinent). kind = "class" (eigene Klasse) | "profession" | "pet"
--- (Tierausbilder) | "other" | "weapon" (Waffenmeister, Art „other“) | nil (alle). opts.visited = nur besuchte (Liste
--- im Chat, Blätter des Baums – sonst wechselten sie mit Kontinent und Questie); opts.map = laut Questie für den
--- Kontinent dieser Karte statt deines Standorts (ezMap-Knopf der Weltkarte).
+-- (Tierausbilder) | "other" | "weapon" (Waffenmeister, Art „other“) | "riding" (Reitlehrer, Art „other“) | "demon"
+-- (Dämonenausbilder, Art „other“) | nil (alle).
+-- opts.visited = nur besuchte (Liste im Chat, Blätter des Baums – sonst wechselten sie mit Kontinent und Questie);
+-- opts.map = laut Questie für den Kontinent dieser Karte statt deines Standorts (ezMap-Knopf der Weltkarte).
 -- → Liste, wartet (true, solange Questie noch liest)
 function Trainers.List(kind, opts)
     local list = {}
@@ -82,7 +93,7 @@ function Trainers.List(kind, opts)
     local all, pending = Npcs.List({ kind = "trainer", located = true, fits = true, questie = maps })
     for _, t in ipairs(all) do
         Facade(t)
-        if kind == nil or t.kind == kind or (kind == "weapon" and t.weapon) then list[#list + 1] = t end
+        if KindFits(t, kind) then list[#list + 1] = t end
     end
     return list, pending == true
 end
@@ -102,30 +113,54 @@ function Trainers.Nearest(kind, list)
     if not list then return Trainers.NearestOf((Trainers.List(kind))) end
     local wanted = {}
     for _, t in ipairs(list) do
-        if kind == nil or t.kind == kind or (kind == "weapon" and t.weapon) then wanted[#wanted + 1] = t end
+        if KindFits(t, kind) then wanted[#wanted + 1] = t end
     end
     return Trainers.NearestOf(wanted)
+end
+
+-- Entfernung jedes Eintrags auf deinem Kontinent: setzt .distance (Meter) an den Einträgen dort, an den übrigen nil.
+-- → true, wenn die eigene Lage samt Kontinent bekannt ist
+local function Measure(list)
+    local mapID, x, y = ns.PlayerPosition()
+    if not mapID or type(list) ~= "table" then return false end
+    local continent, px, py = WorldPos(mapID, x, y)
+    if not continent then return false end
+    for _, t in ipairs(list) do
+        local c, tx, ty = WorldPos(t.map, t.x, t.y)
+        t.distance = (c and c == continent) and math.sqrt((tx - px) ^ 2 + (ty - py) ^ 2) or nil
+    end
+    return true
 end
 
 -- Nächster Eintrag einer Liste auf deinem Kontinent (der Eintrag bekommt .distance in Metern) oder nil – für die
 -- Lehrer und die weiteren Stadtbewohner im Menü „Aufspüren“ (Gastwirt …, MapButton.FillRole; 22.11.2026)
 function Trainers.NearestOf(list)
-    local mapID, x, y = ns.PlayerPosition()
-    if not mapID or type(list) ~= "table" then return nil end
-    local continent, px, py = WorldPos(mapID, x, y)
-    if not continent then return nil end
+    if not Measure(list) then return nil end
     local best
     for _, t in ipairs(list) do
-        local c, tx, ty = WorldPos(t.map, t.x, t.y)
-        if c and c == continent then
-            local d = math.sqrt((tx - px) ^ 2 + (ty - py) ^ 2)
-            if not best or d < best.distance then
-                best = t
-                best.distance = d
-            end
-        end
+        if t.distance and (not best or t.distance < best.distance) then best = t end
     end
     return best
+end
+
+-- Lehrer einer Art nach Entfernung (ezMerchants Reiter „Wo kommt was“, 24.11.2026): die auf deinem Kontinent zuerst,
+-- der nächste vorn (mit .distance in Metern); danach die übrigen (besucht auf anderen Kontinenten, ohne .distance) in
+-- der Reihenfolge von Trainers.List (Zone, Name). Ohne bekannte eigene Lage: wie Trainers.List.
+-- kind wie Trainers.List. → Liste, wartet (wie Trainers.List)
+function Trainers.Near(kind)
+    local list, pending = Trainers.List(kind)
+    if not Measure(list) then return list, pending end
+    local order = {}
+    for i, t in ipairs(list) do order[t] = i end
+    table.sort(list, function(a, b)
+        if a.distance and b.distance then
+            if a.distance ~= b.distance then return a.distance < b.distance end
+        elseif a.distance or b.distance then
+            return a.distance ~= nil
+        end
+        return order[a] < order[b]
+    end)
+    return list, pending
 end
 
 -- „Name (Titel)“ aus ezCore.
@@ -139,10 +174,7 @@ end
 
 -- Kennt das Spiel die eigene Position samt Kontinent? Ohne sie (Instanz, gesperrter Wert) findet Trainers.Nearest
 -- keinen Lehrer – das heißt dann nicht, dass keiner gemerkt ist.
-function Trainers.PositionKnown()
-    local mapID, x, y = ns.PlayerPosition()
-    return mapID ~= nil and WorldPos(mapID, x, y) ~= nil
-end
+function Trainers.PositionKnown() return Core.TrainerSpots.PositionKnown() end
 
 -- Kartenmarkierung auf den nächsten gemerkten Lehrer setzen, ohne Chatzeile (Welle 23, A3: eine Stelle für ezPanels
 -- XP-Baustein und ezMerchants „Was kommt wann“, die ihre eigenen Texte behalten; vorher baute jedes Modul das selbst).

@@ -5,22 +5,29 @@ local L = Core.L
 --[[
     Beitragen: Spieler » Projekt (DB-N1; Entscheidung des Nutzers 14.11.2026 zu F6 „ja ok“, Nachtrag „folgendes
     sollte auch für spieler nach der veröffentlichung gelten, darauf hingewiesen werden“, Übermittlungsweg
-    „GitHub-Issue“). Wer mag, schickt die Datei des Trägers ezWorld an das Projekt; das Projekt prüft die Beiträge,
+    „GitHub-Issue“). Wer mag, schickt seine Datenbank als anonymen Text an das Projekt; das Projekt prüft die Beiträge,
     führt sie zusammen und liefert das Ergebnis mit aus. Der Weg Spieler » Spieler bleibt zu (Entscheidung 13.11.2026).
-    Versandt wird nie von selbst: ezCollection kann keine Datei verschicken, es erklärt nur den Weg.
+    Versandt wird nie von selbst: ezCollection zeigt nur den Text zum Kopieren.
+    Anonym seit 24.11.2026 (Nutzer, wörtlich „Natürlich anonymer Export“): bis dahin hingen Helfer die Rohdatei des
+    Trägers an, bereinigt wurde erst beim Projekt. Jetzt bereinigt das Spiel (Datenbank/DBAnon.lua, dieselben Regeln wie
+    tools/merge.lua), bevor es etwas zu kopieren gibt.
 
       Core.PROJECT_URL                   Projektseite (eine Stelle)
       Core.Contribute.ISSUE_URL          Adresse für ein neues GitHub-Issue im Projekt (eine Stelle)
       Core.Contribute.VALUES_URL         Adresse der Vorlage „Werte messen“ (werte.yml) für /ezt werte und /ezk werte;
                                            Core.Measure.Show nimmt sie ab Werk (T11-1)
-      Core.Contribute.HelpText()         → Text „Mithelfen“: drei Schritte, Pfad der Datei, Inhalt, Weg (Issue mit
-                                           Anhang als .zip oder .txt – GitHub nimmt .lua nicht an), Daten-Probe nur
-                                           als Zusatz für Freiwillige
+      Core.Contribute.HelpText()         → Text „Mithelfen“: drei Schritte, Inhalt, Zufallskennung, Weg (Text in ein
+                                           Issue einfügen oder als beitrag.txt anhängen), was GitHub zeigt, Daten-Probe
+                                           nur als Zusatz für Freiwillige
       Core.Contribute.ShowHelp()         zeigt ihn (Knopf „Mithelfen“, /ez mithelfen)
-      Core.Contribute.Prepare()          Knopf „Beitrag vorbereiten“ (/ez beitrag): erklärt den Inhalt, nennt den
-                                           Pfad und holt die Einwilligung (Rechteeinräumung nach Abschnitt 3 b der
-                                           ezCollection License 1.0, Datei LICENSE); vermerkt sie im Kopf der Datei
-                                           (ezWorldDB.meta.consent = { t, b, lic })
+      Core.Contribute.Prepare()          Knopf „Beitrag vorbereiten“ (/ez beitrag): erklärt den Inhalt und holt die
+                                           Einwilligung (Rechteeinräumung nach Abschnitt 3 b der ezCollection License
+                                           1.0, Datei LICENSE); vermerkt sie im Kopf der Datenbank
+                                           (ezWorldDB.meta.consent = { t, b, lic }) und zeigt danach den Text
+      Core.Contribute.Export(onDone)     → Auftrag (Core.Sliced); onDone({ rows, text, plain, packed, id }) – gepackt
+                                           über C_EncodingUtil (zlib, Base64; zurückgelesen und verglichen), sonst der
+                                           reine Datentext. rows = 0: nichts zu schicken
+      Core.Contribute.ShowExport(ergebnis)  zeigt den Text zum Kopieren; „Lesbar zeigen“ den Inhalt
       Core.Contribute.Consent()          → Vermerk oder nil; ein Vermerk unter einer früheren Lizenz (lic ≠ LICENSE,
                                            etwa „GPL-3.0“ bis 15.11.2026) gilt nicht weiter – „Beitrag vorbereiten“
                                            fragt dann neu und überschreibt ihn. Heute gibt es nur „ezCollection
@@ -49,6 +56,9 @@ Contribute.VALUES_URL = Core.PROJECT_URL .. "/issues/new?template=werte.yml"    
 Contribute.AFTER_SESSIONS = 5
 Contribute.LICENSE = "ezCollection License 1.0"   -- Datei LICENSE; bis 15.11.2026 „GPL-3.0“
 Contribute.CARRIER = Core.DB.CARRIERS.world   -- Datei des Trägers (Name nur im Datenbank-Teil, Lint-Regel 10)
+Contribute.PASTE_MAX = 60000                  -- Zeichen: so viel fasst ein Issue als Text, darüber als beitrag.txt
+Contribute.TEXT_MAX = 4 * 1024 * 1024         -- Zeichen im Kopierfeld
+Contribute.VIEW_MAX = 100000                  -- Zeichen unter „Lesbar zeigen“
 
 local function Store()
     local db = Core.db
@@ -93,18 +103,27 @@ function Contribute.FilePath(addon)
     return L.CONTRIB_PATH:format(addon or Contribute.CARRIER)
 end
 
+-- Zufallskennung der Datenbank (ezWorldDB.meta.id), nil ohne Datenbank
+function Contribute.ID()
+    local meta = Core.DB and Core.DB.Meta and Core.DB.Meta()
+    local id = type(meta) == "table" and Core.Num(meta.id)
+    return id and ("%d"):format(id) or nil
+end
+
 function Contribute.HelpText()
     local lines = {
         L.CONTRIB_HELP_HEAD,
         "",
         L.CONTRIB_STEP1,
         L.CONTRIB_STEP2,
-        L.CONTRIB_STEP3:format(Contribute.FilePath()),
+        L.CONTRIB_STEP3,
         "  " .. Contribute.ISSUE_URL,
         "",
         L.CONTRIB_CONTENT,
         L.CONTRIB_NOT_CONTENT,
+        L.CONTRIB_ID:format(Contribute.ID() or "?"),
         L.CONTRIB_ATTACH,
+        L.CONTRIB_GITHUB,
         L.CONTRIB_LICENSE:format(Contribute.LICENSE),
         "",
         L.CONTRIB_PROBE:format(Contribute.FilePath("ezCore")),
@@ -142,17 +161,103 @@ local function NoteConsent()
     return true
 end
 
+-- Schema der Datenbank für Anon.Export (tools/merge.lua liest dasselbe aus den Dateien)
+local function Schema()
+    local DB = Core.DB
+    local tables = {}
+    for _, name in ipairs(DB.Tables()) do
+        local spec = DB.Spec(name)
+        tables[name] = { life = spec.life, explorer = spec.explorer == true, v = spec.v }
+    end
+    local objKinds, G = {}, Core.Gathering or {}
+    for kind, pub in pairs(G.KIND_PUBLIC or {}) do objKinds[kind] = G.KNOWLEDGE and G.KNOWLEDGE[pub] end
+    return { tables = tables, fields = DB.FIELDS, kinds = DB.Keys.KINDS, objKinds = objKinds,
+        rareTiers = Core.Discovery and Core.Discovery.RARE or {} }
+end
+
+-- Gepackter Text (Base64 eines zlib-Stroms) oder nil, wenn der Client nicht packt oder der Rückweg nicht stimmt
+local function Packed(plain, tick)
+    local util, enum = rawget(_G, "C_EncodingUtil"), rawget(_G, "Enum")
+    local method = type(enum) == "table" and type(enum.CompressionMethod) == "table" and enum.CompressionMethod.Zlib or nil
+    if type(util) ~= "table" or method == nil then return nil end
+    local bytes = Core.PlainCall(util.CompressString, plain, method)
+    if type(bytes) ~= "string" or #bytes < 6 or bytes:byte(1) % 16 ~= 8 then return nil end
+    tick(true)
+    if Core.PlainCall(util.DecompressString, bytes, method) ~= plain then return nil end
+    tick(true)
+    local text = Core.PlainCall(util.EncodeBase64, bytes)
+    if type(text) ~= "string" or text == "" or text:find("[^%w%+/=]") then return nil end
+    return text
+end
+
+local job
+function Contribute.Export(onDone)
+    local DB = Core.DB
+    local root = DB and DB.Root and DB.Root()
+    if type(root) ~= "table" or not DB.Anon then return nil end
+    if job then job.Cancel() end
+    local Anon, schema = DB.Anon, Schema()
+    job = Core.Sliced(function(tick)
+        local data = Anon.Export(root, schema, tick)
+        local rows = Anon.Rows(data)
+        if rows == 0 then return { rows = 0 } end
+        local plain = Anon.Text(data, tick)
+        tick(true)
+        local packed = Packed(plain, tick)
+        local id = Contribute.ID() or "?"
+        local text = Anon.Wrap(packed and "zlib" or "text", packed or plain,
+            { id = id, build = DB.Keys.Build(), size = #plain })
+        return { rows = rows, text = text, plain = plain, packed = packed ~= nil, id = id }
+    end, { owner = ADDON, where = "Contribute", onDone = onDone, onError = function() ns.Print(L.CONTRIB_FAILED) end })
+    return job
+end
+
+function Contribute.ShowExport(result)
+    if type(result) ~= "table" or (result.rows or 0) == 0 then
+        ns.Print(L.CONTRIB_EMPTY)
+        return nil
+    end
+    local size = #result.text
+    if size > Contribute.TEXT_MAX or not Core.TextDialog then
+        ns.Print(L.CONTRIB_TOO_BIG)
+        return nil
+    end
+    local function View(on)
+        local frame = Core.TextDialogFrame and Core.TextDialogFrame()
+        if not frame then return end
+        local text = result.text
+        if on then
+            -- ein Satz je Zeile; gekürzt wird nur die Ansicht
+            local plain, cut = result.plain, ""
+            if #plain > Contribute.VIEW_MAX then
+                cut = "\n\n" .. L.CONTRIB_VIEW_CUT:format(Contribute.VIEW_MAX, #plain)
+                plain = plain:sub(1, Contribute.VIEW_MAX)
+            end
+            text = L.CONTRIB_VIEW_HEAD .. "\n\n" .. plain:gsub("},", "},\n") .. cut
+        end
+        frame:SetText(text)
+    end
+    local hint = size <= Contribute.PASTE_MAX and L.CONTRIB_EXPORT_HINT_PASTE or L.CONTRIB_EXPORT_HINT_FILE
+    return Core.TextDialog({ anchor = rawget(_G, "SettingsPanel"), title = L.CONTRIB_EXPORT_TITLE,
+        hint = hint:format(result.rows, size), text = result.text, readOnly = true, select = true, maxLetters = 0,
+        owner = ADDON, accept = L.CONTRIB_EXPORT_NEXT, onAccept = function() Contribute.ShowHelp() end,
+        option = { text = L.CONTRIB_VIEW, tip = L.CONTRIB_VIEW_TIP, checked = false, onChange = View } })
+end
+
 function Contribute.Prepare()
     local DB = Core.DB
     if DB and DB.Persistent and not DB.Persistent() then
         ns.Print(L.CONTRIB_NOT_SAVED)
         return nil
     end
-    local text = L.CONTRIB_ASK:format(Contribute.FilePath(), Contribute.LICENSE)
-    return Core.Confirm(text, function()
+    if Core.InCombat() then
+        Core.CombatNotice(ns, L.CONTRIB_PREPARE_LABEL)
+        return nil
+    end
+    return Core.Confirm(L.CONTRIB_ASK:format(Contribute.LICENSE), function()
         NoteConsent()
-        ns.Print(L.CONTRIB_READY:format(Contribute.FilePath()))
-        Contribute.ShowHelp()
+        ns.Print(L.CONTRIB_WORKING)
+        Contribute.Export(function(result) Contribute.ShowExport(result) end)
     end, { accept = L.CONTRIB_AGREE })
 end
 
@@ -225,6 +330,6 @@ function Contribute.AddSettings(page)
     if type(page) ~= "table" or type(page.Button) ~= "function" then return false end
     page:Button(L.CONTRIB_HELP_LABEL, L.CONTRIB_HELP_BUTTON, function() Contribute.ShowHelp() end, L.CONTRIB_HELP_TIP)
     page:Button(L.CONTRIB_PREPARE_LABEL, L.CONTRIB_PREPARE_BUTTON, function() Contribute.Prepare() end,
-        L.CONTRIB_PREPARE_TIP:format(Contribute.FilePath()))
+        L.CONTRIB_PREPARE_TIP)
     return true
 end

@@ -58,6 +58,8 @@ local Core = ezCore
         "midRight"  Mitte rechts, nach links wachsend (klassisch: rechts auf dem Lebensbalken) – ezHeal
         "center"    Mitte zwischen midLeft und midRight, nur außerhalb des Kampfes und ab 30 px Höhe
                     (klassisch: auf dem Lebensbalken links neben den HoTs) – ezCombats Zahl und Marken im Raidstil
+        "dispel"    klassisch: unten auf dem Porträt, für das Symbol „das kannst du bannen“ (ezCombat, 24.11.2026);
+                    Raidstil: aus – dort zeigt Blizzard bannbare Debuffs selbst (Optionen der Raidrahmen)
         "beside"    klassisch: rechts neben den Balken (after topLines), mittig auf ihrer Höhe (Spieltest des
                     Nutzers vom 20.11.2026: „warum sind die zahlen nicht rechts vom balken?“); der Abstand der Rahmen
                     untereinander bleibt. Raidstil: aus (die Rahmen stoßen aneinander) – ezCombats Zahlen und Marken
@@ -744,7 +746,7 @@ end
 --                              „Buffs oben“), gelten sie statt x
 ---------------------------------------------------------------------------
 
-GF.SLOT_NAMES = { "topLines", "midLeft", "midRight", "center", "beside" }
+GF.SLOT_NAMES = { "topLines", "midLeft", "midRight", "center", "beside", "dispel" }
 GF.SLOT_GAP = 1
 GF.SIDE_GAP = 5                                     -- px vom Ende der Linien bis zu den Zahlen neben dem Rahmen (beside)
 GF.SLOT_BELOW_GAP = 3                               -- freie px unter einem Streifen (below) bis zum nächsten Rahmen
@@ -765,7 +767,7 @@ GF.BUFFS_TOP_SPOTS = { "upper", "bottom", "top" }   -- Reihenfolge der Stellen, 
 -- Reihenfolge der Plätze beim Neusetzen (GF.Relayout): zuerst die Seite mit Vorrang (midRight – ezHeals HoT-Reihe
 -- steht auch im Kampf), dann die Seite, die ihr weicht (midLeft – ezBuff fragt GF.SlotRoom). So sieht der Rückruf
 -- (onPlaced) eines Teils in midLeft schon, ob die Reihe gegenüber nach dem Neusetzen zu sehen ist.
-GF.RELAYOUT_ORDER = { "topLines", "midRight", "midLeft", "center", "beside" }
+GF.RELAYOUT_ORDER = { "topLines", "midRight", "midLeft", "center", "beside", "dispel" }
 GF.SLOTS = {
     raid = {
         -- 2 px an der Oberkante: Rollensymbol und bannbare Debuffs beginnen 2 px, Name und Buff-Reihe 3 px darunter
@@ -776,6 +778,8 @@ GF.SLOTS = {
         center = { between = { "midLeft", "midRight" }, y = 0, height = GF.SLOT_HEIGHT, minHeight = 30, minWidth = 20, combat = false, band = true },
         -- die Rahmen stoßen aneinander: kein Platz daneben (die Zahl bleibt in der Mitte)
         beside = { point = "LEFT", relPoint = "RIGHT", x = 0, y = 0, off = true },
+        -- Blizzard zeigt bannbare Debuffs im Raidstil selbst (CompactDispelDebuffTemplate, raidFramesDispelIndicatorType)
+        dispel = { point = "CENTER", relPoint = "CENTER", x = 0, y = 0, off = true },
     },
     -- Klassisch: im sichtbaren Rahmenbild (Absatz „Am Rahmen“ im Kopf, Spielbefund vom 18.11.2026) – außer den Balken
     -- der Kampfanzeige: seit dem Spieltest vom 20.11.2026 wieder direkt an der Unterkante von Blizzards Rahmenbild
@@ -804,6 +808,9 @@ GF.SLOTS = {
         -- 2 px Abstand + Symbol 25 px + 2 px, Größe im Spiel prüfen)
         beside = { after = "topLines", point = "LEFT", relPoint = "RIGHT", x = GF.SIDE_GAP, y = 0, width = 160,
             height = 24, shift = { NotPresentIcon = 29 } },
+        -- untere Hälfte des Porträts (7/−6, 37 px, bis −43; das Rahmenbild endet bei −39), unter ezBuffs Symbol
+        -- (6/−6, 14 px, bis −20), nach rechts: zwei Symbole à 16 px mit 2 px Abstand enden bei x 42 vor dem Balken (45)
+        dispel = { point = "TOPLEFT", relPoint = "TOPLEFT", x = 8, y = -22, grow = "RIGHT", size = 16 },
     },
     player = {
         -- unter dem Rahmenbild (endet 25 px über der Unterkante des Rechtecks, bei −75), so breit wie Lebens- und
@@ -822,6 +829,10 @@ GF.SLOTS = {
         -- rechts neben den Balken (wie party): hinter ihrem Ende (x 209), nicht am Rechteck – das reicht 23 px weiter
         -- als Blizzards Rahmenbild (Spieltest 20.11.2026, Bildschirmfoto „Platz 1 · 33,1 DPS“ mit rund 25 px Lücke)
         beside = { after = "topLines", point = "LEFT", relPoint = "RIGHT", x = GF.SIDE_GAP, y = 0, width = 160, height = 24 },
+        -- untere Hälfte des Porträts (24/−19, 60 px), unter ezBuffs Symbol (bis −33), über Blizzards Stufenkreis und
+        -- PvP-Zeichen (ab −63): zwei Symbole à 24 px mit 2 px Abstand von x 32 bis 82 vor dem Lebensbalken (85),
+        -- −37 bis −61
+        dispel = { point = "TOPLEFT", relPoint = "TOPLEFT", x = 32, y = -37, grow = "RIGHT", size = 24 },
     },
 }
 -- Abweichungen im Raidstil je Anordnung der Auren (Bearbeitungsmodus, Enum.RaidAuraOrganizationType; ganze Plätze,

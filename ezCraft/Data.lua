@@ -22,7 +22,7 @@ local Core = ezCore
     Beobachten  Data.WatchItems() → Zutaten der Rezepte auf der Einkaufsliste, der Lieblingsrezepte und der zuletzt
                 angesehenen, danach deren Ergebnisse (höchstens Data.WATCH_MAX); angemeldet bei
                 Prices.AddWatchProvider (AH-39)
-    Fehlend     Data.MissingRecipes() → nicht erlernte Rezepte des offenen Berufs mit Quelle
+    Fehlend     Data.MissingRecipes() → nicht erlernte Rezepte des offenen Berufs mit Quelle (Where.ToLearn, Teach.lua)
     Gegenstand  Data.RecipeForItem(itemID) → Rezept, das ihn herstellt; Data.RecipesUsing(itemID) → wofür er Zutat ist
                 (Rezept-Wissen von ezCore: jedes Rezept, das ein Twink im Berufefenster einmal gesehen hat)
     Abklingzeit Data.CooldownsByChar() aus ezCore.Professions (alle Twinks);
@@ -114,13 +114,15 @@ function Data.LiveRecipe(recipeID)
     return recipe
 end
 
--- Rezept aus dem Item-Wissen (ezCore), falls es dafür eine Funktion gibt: { n, p, o, r = { [itemID] = n } }.
+-- Rezept aus dem Item-Wissen (ezCore), falls es dafür eine Funktion gibt: { n, p, o, r = { [itemID] = n } } – gesehen,
+-- sonst laut Client-Tabellen (fromTables; 24.11.2026).
 function Data.StoredRecipe(recipeID)
     local fn = KnowledgeFn("Recipe")
     local rec = fn and Plain(Call(fn, recipeID))
     if type(rec) ~= "table" then return nil end
     local recipe = { recipeID = recipeID, name = rec.n or ("#" .. tostring(recipeID)), product = rec.o,
-        icon = rec.o and Data.ItemIcon(rec.o) or nil, profession = rec.p, reagents = {} }
+        icon = rec.o and Data.ItemIcon(rec.o) or nil, profession = rec.p, reagents = {}, makes = Num(rec.makes),
+        fromTables = rec.client == true or nil }
     for itemID, count in pairs(rec.r or EMPTY) do
         recipe.reagents[#recipe.reagents + 1] = { itemID = itemID, count = count }
     end
@@ -414,8 +416,8 @@ function Data.SkillStages(recipe)
     end
     -- „grün ab“ berechnet: abgerundete Mitte zwischen „gelb ab“ und „grau ab“. Regel der Client-Tabelle
     -- SkillLineAbility (gelb ab = TrivialSkillLineRankLow, grau ab = TrivialSkillLineRankHigh), Stichprobe auf
-    -- wago.tools für Build 1.60.1.70938 am 15.11.2026: 3275 Erste Hilfe 30/60, 2538 Kochen 45/85, 2330 Alchemie
-    -- 55/95, 2963 Schneiderei 25/50 – die Mitte ergibt die bekannten Grün-Werte 45, 65, 75, 37. Nur wenn gelb genau
+    -- wago.tools für Build 1.60.1.70938 am 15.11.2026: 3275 Erste Hilfe 30/60, 2538 Kochen 45/85, 1244431 Erste
+    -- Hilfe 55/95, 2963 Schneiderei 25/50 – die Mitte ergibt die bekannten Grün-Werte 45, 65, 75, 37. Nur wenn gelb genau
     -- und grau genau bekannt sind und keine genaue Beobachtung für grün vorliegt; gekennzeichnet als computed.
     local y, g = stages.yellow, stages.gray
     if y and g and not stages.approx.yellow and not stages.approx.gray and g > y
@@ -522,9 +524,10 @@ function Data.RecipeIDForItem(itemID)
 end
 
 -- Dieses Rezept wie Data.Recipe, dazu profession: live aus Blizzards Berufe-API, wenn sie es mit Zutaten kennt,
--- sonst aus ezCores Rezept-Wissen. productSource: woher die Zuordnung Rezept » Gegenstand stammt, wenn nicht vom
--- Client – "atlasloot", wenn ezCore das Produkt eines gesehenen Rezepts ohne Produkt-ID laut AtlasLoot zugeordnet hat
--- (Knowledge.RecipeFor, nur für die Sitzung; CRAFT-06). Die Zeile nennt dann ihre Quelle (Leitlinie 11).
+-- sonst aus ezCores Rezept-Wissen. productSource: woher die Zuordnung Rezept » Gegenstand stammt, wenn sie nicht selbst
+-- gesehen ist – "tables" (Client-Tabellen, 24.11.2026) oder "atlasloot", wenn ezCore das Produkt eines gesehenen Rezepts
+-- ohne Produkt-ID laut AtlasLoot zugeordnet hat (Knowledge.RecipeFor, nur für die Sitzung; CRAFT-06). Die Zeile nennt dann
+-- ihre Quelle (Leitlinie 11).
 function Data.RecipeForItem(itemID)
     local recipeID, rec = Data.RecipeIDForItem(itemID)
     if not recipeID then return nil end
@@ -533,7 +536,9 @@ function Data.RecipeForItem(itemID)
     rec = type(rec) == "table" and rec or EMPTY
     recipe.profession = recipe.profession or rec.p
     recipe.product = recipe.product or Num(itemID)
-    recipe.productSource = rec.os == "atlasloot" and "atlasloot" or nil
+    -- rs: Produkt gesehen, Zutaten laut Client-Tabellen
+    recipe.productSource = (rec.os == "atlasloot" or rec.os == "tables") and rec.os or (rec.rs == "tables" and "mixed") or nil
+    recipe.fromTables = rec.client == true or nil      -- kein Twink hat das Rezept gesehen
     return recipe
 end
 
@@ -545,25 +550,44 @@ function Data.RecipeIDForSpell(spellID)
     return Num((Call(KnowledgeFn("RecipeForSpell"), spellID))) or spellID
 end
 
--- Quellenvermerk für eine Zuordnung, die nicht vom Client stammt („laut AtlasLoot“; Wortlaut von ezCore,
--- Knowledge.SourceText) oder nil.
+-- Quellenvermerk für eine Zuordnung, die nicht selbst gesehen ist („laut Client-Tabellen“, „laut AtlasLoot“; Wortlaut von
+-- ezCore, Knowledge.SourceText) oder nil.
+local PRODUCT_SOURCE = { tables = true, atlasloot = true, mixed = true }
 function Data.ProductSourceText(source)
-    if source ~= "atlasloot" then return nil end
+    if not PRODUCT_SOURCE[source or ""] then return nil end
     local text = Plain(Call(KnowledgeFn("SourceText"), source))
     if type(text) == "string" and text ~= "" then return text end
+    if source ~= "atlasloot" then return nil end
     return L.SOURCES_ACCORDING:format("AtlasLoot")      -- ezCores Text (Rückfall über ns.L; CRAFT-04)
 end
 
--- Wofür der Gegenstand Zutat ist: { { recipeID, name, count, product } } nach Name (ezCores Reihenfolge).
+-- Kennt ezCore alle Rezepte des Builds (Client-Tabellen geladen)? Dann heißt „kein Rezept“ wirklich keins.
+function Data.HasRecipeTables()
+    local CD = Core.ClientData
+    return CD ~= nil and type(CD.Table) == "function" and CD.Table("recipeItems") ~= nil
+end
+
+-- Wofür der Gegenstand Zutat ist: { { recipeID, name, count, product, source = "seen" | "tables" } } in ezCores Reihenfolge
+-- (gesehene zuerst, dann nach Name); dazu source = "tables" (nur Client-Tabellen) | "mixed" | nil (alles selbst gesehen)
+-- und pending (Rezepte der Tabellen, deren Namen der Client noch lädt – nicht in der Liste).
 function Data.RecipesUsing(itemID)
     local list = Call(KnowledgeFn("RecipesUsing"), Num(itemID))
-    local out = {}
+    local out, pending, tables, seen = {}, 0, 0, 0
     for _, e in ipairs(type(list) == "table" and list or EMPTY) do
         local rec = type(e) == "table" and type(e.recipe) == "table" and e.recipe or EMPTY
         local recipeID = type(e) == "table" and e.recipeID or nil
-        out[#out + 1] = { recipeID = recipeID, count = Num(e.count) or 1, product = rec.o,
-            name = rec.n or (rec.o and Data.ItemName(rec.o)) or ("#" .. tostring(recipeID)) }
+        local fromTables = type(e) == "table" and e.source == "tables"
+        if fromTables then tables = tables + 1 else seen = seen + 1 end
+        if fromTables and not rec.n then
+            pending = pending + 1
+        else
+            out[#out + 1] = { recipeID = recipeID, count = Num(e.count) or 1, product = rec.o,
+                source = fromTables and "tables" or "seen",
+                name = rec.n or (rec.o and Data.ItemName(rec.o)) or ("#" .. tostring(recipeID)) }
+        end
     end
+    if tables > 0 then out.source = seen > 0 and "mixed" or "tables" end
+    out.pending = pending > 0 and pending or nil
     return out
 end
 
@@ -716,7 +740,10 @@ function Data.SourceRecipesUsing(itemID)
             local rec = type(e.recipe) == "table" and e.recipe or e
             local product = Num(rec.product) or Num(rec.o)
             local name, waiting = UsingName(rec, product)
-            if waiting then
+            local spellID = Num(e.spell) or Num(rec.spell) or Num(rec.spellID)
+            if spellID and Data.HasRecipeTables() and not Core.ClientData.Recipe(spellID) and not Core.SpellName(spellID) then
+                -- den Zauber gibt es in diesem Build nicht (AtlasLoot: Alchemie 2330; Leitlinie 12)
+            elseif waiting then
                 pending = pending + 1
                 pendingFrom = pendingFrom or (type(e.source) == "string" and e or rec)
             elseif name then
@@ -748,26 +775,71 @@ end
 -- „shape“ = falsche Form oder „error“ = Fehler beim Lesen)? → ezCores Satz dazu („AtlasLoot antwortet nicht wie
 -- erwartet“, Core.Sources.Hint) | nil, wenn die Quelle in Ordnung ist, nicht läuft oder ezCore die Auskunft nicht hat.
 -- Der Stand gilt für die letzte Abfrage – also nach Data.SourceRecipeForItem fragen.
+-- Mit itemID auch der Grund „entry“ (ezCore seit Welle 23b, Core.Sources.Reason/ReasonText): AtlasLoot kennt den
+-- Gegenstand, ezCore verwirft aber seinen Eintrag – der Status bleibt „ok“, und ohne den Satz stünde nichts da
+-- („nie ein leerer Tooltip ohne Erklärung“; Gegenprüfung zu CRAFT-08). Der Grund gilt für die letzte Frage nach
+-- „recipeFor“ – darum nur, wenn sie diesem Gegenstand galt (Data.SourceRecipeForItem fragt bei jedem Zeigen neu).
 local SOURCE_BROKEN = { shape = true, error = true }
 
-function Data.SourceProblem()
-    local status, hint = SourcesFn("Status"), SourcesFn("Hint")
-    if not (status and hint) then return nil end
-    if not SOURCE_BROKEN[Plain(Call(status, "AtlasLoot")) or ""] then return nil end
-    local text = Plain(Call(hint, "recipeFor"))
+local function EntryProblem(itemID)
+    itemID = Num(itemID)
+    local reason, reasonText = SourcesFn("Reason"), SourcesFn("ReasonText")
+    if not (itemID and reason and reasonText) then return nil end
+    local why, _, _, asked = Call(reason, "recipeFor")
+    if Plain(why) ~= "entry" or Num(Plain(asked)) ~= itemID then return nil end
+    local text = Plain(Call(reasonText, "recipeFor"))
     return type(text) == "string" and text ~= "" and text or nil
 end
 
+function Data.SourceProblem(itemID)
+    local status, hint = SourcesFn("Status"), SourcesFn("Hint")
+    if status and hint and SOURCE_BROKEN[Plain(Call(status, "AtlasLoot")) or ""] then
+        local text = Plain(Call(hint, "recipeFor"))
+        if type(text) == "string" and text ~= "" then return text end
+    end
+    return EntryProblem(itemID)
+end
+
+-- Gesehene Rezepte ohne Produkt-ID (der Client nannte beim Lesen keins; ezCores Knowledge.RecipesWithoutProduct, A62)
+-- in den Berufen, die Gegenstände dieser Art herstellen: Trank, Elixier, Fläschchen → Alchemie, Verband → Erste
+-- Hilfe, Tasche → Schneiderei und Lederverarbeitung (Zuordnung nach der Art des Gegenstands; die Zeile sagt darum
+-- „vielleicht“). ezCore zählt nur je Beruf, nicht je Gegenstand. → Anzahl, Namen der Berufe („Alchemie“) | 0
+-- Unterklassen von Verbrauchbarem (Trank, Elixier, Fläschchen, Verband); zugleich die Arten für Data.MaybeCrafted
+Data.CRAFTED_BY = { [1] = { "alchemy" }, [2] = { "alchemy" }, [3] = { "alchemy" }, [7] = { "firstaid" } }
+Data.CRAFTED_BY_CONTAINER = { "tailoring", "leatherworking" }
+
+function Data.RecipesWithoutProduct(itemID)
+    local fn = KnowledgeFn("RecipesWithoutProduct")
+    local classID, subClassID = Call(Core.ItemClass, Num(itemID))
+    if not (fn and classID) then return 0 end
+    local classes = Core.ITEM_CLASS or EMPTY
+    local profs
+    if classID == classes.Container then
+        profs = Data.CRAFTED_BY_CONTAINER
+    elseif classID == classes.Consumable then
+        profs = Data.CRAFTED_BY[subClassID or -1]
+    end
+    local total, names = 0, {}
+    for _, key in ipairs(profs or EMPTY) do
+        local n = Num(Plain(Call(fn, key))) or 0
+        if n > 0 then
+            total = total + n
+            names[#names + 1] = Data.ProfessionLabel(key) or key
+        end
+    end
+    return total, table.concat(names, ", ")
+end
+
 -- Wird der Gegenstand seiner Art nach üblicherweise hergestellt (laut Client: Trank, Elixier, Fläschchen, Verband
--- oder Tasche)? Nur für den Hinweis „noch nicht gesehen“, wenn weder Rezept-Wissen noch Datenbank etwas sagen.
-local CRAFTED_CONSUMABLES = { [1] = true, [2] = true, [3] = true, [7] = true }   -- Trank, Elixier, Fläschchen, Verband
+-- oder Tasche)? Nur für den Hinweis „noch nicht gesehen“, wenn weder Rezept-Wissen noch Datenbank etwas sagen. Die
+-- Arten stehen an einer Stelle: Data.CRAFTED_BY (Verbrauchbares) und Data.CRAFTED_BY_CONTAINER (Tasche).
 
 function Data.MaybeCrafted(itemID)
     local classID, subClassID = Call(Core.ItemClass, Num(itemID))
     if not classID then return false end
     local classes = Core.ITEM_CLASS or EMPTY
     if classID == classes.Container then return true end
-    return classID == classes.Consumable and CRAFTED_CONSUMABLES[subClassID or -1] == true
+    return classID == classes.Consumable and Data.CRAFTED_BY[subClassID or -1] ~= nil
 end
 
 ---------------------------------------------------------------------------

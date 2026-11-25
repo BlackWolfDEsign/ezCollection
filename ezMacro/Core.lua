@@ -44,6 +44,11 @@ ns.DEFAULTS = {
     petDemon = "imp",          -- Hexenmeister: Dämon der Begleiter-Taste (imp | voidwalker | succubus | felhunter)
     macroKinds = true,         -- Makros nach Art in Blizzards Makroverwaltung: Knopf „Art“, Abblenden, Tooltip (Kinds.lua)
     macroFromSpells = true,    -- Gruppe „Aus deinen Fähigkeiten“ im Reiter „Makros“ (SpellMacros.lua, Welle 27)
+    -- Maus über wahlweise (Entscheidungen des Nutzers vom 23.11.2026; docs/roadmap/ezMacro.md, Schritt 1 und 2): Standard
+    -- für alle Vorlagen mit Gliedern „Einheit unter der Maus“, je Makro abweichbar (ezMacroDB.mouseover, Resolver.lua).
+    -- Ab Werk an: für bestehende Spieler ändert sich nichts.
+    mouseoverFriend = true,    -- Mitspieler unter der Maus (Heilen, Buffen, Bannen, Wiederbeleben)
+    mouseoverHostile = true,   -- Gegner unter der Maus (Unterbrecher, Kontrolle, Flüche, Spott, Schaden über Zeit)
 }
 
 -- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
@@ -55,6 +60,11 @@ ns.AGREE = {
     spitAnimation = "risk", announce = "on", fishingKey = "choice", hideUnknown = "choice", profileBindings = "choice",
     profileClearEmpty = "choice",
 }
+
+-- Neu seit v1.0.0-beta3 und ab Werk an; Einträge bleiben stehen (ezCore, Werkzeuge/ConsentNews.lua: Intro.NewsOnRows;
+-- Nutzer am 24.11.2026): Die Blase „Neu seit dem Update“ nennt sie einmal mit gesetztem Häkchen. tools/Tests/agree_test.lua
+-- ist rot, wenn ein neuer Schalter mit true hier fehlt.
+ns.NEWS = { "mouseoverFriend", "mouseoverHostile" }
 
 -- Kategorien der Einträge (Feld category; gemerkte Anpassungen und Auswahl hängen daran).
 -- „custom“: eigene Vorlagen (Custom.lua), „tools“: Werkzeuge wie Sichern und Leisten-Profile (Tools.lua),
@@ -101,8 +111,9 @@ ns.RACES = Core.RACES
 -- (Core.ModuleScaffold): Datenbank ezMacroDB mit ihren Tabellen, Befehl /ezmacro samt Kurzform, Statuszeilen.
 --   edits     [macroId] = { name = "...", body = "..." }
 --   window    Position und letzte Auswahl
---   custom, backups, profiles, long, rankKeep: eigene Vorlagen, Sicherungen, Leisten-Profile, lange Makros,
---             Rang-Ausnahmen (je Charakter); hints: gesehene Erklärungen
+--   custom, backups, long, rankKeep: eigene Vorlagen, Sicherungen, lange Makros, Rang-Ausnahmen (je Charakter);
+--             hints: gesehene Erklärungen. profiles: nur noch Altbestand der Leisten-Profile (bis 22.11.2026; seitdem
+--             ezCoreDB.barProfiles über Core.BarProfiles, einmal übernommen, der Altbestand bleibt liegen)
 --   oneClick  [charKey][macroId] = { name, index, body }: Ein-Klick-Makros, die ezMacro auf Klick angelegt hat und
 --             deshalb aktuell halten darf (OneClick.lua); allgemeine (Konto-)Makros kontoweit unter dem Schlüssel
 --             „account“ statt des Charakters
@@ -138,7 +149,9 @@ ns.CORE_VERSION = "1.15.0"
 ns.CORE_NEEDS = { "scaffold", "unitEvents", "tourOwner", "AfterCombat", "OpenPanel", "TextDialog",
     "Glow.Set", "Confirm", "scaffoldHelpers", "SecureButton", "SecureButtons", "WeaponKind", "UniqueName", "Pack",
     "Unpack", "InInstance", "Now", "Uptime", "UnitIs", "UnitPresent", "Spells.FISHING",
-    "ClickBindings.KeyText", "ClickBindings.Describe", "Knowledge.IsOpenable", "Salvage.For", "Salvage.Known",
+    "Spells.MacroMouseover", "Spells.MacroMouseoverKinds", "Inventory.QuestUseItems",
+    "ClickBindings.KeyText", "ClickBindings.Describe", "ClickBindings.SelfCastKey", "ClickBindings.HitsSelfCast", "ClickBindings.ModifierText",
+    "Red", "Knowledge.IsOpenable", "Salvage.For", "Salvage.Known",
     "Menu.Tip", "Spells.MacroLogic", "Spells.MacroCondition", "Macro.Write",
     -- Design-System (Welle 22): Werte und Helfer aus Core.Style, „Alle auswählen / Alle abwählen“ im Menü
     "Style.SetStrata", "Style.ColorText", "Style.IconSize", "Style.AllText", "Menu.AllToggle", "CreateCheck",
@@ -174,11 +187,18 @@ ns.CORE_NEEDS = { "scaffold", "unitEvents", "tourOwner", "AfterCombat", "OpenPan
     -- leere Kettenglied „any“ in Spells.MacroCondition (kam im selben Paket, lässt sich nicht einzeln abfragen)
     "Spells.MacroFallbackForms", "Spells.BEAR_FORM",
     -- Paket ezmacro/ssot-doppelungen: Regel „bestes Essen, Getränk, Verband, Heiltrank“ aus ezCore
-    "BestItems.Consumable", "BestItems.CONSUMABLE_KINDS" }
+    "BestItems.Consumable", "BestItems.CONSUMABLE_KINDS",
+    -- Architektur-Review 22.11.2026 (Paket ezcore/leisten-profile, ohne neue Nummer): Leisten-Profile als Dienst in
+    -- ezCore, Plan für viele Makros und Bereinigen von Name und Text aus ezCore
+    "BarProfiles.Load", "BarProfiles.SetMacroHelper", "Macro.Plan", "Macro.PlanText", "Macro.CleanName",
+    "Macro.ScriptCommands" }
 Core.NewModule(ADDON, ns, {
     core = ns.CORE_VERSION, needs = ns.CORE_NEEDS,
     db = "ezMacroDB",
-    tables = { "hints", "edits", "window", "custom", "backups", "profiles", "long", "rankKeep", "oneClick", "oneKey", "macroKind" },
+    -- „profiles“ entfällt seit dem Architektur-Review 22.11.2026: die Leisten-Profile liegen in ezCoreDB.barProfiles;
+    -- ein vorhandenes ezMacroDB.profiles bleibt als Altbestand liegen (ezCore übernimmt es einmal).
+    tables = { "hints", "edits", "window", "custom", "backups", "long", "rankKeep", "oneClick", "oneKey", "macroKind",
+        "mouseover" },
     -- main: ohne Wort die Makroverwaltung wie der Linksklick im Addon-Fach (Entscheidung 5); reset: „/ezmacro
     -- zuruecksetzen“ fragt wie der Knopf (Core.SlashReset über page:AskReset); die Hilfe baut ezCore aus CMD_HELP_OWN
     -- (Gesamtreview T18-3, T18-20, T9-4)

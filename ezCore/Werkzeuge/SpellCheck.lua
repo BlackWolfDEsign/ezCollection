@@ -9,13 +9,13 @@ local L = Core.L
 
     /ez test fragt je Zauber-ID nur „gibt es sie?“. Diese Prüfung hält je ID fest, was der Client weiß: Name, Symbol,
     vorhanden, Lernstufe laut Client (C_Spell.GetSpellLevelLearned; Forever-Signatur im Probe-Bericht 7,
-    42-dokumentation-signaturen.md) und ob dein Charakter den Zauber kennt (C_SpellBook.IsSpellKnown, sonst
-    IsPlayerSpell, sonst genau dieser Rang im Zauberbuch). Das Ergebnis steht im Speicher (eigener Ast ezCoreDB.spellCheck, klein, ohne
+    42-dokumentation-signaturen.md) und ob dein Charakter den Zauber kennt (Core.KnowsSpell:
+    C_SpellBook.IsSpellKnown, sonst IsPlayerSpell; sonst genau dieser Rang im Zauberbuch). Das Ergebnis steht im Speicher (eigener Ast ezCoreDB.spellCheck, klein, ohne
     Charaktername, Realm oder Kennung – nur Build, Sprache, Klasse und Stufe für die Spalte „kennt“) und in einem
     Kopierfeld, damit du es schicken kannst. Das Lese-Werkzeug tools/zauber.lua gleicht beides mit der Offline-Liste ab
     (abweichende Stufe, fehlt im Client, Name anders).
 
-    Welche IDs: jede, die ezCore führt (Spells.FALLBACK, BUFFS samt Gruppen, FAMILIES, HEALS, DISPELS, RESURRECTS,
+    Welche IDs: jede, die ezCore führt (Spells.FALLBACK, BUFFS samt Gruppen, FAMILIES, HEALS, DISPELS, RESCUES, RESURRECTS,
     HELPERS, CLASS, FORM_IDS, PROF_COOLDOWNS, AUTO_SHOT, MACRO_LOGIC, KnowledgeData.PROFESSIONS und WELL_FED_SPELLS,
     Gathering.TRACKING_SPELLS, Discovery.CONTEXT_SPELLS), dazu die Rotationen von ezCombat über dessen Schnittstelle
     (ezCore.API("ezCombat").Rotations/Sections, alle Klassen) und was Module über Core.AddSpellSource anmelden.
@@ -104,6 +104,9 @@ function SC.IDs()
     AddAll(set, Spells.DISPELS)
     AddAll(set, Spells.RESURRECTS)
     AddAll(set, Spells.HELPERS)
+    for _, list in pairs(Spells.RESCUES or {}) do
+        for _, entry in ipairs(list) do set[entry.id] = true end
+    end
     AddAll(set, Spells.CLASS)
     AddKeys(set, Spells.FORM_IDS)
     AddKeys(set, Spells.PROF_COOLDOWNS)
@@ -132,13 +135,7 @@ function SC.IDs()
 end
 
 local function Known(id)
-    local book = rawget(_G, "C_SpellBook")
-    local known = Core.Call(book and Core.Peek(book, "IsSpellKnown"), id)
-    if not Core.IsSecret(known) and type(known) == "boolean" then
-        if known then return true end
-    end
-    local player = Core.Call(rawget(_G, "IsPlayerSpell"), id)
-    if not Core.IsSecret(player) and player == true then return true end
+    if Core.KnowsSpell(id) then return true end
     -- Zauberbuch: genau dieser Rang muss drinstehen. Spells.Highest sucht über den Namen und fände für Rang 2 auch
     -- den gelernten Rang 1 (Gegenprüfung Welle 15).
     local entry = Spells.Known and Spells.Known(id)

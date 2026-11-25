@@ -11,6 +11,7 @@ local L = Core.L
 
       Core.Drops.Of(art, id | karte, gebiet) → Summe { cnt, party, empty, deaths, money, items, tokens, diff, old },
                                        info (+ info.old = Fenster aus dem alten Verlauf)
+      Core.Drops.Total(satz)         → dieselbe Summe aus einem Satz der Tabelle drops (auch der Auslieferung, ShipView.lua)
       Core.Drops.Denominator(summe)  → n, "deaths" | "loots" – Nenner je Herkunft: max(Tode, Fenster) der neuen
                                        Blöcke plus Fenster des Altbestands („bei m getöteten“ bzw. „bei m geöffneten“)
       Core.Drops.SourcesOf(itemID)   → { { kind, id, f, s, cnt } … } eigene Quellen, häufigste zuerst
@@ -23,7 +24,8 @@ local L = Core.L
       Core.Finds.IsExplorerObject(id) → true für Kisten (obj kind chest): Entdecker-Wissen
       Core.Finds.ObjectKind(id)      → Art des Spielobjekts (herb, mine, chest, pool, quest, container) oder nil
       Core.Vendors.Of(npcID), Core.Vendors.Selling(itemID); Core.Trainers.Offers(art), Core.Trainers.For(npcID)
-      Core.Flights.Time(von, nach, hops); Core.Entrances.Of(instanceID), Core.Entrances.OnMap(karte)
+      Core.Flights.Time(von, nach, hops); Core.Flights.Estimate(von, nach, hops), Core.Flights.Speed() – geschätzt aus der
+                                       Streckenlänge laut Client und den gemessenen Flügen (unten); Core.Entrances.Of(instanceID), Core.Entrances.OnMap(karte)
       Core.Rares.Of(npcID), Core.Rares.OnMap(karte); Core.Zones.Levels(karte); Core.Reveal.Has(itemID);
       Core.Books.Where(itemID)
     „nicht mehr gesehen“: Einträge mit t vor dem letzten vollständigen Blick (tf) tragen gone = true.
@@ -71,13 +73,19 @@ local function AddBlock(into, b)
     end
 end
 
-function Drops.Of(kind, ...)
-    local row, info = DB.Get("drops", kind, ...)
-    if not row then return nil, info end
+function Drops.Total(row)
+    if type(row) ~= "table" then return nil end
     local total = { items = {} }
     for _, b in pairs(type(row.diff) == "table" and row.diff or {}) do AddBlock(total, b) end
     AddBlock(total, row.old)
     total.diff, total.old = row.diff, row.old
+    return total
+end
+
+function Drops.Of(kind, ...)
+    local row, info = DB.Get("drops", kind, ...)
+    if not row then return nil, info end
+    local total = Drops.Total(row)
     info.old = type(row.old) == "table" and Num(row.old.cnt) or 0
     return total, info
 end
@@ -461,13 +469,15 @@ function Vendors.Selling(itemID)
     itemID = Num(itemID)
     local out = {}
     if not itemID then return out end
-    DB.Scan("vendor", function(row, _, npc)
-        local w = type(row.w) == "table" and row.w[itemID]
+    -- über den Index Ware » Händler statt über alle Händler (seit 24.11.2026 hat fast jedes Rezept einen Lehrgegenstand)
+    for _, path in ipairs(DB.Index("vendor", "item", itemID)) do
+        local row = DB.Get("vendor", path[1])
+        local w = row and type(row.w) == "table" and row.w[itemID]
         if type(w) == "table" then
-            out[#out + 1] = { npc = npc, pr = w.pr, per = w.per, lim = w.lim, t = w.t,
+            out[#out + 1] = { npc = path[1], pr = w.pr, per = w.per, lim = w.lim, t = w.t,
                 gone = Num(row.tf) and (Num(w.t) or 0) < row.tf or nil }
         end
-    end)
+    end
     table.sort(out, function(a, b) return (a.pr or 0) < (b.pr or 0) end)
     return out
 end
@@ -487,25 +497,93 @@ function Trainers.For(npcID)
     return Trainers.Offers(npc.tk)
 end
 
--- Flugzeit: mit hops genau dieser Weg, sonst der zuletzt geflogene; info.ways nennt die Zahl der Wege.
-function Core.Flights.Time(from, to, hops)
-    local list, info = DB.Get("route", from, to)
-    if not list then return nil, info end
-    info.ways = #list
+-- Weg aus einer Liste (Tabelle route, eigene Lage oder Auslieferung): mit hops genau dieser, sonst der zuletzt geflogene
+function Core.Flights.Pick(list, hops)
     local best
-    for _, way in ipairs(list) do
+    for _, way in ipairs(type(list) == "table" and list or {}) do
         local same = true
         if type(hops) == "table" then
             local h = type(way.hops) == "table" and way.hops or {}
             same = #h == #hops
             for i = 1, #hops do if h[i] ~= hops[i] then same = false end end
-            if same then return way, info end
+            if same then return way end
         elseif not best or (Num(way.t) or 0) > (Num(best.t) or 0) then
             best = way
         end
     end
-    if type(hops) == "table" then return nil, info end
-    return best, info
+    return best
+end
+
+-- Flugzeit: mit hops genau dieser Weg, sonst der zuletzt geflogene; info.ways nennt die Zahl der Wege.
+function Core.Flights.Time(from, to, hops)
+    local list, info = DB.Get("route", from, to)
+    if not list then return nil, info end
+    info.ways = #list
+    return Core.Flights.Pick(list, hops), info
+end
+
+--[[
+    Geschätzte Flugzeit (Frage 1 der Durchsicht; Entscheidung des Nutzers vom 24.11.2026, „Ja, laden (Recommended)“): die
+    Länge der Strecke entlang ihrer Wegpunkte (Client-Tabelle TaxiPathNode, ClientData.TaxiLength) durch die
+    Geschwindigkeit der Flugtiere. Diese steht in keiner Tabelle und wird nicht angenommen, sondern an den gemessenen
+    Flügen geeicht (Tabelle route; Zeiten bei normaler Geschwindigkeit, ohne „Vielflieger“): Median aus Länge / Zeit der
+    Flüge ohne Zwischenhalt, ersatzweise der übrigen. Ohne gemessenen Flug keine Schätzung. Gemessenes geht immer vor –
+    das entscheidet der Aufrufer (Flights.Time zuerst).
+      Core.Flights.Length(von, nach, hops) → Yards (Summe der Teilstrecken) oder nil, wenn eine fehlt
+      Core.Flights.Speed()                 → Yards je Sekunde, Zahl der gemessenen Strecken dahinter; nil, 0 ohne Messung
+      Core.Flights.Estimate(von, nach, hops) → { sec, flights, speed, length } oder nil
+]]
+local SPEED_MIN, SPEED_MAX = 5, 200      -- Yards je Sekunde: was nicht dazwischen liegt, ist kein durchgehender Flug
+
+function Core.Flights.Length(from, to, hops)
+    local CD = Core.ClientData
+    if not (CD and CD.TaxiLength) then return nil end
+    local sum, at = 0, from
+    local function Leg(node)
+        local length = type(at) == "number" and type(node) == "number" and CD.TaxiLength(at, node)
+        if not length then return false end
+        sum, at = sum + length, node
+        return true
+    end
+    for _, node in ipairs(type(hops) == "table" and hops or {}) do
+        if not Leg(node) then return nil end
+    end
+    return Leg(to) and sum or nil
+end
+
+local function Median(list)
+    if #list == 0 then return nil end
+    table.sort(list)
+    local mid = math.floor((#list + 1) / 2)
+    if #list % 2 == 1 then return list[mid] end
+    return (list[mid] + list[mid + 1]) / 2
+end
+
+function Core.Flights.Speed()
+    local direct, other = {}, {}
+    for _, from in ipairs(DB.KeysOf("route")) do
+        for _, to in ipairs(DB.KeysOf("route", from)) do
+            for _, way in ipairs(DB.Get("route", from, to) or {}) do
+                local sec = Num(way.sec)
+                local length = sec and sec > 0 and Core.Flights.Length(from, to, way.hops)
+                local speed = length and length / sec
+                if speed and speed >= SPEED_MIN and speed <= SPEED_MAX then
+                    local list = (type(way.hops) == "table" and #way.hops > 0) and other or direct
+                    list[#list + 1] = speed
+                end
+            end
+        end
+    end
+    local list = #direct > 0 and direct or other
+    return Median(list), #list
+end
+
+function Core.Flights.Estimate(from, to, hops)
+    local length = Core.Flights.Length(from, to, hops)
+    if not length then return nil end
+    local speed, flights = Core.Flights.Speed()
+    if not speed then return nil end
+    return { sec = length / speed, flights = flights, speed = speed, length = length }
 end
 
 local Entrances = {}
@@ -600,6 +678,41 @@ function Discovery.StatusLines(full)
         if (Num(s.secret) or 0) + (Num(s.nokey) or 0) + (Num(s.notready) or 0) > 0 then
             lines[#lines + 1] = L.DB_SKIPPED:format(Num(s.secret) or 0, Num(s.nokey) or 0, Num(s.notready) or 0)
         end
+    end
+    if DB.ShipStats then Discovery.ShipLines(lines, full) end
+    return lines
+end
+
+-- Beiträge anderer Spieler (ezData, DBShip.lua): Stand und geschätzte Größe; full: je Tabelle, Ladezeit, Übersprungenes
+function Discovery.ShipLines(lines, full)
+    local sh = DB.ShipStats()
+    if sh.state == "loaded" then
+        if sh.rows > 0 then
+            lines[#lines + 1] = L.DB_SHIP_LINE:format(sh.rows, #sh.tables, SizeText(sh.bytes), tostring(sh.builds.hi or "?"),
+                sh.contributors)
+        else
+            lines[#lines + 1] = L.DB_SHIP_EMPTY:format(tostring(sh.checked or "?"))
+        end
+    elseif sh.state == "failed" then
+        lines[#lines + 1] = L.DB_SHIP_FAILED:format(tostring(sh.reason or "?"))
+    else
+        local key = ({ combat = "DB_SHIP_COMBAT", missing = "DB_SHIP_MISSING", disabled = "DB_SHIP_DISABLED" })[sh.state]
+        lines[#lines + 1] = L[key or "DB_SHIP_WAIT"]
+    end
+    if not full then return lines end
+    for _, t in ipairs(sh.tables) do
+        if t.rows > 0 then
+            lines[#lines + 1] = L.DB_SHIP_TABLE_LINE:format(t.name, t.rows, SizeText(t.bytes), t.contributors,
+                tostring(t.builds.hi or "?"))
+        end
+    end
+    if sh.loadMs then
+        local ms = tostring(Core.Decimal(sh.loadMs, 1))
+        if Core.IsGerman() then ms = ms:gsub("(%d)%.(%d)", "%1,%2") end
+        lines[#lines + 1] = L.DB_SHIP_LOADTIME:format(ms)
+    end
+    for _, s in ipairs(sh.skipped) do
+        lines[#lines + 1] = L.DB_SHIP_SKIPPED:format(s.name, L["DB_SHIP_WHY_" .. s.why] or s.why)
     end
     return lines
 end

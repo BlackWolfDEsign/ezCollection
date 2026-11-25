@@ -5,9 +5,9 @@ local Core = ezCore
     Grüner Pfeil „besser“ (und roter Pfeil „schlechter“) an den Taschenplätzen.
 
     EINE Anmeldestelle: ezCores Platzmarken (Core.SlotMarks.Add, GEAR-09; VP-37, Frage 18 – Empfehlung umgesetzt,
-    Antwort offen). Läuft ezBag, reicht ezCore die Marke an ezBag weiter – ezBag zeichnet sie in Tasche, Bank,
-    Gildenbank und im ezBag-Fenster. Ohne ezBag zeichnet ezCore sie selbst an Blizzards Taschen UND an Blizzards Bank
-    (gepoolte BankPanel-Knöpfe; vorher bekam die Bank den Pfeil nur über ezBag). Alle Marken teilen sich die Ecke oben
+    Antwort offen). Läuft ezBag, reicht ezCore die Marke an ezBag weiter – ezBag zeichnet sie in der
+    zusammengefassten Tasche, Bank, Gildenbank und im ezBag-Fenster; in Blizzards einzelnen Taschen zeichnet ezCore. Ohne
+    ezBag zeichnet ezCore sie selbst an Blizzards Taschen UND an Blizzards Bank (gepoolte BankPanel-Knöpfe; vorher bekam die Bank den Pfeil nur über ezBag). Alle Marken teilen sich die Ecke oben
     links, niemand hookt dieselben Knöpfe doppelt. Bis Welle 7 hängte sich ezGear ohne ezBag selbst hinter Blizzards
     Taschen (ContainerFrameMixin:UpdateItems) und meldete sich mit ezBag direkt dort an – beides macht jetzt ezCore.
 
@@ -26,6 +26,10 @@ Bags.ARROW_MARK = ARROW_MARK
 local DOWN_MARK = { atlas = "bags-greenarrow", useAtlasSize = true, rotation = math.pi, desaturate = true,
     r = ns.Marks.DOWN_COLOR[1], g = ns.Marks.DOWN_COLOR[2], b = ns.Marks.DOWN_COLOR[3], sign = "red" }
 Bags.DOWN_MARK = DOWN_MARK
+-- Gelber Pfeil „besser, sobald gelernt“ bzw. „… sobald die Stufe reicht“ (Score.LATER): derselbe Atlas, entsättigt und gelb getönt; Zeichen „?“ (orange)
+local LEARN_MARK = { atlas = "bags-greenarrow", useAtlasSize = true, desaturate = true,
+    r = ns.Marks.LEARN_COLOR[1], g = ns.Marks.LEARN_COLOR[2], b = ns.Marks.LEARN_COLOR[3], sign = "orange" }
+Bags.LEARN_MARK = LEARN_MARK
 
 local marks           -- ezCores Platzmarken (Core.SlotMarks), sobald ezGear dort angemeldet ist
 local missing = false -- es wurde nach einem Gegenstand gefragt, dessen Daten noch fehlen
@@ -53,6 +57,7 @@ function Bags.MarkFor(itemID, link)
         return nil
     end
     if kind == "better" then return ARROW_MARK end
+    if ns.Score.LATER[kind] then return LEARN_MARK end
     if kind == "worse" and Bags.DownInEzBag() then return DOWN_MARK end
     return nil
 end
@@ -100,12 +105,15 @@ ns.OnReady(function()
     ns.Listen("SCORES_CHANGED", Bags.Refresh)
     -- „Zeichen am Leuchten“ umgelegt (ezCore 1.12.0): Zeichen an den Pfeilen sofort nachziehen
     Core.Listen("GLOW_MARKS_CHANGED", function() Bags.Refresh() end, "ezGear")
+    -- Forever++ hat seine Pfeile umgeschaltet: Tasche und Handelsfenster (Trade.lua) folgen gemeinsam
+    Core.Listen("OTHER_ADDONS_CHANGED", function() Bags.Refresh() end, "ezGear")
     ns.OnSettingChanged(function(key)
         if key == "bagArrows" then Bags.Refresh() end
     end)
     ns.On("GET_ITEM_INFO_RECEIVED", function()
         if missing then Bags.Refresh() end
     end)
+    ns.On("BAG_UPDATE_DELAYED", ns.Score.BagsChanged)      -- vor der Meldung unten: Gegenstücke zum Zweihänder neu lesen
 end)
 
 ---------------------------------------------------------------------------
@@ -144,7 +152,10 @@ function Bags.Upgrades()
         local kind, compared
         if type(link) == "string" then kind, compared = ns.Score.Check(link) end
         if kind == "better" then
-            if not (swapped and compared and swapped[compared.slot]) then list[#list + 1] = link end
+            -- Angelrute (Zweihänder): auch das eigene Schild in der Tasche wäre im Paar gegen die Rute „besser“
+            local moved = swapped and compared and (swapped[compared.slot]
+                or (compared.twoHand and swapped[ns.Score.SLOT.MAINHAND]))
+            if not moved then list[#list + 1] = link end
         elseif kind == "pending" then
             list.pending = true
         end
@@ -179,7 +190,10 @@ function Bags.AttachPanel()
     ns.Listen("SCORES_CHANGED", Bags.RecountUpgrades)
     ns.On("BAG_UPDATE_DELAYED", Bags.RecountUpgrades)
     -- nachgeladene Daten kommen beim Einloggen in Schüben: gesammelt nachzählen, und nur, wenn etwas gefehlt hat
-    local recountSoon = ns.Throttle(Bags.RecountUpgrades, 0.5)
+    -- (hat die neue Bewertung selbst schon nachgezählt, Score.OnKnowledge, bleibt es dabei)
+    local recountSoon = ns.Throttle(function()
+        if upgrades and upgrades.pending then Bags.RecountUpgrades() end
+    end, 0.5)
     ns.On("GET_ITEM_INFO_RECEIVED", function()
         if upgrades and upgrades.pending then recountSoon() end
     end)
@@ -194,10 +208,10 @@ ns.AddStatusLine(function()
     return panel and ns.L.STATUS_PANEL_ON or ns.L.STATUS_PANEL_OFF
 end)
 
--- Wie stehen die Teile in den Taschen? → { better, worse, same, nostats, level, unusable, twohand, pending, total }
+-- Wie stehen die Teile in den Taschen? → { better, learn, worse, same, nostats, level, unusable, pending, total }
 function Bags.Count()
-    local count = { better = 0, worse = 0, same = 0, nostats = 0, level = 0, unusable = 0, twohand = 0, pending = 0,
-        total = 0 }
+    local count = { better = 0, learn = 0, worse = 0, same = 0, nostats = 0, level = 0, unusable = 0,
+        pending = 0, total = 0 }
     -- Nur die normalen Taschen (Core.BagList("bags")): Ausrüstung liegt weder in der Reagenzientasche noch am
     -- Schlüsselbund, "carried" brächte hier nichts (geprüft bei der Umstellung auf ezCores Taschenlisten).
     Core.ForEachBagItem(function(_, _, info)
@@ -213,7 +227,7 @@ end
 
 ns.AddStatusLine(function()
     local c = Bags.Count()
-    return ns.L.STATUS_BAG_COUNT:format(c.total, c.better, c.worse, c.unusable, c.level, c.nostats, c.pending)
+    return ns.L.STATUS_BAG_COUNT:format(c.total, c.better, c.learn, c.worse, c.unusable, c.level, c.nostats, c.pending)
 end)
 
 ns.AddStatusLine(function()

@@ -11,8 +11,8 @@ local Data = ns.Data
 
       Berufefenster  Reiter „Rezept“: bei nicht gelernten Rezepten der Abschnitt „Woher“ mit den Fundorten und dem
                      Kartenknopf „Auf der Karte zeigen“ (Blizzards Weltkarte am Ort, auf Wunsch Blizzards Wegpunkt,
-                     Schalter recipeWaypoint); Reiter „Fehlend“ als Liste „Noch zu lernen“ mit Fundort und Stufe,
-                     sortiert nach Erreichbarkeit (eigene Fertigkeit, dann dein Gebiet)
+                     Schalter recipeWaypoint); Reiter „Was kommt wann“ und „Wo kommt was“ (Teach.lua, Panel.lua) mit
+                     Fundort und Stufe der noch nicht gelernten Rezepte
       Tooltip        auf Rezept-Gegenständen (Pläne, Muster, Formeln …): „Erhältlich bei: Händler (Gebiet), laut eigenem
                      Besuch“ bzw. „laut Questie“; „Schon gelernt: du, Mira“ bzw. „lernbar ab Fertigkeit n“ mit dem Rang
                      deiner Charaktere in diesem Beruf (ezCore-Charakterdaten, Knowledge.CharProfs)
@@ -160,12 +160,16 @@ end
 -- Wert über 1, 1 ist auf Forever ein Platzhalter), ist das die Lernstufe laut Client und genau; sie geht der
 -- Beobachtung vor.
 -- → Zahl, ungefähr?
+-- Lehrer aus Beiträgen anderer Spieler (sourceKey "ship") zählen hier nicht: Fremde Zahlen gehen in keine Rechnung ein.
 function Where.Skill(recipeID, list)
     for _, e in ipairs(list or {}) do
-        if Num(e.skill) and e.skill > 0 then return e.skill, false end
+        if e.sourceKey ~= "ship" and Num(e.skill) and e.skill > 0 then return e.skill, false end
     end
-    local item = Knowledge("RecipeItem") and Call(Knowledge("RecipeItem"), recipeID)
+    local item, way
+    if Knowledge("RecipeItem") then item, way = Call(Knowledge("RecipeItem"), recipeID) end
     local get = Knowledge("Get")
+    -- Lehrgegenstand laut Client-Tabellen: nur, wenn der Client ihn schon kennt (sonst forderte die Liste hunderte an)
+    if way == "tables" and not Core.ItemNameByID(item, true) then get = nil end
     local f = item and get and Plain(Call(get, item))
     local r = type(f) == "table" and f.recipe
     if type(r) == "table" and Num(r.skill) then return r.skill, false end

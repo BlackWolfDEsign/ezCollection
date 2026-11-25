@@ -162,6 +162,22 @@ local function OutgoingText(msg)
     return text
 end
 
+-- Hat der Zustell-Takt etwas zu tun? Wartende Nachrichten, offene Zustellversuche (pending) oder Einträge des kurzen
+-- Verlaufs (recent) – alle drei stellt bzw. räumt Tick ab. Sonst hält der Takt an (T7-3, Rest; Gegenprüfung P19c,
+-- Gesamtreview 18.11.2026: vorher lief er immer).
+function Delivery.TickNeeded()
+    if next(pending) ~= nil or next(recent) ~= nil then return true end
+    return ns.C ~= nil and #Conv.QueuedKeys() > 0
+end
+
+-- Takt wecken, wenn etwas hinzukommt (Zustellversuch, Verlaufseintrag, geändertes Gespräch); läuft er schon, nichts.
+local function Wake()
+    local griff = Delivery.ticker
+    if griff and not griff:Running() then griff:Update() end
+end
+Delivery.Wake = Wake
+Conv.OnChange(function() Wake() end)
+
 -- Ein Zustellversuch beginnt oder läuft ab: Briefe am Briefkasten (Chat-Knopfleiste) zählen laufende
 -- Versuche nicht mit, darum dort neu zählen.
 local function PendingChanged()
@@ -218,6 +234,7 @@ function Delivery.Try(key, manual)
         msg.f = tonumber(msg.f) or time()
         pending[key] = { msg = msg, text = text, at = GetTime() }
         PendingChanged()
+        Wake()
     end
 end
 
@@ -301,6 +318,7 @@ function Delivery.Log(key, text, fromWindow)
         recent[key] = list
     end
     list[#list + 1] = { m = text, at = GetTime(), window = fromWindow or nil }
+    Wake()
 end
 
 function Delivery.WaysText(convo)
@@ -538,7 +556,7 @@ local function RequestRoster()
     end
 end
 
-local function Tick()
+local function TickWork()
     if not ns.C then return end
     local now = GetTime()
     local expired = false
@@ -571,6 +589,12 @@ local function Tick()
     end
 end
 
+-- Ein Takt: abarbeiten, danach anhalten, wenn nichts mehr zu tun ist (Delivery.TickNeeded).
+local function Tick()
+    TickWork()
+    if Delivery.ticker then Delivery.ticker:Update() end
+end
+
 -- Hinweis am Chatfenster beim Flüstern an andere (ezCores Hinweis-Helfer, einmal je Account; Gesamtreview 18.11.2026,
 -- T1-4 und T1-3, Entscheidungen 2 und 3 des Nutzers): „Auch Flüstern aus dem normalen Chat“ schickt ohne Klick nach und
 -- ist darum ab Werk aus. Gilt nur mit eingeschalteter Warteschlange; für die beim Update umgestellten
@@ -593,6 +617,6 @@ ns.OnReady(function()
     ns.AddMessageEventFilter("CHAT_MSG_SYSTEM", SystemFilter)
     RequestRoster()
     -- Takt mit Griff, Fehler mit Stapel und Ort in ezChats Fehlerliste (ezCores Ticker-Helfer, Gesamtreview 18.11.2026,
-    -- T7-3; vorher eigener pcall ohne Stapel)
-    Delivery.ticker = ns.Ticker(TICK, Tick, nil, "Delivery.Tick")
+    -- T7-3; vorher eigener pcall ohne Stapel). Läuft nur, solange Delivery.TickNeeded etwas meldet; Wake startet ihn.
+    Delivery.ticker = ns.Ticker(TICK, Tick, Delivery.TickNeeded, "Delivery.Tick")
 end)

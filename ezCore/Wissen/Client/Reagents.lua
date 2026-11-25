@@ -1,11 +1,11 @@
--- Reagenzien und Werkzeuge der Klassenzauber (F9) – laut wago.tools, Produkt wowf, Build 1.60.1.70938 (Client-Tabellen SpellReagents, SpellTotems).
--- Erzeugt am 2026-11-16 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
+-- Reagenzien und Werkzeuge der Klassenzauber (F9) – laut wago.tools, Produkt wowf, Build 1.60.1.71037 (Client-Tabellen SpellReagents, SpellTotems).
+-- Erzeugt am 2026-11-24 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
 -- tools/wago.lua <Rohordner> --aus=tools/daten/wago). Nicht von Hand ändern – die wago-Prüfung in sh tools/test.sh
 -- meldet rot, wenn diese Datei nicht zu tools/daten/wago/ passt. Herkunft und Regeln: docs/wago-tools.md, Abschnitt 7.
 -- Leser: ezCore.ClientData (Wissen/ClientData.lua). Felder: reagents[Zauber] = { { Gegenstand, Anzahl } … }; tools[Zauber] = { { Art (1 Totem-Kategorie, 2 Gegenstand), Kennung } … }
 local _, ns = ...
 ns.ClientTables = ns.ClientTables or {}
-ns.ClientTables.reagents = {build="1.60.1.70938",data={reagents={
+ns.ClientTables.reagents = {build="1.60.1.71037",data={reagents={
 [130]={{17056,1}},
 [131]={{17057,1}},
 [491]={{5517,1}},
@@ -110,12 +110,6 @@ ns.ClientTables.reagents = {build="1.60.1.70938",data={reagents={
 [27740]={{17030,1}},
 [28023]={{6265,1}},
 [28146]={{17032,1}},
-[427076]={{6260,0}},
-[427078]={{6260,0}},
-[427080]={{6260,0}},
-[427081]={{6260,0}},
-[427082]={{6260,0}},
-[427084]={{6260,0}},
 [427733]={{6265,1}},
 [437169]={{6265,5}},
 [437311]={{6265,1}},
@@ -217,4 +211,4 @@ ns.ClientTables.reagents = {build="1.60.1.70938",data={reagents={
 [425874]={{1,2}},
 [1287768]={{2,12384}},
 [1325256]={{1,5}},
-}},date="2026-11-16"}
+}},date="2026-11-24"}

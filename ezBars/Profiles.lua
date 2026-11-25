@@ -12,7 +12,7 @@ local Core = ezCore
     Sichtbarkeit, leere Plätze zeigen, Wahl der Aktionsplätze – dazu Spalten, Reihen, Größe, Abstand und Sichtbarkeit
     der Leisten anderer Module (ns.RegisterBar; Schlüssel x_<id>_<Name>, auch wenn ihr Anbieter gerade nicht läuft).
     NICHT im Profil:
-      - die Zauber auf den Plätzen (die gehören dem Charakter; dafür gibt es je Leiste das Leisten-Profil über ezMacro),
+      - die Zauber auf den Plätzen (die gehören dem Charakter; dafür gibt es je Leiste das Leisten-Profil aus ezCore),
       - die gemerkten Aktionsplätze je Charakter (ezBarsDB.chars),
       - die Lage der Leisten (ezCore.Mover, ezCoreDB.positions).
 

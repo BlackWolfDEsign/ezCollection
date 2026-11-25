@@ -231,26 +231,15 @@ function Plan.Check(plan, ctx)
     local nodes = Traits.Nodes(ctx.configID, ctx.treeID)
     local byID, incoming = {}, Traits.Incoming(nodes)
     for _, node in ipairs(nodes) do byID[node.id] = node end
-    local layout = ctx.kind == "class" and Traits.Layout(ctx.configID, ctx.treeID, nodes) or {}
-    -- Punkte des Plans, die für eine Schwelle am Knoten zählen
+    local class = ctx.kind == "class"
+    local layout = class and Traits.Layout(ctx.configID, ctx.treeID, nodes) or {}
+    -- feste Schwellen (der Client nennt nur den Rest bis dahin – Spieltest 23.11.2026, Traits.Thresholds)
+    local thresholds = Traits.Thresholds(ctx.configID, ctx.treeID, nodes, layout, class)
+    -- Punkte des Plans, die für eine Schwelle am Knoten zählen (dieselbe Regel wie Traits.Thresholds)
     local function Counted(node)
-        local here, sum = layout[node.id], 0
+        local sum = 0
         for _, other in ipairs(nodes) do
-            if other.id ~= node.id then
-                local w = Want(plan, other.id)
-                if w > 0 then
-                    if ctx.kind ~= "class" then
-                        sum = sum + w
-                    else
-                        local there = layout[other.id]
-                        if here and there then
-                            if there.tree == here.tree and (there.row or 0) < (here.row or 0) then sum = sum + w end
-                        elseif other.y < node.y then
-                            sum = sum + w
-                        end
-                    end
-                end
-            end
+            if Traits.CountsFor(node, other, layout, class) then sum = sum + Want(plan, other.id) end
         end
         return sum
     end
@@ -272,17 +261,10 @@ function Plan.Check(plan, ctx)
                 end
             end
             if not bad and sufficient and not sufficientMet then bad = { kind = "edge", from = sufficient } end
-            if not bad then
-                for _, condID in ipairs(node.conditions or {}) do
-                    local cond = Traits.Condition(ctx.configID, condID)
-                    if Traits.Restricts(cond) and cond.spent then
-                        local have = Counted(node)
-                        if have < cond.spent then
-                            bad = { kind = "spent", need = cond.spent, have = have, text = cond.text }
-                            break
-                        end
-                    end
-                end
+            local need = thresholds[node.id]
+            if not bad and need and need > 0 then
+                local have = Counted(node)
+                if have < need then bad = { kind = "spent", need = need, have = have } end
             end
             if bad then
                 check.bad[node.id] = bad
@@ -602,8 +584,9 @@ end
 function Plan.Record(plan, copy)
     if type(plan) ~= "table" then return nil end
     -- fresh: ein neuer Plan, nie geändert (etwa „Bestes mit n Punkten“) – gilt nach /reload nicht als geändert
+    -- keep: „Bestes mit n Punkten“ auf den vergebenen Punkten (Advice.BestPlan) – Advice.Rate bewertet es danach
     local rec = { kind = plan.kind, key = plan.key, name = plan.name, from = plan.from,
-        fresh = (plan.kind == "new" and not plan.edited) or nil }
+        fresh = (plan.kind == "new" and not plan.edited) or nil, keep = (plan.kind == "new" and plan.keep) or nil }
     if plan.edited or plan.kind == "new" then
         local tpl = plan.tpl
         rec.edited, rec.primary, rec.orderFrom, rec.orderEdited = true, tpl.primary, tpl.orderFrom, tpl.orderEdited
@@ -645,7 +628,8 @@ function Plan.FromRecord(rec, ctx)
         if preset then plan = Plan.FromPreset(preset, ctx) end
     elseif rec.kind == "new" and rec.edited then
         plan = { kind = "new", name = type(rec.name) == "string" and rec.name or L.PLAN_NEW_NAME, scope = ctx.scope,
-            from = type(rec.from) == "string" and rec.from or nil, tpl = { nodes = {}, choices = {}, tree = ctx.treeID } }
+            from = type(rec.from) == "string" and rec.from or nil, keep = rec.keep == true or nil,
+            tpl = { nodes = {}, choices = {}, tree = ctx.treeID } }
     end
     if not plan then return nil end
     if rec.edited then

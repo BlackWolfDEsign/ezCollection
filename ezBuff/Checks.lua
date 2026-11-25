@@ -75,7 +75,9 @@ function Check.ScanBags(class)
     -- Weapon.Tasks je Hand über Core.BestItems.PickWeaponEnchant – erst dann, damit ein Waffenwechsel ohne neuen
     -- Taschen-Durchlauf zählt
     best.weapons = {}
-    local function Offer(slotKind, itemID, f, c)
+    -- weak: laut Item-Wissen nur für andere Klassen (Core.BestItems.Fit "other"; nur Buff-Essen kommt so durch die
+    -- Vorauswahl)
+    local function Offer(slotKind, itemID, f, c, weak)
         local score = Score(f, c, class)
         if slotKind == "weapon" then
             best.weapons[#best.weapons + 1] = { itemID = itemID, name = f.name, icon = Core.ItemIcon(itemID), kind = c.kind,
@@ -83,7 +85,7 @@ function Check.ScanBags(class)
         end
         if not scores[slotKind] or score > scores[slotKind] then
             scores[slotKind] = score
-            best[slotKind] = { itemID = itemID, name = f.name, icon = Core.ItemIcon(itemID), kind = c.kind }
+            best[slotKind] = { itemID = itemID, name = f.name, icon = Core.ItemIcon(itemID), kind = c.kind, weak = weak or nil }
         end
     end
     -- „carried“ (EC-50, V-175): alles, was du bei dir trägst – auch die Reagenzientasche; Buff-Essen und Fläschchen
@@ -95,9 +97,15 @@ function Check.ScanBags(class)
         if not itemID then return end
         local f = K.Get(itemID)
         local c = f and f.consumable
+        if type(c) ~= "table" then return end
         -- Vorauswahl über ezCore (Core.BestItems.Usable: benutzbar, „gut für <Klasse>“) – dieselbe wie bei
-        -- Core.BestItems.WeaponEnchant für ezMacros Gift-Vorlagen
-        if not c or not Core.BestItems.Usable(f, class) then return end
+        -- Core.BestItems.WeaponEnchant für ezMacros Gift-Vorlagen. Buff-Essen zählt auch mit Werten, die laut
+        -- Item-Wissen anderen Klassen nützen (Fehler vom Nutzer vom 23.11.2026: „fehlendes bufffood (in tasche
+        -- vorhanden) beim hexer wird nicht angezeigt, sonst hat das beim pala 1a funktioniert“ – Stärke-Essen fiel
+        -- beim Hexenmeister heraus). „Satt“ ist besser als gar nichts; Core.BestItems.Score stellt es hinter alles
+        -- Passende, die Aufgabe sagt es dazu (L.FOOD_WEAK).
+        local food = c.wellFed and FOOD_KINDS[c.kind] or false
+        if not Core.BestItems.Usable(f, class, food) then return end
         if c.kind == "flask" or c.kind == "elixir" then
             local spell = Check.AuraSpell(itemID, f)
             if spell then
@@ -106,8 +114,9 @@ function Check.ScanBags(class)
             end
         elseif c.kind == "weaponEnchant" then
             Offer("weapon", itemID, f, c)
-        elseif c.wellFed and FOOD_KINDS[c.kind] then
-            Offer("food", itemID, f, c)
+        elseif food then
+            -- „Ausdauer und Willenskraft“ ist nicht ungünstig: Ausdauer nützt jeder Klasse (Core.BestItems.Fit "all")
+            Offer("food", itemID, f, c, Core.BestItems.Fit(f, class) == "other")
         end
     end, "carried")
     return best, complete
@@ -244,6 +253,18 @@ local function Member(unit)
         visible = Value(UnitIsVisible, unit) ~= false }
 end
 Check.Member = Member
+
+-- Jetzt noch erreichbar? Frisch gefragt (die letzte Prüfung kann bis zu 15 s alt sein): da, verbunden, lebend und
+-- sichtbar. → true | false, Grund ("gone" | "offline" | "dead" | "hidden"). Für das Symbol am Rahmen (Group.lua):
+-- Bei einem Ziel, auf das der Zauber nicht geht, wirkt Blizzards „Selbstwirken: Automatisch“ auf dich (Review vom
+-- 23.11.2026). Unbekannt (gesperrt) zählt als erreichbar – ns.Value prüft gesperrte Werte.
+function Check.Reachable(unit)
+    if Value(UnitExists, unit) == false then return false, "gone" end
+    if Value(UnitIsConnected, unit) == false then return false, "offline" end
+    if Value(UnitIsDeadOrGhost, unit) == true then return false, "dead" end
+    if Value(UnitIsVisible, unit) == false then return false, "hidden" end
+    return true
+end
 
 -- In Reichweite? Über ezCore (Spells.InRange: true/false/nil); ohne C_Spell die alte Abfrage des Clients.
 local function InRange(spellID, unit)
@@ -845,7 +866,7 @@ end
 
 -- Genau dieser Rang gelernt? (Spells.IsKnown nähme bei Rängen irgendeinen.)
 local function KnowsRank(id)
-    if ns.Value(IsPlayerSpell, id) == true then return true end
+    if Core.KnowsSpell(id) then return true end
     return Spells.IsKnownRank ~= nil and Core.Call(Spells.IsKnownRank, id) == true
 end
 
@@ -1091,8 +1112,9 @@ local function CheckFoodFlask(list, auras, minLeft, items)
     if ns.S.food and not Buffs.Has(auras, "wellFed", minLeft) then
         local item = items.food
         if item then
+            -- Werte laut Item-Wissen für andere Klassen: der Tooltip sagt es samt Quelle (Leitlinie 11)
             Add(list, { kind = "food", key = item.itemID, label = L.MISSING_FOOD, what = L.WHAT_FOOD, icon = item.icon, itemName = item.name,
-                action = { type = "item", item = "item:" .. item.itemID } })
+                note = item.weak and L.FOOD_WEAK or nil, action = { type = "item", item = "item:" .. item.itemID } })
         elseif inInstance then
             Add(list, { kind = "food", key = 0, label = L.MISSING_FOOD_NONE, what = L.WHAT_FOOD_NONE })
         end
@@ -1216,6 +1238,20 @@ function Check.Request()
     throttled()
 end
 
+-- Hat der Restzeit-Takt etwas zu prüfen? Er dient den Prüfungen, deren Ergebnis sich ohne Ereignis mit der Zeit ändert
+-- (Restzeit unter „Mindestrestzeit“, Buff zurückgeben): eigene Klassen-Buffs, Gruppe, Buffs anderer Klassen, Essen,
+-- Fläschchen, Waffe, Lagerfeuer, Symbole an Blizzards Gruppenrahmen, Buff zurückgeben – die Schalter von Check.Run.
+-- Ist alles aus, hält der Takt an (T7-3, Rest; Gegenprüfung P19c, Gesamtreview 18.11.2026: vorher lief er immer);
+-- jede Einstellung fragt neu (griff:Update aus OnSettingChanged).
+function Check.TickNeeded()
+    local S = ns.S
+    if not S then return false end
+    if S.selfBuffs or S.groupBuffs or S.otherBuffs or S.food or S.flask or S.weapon or S.campfire then return true end
+    if ns.Group and ns.Group.Active() then return true end
+    if ns.Rebuff and ns.Rebuff.Active() then return true end
+    return false
+end
+
 ---------------------------------------------------------------------------
 -- Ereignisse
 ---------------------------------------------------------------------------
@@ -1304,7 +1340,10 @@ ns.OnReady(function()
             if entered and ns.S.report then ns.PrintMissing(false) end
         end)
     end)
-    ns.OnSettingChanged(function() Check.Request() end)
+    ns.OnSettingChanged(function()
+        if Check.ticker then Check.ticker:Update() end   -- alles aus: Takt anhalten; wieder an: starten
+        Check.Request()
+    end)
     if Core.Knowledge and Core.Knowledge.OnReady then
         Core.Knowledge.OnReady(function()
             Check.ForgetBags()
@@ -1319,7 +1358,7 @@ ns.OnReady(function()
     C_Timer.After(3, learn)
     if Core.Listen then Core.Listen("INVENTORY_CHANGED", learn, ns.moduleName) end
     -- Restzeiten laufen ab, ohne dass ein Ereignis kommt. Takt mit Griff, Fehler in ezBuffs Fehlerliste (ezCores
-    -- Ticker-Helfer, Gesamtreview 18.11.2026, T7-3).
-    Check.ticker = ns.Ticker(15, function() Check.Request() end, nil, "Check.Tick")
+    -- Ticker-Helfer, Gesamtreview 18.11.2026, T7-3); läuft nur, solange Check.TickNeeded etwas zu prüfen meldet.
+    Check.ticker = ns.Ticker(15, function() Check.Request() end, Check.TickNeeded, "Check.Tick")
     Check.Request()
 end)

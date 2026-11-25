@@ -18,29 +18,15 @@ local L = ns.L
 local Marks = {}
 ns.Marks = Marks
 
-local SIZE = 13
 local MAX_SHOWN = 2          -- untereinander am linken Rand, darunter steht „BoE“
 
 local providers = {}         -- { key, order, owner, fn }
-local textures = setmetatable({}, { __mode = "k" })   -- [Knopf] = { Textur, … }
-local signs = setmetatable({}, { __mode = "k" })      -- [Knopf] = { FontString, … } (Zeichen neben der Marke)
+local drawer = ezCore.SlotMarks.NewDrawer()            -- gezeichnet wird mit ezCores Fassung (eine Optik für beide)
 
 -- Farbenblind-Hilfe (EC-47): Ist ezCores Schalter „Zeichen am Leuchten“ an, steht rechts neben einer Marke mit sign
 -- ein Zeichen (ezCore.MarkSign: „+“ grün, „!“ rot …, „-“ für grau = erledigt oder nicht für dich). Eine eigene
--- graue Marke (desaturate ohne Färbung) bekommt von sich aus „muted“. → Zeichen oder nil
-function Marks.SignOf(mark)
-    if type(mark) ~= "table" or type(ezCore.MarkSign) ~= "function" then return nil end
-    local key = mark.sign
-    if key == nil and mark.desaturate == true and mark.r == nil then key = "muted" end
-    return ezCore.MarkSign(key)
-end
-
-local function Sort()
-    table.sort(providers, function(a, b)
-        if a.order ~= b.order then return a.order < b.order end
-        return a.key < b.key
-    end)
-end
+-- graue Marke (desaturate ohne Färbung) bekommt von sich aus „muted“ (ezCore.SlotMarks.SignOf).
+Marks.SignOf = ezCore.SlotMarks.SignOf
 
 --[[
     fn(itemID, link, bag, slot, quality) → nil oder eine Marke:
@@ -56,7 +42,7 @@ function Marks.Add(key, opts)
     Marks.Remove(key)
     providers[#providers + 1] = { key = key, order = tonumber(opts.order) or 50, owner = opts.owner or key, fn = opts.fn }
     Marks.Refresh()
-    Sort()
+    ezCore.SlotMarks.Sort(providers)
     return true
 end
 
@@ -107,92 +93,13 @@ function Marks.For(itemID, link, bag, slot, quality)
     return list
 end
 
-local function Texture(button, i)
-    local list = textures[button]
-    if not list then
-        list = {}
-        textures[button] = list
-    end
-    local tex = list[i]
-    if not tex then
-        -- Unterebene 1: unter ezBags Grau-Schicht (Suche, Hervorheben), wie Blizzards Pfeil am Platz.
-        tex = button:CreateTexture(nil, "OVERLAY", nil, 1)
-        list[i] = tex
-    end
-    return tex
-end
-
 function Marks.Apply(button, itemID, link, quality, bag, slot)
     if not button then return end
-    local list = Marks.For(itemID, link, bag, slot, quality)
-    local prev
-    for i, mark in ipairs(list) do
-        local tex = Texture(button, i)
-        local atlasSize = mark.atlas and mark.useAtlasSize == true and tex.SetAtlas ~= nil
-        if mark.atlas and tex.SetAtlas then
-            tex:SetAtlas(mark.atlas, atlasSize)
-        else
-            tex:SetTexture(mark.texture)
-        end
-        if not atlasSize then tex:SetSize(SIZE, SIZE) end
-        tex:ClearAllPoints()
-        if prev then
-            tex:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -1)
-        else
-            local dx = mark.x or (atlasSize and 0 or 2)
-            local dy = mark.y or (atlasSize and 0 or -2)
-            tex:SetPoint("TOPLEFT", button, "TOPLEFT", dx, dy)
-        end
-        prev = tex
-        tex:SetVertexColor(mark.r or 1, mark.g or 1, mark.b or 1)
-        if tex.SetDesaturated then tex:SetDesaturated(mark.desaturate == true) end
-        -- Drehung je Marke (ezGear: roter Pfeil = Blizzards grüner Pfeil, um 180° gedreht); setzt wiederverwendete zurück
-        if tex.SetRotation then tex:SetRotation(mark.rotation or 0) end
-        tex:Show()
-        Marks.SetSign(button, i, tex, Marks.SignOf(mark))
-    end
-    local own = textures[button]
-    if own then
-        for i = #list + 1, #own do own[i]:Hide() end
-    end
-    -- Zeichen stehen nur an Marken mit Zeichen: die Liste kann Lücken haben ({ [2] = fs }), # wäre dann 0
-    local text = signs[button]
-    if text then
-        for i, fs in pairs(text) do
-            if i > #list then fs:Hide() end
-        end
-    end
-end
-
--- Zeichen i am Knopf zeigen (rechts neben der Marke tex) oder verstecken; legt den FontString erst bei Bedarf an.
-function Marks.SetSign(button, i, tex, sign)
-    local list = signs[button]
-    if not sign then
-        if list and list[i] then list[i]:Hide() end
-        return
-    end
-    if not button.CreateFontString then return end
-    if not list then
-        list = {}
-        signs[button] = list
-    end
-    local fs = list[i]
-    if not fs then
-        fs = button:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
-        list[i] = fs
-    end
-    fs:SetText(sign)
-    fs:ClearAllPoints()
-    fs:SetPoint("LEFT", tex, "RIGHT", 0, 0)
-    fs:Show()
+    drawer.Draw(button, Marks.For(itemID, link, bag, slot, quality))
 end
 
 -- Zeichen i am Knopf (nil, wenn keines steht) – für Tests und /dump
-function Marks.SignShown(button, i)
-    local fs = signs[button] and signs[button][i or 1]
-    if not (fs and fs.IsShown and fs:IsShown()) then return nil end
-    return fs.GetText and fs:GetText() or nil
-end
+Marks.SignShown = drawer.SignShown
 
 -- Schaltet der Spieler „Zeichen am Leuchten“ um, sofort neu zeichnen (Nachricht von ezCore 1.12.0)
 ezCore.Listen("GLOW_MARKS_CHANGED", function() Marks.Refresh() end, ADDON)
@@ -244,13 +151,13 @@ Marks.Add("ezBag.collect", { order = 30, owner = ADDON, fn = function(itemID, li
     if missing then return { texture = C.MARK_TEXTURE, desaturate = otherClass == true } end
 end })
 
--- Material für ezCrafts Einkaufsliste (CRAFT-14, V-144): Gesamtbedarf aus ezCore.API("ezCraft").Needs(), gemerkt
--- bis zur Nachricht EZCRAFT_SHOPPING_CHANGED oder einer Änderung der Rezepte bzw. des Berufefensters (und vor jedem
+-- Material für die gemeinsamen Einkaufslisten (CRAFT-14, V-144): Gesamtbedarf aus Core.Lists (ezCraft und ezAuction),
+-- gemerkt bis zur Nachricht LISTS_CHANGED oder einer Änderung der Rezepte bzw. des Berufefensters (und vor jedem
 -- Plunder-Verkauf und jedem „Platz schaffen“ neu gelesen). Der Plunder-Verkauf und
 -- „Platz schaffen“ lassen diese Gegenstände liegen; die Menge nennt ezCrafts eigene Tooltip-Zeile („Einkaufsliste“).
--- Gelesen und gemerkt wird seit Welle 23 in ezCore (Core.Junk.CraftNeed/ClearCraftNeeds, A43 – eine Fassung für
--- ezBag und ezMerchant ohne ezBag); ns.CraftNeed und ns.ClearCraftNeeds bleiben als Weiterleitung.
--- → Bedarf (Zahl > 0) oder nil (nicht auf der Liste, ezCraft läuft nicht, gesperrte ID)
+-- Gelesen und gemerkt wird in ezCore (Core.Junk.CraftNeed/ClearCraftNeeds, A43 – eine Fassung für ezBag und ezMerchant
+-- ohne ezBag); ns.CraftNeed und ns.ClearCraftNeeds bleiben als Weiterleitung.
+-- → Bedarf (Zahl > 0) oder nil (auf keiner Liste, gesperrte ID)
 function ns.CraftNeed(itemID)
     itemID = ns.PlainID(itemID)
     if not itemID then return nil end
@@ -266,18 +173,14 @@ Marks.Add("ezBag.craft", { order = 40, owner = ADDON, fn = function(itemID)
     if ns.CraftNeed(itemID) then return { texture = SHOPPING } end
 end })
 
-local function CraftNeedsChanged()
-    ns.ClearCraftNeeds()
-    Marks.Refresh()
-end
-ezCore.Listen("EZCRAFT_SHOPPING_CHANGED", CraftNeedsChanged, ADDON)
--- ezCraft rechnet den Bedarf auch hier neu, ohne Nachricht: Das Berufefenster liefert andere Zutaten als das
--- Rezept-Wissen, solange es offen ist (ezCraft/Shopping.lua, Shopping.Invalidate).
+local function CraftNeedsChanged() Marks.Refresh() end      -- den Bedarf verwirft ezCore selbst (Lists, Junk)
+ezCore.Listen("LISTS_CHANGED", CraftNeedsChanged, ADDON)
+-- Auch hier ändert sich der Bedarf, ohne Nachricht: Das Berufefenster liefert andere Zutaten als das Rezept-Wissen,
+-- solange es offen ist (ezCore.Junk verwirft ihn bei denselben Ereignissen).
 ezCore.Listen("RECIPES_CHANGED", CraftNeedsChanged, ADDON)
 for _, event in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_CLOSE" }) do
     ns.On(event, CraftNeedsChanged)
 end
-ns.OnReady(function() ns.ClearCraftNeeds() end)
 
 -- Von dir (Alt+Rechtsklick, Ziehen, Auswahl) einer Gruppe außer „Plunder“ zugewiesen? Gilt für jede Qualität.
 function ns.HandAssigned(itemID)
@@ -330,6 +233,8 @@ ns.On("MERCHANT_CLOSED", function() Marks.Refresh() end)
 
 ns.API = ns.API or {}
 ns.API.AddSlotMark = Marks.Add
+-- Zeichnet ezBag die Marken in Blizzards Taschen? Nur in der zusammengefassten; einzelne Taschen übernimmt ezCore.
+ns.API.MarksBags = function() return ns.UsingCombinedBags() end
 ns.API.RemoveSlotMark = Marks.Remove
 ns.API.RefreshMarks = Marks.Refresh
 ns.API.SLOT_MARK_ROTATION = true   -- Platzmarken dürfen rotation (Bogenmaß) mitgeben

@@ -83,7 +83,8 @@ function LU.TableLine(level)
     local known = #reached > 0 and type(U.ClientLevels) == "function" and U.ClientLevels() or nil
     for _, entry in ipairs(reached) do
         local shown = type(U.EntryLevel) == "function" and U.EntryLevel(entry, nil, known) or ns.Num(entry.level)
-        if shown == level then list[#list + 1] = entry end
+        -- Ränge aus Büchern lehrt kein Lehrer: sie stehen in „Was kommt wann“ und „Wo kommt was“
+        if shown == level and not entry.bookItem then list[#list + 1] = entry end
     end
     if #list == 0 then return nil end
     local T = ns.Trainer

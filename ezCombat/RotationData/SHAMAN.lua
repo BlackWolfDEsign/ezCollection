@@ -34,8 +34,12 @@ local T = ns.RotationData.T
 --   Mana-Schwellen 30 / 40 / 50 / 60 Prozent für „mit Mana übrig“, 80 Prozent für das Mana-Totem (belegt: rund ein
 --   Fünftel fehlt).
 -- [V] – im Spiel zu prüfen (der Selbsttest /ez test nennt unbekannte IDs):
---   408498  Talent-ID; die Stapel-Aura kann eine andere ID tragen (dann greift der Namensvergleich)
 --   16166, 16246  als Aura auf dem Spieler (ID der Aura kann abweichen; dann greift der Namensvergleich)
+-- Waffe des Mahlstroms: Die Stapel trägt laut Client-Tabellen die Aura 408505 „Maelstrom Weapon“ (SpellAuraOptions:
+--   CumulativeAura 5, ProcCharges 1), nicht das Talent 408498 (CumulativeAura 0; laut wago.tools, wowf 1.60.1.70938 und
+--   1.60.1.71037 gleich) – die Schritte prüfen 408505, der Text nennt das Talent. Seit dem Hotfix vom 10.11.2026 (in den
+--   Tabellen ab 71037) senkt jeder Stapel Zauberzeit und Kosten um 20 %: fünf Stapel machen den Blitz sofort wirkbar,
+--   die Regel „nur mit vollen Stapeln“ bleibt (Paket „Daten auf Build 71037“, 22.11.2026).
 -- Laut Client-Tabellen (ClassSpells, wago.tools wowf 1.60.1.70938; Gesamtreview 18.11.2026, T14-NH5/NH1):
 --   Totem der Manaflut 16190 ist Rang 1 (Talent) einer Gruppe mit 17354 (Stufe 38), 17359 (48) und 1325256 (58) –
 --   der eine Schritt 16190 deckt über den Namen alle Ränge ab (der frühere zweite Schritt 1325256 mit need.unknown =
@@ -61,8 +65,8 @@ ns.RotationData.Add("SHAMAN", {
       sources = { IV_ELE_LEVEL,
           "https://www.wowhead.com/forever/guide/classes/shaman/elemental/rotation-cooldowns-pve-dps",
           "https://www.wowhead.com/forever/guide/classes/shaman/elemental/dps-leveling-tips" },
-      how = T("Vor dem Pull Schild und Totems setzen, das Feuer-Totem zuletzt; aus der Ferne mit {403} eröffnen. Im Kampf {8050} halten und erst nach Ablauf erneuern, dann {16166} zünden. {421} nur außerhalb von {16166} und nur mit {16246} oder genug Mana; sonst füllt {403}. Mana ist die Grenze: den Schild gleich nach dem Kampf erneuern, schwache Gegner im Nahkampf erledigen.",
-              "Before the pull set your shield and totems, the fire totem last; open from range with {403}. In combat keep {8050} up and renew it only after it ends, then fire {16166}. Use {421} only outside {16166} and only with {16246} or enough mana; {403} fills the rest. Mana is the limit: renew the shield right after a fight and finish weak enemies in melee."),
+      how = T("Vor dem Pull Schild und Totems setzen, das Feuer-Totem zuletzt; aus der Ferne mit {403} eröffnen. Im Kampf {8050} halten und zum Ablauf erneuern, dann {16166} zünden. {421} nur außerhalb von {16166} und nur mit {16246} oder genug Mana; sonst füllt {403}. Mana ist die Grenze: den Schild gleich nach dem Kampf erneuern, schwache Gegner im Nahkampf erledigen.",
+              "Before the pull set your shield and totems, the fire totem last; open from range with {403}. In combat keep {8050} up and renew it as it ends, then fire {16166}. Use {421} only outside {16166} and only with {16246} or enough mana; {403} fills the rest. Mana is the limit: renew the shield right after a fight and finish weak enemies in melee."),
       note = T("Gegnerzahl und Kampfdauer sieht ezCombat nicht: ab drei Gegnern den Flächenmodus einschalten; in langen Kämpfen Manatränke nutzen. Welches Totem je Element passt, entscheidest du – geprüft wird nur, ob der Platz leer ist.",
                "ezCombat can't see enemy count or fight length: switch on AoE mode from three enemies up; use mana potions in long fights. Which totem fits each element is your call – only an empty slot is checked."),
       steps = {
@@ -103,7 +107,7 @@ ns.RotationData.Add("SHAMAN", {
         { id = 3599, kind = "maintain", when = "totemslot", slot = 1,
           text = T("Kein Feuer-Totem mehr: neu setzen.", "No fire totem left: drop a new one.") },    -- Totem der Verbrennung / Searing Totem
         { id = 8050, kind = "maintain", when = "dot", refresh = "missing",
-          text = T("Fehlt er: setzen. Erst nach Ablauf erneuern.", "Missing: apply. Renew only after it ends.") },    -- Flammenschock / Flame Shock
+          text = T("Fehlt er: setzen. Zum Ablauf erneuern.", "Missing: apply. Renew it as it ends.") },    -- Flammenschock / Flame Shock
         { id = 16166, kind = "cooldown", burst = true, when = "ready", need = { combat = true, aura = { id = 8050, unit = "target" } },
           text = T("Nach Totems und {8050}; mit Schmuck und Volksfähigkeit.", "After totems and {8050}; with trinkets and racial.") },    -- Blitzbeherrschung / Lightning Mastery
         { id = 16190, kind = "resource", when = "lowmana", max = 80, need = { combat = true },
@@ -158,8 +162,8 @@ ns.RotationData.Add("SHAMAN", {
           text = T("Immer, wenn bereit.", "Whenever it is ready.") },    -- Sturmschlag / Stormstrike
         { id = 8050, kind = "maintain", when = "dot", refresh = "missing", need = { grouped = true },
           text = T("Nur in Gruppen: fehlt er, setzen.", "In groups only: apply when missing.") },    -- Flammenschock / Flame Shock
-        { id = 403, kind = "priority", when = "proc", aura = 408498, stacks = 5,
-          text = T("Nur mit vollen Stapeln von {408498}.", "Only at full {408498} stacks.") },    -- Blitzschlag / Lightning Bolt [V Aura-ID]
+        { id = 403, kind = "priority", when = "proc", aura = 408505, stacks = 5,
+          text = T("Nur mit vollen Stapeln von {408498}.", "Only at full {408498} stacks.") },    -- Blitzschlag / Lightning Bolt
         { id = 8042, kind = "priority", when = "ready",
           text = T("Dein Schock beim Leveln, sobald er bereit ist.", "Your levelling shock whenever it is ready.") },    -- Erdschock / Earth Shock
         { id = 3599, kind = "maintain", when = "totemslot", slot = 1, optional = true,
@@ -232,8 +236,8 @@ ns.RotationData.Add("SHAMAN", {
           text = T("Wenn bereit oder für starke Momente; mit Schmuck und Volksfähigkeit.", "When ready or saved for big moments; with trinkets and racial.") },    -- Zorn des Scharfsehers / Rage of the Farseer
         { id = 17364, kind = "priority", when = "ready",
           text = T("Immer, wenn bereit – trägt Schaden und Mana.", "Whenever ready – it carries damage and mana.") },    -- Sturmschlag / Stormstrike
-        { id = 403, kind = "priority", when = "proc", aura = 408498, stacks = 5,
-          text = T("Nur mit vollen Stapeln von {408498}, nie darunter.", "Only at full {408498} stacks, never below.") },    -- Blitzschlag / Lightning Bolt [V Aura-ID]
+        { id = 403, kind = "priority", when = "proc", aura = 408505, stacks = 5,
+          text = T("Nur mit vollen Stapeln von {408498}, nie darunter.", "Only at full {408498} stacks, never below.") },    -- Blitzschlag / Lightning Bolt
         { id = 8042, kind = "priority", when = "ready", need = { aura = { id = 8050, unit = "target" } },
           text = T("Schock frei und {8050} liegt: dieser.", "Shock ready and {8050} is up: this one.") },    -- Erdschock / Earth Shock
         { id = 8042, key = "priority:8042:early", kind = "priority", when = "ready", need = { unknown = 8050 },

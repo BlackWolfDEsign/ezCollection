@@ -96,6 +96,8 @@ Icons.DEF = {
     bookPins = { file = I .. "INV_Misc_Book_09" },
     questie = { file = { "Interface\\GossipFrame\\AvailableQuestIcon", I .. "INV_Misc_Book_08" } },
     questieRares = { atlas = "VignetteKill", file = I .. "Ability_Hunter_MarkedForDeath" },
+    questieHerbs = { atlas = "professions_tracking_herb", file = I .. "Trade_Herbalism" },     -- wie gatherHerb
+    questieOre = { atlas = "professions_tracking_ore", file = I .. "Trade_Mining" },          -- wie gatherOre
     -- Reise
     travel = { track = "TaxiNode" },
     flightMissing = { track = "TaxiNode" },

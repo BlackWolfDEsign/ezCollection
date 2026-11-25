@@ -60,7 +60,7 @@ end
 function Select.Picked(view)
     local s, list = State(view), {}
     if not s then return list end
-    for _, entry in ipairs(view.entries or {}) do
+    for _, entry in ipairs(ns.Render.Entries(view)) do
         if PickedIn(s, entry) then
             list[#list + 1] = entry
             for _, other in ipairs(entry.merged or {}) do list[#list + 1] = other end
@@ -73,7 +73,7 @@ function Select.Count(view)
     local n = 0
     local s = State(view)
     if not s then return 0 end
-    for _, entry in ipairs(view.entries or {}) do
+    for _, entry in ipairs(ns.Render.Entries(view)) do
         if PickedIn(s, entry) then n = n + 1 end
     end
     return n
@@ -121,21 +121,22 @@ local function Picker(view, i)
     return p
 end
 
--- Nach jedem Zeichnen (View:Draw) und beim Umschalten.
-function Select.Refresh(view)
+-- Nach jedem Zeichnen (View:Draw) und beim Umschalten. Angehängte Ansichten (Abschnitt Reagenzientasche) bekommen
+-- eigene Markier-Knöpfe auf ihrer Fläche, die Auswahl selbst gehört der Ansicht, an der sie hängen.
+local function RefreshPickers(view, owner)
     local pool = pools[view] or {}
     local n = 0
-    if State(view) then
+    if State(owner) then
         for _, entry in ipairs(view.entries or {}) do
             local button = entry.button or entry.display
             if button and entry.itemID and Select.KeyOf(entry) then
                 n = n + 1
                 local p = Picker(view, n)
-                p.view, p.entry = view, entry
+                p.view, p.entry = owner, entry
                 p:ClearAllPoints()
                 p:SetAllPoints(button)
                 p:SetFrameLevel((button:GetFrameLevel() or 1) + 6)
-                local picked = Select.IsPicked(view, entry)
+                local picked = Select.IsPicked(owner, entry)
                 p.check:SetShown(picked)
                 p.fill:SetShown(picked)
                 p:Show()
@@ -143,6 +144,11 @@ function Select.Refresh(view)
         end
     end
     for i = n + 1, #pool do pool[i]:Hide() end
+end
+
+function Select.Refresh(view)
+    RefreshPickers(view, view)
+    for _, other in ipairs(view.linked or {}) do RefreshPickers(other, view) end
     if view.toolbar and view.toolbar.UpdateSelect then view.toolbar:UpdateSelect() end
 end
 
@@ -187,7 +193,7 @@ end
 function Select.PickAll(view, groupKey)
     local s = State(view)
     if not s then return end
-    for _, entry in ipairs(view.entries or {}) do
+    for _, entry in ipairs(ns.Render.Entries(view)) do
         local key = Select.KeyOf(entry)
         if key and entry.itemID and (not groupKey or entry.groupKey == groupKey or entry.rootKey == groupKey) then
             s.picked[key] = true
@@ -241,7 +247,31 @@ local function AtBank() return ns.Inventory.IsBankOpen() end
 -- 18.11.2026; Risiko 11 in docs/blizzard-regeln.md): beginnt er unterwegs, hört der Ticker auf und meldet combatText.
 -- append = true (Rechtsklick auf zusammengefasste Stapel, Stacks.lua): Läuft schon ein Durchgang, kommen die Plätze
 -- hinten dazu (ohne doppelte), statt ihn abzubrechen – schnelle Rechtsklicks nacheinander gehen alle durch.
+-- Der nächste Platz kommt erst, wenn der Server den vorigen freigegeben hat (höchstens Select.USE_WAIT Sekunden), und
+-- was am Ende noch daliegt, geht in einem weiteren Durchgang noch einmal – solange jeder Durchgang etwas schafft,
+-- höchstens Select.USE_ROUNDS (Spieltest vom 23.11.2026: Umlagern aus der Reagenzientasche schaffte nur 20 Stapel).
+Select.USE_WAIT = 1.5
+Select.USE_ROUNDS = 5
 local useTicker, useList
+
+-- Liegt der Platz noch unverändert da (derselbe Gegenstand, dieselbe Anzahl, wenn bekannt)? → info oder nil
+local function Unchanged(s)
+    local info = C_Container.GetContainerItemInfo(s.bag, s.slot)
+    if not (info and info.itemID == s.itemID) then return nil end
+    if s.count and info.stackCount and info.stackCount ~= s.count then return nil end
+    return info
+end
+
+-- Was aus der Liste liegt noch unverändert auf seinem Platz? Plätze, die einmal leer oder anders belegt waren (gone),
+-- nie wieder – sonst ginge ein zurückgekaufter oder von Hand zurückgeholter Stapel ein zweites Mal weg.
+local function StillThere(list, gone)
+    local rest = {}
+    for _, s in ipairs(list) do
+        if not gone[s] and Unchanged(s) then rest[#rest + 1] = s end
+    end
+    return rest
+end
+
 local function UseAll(slots, stillOk, combatText, append)
     if append and useTicker and useList then
         local seen = {}
@@ -252,12 +282,35 @@ local function UseAll(slots, stillOk, combatText, append)
         return
     end
     if useTicker then useTicker:Cancel() end
-    local list, i = slots, 0
+    local list, i, round, usedAt = slots, 0, 1, nil
+    local gone = {}
     useList = list
     useTicker = C_Timer.NewTicker(SELL_INTERVAL, function(t)
+        local prev = list[i]
+        if prev then
+            local info = Unchanged(prev)
+            if not info then
+                gone[prev] = true
+            elseif info.isLocked and usedAt and GetTime() - usedAt < Select.USE_WAIT then
+                return   -- der Server hat den vorigen Platz noch nicht freigegeben
+            end
+        end
         i = i + 1
         local s = list[i]
-        local fight = s ~= nil and ns.InCombat()
+        local leftover = false   -- Kampf zwischen zwei Durchgängen: es liegt noch etwas da
+        if not s and round < Select.USE_ROUNDS and stillOk() then
+            local rest = StillThere(list, gone)
+            if #rest > 0 and #rest < #list then
+                if ns.InCombat() then
+                    leftover = true
+                else
+                    if useList == list then useList = rest end
+                    list, i, round = rest, 1, round + 1
+                    s = list[1]
+                end
+            end
+        end
+        local fight = (s ~= nil or leftover) and ns.InCombat()
         if not s or fight or not stillOk() then
             t:Cancel()
             if useList == list then useTicker, useList = nil, nil end
@@ -265,10 +318,15 @@ local function UseAll(slots, stillOk, combatText, append)
             return
         end
         local info = C_Container.GetContainerItemInfo(s.bag, s.slot)
-        if info and info.itemID == s.itemID then C_Container.UseContainerItem(s.bag, s.slot) end
+        usedAt = nil
+        if info and info.itemID == s.itemID and not info.isLocked then
+            C_Container.UseContainerItem(s.bag, s.slot)
+            usedAt = GetTime()
+        end
     end)
 end
 Select.UseAll = UseAll   -- auch für zusammengefasste Stapel per Rechtsklick (Stacks.lua)
+function Select.Busy() return useTicker ~= nil end   -- läuft ein Durchgang (Verkaufen, Umlegen)? Für das Nachrücken
 
 function Select.Sell(view)
     if not AtMerchant() then return 0 end
@@ -301,18 +359,13 @@ function Select.Move(view)
     return #list
 end
 
--- An den offenen Brief anhängen (ezCore.MailQueue.Attach, hört auf, wenn der Brief voll ist).
+-- An den offenen Brief anhängen (Stacks.Attach: ezMail bzw. ezCores Schlange; hört auf, wenn der Brief voll ist). Läuft
+-- dort schon etwas, bleibt die Auswahl stehen.
 function Select.Attach(view)
-    local queue = ezCore.MailQueue
-    if not (AtMail() and queue and queue.Attach) then return 0 end
+    if not AtMail() then return 0 end
     local entries = {}
     for _, s in ipairs(LiveSlots(view)) do entries[#entries + 1] = { bag = s.bag, slot = s.slot, itemID = s.itemID } end
-    if #entries == 0 then return 0 end
-    -- done bekommt die übrigen Einträge als Liste (MailQueue.Attach), nicht ihre Zahl
-    queue.Attach(entries, function(left)
-        local n = type(left) == "table" and #left or 0
-        if n > 0 then ns.Print(ns.CountText("SELECT_MAIL_FULL", n)) end
-    end)
+    if not ns.Stacks.Attach(entries) then return 0 end
     Select.Clear(view)
     return #entries
 end

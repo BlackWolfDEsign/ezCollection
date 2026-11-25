@@ -744,8 +744,8 @@ local function PostStats(itemID)
     return type(stats) == "table" and stats or nil
 end
 
--- Anzahlung gegen den erwartbaren Gewinn: Quote × (Erlös nach Gebühr − Händlerpreis) je Stück. Rückgabe: Anzahlung,
--- Gewinn – nur, wenn die Anzahlung bekannt ist und den Gewinn übersteigt.
+-- Anzahlung gegen den erwartbaren Gewinn: Quote × (Erlös nach Gebühr − Händlerpreis) je Stück; ohne gemessene Gebühr
+-- zählt der volle Preis. Rückgabe: Anzahlung, Gewinn, brutto – nur, wenn die Anzahlung bekannt ist und den Gewinn übersteigt.
 function History.DepositRisk(itemID, price, duration, rate)
     local prices = ns.Prices()
     if not (prices and type(prices.Net) == "function" and price and price > 0 and rate) then return nil end
@@ -753,10 +753,11 @@ function History.DepositRisk(itemID, price, duration, rate)
     if type(net) ~= "table" or type(net.bekannt) ~= "table" or not net.bekannt.anzahlung then return nil end
     local deposit = Core.Num(net.anzahlung)
     if not (deposit and deposit > 0) then return nil end
-    local after = net.bekannt.erloes and Core.Num(net.erloes) or math.floor(price * (1 - ns.AH_CUT))
+    local after, gross = net.bekannt.erloes and Core.Num(net.erloes), false
+    if not after then after, gross = price, true end
     local gain = math.max(0, math.floor(rate * (after - (Core.VendorPrice(itemID) or 0))))
     if deposit <= gain then return nil end
-    return deposit, gain
+    return deposit, gain, gross
 end
 
 -- quick = true: nur die Quote (für jede Zeile der Taschenliste – ohne Bewertung und Anzahlung, die das Preis-Wissen je
@@ -803,8 +804,10 @@ function History.Advice(itemID, price, quick)
     if rate then
         local last = ns.LastPost(itemID)
         local basis = Core.Num(price) or usual or (type(last) == "table" and Core.Num(last.price)) or nil
-        local deposit, gain = History.DepositRisk(itemID, basis, type(last) == "table" and Core.Num(last.duration) or 2, rate)
-        if deposit then lines[#lines + 1] = L.ADVICE_DEPOSIT:format(ns.Money(deposit), ns.Money(gain), sold, done) end
+        local deposit, gain, gross = History.DepositRisk(itemID, basis, type(last) == "table" and Core.Num(last.duration) or 2, rate)
+        if deposit then
+            lines[#lines + 1] = (gross and L.ADVICE_DEPOSIT_GROSS or L.ADVICE_DEPOSIT):format(ns.Money(deposit), ns.Money(gain), sold, done)
+        end
     end
     return out
 end

@@ -218,23 +218,8 @@ function FlightNodes.Place(id)
     if p then return p.map, p.x, p.y end
     local CD = ClientData()
     local node = id and CD and CD.TaxiNode(id)
-    local api, vector = rawget(_G, "C_Map"), rawget(_G, "CreateVector2D")
-    if node and node.x and node.y and type(api) == "table" and type(api.GetMapPosFromWorldPos) == "function"
-        and type(vector) == "function" then
-        local ok, mapID, pos = pcall(api.GetMapPosFromWorldPos, node.continent, vector(node.x, node.y))
-        local x, y = Core.Map.XY(ok and pos or nil)
-        mapID = ok and ns.Num(mapID) or nil
-        if mapID and x and y and x >= 0 and x <= 1 and y >= 0 and y <= 1 then
-            -- auf die Zone darüber, wenn es eine Kleinkarte ist (die Markierung gehört in die Zone)
-            local zone = Core.Map.Parent(mapID, "Zone")
-            if zone and zone ~= mapID then
-                local zx, zy = Core.Map.PosOn(zone, mapID, x, y)
-                if zx then return zone, zx, zy end
-            end
-            return mapID, x, y
-        end
-    end
-    return nil
+    if not (node and node.x and node.y) then return nil end
+    return Core.Map.FromWorld(node.continent, node.x, node.y)     -- die Markierung gehört in die Zone
 end
 
 -- Beim Einloggen: die Kontinente, auf denen die Tabelle Flugpunkte führt, und der Kontinent, auf dem du stehst.

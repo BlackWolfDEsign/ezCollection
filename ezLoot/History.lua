@@ -458,16 +458,13 @@ function H.PossibleName(target)
     return L.POSSIBLE_NPC:format(target.npc or 0)
 end
 
--- Untertext: woher die Angabe kommt, dazu „bei dir“. source = Name der Quelle (für „laut Questie, ohne Chance“).
-local function PossibleSub(item, own, s, source)
+-- Untertext: woher die Angabe kommt, dazu „bei dir“. short = Herkunft in Kurzform („laut Questie“, „aus Beiträgen“).
+local function PossibleSub(item, own, s, short)
     local parts = {}
     if item then
-        if item.chance ~= nil then
-            parts[#parts + 1] = L.SOURCES_ACCORDING:format(source or "?")
-        else
-            -- keine Chance: die Quelle nennt den Gegenstand nur (QuestieDB)
-            parts[#parts + 1] = L.POSSIBLE_LISTED:format(source or "?")
-        end
+        short = short or L.SOURCES_ACCORDING:format("?")
+        -- ohne Chance: die Quelle nennt den Gegenstand nur (QuestieDB)
+        parts[#parts + 1] = item.chance ~= nil and short or L.POSSIBLE_LISTED:format(short)
     end
     if own and s and (s.loots or 0) > 0 then
         parts[#parts + 1] = L.POSSIBLE_OWN:format(own.n or 0, math.min(own.times or 0, s.loots), s.loots)
@@ -477,9 +474,9 @@ local function PossibleSub(item, own, s, source)
     return table.concat(parts, " · ")
 end
 
-local function PossibleRow(item, own, s, source)
+local function PossibleRow(item, own, s, short)
     local shown = item or own
-    local row = { id = shown.id, main = ns.Drops.ItemText(shown), sub = PossibleSub(item, own, s, source) }
+    local row = { id = shown.id, main = ns.Drops.ItemText(shown), sub = PossibleSub(item, own, s, short) }
     if item then
         local right, rgb = ns.Drops.ChanceRight(item)
         row.right, row.rgb = right or "", rgb
@@ -500,7 +497,7 @@ function H.PossibleRows(b, s)
     if type(b) == "table" then
         for _, item in ipairs(D.SortedSource(b.items)) do
             used[item.id] = true
-            list[#list + 1] = PossibleRow(item, own[item.id], s, b.source)
+            list[#list + 1] = PossibleRow(item, own[item.id], s, b.short or b.label or L.SOURCES_ACCORDING:format(b.source or "?"))
         end
     end
     if type(s) == "table" and (s.loots or 0) > 0 then

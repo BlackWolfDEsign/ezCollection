@@ -108,6 +108,11 @@ local Core = ezCore
                                   (AH-06): bei offenem Haus rechnet Blizzard die Anzahlung, sonst die gemerkten Verhältnisse
                                   (stand[teil] = { now = true } bzw. { at = Zeitpunkt }); unbekannt bleibt nil, nie
                                   geraten. erloes = brutto − anteil (die Anzahlung kommt beim Verkauf zurück)
+      Prices.Fee()              → Anteil des Hauses (0–1), stand; nil, solange keine eigene Verkaufsabrechnung ihn gemessen
+                                  hat – kein Modul nimmt dann eine Zahl an (Entscheidung des Nutzers vom 24.11.2026,
+                                  „Brutto mit Hinweis (Recommended)“)
+      Prices.Proceeds(preis, menge) → Erlös in Kupfer, brutto (true: Gebühr noch unbekannt, voller Preis)
+      Prices.FeeNote()          → Satz „Gebühr noch unbekannt …“, nil, sobald sie gemessen ist
       Prices.StandText(stand)   → „jetzt“ | „zuletzt gemessen am …“
       Prices.Coverage(menge)    → Anteil (0–1), mit Preis von heute, gesamt (menge: Liste von itemID, Link, itemKey)
       Prices.AddWatchProvider(schlüssel, fn, max)  fn() → { item … } (AH-03): Anbieter für „Beobachtetes“, je Anbieter
@@ -1643,6 +1648,10 @@ function Prices.MeasureDeposits()
         end)
     end
     if #samples == 0 then return 0 end
+    -- Ohne Ablage (Träger ezMarket fehlt oder ist verloren, Store(true) → nil) wird nichts gemessen: Spielbefund
+    -- vom 21.11.2026, „attempt to index local 'rules' (a nil value)“ ×28
+    local rules = Rules(true)
+    if not rules then return 0 end
     for _, sample in ipairs(samples) do
         if sample.commodity ~= nil then SetRule("split", true) break end
     end
@@ -1653,7 +1662,6 @@ function Prices.MeasureDeposits()
             if dep then sum, n = sum + dep / sample.sell, n + 1 end
         end
         if n > 0 then
-            local rules = Rules(true)
             rules.deposit = type(rules.deposit) == "table" and rules.deposit or {}
             rules.deposit[duration] = { v = math.floor(sum / n * 10000 + 0.5) / 10000, t = Now(), n = n }
         end
@@ -1662,12 +1670,17 @@ function Prices.MeasureDeposits()
     return #samples
 end
 
--- Anteil des Hauses aus einer eigenen Verkaufsabrechnung (History „auction“, type "sale": gross Brutto, fee Gebühr)
+-- Anteil des Hauses aus einer eigenen Verkaufsabrechnung (History „auction“, type "sale": gross Brutto, fee Gebühr). Beides
+-- sind ganze Kupfer: Unter 1 Silber wäre der Anteil zu grob (2 Kupfer, Gebühr 1 » 50 %) – dann wird nicht gemessen; unter
+-- 10 Silber überschreibt ein Verkauf keinen aus einem größeren Betrag. Gebühr = Betrag ist keine Messung.
+local FEE_MIN, FEE_SURE = 100, 1000
 local function NoteSale(kind, e)
     if kind ~= "auction" or type(e) ~= "table" or e.type ~= "sale" then return end
     local gross, fee = Core.Num(e.gross), Core.Num(e.fee)
-    if not (gross and fee and gross > 0 and fee >= 0 and fee <= gross) then return end
-    SetRule("cut", math.floor(fee / gross * 10000 + 0.5) / 10000)
+    if not (gross and fee and gross >= FEE_MIN and fee >= 0 and fee < gross) then return end
+    local old = (Rules(false) or {}).cut
+    if gross < FEE_SURE and type(old) == "table" and gross < (Core.Num(old.g) or 0) then return end
+    SetRule("cut", math.floor(fee / gross * 10000 + 0.5) / 10000, { g = gross })
 end
 Core.Listen("HISTORY_ADDED", NoteSale, "ezCore.Prices")
 
@@ -1683,6 +1696,28 @@ function Prices.StandText(stand)
     return nil
 end
 
+-- Anteil des Hauses, nur gemessen (NoteSale). Ein Anteil von 100 % (aus einem alten Speicher) ist keine Gebühr.
+function Prices.Fee()
+    local rules = Rules(false)
+    local cut = rules and type(rules.cut) == "table" and Core.Num(rules.cut.v)
+    if not cut or cut < 0 or cut >= 1 then return nil end
+    return cut, Stand(rules.cut.t)
+end
+
+-- Erlös eines Verkaufs: nach der gemessenen Gebühr, ohne sie der volle Preis (zweiter Wert true).
+function Prices.Proceeds(price, qty)
+    price = Core.Num(price)
+    if not price or price < 0 then return nil end
+    local gross = math.floor(price * math.max(1, math.floor(Core.Num(qty) or 1)) + 0.5)
+    local cut = Prices.Fee()
+    if not cut then return gross, true end
+    return gross - math.floor(gross * cut + 0.5), false
+end
+
+function Prices.FeeNote()
+    return Prices.Fee() == nil and Core.L.WORTH_FEE_UNKNOWN or nil
+end
+
 -- Netto-Erlös (AH-06): preis = Stückpreis in Kupfer, dauer 1–3 (Standard 2), menge (Standard 1). Unbekanntes bleibt nil.
 function Prices.Net(item, price, duration, qty)
     price, qty = Core.Num(price), math.max(1, math.floor(Core.Num(qty) or 1))
@@ -1692,12 +1727,12 @@ function Prices.Net(item, price, duration, qty)
     local rules = Rules(false) or {}
     local out = { brutto = math.floor(price * qty + 0.5), bekannt = { erloes = false, anteil = false, anzahlung = false },
         stand = {} }
-    local cut = type(rules.cut) == "table" and Core.Num(rules.cut.v)
+    local cut, cutStand = Prices.Fee()
     if cut then
-        out.anteil = math.floor(out.brutto * cut + 0.5)
-        out.bekannt.anteil, out.stand.anteil = true, Stand(rules.cut.t)
-        out.erloes = out.brutto - out.anteil
-        out.bekannt.erloes, out.stand.erloes = true, out.stand.anteil
+        out.erloes = Prices.Proceeds(price, qty)
+        out.anteil = out.brutto - out.erloes
+        out.bekannt.anteil, out.stand.anteil = true, cutStand
+        out.bekannt.erloes, out.stand.erloes = true, cutStand
     end
     if itemID and isOpen then
         local loc, commodity = FindInBags(itemID)
@@ -2582,9 +2617,7 @@ local function Worth(item)
     local st = Prices.Stats(item, Prices.WORTH_DAYS)
     if not (st and Core.Num(st.median)) or (st.daysSeen or 0) < Prices.WORTH_MIN_DAYS then return nil, "days" end
     local price = st.median
-    local net = Prices.Net(itemID, price, 2, 1)
-    local value, gross = net and Core.Num(net.erloes), false
-    if not value then value, gross = price, true end
+    local value, gross = Prices.Proceeds(price, 1)
     if value < vendor * (1 + Prices.WorthPercent() / 100) then return nil, "below" end
     return { value = value, vendor = vendor, price = price, gross = gross, ratio = value / vendor, days = st.daysSeen,
         seen = info.seen, kind = info.kind }
@@ -2727,11 +2760,14 @@ end
 -- „Im Auktionshaus mehr wert“ erschien auch an gebundenen Exemplaren). → true, wenn gebunden
 Prices.BOUND_TEXTS = { "ITEM_SOULBOUND", "ITEM_ACCOUNTBOUND", "ITEM_BNETACCOUNTBOUND", "ITEM_BIND_TO_ACCOUNT",
     "ITEM_BIND_TO_BNETACCOUNT", "ITEM_BIND_QUEST", "ITEM_BIND_ON_PICKUP" }
-function Prices.TooltipBound(data)
+-- nur an diesen Charakter gebunden (Accountgebundenes lässt sich an eigene Twinks schicken)
+Prices.BOUND_SELF = { "ITEM_SOULBOUND", "ITEM_BIND_QUEST", "ITEM_BIND_ON_PICKUP" }
+-- names: andere Liste als BOUND_TEXTS (Namen von Blizzards Texten)
+function Prices.TooltipBound(data, names)
     local lines = type(data) == "table" and not Core.IsSecret(data) and data.lines
     if type(lines) ~= "table" then return false end
     local bound = {}
-    for _, name in ipairs(Prices.BOUND_TEXTS) do
+    for _, name in ipairs(type(names) == "table" and names or Prices.BOUND_TEXTS) do
         local text = rawget(_G, name)
         if type(text) == "string" and text ~= "" then bound[text] = true end
     end

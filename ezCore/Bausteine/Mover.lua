@@ -26,10 +26,11 @@ local Core = ezCore
     - Mover.Unlock(owner, page) zeigt dieselbe Auswahl ohne Blizzards Bearbeitungsmodus, mit einer Leiste
       „Fertig“ und „Zurücksetzen“ (Rückfall des Knopfs „Verschieben“ der Modulseiten, page:MoverButton()); Blizzards
       Einstellungen schließen dabei und öffnen mit „Fertig“ wieder. Die Leiste nennt den Weg „Esc » Bearbeitungsmodus“.
-    - Ein Modus (EC-11, EC-12, Frage 32 – Empfehlung umgesetzt, Antwort offen): „Verschieben“ öffnet Blizzards
-      Bearbeitungsmodus nur, wenn der Testschalter „comfort.editModeOpen“ (Erweitert, ab Werk aus) an ist – bis der
-      Taint-Test im Spiel bestanden ist (Mover.Open). Der Testschalter wirkt nur mit dem Entwicklerschalter
-      (Core.Debug.Developer, /ez debug entwickler; Gesamtreview 18.11.2026, T2-7). Sonst der eigene Modus wie oben.
+    - Ein Modus (EC-11, EC-12, Frage 32): „Verschieben“ öffnet immer den eigenen Modus wie oben (Mover.Open).
+      Blizzards Bearbeitungsmodus öffnet nur Blizzards eigenes Menü (Esc » Bearbeitungsmodus), nie Addon-Code: aus
+      Addon-Code geöffnet lief sein ganzer Ablauf verunreinigt (Spielbefund vom 22.11.2026: Gruppenrahmen mit
+      Vorschauwert „IncomingSummonPending“ und gesperrtem outOfRange, „execution tainted by ezCore“). Den Testschalter
+      „comfort.editModeOpen“ hat der Nutzer am 22.11.2026 gestrichen („ja entfernen aber noch verschieben danach möglich?“).
     - Im Bearbeitungsmodus (EC-10, Entscheidung „Sofort merken + Hinweis“): Unter Blizzards Fenster steht der Hinweis,
       dass ez-Teile sofort gemerkt werden, mit dem Knopf „ez-Teile verwerfen“. Beim Betreten sichert ezCore die Lage
       aller Teile (Mover.Snapshot); der eigene Knopf und Blizzards „Alle Änderungen verwerfen“ (HookScript am
@@ -46,7 +47,7 @@ local Core = ezCore
     Mover.Parts(owner) → { part … }            Mover.Reset(key) → true | Mover.ResetAll(owner) → Anzahl
     Mover.Unlock(owner, page)  Mover.Lock([reopen])  Mover.IsUnlocked()  Mover.IsShowing()
     Mover.Select(key)                          (Auswahl hervorheben, wie ein Klick)
-    Mover.Open(owner, page) → "editmode" | "unlock"   (Knopf „Verschieben“)
+    Mover.Open(owner, page) → "unlock"   (Knopf „Verschieben“: immer der eigene Modus)
     Mover.Snapshot() → Anzahl gesicherter Teile       Mover.Revert() → Anzahl zurückgesetzter Teile
     Einstellungsseiten: page:MoverButton() unter „Allgemein“, page:MoverResetButton() unter „Erweitert“
     Nachrichten: MOVER_MOVED (key, pos | nil)
@@ -616,32 +617,21 @@ function Mover.Lock(reopen)
     end
 end
 
--- Testschalter (Frage 32, bis zum Taint-Test im Spiel): „Verschieben“ öffnet Blizzards Bearbeitungsmodus – nur
--- zusammen mit dem Entwicklerschalter (Diagnose.lua; Gesamtreview 18.11.2026, Entscheidung 1, T2-7): ein gespeichertes
--- „an“ allein öffnet nichts mehr aus Addon-Code.
-Core.OwnDefaults("comfort", { editModeOpen = false })
-Core.OwnExportSkip("comfort", { editModeOpen = true })   -- nicht über „Alles sichern“ weitergeben (Gegenprüfung, P6)
-
-local function EditModeOpenAllowed()
-    local c = Core.OwnSettings and Core.OwnSettings("comfort")
-    if not (type(c) == "table" and c.editModeOpen == true) then return false end
-    local debug = Core.Debug
-    return type(debug) == "table" and type(debug.Developer) == "function" and debug.Developer() == true
-end
-Mover.EditModeOpenAllowed = EditModeOpenAllowed
-
--- Knopf „Verschieben“: mit Testschalter Blizzards Bearbeitungsmodus (außerhalb des Kampfes, Einstellungen vorher
--- zu), sonst der eigene Modus mit Leiste „Fertig“. → "editmode" oder "unlock"
+-- Knopf „Verschieben“ (page:MoverButton, /ezbars verschieben): immer der eigene Modus mit Leiste „Fertig“. Der Weg zu
+-- Blizzards Bearbeitungsmodus steht auf der Leiste (Esc » Bearbeitungsmodus); geöffnet wird er nur über Blizzards Menü.
+-- Bis zum 22.11.2026 öffnete der Testschalter comfort.editModeOpen ihn hier mit ShowUIPanel – entfernt auf Wunsch des
+-- Nutzers (ROADMAP-Index, 22.11.2026). → "unlock" (Rückgabe bleibt für Aufrufer wie ezBars' ns.OpenMover)
 function Mover.Open(owner, page)
-    local manager = rawget(_G, "EditModeManagerFrame")
-    if EditModeOpenAllowed() and not Core.InCombat() and type(manager) == "table" and ShowUIPanel then
-        local panel = rawget(_G, "SettingsPanel")
-        if type(panel) == "table" and panel.IsShown and panel:IsShown() and HideUIPanel then pcall(HideUIPanel, panel) end
-        if pcall(ShowUIPanel, manager) and Core.EditMode.IsActive() then return "editmode" end
-    end
     Mover.Unlock(owner, page)
     return "unlock"
 end
+
+-- Gespeicherten Wert des gestrichenen Testschalters einmal entfernen (nur ezCores eigene Tabelle; nichts liest ihn mehr).
+local function ForgetEditModeOpen()
+    local c = Core.OwnSettings and Core.OwnSettings("comfort")
+    if type(c) == "table" and c.editModeOpen ~= nil then c.editModeOpen = nil end
+end
+Mover.ForgetEditModeOpen = ForgetEditModeOpen   -- für Tests
 
 ---------------------------------------------------------------------------
 -- Anmelden
@@ -722,6 +712,7 @@ end, Core.name)
 ns.On("PLAYER_LOGIN", function()
     for _, key in ipairs(order) do Apply(parts[key]) end   -- Anker an Blizzards Fenstern und ezCoreDB sind jetzt da
     HookRevert()
+    ForgetEditModeOpen()
 end)
 
 ns.On("PLAYER_REGEN_DISABLED", function()

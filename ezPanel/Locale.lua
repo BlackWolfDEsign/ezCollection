@@ -3,12 +3,12 @@ local _, ns = ...
 -- Texte: Deutsch ist die Grundsprache, Englisch für alle anderen Clients.
 local de = {
     -- Kurzüberblick für die Einführung (ezCore, Core.Intro.Features): was das Modul kann, 3 bis 6 Zeilen
-    INTRO_FEATURES = "Info-Leiste oben im Stil von WoW Forever\nBausteine: Ort, Gold, Erfahrung, Taschen\nTooltip und Rechtsklick-Menü je Baustein\nProfile je Charakter oder Spezialisierung\nPlatz oben für die Leiste auf Wunsch",
+    INTRO_FEATURES = "Info-Leiste oben im Stil von WoW Forever\nBausteine: Ort, Gold, Erfahrung, Taschen\nTooltip und Rechtsklick-Menü je Baustein\nSperren und Instanzgrenze auf Wunsch\nProfile je Charakter oder Spezialisierung\nPlatz oben für die Leiste auf Wunsch",
     -- Allgemein
     ONLINE = "online", YOU = "(du)", TOTAL = "Gesamt", 
     UNLIMITED = "unbegrenzt", LEVEL = "Stufe", SESSION = "Sitzung", PER_HOUR = "Pro Stunde",
     PLAYED_TOTAL = "Gespielte Zeit", HEARTH = "Ruhestein", OTHER_CHARS = "Andere Charaktere",
-    ALL_REALMS = "Alle Realms", HOURS_SHORT = "Std.", ILVL_SHORT = "iLvl", FREE_OF = "%d / %d frei",
+    ALL_REALMS = "Alle Realms", HOURS_SHORT = "Std.", ILVL_SHORT = "iLvl",
     SESSION_RESET = "Sitzung zurückgesetzt.",
     -- Zeit- und Geldtexte (AGO, COIN_*, FMT_*) kommen aus ezCore.
 
@@ -29,7 +29,8 @@ local de = {
     TOUR_BLOCK = "Das ist ezPanel. Jeder Baustein zeigt im Tooltip mehr. Rechtsklick öffnet seine Optionen, Ziehen verschiebt ihn nach links, in die Mitte oder nach rechts.",
     TOUR_BAR = "Rechtsklick auf eine freie Stelle der Leiste: Bausteine ein- und ausblenden, Profil wechseln, Einstellungen öffnen (auch über ezPanel im Addon-Fach an der Minikarte).",
     TOUR_GOLD = "Gold aller Charaktere. Linksklick wechselt zwischen diesem Charakter, dem Realm und allen; der Tooltip zeigt, woher das Gold kam.",
-    TOUR_ALTS = "Deine Charaktere mit Stufe, Gold und Sperren. Linksklick öffnet die Schlachtzugsinformationen mit den Sperren aller Charaktere.",
+    -- %d: ns.INSTANCE_LIMIT (Core.lua, eine Quelle für Vorgabe, Menü und diese Blase; Instanzgrenze seit 20.11.2026)
+    TOUR_ALTS = "Deine Charaktere mit Stufe, Gold und Sperren; der Tooltip zählt deine Instanzen der letzten Stunde gegen Blizzards Grenze (%d je Stunde). Linksklick öffnet die Schlachtzugsinformationen mit den Sperren aller Charaktere.",
     TOUR_ALERTS = "Meldungen sammeln, was Aufmerksamkeit braucht: volle Taschen, ablaufende Post, niedrige Haltbarkeit, neue Fehler. Linksklick schreibt sie in den Chat.",
     TOUR_TOOLS = "Werkzeuge: eigene Befehle, UI neu laden (Umschalt-Linksklick) und der Fehlerzähler – Strg-Linksklick öffnet die Fehlerliste zum Kopieren.",
     OPT_TOUR_TIP = "Zeigt die Erklärblasen an der Leiste wieder von vorn, sobald das Einstellungsfenster zu ist.",
@@ -82,6 +83,8 @@ local de = {
     LOCK_RECENT = "Instanzen in der letzten Stunde", LOCK_NEXT_FREE = "(nächste frei in %s)",
     LOCK_MENU = "Sperren", LOCK_SHOW = "Sperren im Tooltip", LOCK_SHOW_BOSSES = "Besiegte Bosse aufzählen",
     LOCK_LIMIT = "Grenze pro Stunde", LOCK_LIMIT_NONE = "Keine Angabe",
+    LOCK_LIMIT_FOREVER = "%d (laut Blizzard seit 20.11.2026)",
+    LOCK_LIMIT_OWN = "%d (eigener Wert)",
     LOCK_OPEN_RAIDINFO = "Schlachtzugsinformationen öffnen", LOCK_REFRESH = "Sperren neu abfragen",
     CD_TITLE = "Berufs-Abklingzeiten", CD_READY_IN = "bereit in %s", CD_SHOW = "Berufs-Abklingzeiten zeigen",
     REPAIR_BROKEN = "%d kaputt",
@@ -153,7 +156,8 @@ local de = {
     REPAIR_MERCHANT_NO_SETTINGS = "Die Einstellungen von ezMerchant lassen sich gerade nicht öffnen.",
     -- REPAIR_DONE, REPAIR_DONE_GUILD, REPAIR_NO_MONEY und REPAIR_AUTO_ENABLE stehen in ezCore (T16-12)
     REPAIR_NEED_MERCHANT = "Dafür muss ein Händler offen sein.",
-    REPAIR_SOLD = "%d graue Gegenstände für %s verkauft.",
+    -- ezCores Core.Junk.Sell zählt verkaufte Plätze, nicht Stücke: der Satz nennt Plätze (Core.Plural)
+    REPAIR_SOLD_ONE = "Graues aus %d Taschenplatz für %s verkauft.", REPAIR_SOLD_MANY = "Graues aus %d Taschenplätzen für %s verkauft.",
     REPAIR_MODE_TOTAL = "Haltbarkeit gesamt", REPAIR_MODE_LOWEST = "Am stärksten beschädigter Gegenstand",
     REPAIR_SHOW_COST = "Kosten zeigen", REPAIR_INVENTORY = "Taschen mitprüfen", REPAIR_AUTO = "Automatisch reparieren",
     REPAIR_USE_GUILD = "Zuerst Gildenbank nutzen",
@@ -200,7 +204,7 @@ local de = {
 
     -- Taschen
     BAGS_NAME = "Taschen", BAGS_LABEL = "Taschen", BAGS_HINT_LEFT = "Linksklick: Taschen öffnen",
-    BAGS_BACKPACK = "Rucksack", BAGS_SPECIAL = "(Spezialtasche)", BAGS_FREE = "Frei (normale Taschen)", BAGS_ALT_UNKNOWN = "unbekannt – einmal einloggen",
+    BAGS_BACKPACK = "Rucksack", BAGS_SPECIAL = "(Spezialtasche)", BAGS_FREE = "Frei (normale Taschen)", BAGS_USED = "Belegt (normale Taschen)", BAGS_ALT_UNKNOWN = "unbekannt – einmal einloggen",
     BAGS_SPECIAL_FREE = "Frei (Spezialtaschen)", BAGS_FULL = "Taschen voll!", BAGS_BANK_SEEN = "Bank zuletzt gesehen (ezBag)",
     BAGS_MODE_FREE = "Freie Plätze", BAGS_MODE_USED = "Belegte Plätze", BAGS_COUNT_SPECIAL = "Spezialtaschen mitzählen",
     BAGS_ALERT = "Bei vollen Taschen warnen", BAGS_EZBAG_SETTINGS = "ezBag-Einstellungen …",
@@ -522,11 +526,11 @@ local de = {
 }
 
 local en = {
-    INTRO_FEATURES = "Info bar at the top in WoW Forever's style\nBlocks: location, gold, experience, bags\nTooltip and right-click menu per block\nProfiles per character or specialization\nSpace at the top for the bar if you want",
+    INTRO_FEATURES = "Info bar at the top in WoW Forever's style\nBlocks: location, gold, experience, bags\nTooltip and right-click menu per block\nLockouts, hourly instance limit if you want\nProfiles per character or specialization\nSpace at the top for the bar if you want",
     ONLINE = "online", YOU = "(you)", TOTAL = "Total", 
     UNLIMITED = "unlimited", LEVEL = "Level", SESSION = "Session", PER_HOUR = "Per hour",
     PLAYED_TOTAL = "Time played", HEARTH = "Hearthstone", OTHER_CHARS = "Other characters",
-    ALL_REALMS = "All realms", HOURS_SHORT = "h", ILVL_SHORT = "ilvl", FREE_OF = "%d / %d free",
+    ALL_REALMS = "All realms", HOURS_SHORT = "h", ILVL_SHORT = "ilvl",
     SESSION_RESET = "Session reset.",
     -- Zeit- und Geldtexte (AGO, COIN_*, FMT_*) kommen aus ezCore.
 
@@ -542,7 +546,7 @@ local en = {
     TOUR_BLOCK = "This is ezPanel. Every block shows more in its tooltip. Right-click opens its options, dragging moves it to the left, centre or right.",
     TOUR_BAR = "Right-click a free spot on the bar: show or hide blocks, switch profiles, open the settings (also via ezPanel in the addon compartment at the minimap).",
     TOUR_GOLD = "Gold of all characters. Left-click switches between this character, the realm and all; the tooltip shows where the gold came from.",
-    TOUR_ALTS = "Your characters with level, gold and lockouts. Left-click opens the raid information with the lockouts of all characters.",
+    TOUR_ALTS = "Your characters with level, gold and lockouts; the tooltip counts your instances of the last hour against Blizzard's limit (%d per hour). Left-click opens the raid information with the lockouts of all characters.",
     TOUR_ALERTS = "Alerts collect what needs attention: full bags, expiring mail, low durability, new errors. Left-click writes them to chat.",
     TOUR_TOOLS = "Tools: your own commands, reload UI (shift-left-click) and the error counter – ctrl-left-click opens the error list to copy.",
     OPT_TOUR_TIP = "Shows the help bubbles on the bar again from the start as soon as the settings window is closed.",
@@ -590,6 +594,8 @@ local en = {
     LOCK_RECENT = "Instances in the last hour", LOCK_NEXT_FREE = "(next free in %s)",
     LOCK_MENU = "Lockouts", LOCK_SHOW = "Lockouts in the tooltip", LOCK_SHOW_BOSSES = "List defeated bosses",
     LOCK_LIMIT = "Limit per hour", LOCK_LIMIT_NONE = "Not set",
+    LOCK_LIMIT_FOREVER = "%d (per Blizzard since 20 Nov 2026)",
+    LOCK_LIMIT_OWN = "%d (custom value)",
     LOCK_OPEN_RAIDINFO = "Open raid information", LOCK_REFRESH = "Query lockouts again",
     CD_TITLE = "Profession cooldowns", CD_READY_IN = "ready in %s", CD_SHOW = "Show profession cooldowns",
     REPAIR_BROKEN = "%d broken",
@@ -656,7 +662,7 @@ local en = {
     REPAIR_MERCHANT_NO_SETTINGS = "The ezMerchant settings cannot be opened right now.",
     -- REPAIR_DONE, REPAIR_DONE_GUILD, REPAIR_NO_MONEY and REPAIR_AUTO_ENABLE are in ezCore (T16-12)
     REPAIR_NEED_MERCHANT = "A vendor must be open for this.",
-    REPAIR_SOLD = "Sold %d grey items for %s.",
+    REPAIR_SOLD_ONE = "Sold grey items from %d bag slot for %s.", REPAIR_SOLD_MANY = "Sold grey items from %d bag slots for %s.",
     REPAIR_MODE_TOTAL = "Overall durability", REPAIR_MODE_LOWEST = "Most damaged item",
     REPAIR_SHOW_COST = "Show cost", REPAIR_INVENTORY = "Include bags", REPAIR_AUTO = "Auto repair",
     REPAIR_USE_GUILD = "Use guild bank first",
@@ -697,7 +703,7 @@ local en = {
     AMMO_WARN_AMMO = "Limit for arrows and bullets", AMMO_WARN_THROWN = "Limit for thrown weapons",
 
     BAGS_NAME = "Bags", BAGS_LABEL = "Bags", BAGS_HINT_LEFT = "Left-click: open bags",
-    BAGS_BACKPACK = "Backpack", BAGS_SPECIAL = "(special bag)", BAGS_FREE = "Free (normal bags)", BAGS_ALT_UNKNOWN = "unknown – log in once",
+    BAGS_BACKPACK = "Backpack", BAGS_SPECIAL = "(special bag)", BAGS_FREE = "Free (normal bags)", BAGS_USED = "Used (normal bags)", BAGS_ALT_UNKNOWN = "unknown – log in once",
     BAGS_SPECIAL_FREE = "Free (special bags)", BAGS_FULL = "Bags full!", BAGS_BANK_SEEN = "Bank last seen (ezBag)",
     BAGS_MODE_FREE = "Free slots", BAGS_MODE_USED = "Used slots", BAGS_COUNT_SPECIAL = "Count special bags",
     BAGS_ALERT = "Warn when bags are full", BAGS_EZBAG_SETTINGS = "ezBag settings …",

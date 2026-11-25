@@ -13,7 +13,8 @@ local Core = ezCore
 
     Reihenfolge (EC-03, DG-27, RM-08; Entscheidung des Nutzers 14.11.2026 „Ja, und Questie empfehlen“): zuerst der
     Client (fragt das Modul selbst bzw. die eigene Quelle unten), dann die eigene Entdecker-Datenbank (Quelle „own“,
-    „bei dir“), dann QuestieDB zur Laufzeit (SourcesQuestie.lua), dann weitere (AtlasLoot). Die Anbindung von Tnny's
+    „bei dir“), dann QuestieDB zur Laufzeit (SourcesQuestie.lua), dann Beiträge anderer Spieler (Quelle „ship“, ezData,
+    Datenbank/ShipView.lua; seit 25.11.2026), dann weitere (AtlasLoot). Die Anbindung von Tnny's
     Mob Loot ist seit Welle 16 entfernt (RB-01, Nachtrag des Nutzers vom 14.11.2026); läuft es, nimmt ezCore nur
     Rücksicht (Erkennung unitLoot in OtherAddOns.lua).
 
@@ -22,6 +23,8 @@ local Core = ezCore
                      recipeFor = fn(itemID), lootOf = fn(npcID, info), openFor = fn(npcID),
                      whereFrom = fn(itemID, opts), recipesUsing = fn(itemID), contentsOf = fn(id, art),
                      own = true (eigene Daten: keine Marke „fremd“, Zeile „bei dir“, nicht in /ez status),
+                     ship = true (Beiträge anderer Spieler: Zeile „aus Beiträgen …“, nicht in /ez status – dort eine
+                     eigene Zeile –, nie als „fehlt“ beworben; weiß sie nichts, zählt das nicht als Grund),
                      silent = true (stiller Rückfall: fehlt er, nennt ihn kein Hinweis),
                      generic = true (openFor öffnet nur das Fenster, nicht den Gegner: nur mit ausdrücklichem
                      Schlüssel in OpenFor) }
@@ -63,8 +66,8 @@ local Core = ezCore
           „Woher?“: fällt von (Gegner), liegt in (Objekt), steckt in (Behälter), verkauft von (Händler),
           Questbelohnung; eintrag = { kind ("npc" | "object" | "item" | "quest"), id, name, lo, hi (Stufe), rank,
           area (Gebiets-ID der Quelle), zone (Name laut Client), map (uiMapID, wenn der Client sie zuordnet), x, y
-          (0–1), cnt (nur „bei dir“: so oft gesehen), price (nur „bei dir“) }. Je Liste höchstens WHERE_MAX
-          Einträge; n nennt die ganze Zahl. Erst die eigene Datenbank, dann QuestieDB. Verschleiert der Client den
+          (0–1), cnt („bei dir“ und aus Beiträgen: so oft gesehen), price (ebenso) }. Je Liste höchstens WHERE_MAX
+          Einträge; n nennt die ganze Zahl. Erst die eigene Datenbank, dann QuestieDB, dann Beiträge. Verschleiert der Client den
           Gegenstand noch (keine Antwort, nicht enthüllt), antwortet QuestieDB nur mit dem Schalter „Entdecker-Wissen“
           (OPT_explorer, ab Werk aus; DG-18). opts.all = true: alle Quellen (AskAll) statt der ersten.
       Core.Sources.RecipesUsing(itemID) → { { recipeID, spell, name, count, product, source, sourceKey } … } nach
@@ -75,7 +78,8 @@ local Core = ezCore
           sourceKey } | nil – was ein Behälter (art "item") bzw. eine Kiste (art "object") enthalten kann, ohne Chance;
           heute nur QuestieDB (Umkehr-Index, SourcesQuestie.lua); läuft der Index noch: nil (Grund "skip")
       Core.Sources.ClientKnowsItem(itemID) → true, wenn der Client den Gegenstand liefert oder er enthüllt ist
-      Core.Sources.Label(antwort) → „laut AtlasLoot“, „laut Questie“, „bei dir“ …
+      Core.Sources.Label(antwort, kurz) → „laut AtlasLoot“, „laut Questie“, „bei dir“, „aus Beiträgen (n Spieler), Stand
+                                    Build x“ (kurz: „aus Beiträgen“) …
       Core.Sources.Hint(auskunft) → Satz, warum keine Quelle antwortet („Questie nicht installiert“) | nil; stille
                                     Rückfälle (silent) und die eigene Datenbank nennt er nicht
       Core.Sources.Reason(auskunft) → Grund, Anzeigename, Schlüssel, ID der letzten Frage (A60, Welle 23b): "ok",
@@ -90,9 +94,11 @@ local Core = ezCore
       own            die eigene Entdecker-Datenbank (DiscoveryView.lua): whereFrom über Core.Drops.SourcesOf,
                      Core.Vendors.Selling, Core.Places.Of und DB.Text; recipesUsing über Knowledge.RecipesUsing
       QuestieDB      LibQuestieDB zur Laufzeit (SourcesQuestie.lua): whereFrom, contentsOf; lootOf nur vorbereitet, ab Werk aus
+      ship           Beiträge anderer Spieler (ezData, ShipView.lua): whereFrom, lootOf, contentsOf
       AtlasLoot      AtlasLoot Classic Forever (global AtlasLoot): recipeFor über
                      AtlasLoot.Data.Profession.GetCraftSpellForCreatedItem und GetProfessionData,
-                     dazu AtlasLoot.Data.Recipe.GetRecipeForSpell (im Spiel bestätigt: 118 → 2330); recipesUsing über
+                     dazu AtlasLoot.Data.Recipe.GetRecipeForSpell (im Spiel bestätigt: 118 → 2330 – den Zauber gibt es
+                     auf Forever nicht, dort stellt Erste Hilfe 118 her, 1244431: AtlasLoots Classic-Daten); recipesUsing über
                      dieselben Abfragen als Umkehr-Index im Arbeitsspeicher (Sources.ForgetRecipesUsing);
                      openFor über SlashCmdList.ATLASLOOT("") – öffnet nur das Fenster (generic)
 ]]
@@ -101,12 +107,14 @@ local ADDON = "ezCore"
 local Sources = {}
 Core.Sources = Sources
 
-Sources.ORDER = { "own", "QuestieDB", "AtlasLoot" }
+Sources.ORDER = { "own", "QuestieDB", "ship", "AtlasLoot" }
 Sources.ASKS = { "recipeFor", "lootOf", "openFor", "whereFrom", "recipesUsing", "contentsOf" }
 Sources.WHERE_MAX = 8            -- Einträge je Liste in WhereFrom (n nennt die ganze Zahl)
 Sources.SCAN_MAX = 4000          -- RecipesUsing über AtlasLoot: höchstens so viele neue Produkte je Frage in den Index
 
 local registry, extra = {}, {}
+-- ezCollections eigene Quellen (keine angebundenen Addons): „bei dir“ und „aus Beiträgen“
+local function Ours(source) return source ~= nil and (source.own or source.ship) and true or false end
 local problems = {}              -- [schlüssel] = "shape" | "error" (letzte Abfrage; für Status und Hinweis)
 local reported = {}              -- [schlüssel .. auskunft] = true – jeden Fehler nur einmal in die Fehlerliste
 local skipped = {}               -- [schlüssel] = { n, ids } – verworfene Einträge (Auskunft und ID je einmal gezählt)
@@ -350,6 +358,8 @@ local function Query(key, ask, ...)
         -- saubere Antwort „nichts“ (kein Eintrag für diesen Gegenstand): die Quelle antwortet wie erwartet, ein
         -- früherer Stand „shape“ oder „error“ gilt nicht mehr (Hinweis aus Welle 3; A60 geprüft in Welle 23b)
         problems[key] = nil
+        -- Beiträge füllen nur Lücken: ihr „nichts“ verdeckt nicht, dass eine andere Quelle noch nicht nachgesehen hat
+        if source.ship then return nil, nil end
         return nil, "none"
     end
     local verdict, dropped = "ok", 0
@@ -415,7 +425,7 @@ function Sources.Reason(ask)
     local r = reasons[ask]
     if not r then return nil end
     local source = r.key and registry[r.key]
-    return r.why, source and not source.own and source.label or nil, r.key, r.arg
+    return r.why, source and not Ours(source) and source.label or nil, r.key, r.arg
 end
 
 -- Satz zum Grund der letzten Frage für Tooltips („AtlasLoot kennt den Eintrag, seine Angaben passen aber nicht“) oder
@@ -523,11 +533,14 @@ end
 -- Texte
 ---------------------------------------------------------------------------
 
-function Sources.Label(result)
+function Sources.Label(result, short)
     if type(result) ~= "table" or type(result.source) ~= "string" then return nil end
     local L = Core.L
     local from = registry[result.sourceKey]
     if from and from.own then return L.DB_OWN end           -- eigene Datenbank: „bei dir“, nicht „laut bei dir“
+    if from and from.ship then
+        return not short and type(result.label) == "string" and result.label or L.SOURCES_SHIP
+    end
     return L.SOURCES_ACCORDING:format(result.source)
 end
 
@@ -536,12 +549,12 @@ function Sources.Hint(ask)
     local missing, broken = {}, {}
     for _, entry in ipairs(Sources.List(ask)) do
         local source = registry[entry.key]
-        if entry.status == "ok" and not source.own then return nil end
+        if entry.status == "ok" and not Ours(source) then return nil end
         -- Stille Rückfälle (silent) und die eigene Datenbank werden nie als „fehlt“ beworben (EC-03, DG-27);
         -- Fehler der eigenen Datenbank stehen in der Fehlerliste, ihr interner Schlüssel nie im Hinweis (Leitlinie 7)
         if entry.status == "missing" then
-            if not (source.silent or source.own) then missing[#missing + 1] = entry.label end
-        elseif entry.status ~= "ok" and not source.own then
+            if not (source.silent or Ours(source)) then missing[#missing + 1] = entry.label end
+        elseif entry.status ~= "ok" and not Ours(source) then
             broken[#broken + 1] = entry.label
         end
     end
@@ -557,8 +570,8 @@ function Sources.StatusLine()
     local L = Core.L
     local running = {}
     for _, entry in ipairs(Sources.List()) do
-        if registry[entry.key].own then
-            -- die eigene Datenbank hat ihre eigene Zeile in /ez status (DiscoveryView.lua)
+        if Ours(registry[entry.key]) then
+            -- die eigene Datenbank und die Auslieferung haben ihre eigene Zeile in /ez status (DiscoveryView.lua)
         elseif entry.status == "ok" then
             if entry.skipped > 0 then
                 running[#running + 1] = entry.label .. " (" .. L.SOURCES_SKIPPED:format(entry.skipped) .. ")"
@@ -577,8 +590,10 @@ end
 -- Quelle 0: die eigene Entdecker-Datenbank („bei dir“)
 ---------------------------------------------------------------------------
 
+-- Art der Beute-Zählung (Tabelle drops) » Liste in WhereFrom; auch für die Auslieferung (ShipView.lua)
 local OWN_KIND = { loot = "drops", skin = "drops", pick = "drops", herbCorpse = "drops", mineCorpse = "drops",
     object = "objects", container = "containers" }
+Sources.LOOT_LISTS = OWN_KIND
 
 local function ItemName(itemID)
     local fn = rawget(_G, "GetItemInfo") or Field(rawget(_G, "C_Item"), "GetItemInfo")
@@ -597,6 +612,7 @@ local function ZoneName(mapID)
     return nil
 end
 Sources.ZoneName = ZoneName
+Sources.ItemName = ItemName
 
 -- Ort und Stufe eines selbst gesehenen NPC bzw. Objekts in den Eintrag (der häufigste Ort zuerst)
 local function OwnPlace(e, kind)
@@ -668,7 +684,8 @@ Sources.Register("own", {
             local rec = type(e.recipe) == "table" and e.recipe or {}
             local name = type(rec.n) == "string" and rec.n or (Number(rec.o) and ItemName(rec.o)) or nil
             local key = ID(e.recipeID) or (type(e.recipeID) == "string" and e.recipeID) or nil
-            if name and (key or ID(rec.s)) then
+            -- nur selbst Gesehenes („bei dir“); was die Client-Tabellen wissen, sagt Knowledge.RecipesUsing selbst
+            if name and (key or ID(rec.s)) and e.source ~= "tables" then
                 out[#out + 1] = { recipeID = key, spell = ID(rec.s), name = name, count = Number(e.count) or 1,
                     product = ID(rec.o) }
             end

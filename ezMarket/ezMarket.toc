@@ -4,8 +4,9 @@
 ## Notes: Storage of ezCollection's auction prices (per realm and side, with history). No own functions: ezCore reads and writes it. Without this folder the prices stay in ezCore's own file.
 ## Notes-deDE: Speicher der Auktionspreise von ezCollection (je Realm und Seite, mit Verlauf). Ohne eigene Funktionen: ezCore liest und schreibt. Ohne diesen Ordner bleiben die Preise in der Datei von ezCore.
 ## Author: BlackWolf-Design
-## Version: 0.1.1
+## Version: 0.1.2
 ## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## SavedVariables: ezMarketDB
 ## X-ezCollection-Carrier: ezCore
 ## X-Website: https://github.com/BlackWolfDEsign/ezCollection

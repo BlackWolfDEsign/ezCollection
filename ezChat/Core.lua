@@ -346,6 +346,13 @@ ns.Truncate = Core.TruncateBytes    -- kürzen, ohne ein UTF-8-Zeichen zu zersch
 function ns.TimeText(t) return Core.DateText(t) end
 function ns.DayText(t) return Core.DateText(t, "day") end
 
+-- Zahl von Blizzards Chatfenstern (ChatFrame1 …): Blizzards Konstante; NUM_CHAT_WINDOWS ist nur noch Blizzards Ersatz
+-- dafür (Blizzard_DeprecatedChatInfo, CVar loadDeprecationFallbacks; Paket kern/abgeloeste-namen, 24.11.2026).
+function ns.NumChatWindows()
+    return (Constants and Constants.ChatFrameConstants and Constants.ChatFrameConstants.MaxChatWindows)
+        or NUM_CHAT_WINDOWS or 10
+end
+
 ---------------------------------------------------------------------------
 -- Eingabe- und Bestätigungsfenster (ezCore)
 ---------------------------------------------------------------------------

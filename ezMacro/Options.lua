@@ -23,6 +23,10 @@ local function Register()
     -- Allgemein: Knopf zum Fenster. Verschieben und Lagen zurücksetzen gehören zu ezBars, seit die Emote-Leisten
     -- dort angemeldet sind (ezMacro hat keinen eigenen Teil bei ezCore.Mover mehr): Zahnrad » „Leisten verschieben“.
     page:Button(L.OPT_OPEN, L.OPT_OPEN_BUTTON, function() ns.Browser.Show() end, L.OPT_OPEN_TIP)
+    -- Maus über wahlweise (Entscheidung des Nutzers vom 23.11.2026: „Einer für alle, abweichbar (Empfohlen)“ – Standard
+    -- in „Allgemein“, je Makro das Kästchen „Maus über“ im Fenster; Resolver.lua)
+    page:Checkbox("mouseoverFriend")
+    page:Checkbox("mouseoverHostile")
 
     -- Prüfung der Einstellungen vom 19.11.2026: „Nur Makros mit gelernten Zaubern zeigen“ (hideUnknown) und „Makros aus
     -- deinen Fähigkeiten“ (macroFromSpells) sind Filter der Liste und stehen im Menü „Art“ des ezMacro-Fensters, nicht

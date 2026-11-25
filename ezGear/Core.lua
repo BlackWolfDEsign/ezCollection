@@ -6,11 +6,13 @@ local Core = ezCore
     ezGear – bessere Ausrüstung erkennen, Itemlevel an den Plätzen, Sets und automatisches Umziehen.
 
       Stats.lua      Werte eines Gegenstands (C_Item.GetItemStats, ergänzt um das Item-Wissen von ezCore)
-      Weights.lua    Gewichtung: Standard je Klasse und Spezialisierung, eingefügte Pawn-Skalen
+      Weights.lua    Gewichtung: Standard je Klasse und Rolle (Talentbaum), eingefügte Pawn-Skalen
       Score.lua      die EINE Bewertung „besser“ (auch für ezQuest und ezLoot, siehe ns.API)
       Marks.lua      grüner Pfeil und Gold-Symbol auf beliebigen Knöpfen (Blizzards Atlanten)
       Bags.lua       Pfeil an den Taschenplätzen (über ezCores Platzmarken, mit ezBag dort)
       Quest.lua      Pfeil und Gold-Symbol in der Questbelohnung
+      Trade.lua      Pfeil im Handelsfenster zwischen zwei Spielern
+      Alts.lua       bringt ein Gegenstand einem Twink etwas? (Zeile im Tooltip)
       Tooltip.lua    Zeile „+12 % für Verstärkung“, Vergleich am Rezept-Ergebnis
       Character.lua  Itemlevel je Platz am Charakterfenster und beim Betrachten
       GroupCheck.lua Ausrüstungs-Check der Gruppe: Bewertung je Mitglied (über ezCores Betrachten-Dienst)
@@ -30,16 +32,17 @@ local Core = ezCore
 
 ns.DEFAULTS = {
     -- Pfeil „besser“
-    bagArrows = true,       -- Taschenplätze
+    bagArrows = true,       -- Taschenplätze und Handelsfenster (Trade.lua)
     questArrows = true,     -- Questbelohnung
     questCoin = true,       -- Gold-Symbol auf der Belohnung mit dem höchsten Verkaufswert
     minPercent = 1,         -- ab so viel Prozent besser gilt ein Gegenstand als „besser“
-    downArrows = true,      -- roter Pfeil nach unten auf tragbaren Teilen, die schlechter sind (Tasche, Quest, Beute)
+    downArrows = true,      -- roter Pfeil nach unten auf tragbaren Teilen, die schlechter sind (Tasche, Quest, Handel, Beute)
     -- „besseres Teil in der Tasche“ bei ezPanels Meldungen: kein eigener Schalter mehr, ezPanels Auswahl der
     -- Meldungsquellen ist die eine Stelle (Einstellungs-Prüfung 19.11.2026, Nr. 77)
 
     -- Tooltip: die Vergleichszeile „+12 % für Verstärkung“, auch „−8 %“ in Rot, ist fest (Nr. 41, 42; Rücksicht auf
     -- Pawn bleibt über ns.FOREIGN)
+    tooltipAlts = true,     -- Zeile „Für Twinks“: wem ein weiterzugebender Gegenstand etwas bringt (Alts.lua, 24.11.2026)
     recipeCompare = true,   -- Rezept-Ergebnis mit der angelegten Ausrüstung vergleichen
 
     -- Charakterfenster (Haltbarkeit je Platz, sobald beschädigt: fest, Nr. 43)
@@ -57,6 +60,9 @@ ns.DEFAULTS = {
     swapFishing = true,
     fishIdle = 120,         -- Sekunden ohne Angeln, dann zurück
 }
+
+-- Seit der letzten Veröffentlichung neu und ab Werk an: die Blase „Neu seit dem Update“ nennt sie (ezCore, ConsentNews.lua)
+ns.NEWS = { "tooltipAlts" }
 
 -- Einstellungs-Prüfung vom 19.11.2026 (Entscheidung des Nutzers „Ja, alle umsetzen“): fest statt Schalter. Ihr alter
 -- Wert gilt nicht mehr; die Schlüssel fliegen einmal aus Einstellungen und Profilen (ns.MigrateSettings1911).
@@ -104,7 +110,7 @@ end
 -- Befehl /ezgear mit Kurzbefehl /ezg (nur, wenn er frei ist), Status (ns.AddStatusLine, ns.PrintStatus) und
 -- „nach dem Kampf“ (ns.AfterCombat). Speicher: Einstellungen und Pawn-Skalen für alle, Gewichtung und Sets je Charakter.
 --   scales  [Name] = { class = "ROGUE", weights = { … } }
---   chars   [charKey] = { scale, mountSet, fishSet, swap }
+--   chars   [charKey] = { scale, mountSet, fishSet, swap, last = { key, weights, auto } (zuletzt geltende Gewichtung; Alts.lua) }
 --   hints   gesehene Erklärblasen (Tour.lua)
 --   ui      Zustand der Oberfläche (groupOpen: Seitenteil „Ausrüstungs-Check“ offen; GroupPanel.lua)
 Core.NewModule(ADDON, ns, {
@@ -128,7 +134,11 @@ Core.NewModule(ADDON, ns, {
         -- Hilfe aus ezCore, Kampfsperre, Wege zu Einstellungen und Menüeintrag aus ezCore
         "compartmentMain", "slashMain", "CombatNotice", "SettingsPathText", "Menu.Settings",
         -- Gesamtreview 18.11.2026 (D3, kern/einheit-rest; ohne neue Nummer): Texthelfer statt Kopien im Modul
-        "CombatText", "Word" },
+        "CombatText", "Word",
+        -- „Für Twinks“ (Alts.lua, 24.11.2026; ohne neue Nummer)
+        "More", "CharacterList", "GearOf", "AltRecipient", "CharName", "ItemID", "Prices.TooltipBound", "Knowledge.VariantKey",
+        -- Rolle aus dem Talentbaum (24.11.2026; ohne neue Nummer)
+        "Talents.MainTree", "Talents.TreeName", "Talents.Role" },
     db = "ezGearDB", tables = { "scales", "chars", "hints", "ui" },
     onLoad = function(db) ns.MigrateSettings1911(db) end,
     login = true,
@@ -227,6 +237,7 @@ end)
 -- Vergessene Twinks auch hier entfernen.
 Core.Listen("CHAR_FORGOTTEN", function(key)
     if ns.db and key then ns.db.chars[key] = nil end
+    if ns.Alts then ns.Alts.Reset() end
 end, ADDON)
 
 ---------------------------------------------------------------------------
@@ -252,6 +263,12 @@ Core.Listen("EZTALENT_GEAR_CHANGED", function()
     if ns.Weights then ns.Weights.ForgetTalent() end
     ns.Changed()
 end, "ezGear")
+
+-- Talentbaum gelesen oder geändert (ezCore.Talents, nur bestätigte Punkte): „Automatisch“ folgt ihm
+Core.Listen("TALENTS_CHANGED", function() ns.Changed() end, "ezGear")
+
+-- Neue Waffen- bzw. Rüstungsfertigkeit gelernt (ezCore.Proficiency): gelbe Pfeile werden grün
+Core.Listen("PROFICIENCY_CHANGED", function() ns.Changed() end, "ezGear")
 
 ns.OnReady(function()
     for _, event in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "PLAYER_SPECIALIZATION_CHANGED",

@@ -70,8 +70,9 @@ end
 -- „Eingang: Westfall (bei dir)“ bzw. „Eingang: Westfall“ in der Spielsprache; nil, wenn ezCore den Eingang nicht
 -- kennt. Text und Quelle legt ezCore für alle Nutzer fest (Dungeons.EntranceLabel, QUEST-03): "own" – selbst
 -- betreten, der Zusatz „(bei dir)“ steht schon im Text; "data" – das Gebiet aus ezCores Dungeon-Tabelle (Quelle im
--- Kopf von ezCore/DungeonData.lua). Ältere ezCore ohne EntranceLabel: das Gebiet aus EntranceZone.
--- → Zeile, Quelle ("own" | "data") oder nil
+-- Kopf von ezCore/DungeonData.lua); "tables" – nur ohne Gebiet in der Tabelle: die Karte laut Client-Tabellen, der Zusatz
+-- steht im Text. Ältere ezCore ohne EntranceLabel: das Gebiet aus EntranceZone.
+-- → Zeile, Quelle ("own" | "data" | "tables") oder nil
 function DungeonQuests.EntranceLine(entry)
     local D = Core.Dungeons
     if type(entry) ~= "table" or type(D) ~= "table" then return nil end
@@ -83,7 +84,7 @@ function DungeonQuests.EntranceLine(entry)
     end
     text = Core.Plain(text)
     if type(text) ~= "string" or text == "" then return nil end
-    return L.DUNGEON_ENTRANCE:format(text), source == "own" and "own" or "data"
+    return L.DUNGEON_ENTRANCE:format(text), (source == "own" or source == "tables") and source or "data"
 end
 
 -- Quest vom Typ „Dungeon“ ohne zuordenbaren Eintrag in ezCores Liste? Dann erklärt der Tooltip die Lücke. Ob der

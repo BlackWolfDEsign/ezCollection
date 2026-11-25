@@ -295,16 +295,22 @@ end
 -- → { scans, most = { slot, median, count }, least = {…}, percent } oder nil, "few", Zahl der Komplett-Scans.
 -- Grenze: Zwei Scans in derselben Stunde zählt ezCore als einen Eintrag mit beiden Zahlen – der Median fängt das
 -- meist auf (docs/roadmap/ezAuction.md, „Offen“).
+-- Ein Eintrag des Protokolls fasst alle Komplett-Scans derselben Stunde zusammen: n ist ihre Summe, count (ezCore A25,
+-- Welle 23b; ältere Einträge ohne Feld: 1) ihre Zahl. Je Scan zählt n / count, und jeder Scan zählt für die Mindestzahl.
+Market.MAX_SCANS_PER_ENTRY = 60   -- Schutz gegen kaputte Zahlen (ein Komplett-Scan je Viertelstunde ist schon viel)
+
 function Market.DayTimes(captures)
     local bySlot, scans = {}, 0
     for _, c in ipairs(type(captures) == "table" and captures or {}) do
         local hour, n = type(c) == "table" and Core.Num(c.hour), type(c) == "table" and Core.Num(c.n)
+        local count = type(c) == "table" and Core.Num(c.count) or 1
+        count = math.min(Market.MAX_SCANS_PER_ENTRY, math.max(1, math.floor(count)))
         if hour and n and n > 0 and c.kind == "scan" then
             for index, slot in ipairs(Market.SLOTS) do
                 if hour >= slot[1] and hour < slot[2] then
-                    scans = scans + 1
+                    scans = scans + count
                     bySlot[index] = bySlot[index] or {}
-                    table.insert(bySlot[index], n)
+                    for _ = 1, count do table.insert(bySlot[index], n / count) end
                 end
             end
         end

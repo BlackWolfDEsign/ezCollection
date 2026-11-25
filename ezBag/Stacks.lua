@@ -28,14 +28,19 @@ local L = ns.L
     verkauft diese anzahl mit bestätigen durch "OK"“ und „Das mit dem shift+rechtsklick muss generell gelten, auch bei
     der bank, post, händler und co“; Entscheidungen vom selben Tag „Yes, own field“ und – nach „ich hab 24 wollstoff und
     kann 18 auswählen, die zahl kann ich ebenfalls nicht editieren“ – „Eigenes Feld, Ausnahme (Empfohlen)“):
-    Umschalt+Rechtsklick auf einen Stapel öffnet erst Blizzards Anzahl-Fenster (StackSplitFrame). Das reicht nur bis
+    Blizzards Teilen-Klick auf einen Stapel (SPLITSTACK, Standard Umschalt, links wie rechts – Mainline/ContainerFrame.lua,
+    OnModifiedClick prüft die Maustaste nicht) öffnet erst Blizzards Anzahl-Fenster (StackSplitFrame). Entscheidungen des
+    Nutzers vom 23.11.2026, wörtlich: „wtf bist du dumm? nnur noch unsereres und nur noch shift + links, überall konsistent... bank händler und co“ und
+    „nein ezbag soll blizz teilen ersetzen und die gleichen originalen tastenbelegung dafür verwenden“ – nur ezBags Feld, mit Blizzards Teilen-Taste (auch
+    umbelegt), überall gleich; Strg+Rechtsklick bleibt Blizzards. Blizzards Fenster reicht nur bis
     zum Stapel unter dem Knopf. ezBag schließt es darum gleich wieder (StackSplitFrame:Hide() – Ausnahme 3 von
     Leitlinie 5, CLAUDE.md: Blizzards eigenes Schließen setzt dabei hasStackSplit an Blizzards Taschenknopf; nur, wenn
     Blizzard es bei genau diesem Klick geöffnet hat, mitgehört mit hooksecurefunc an StackSplitFrame:OpenStackSplitFrame,
     und nicht mit Gamepad-Oberfläche) und fragt in seinem eigenen Anzahl-Feld – so groß und an derselben Stelle wie
     Blizzards Teil-Fenster (Abschnitt „Das Anzahl-Feld“ unten)
-    nach einer Anzahl bis zur Gesamtzahl aller Stapel des Platzes – die Zahl lässt sich tippen. Strg+Rechtsklick öffnet
-    dasselbe Feld direkt.
+    nach einer Anzahl bis zur Gesamtzahl aller Stapel des Platzes – die Zahl lässt sich tippen. Öffnet Blizzard kein
+    Fenster (zusammengefasste Einzelstücke), öffnet Umschalt+Klick das Feld direkt – außer der Klick geht schon
+    anderswohin: ein Link in ein Eingabefeld (ezCore.LinkInput) oder der Name in die Suche des Auktionshauses.
     „Annehmen“ legt die Anzahl zuerst zu möglichst wenigen Stapeln zusammen (Spielbefund vom 22.11.2026: „11 und 21.
     ja das wird gemacht, aber die sollten einen slot einnehmen...“): bis zur Stapelgröße ein Stapel, darüber volle
     Stapel und der Rest. Dazu legt ezBag Stapel aufeinander oder teilt ab (C_Container.SplitContainerItem und
@@ -49,8 +54,9 @@ local L = ns.L
     nichts weiter (die Stapel liegen dann vielleicht anders verteilt da). Das Ziel gilt so, wie gefragt: Wechselt das
     Fenster bis „Annehmen“ (aus der Bank wird ein Händler), gibt ezBag nichts weiter. Im Kampf, mit einem Gegenstand am
     Mauszeiger oder für einen Stapel, der nicht weitergehen kann (Schloss „nie verkaufen“, gebunden an Post oder
-    Handel), bleibt Blizzards Fenster, wie es ist. Anprobierbare Ausrüstung bekommt über Strg+Rechtsklick kein Feld
-    (Strg+Klick ist dort Blizzards Anprobe).
+    Handel), bleibt Blizzards Fenster, wie es ist. Bei offener Gildenbank und offenem
+    Auktionshaus hängt die Anzahl am Mauszeiger: Dorthin legt Blizzard nur über eigene Fenster-Funktionen
+    (AuctionHouseFrame:SetPostItem in ContainerFrame.lua), die ezBag nicht ruft (Leitlinie 5).
 
     Regeln (docs/blizzard-regeln.md): Anhängen, Handeln, Umlagern und Verkaufen aus Taschen sind keine geschützten
     Aktionen; ezBag ruft sie wie „Auswählen“ (Select.lua) und das Nachsenden (ezCore/Charakter/MailQueue.lua)
@@ -58,7 +64,7 @@ local L = ns.L
     Taint-sicher (Leitlinie 5): nur HookScript an Blizzards Knopf (Layout.lua, Bank.lua), keine Werte in Blizzards
     Tabellen (StackSplitFrame.owner wird nur gelesen); einzige Ausnahme ist das Schließen von Blizzards Anzahl-Fenster
     oben. Sichtbar (Leitlinie 3): Ist ein Ziel offen, nennt der Tooltip des Platzes, was ein Rechtsklick und was
-    Umschalt+Rechtsklick weitergibt.
+    Umschalt+Klick weitergibt.
 ]]
 
 local Stacks = {}
@@ -70,7 +76,9 @@ Stacks.TRADE_WAIT = 2          -- so lange auf die Bestätigung eines Handelspla
 Stacks.SPLIT_STEP = 0.1        -- Zusammenlegen: so oft nachsehen, ob der letzte Schritt angekommen ist
 Stacks.SPLIT_WAIT = ezCore.SPLIT_ARRIVE_WAIT or 5   -- … und so lange höchstens je Schritt (der Server bestätigt erst nach einer Weile)
 
-local VIEWS = { bag = true, bank = true }   -- Ansichten, deren Knöpfe Layout.lua bzw. Bank.lua an Stacks melden
+local VIEWS = { bag = true, reagent = true, bank = true }   -- Ansichten, deren Knöpfe Layout.lua bzw. Bank.lua an Stacks melden
+-- Der Abschnitt Reagenzientasche (eigener Zuklapp-Merker „reagent“) gilt beim Weitergeben als Tasche.
+local function SlotView(viewKey) return viewKey == "reagent" and "bag" or viewKey end
 
 local function MailOpen() return SendMailFrame ~= nil and SendMailFrame:IsVisible() == true end
 local function TradeOpen()
@@ -206,7 +214,7 @@ ns.On("TRADE_PLAYER_ITEM_CHANGED", function()
 end)
 ns.On("TRADE_CLOSED", function() tradeJob = nil end)
 
--- now = true: ohne Blizzards eigenen Stapel davor (Strg+Rechtsklick) – gleich den ersten Stapel legen.
+-- now = true: ohne Blizzards eigenen Stapel davor (Feld ohne Blizzards Fenster) – gleich den ersten Stapel legen.
 local function StartTrade(rest, now)
     local job = tradeJob
     if job then
@@ -234,6 +242,26 @@ local pending = setmetatable({}, { __mode = "k" })   -- [entry] = true: Nachgebe
 
 local function CombatText() return ezCore.CombatText(L.STACKS_WHAT) end
 
+-- Stapel an den offenen Brief hängen: mit ezMail dessen Anhängen (Meldungen, Nachsenden wie beim Alt-Klick), sonst ezCores
+-- Schlange – nie, solange sie schon anhängt oder sendet. Der eine Weg für Rechtsklick, Anzahl-Feld und „Auswahl“.
+-- entries: { { bag, slot, itemID, count }, … } → true, wenn angefangen (auch bei vollem Brief: dann kommt die Meldung)
+function Stacks.Attach(entries)
+    if #entries == 0 then return false end
+    local mailAPI = ezCore.API and ezCore.API("ezMail")
+    if mailAPI and type(mailAPI.AttachEntries) == "function" then return mailAPI.AttachEntries(entries) and true or false end
+    local queue = ezCore.MailQueue
+    if not (queue and queue.Attach) then return false end
+    if queue.IsAttaching() or queue.IsBusy() then
+        ns.Print(L.STACKS_MAIL_BUSY)
+        return false
+    end
+    -- done bekommt die übrigen Einträge als Liste (MailQueue.Attach), nicht ihre Zahl
+    return queue.Attach(entries, function(left)
+        local n = type(left) == "table" and #left or 0
+        if n > 0 then ns.Print(ns.CountText("SELECT_MAIL_FULL", n)) end
+    end) ~= false
+end
+
 -- Die übrigen Stapel an Post, Bank oder Händler geben (läuft kurz nach Blizzards Klick).
 -- → Zahl der Stapel, die ezBag weitergibt
 function Stacks.Run(target, entry, bound)
@@ -249,22 +277,7 @@ function Stacks.Run(target, entry, bound)
     if target == "mail" then
         local entries = {}
         for i, s in ipairs(rest) do entries[i] = { bag = s.bag, slot = s.slot, itemID = s.itemID } end
-        -- Mit ezMail: dessen Anhängen (Meldungen, Nachsenden wie beim Alt-Klick); sonst ezCores Schlange direkt
-        local mailAPI = ezCore.API and ezCore.API("ezMail")
-        if mailAPI and type(mailAPI.AttachEntries) == "function" then
-            return mailAPI.AttachEntries(entries) and #entries or 0
-        end
-        local queue = ezCore.MailQueue
-        if not (queue and queue.Attach) then return 0 end
-        if queue.IsAttaching() or queue.IsBusy() then
-            ns.Print(L.STACKS_MAIL_BUSY)
-            return 0
-        end
-        queue.Attach(entries, function(left)
-            local n = type(left) == "table" and #left or 0
-            if n > 0 then ns.Print(ns.CountText("SELECT_MAIL_FULL", n)) end
-        end)
-        return #entries
+        return Stacks.Attach(entries) and #entries or 0
     end
 
     if target == "merchant" then
@@ -300,30 +313,17 @@ function Stacks.AfterClick(entry, viewKey)
 end
 
 ---------------------------------------------------------------------------
--- Anzahl weitergeben (Umschalt+ oder Strg+Rechtsklick): ezBags eigenes Feld bis zur Gesamtzahl
+-- Anzahl weitergeben (Umschalt+Klick): ezBags eigenes Feld bis zur Gesamtzahl
 ---------------------------------------------------------------------------
 
--- Fenster, in die man eine Anzahl am Mauszeiger zieht (Gildenbank, Auktionshaus): Ist eines offen, bleibt ohne Ziel
--- Blizzards Anzahl-Fenster (Review 22.11.2026)
-local DROP_FRAMES = { "GuildBankFrame", "AuctionHouseFrame", "AuctionFrame" }
-local function DropFrameOpen()
-    for _, name in ipairs(DROP_FRAMES) do
-        local frame = rawget(_G, name)
-        if frame and frame.IsShown and frame:IsShown() then return true end
-    end
-    return false
-end
-
 -- Ziel einer Anzahl in einer Ansicht: aus der Tasche jedes offene Ziel (Händler, Post, Handel, Bank), ohne offenes
--- Ziel "none" (Anzahl an den Mauszeiger; nicht bei offener Gildenbank oder offenem Auktionshaus); aus der
+-- Ziel "none" (Anzahl an den Mauszeiger, auch bei offener Gildenbank oder offenem Auktionshaus); aus der
 -- Bankansicht "bag" (in die Tasche). → Ziel oder nil
 function Stacks.SplitTarget(viewKey)
     local target = Stacks.Target()
     if viewKey == "bank" then return target == "bank" and "bag" or nil end
     if viewKey == "bag" then
-        if target then return target end
-        if DropFrameOpen() then return nil end
-        return "none"
+        return target or "none"
     end
     return nil
 end
@@ -341,35 +341,50 @@ local function MailHasRoom(need)
     return queue ~= nil and type(queue.FreeSendSlots) == "function" and #queue.FreeSendSlots() >= (need or 1)
 end
 
-local function IsDressable(itemID)
-    return C_Item ~= nil and type(C_Item.IsDressableItemByID) == "function" and C_Item.IsDressableItemByID(itemID) == true
-end
-
 -- Wann und für wen Blizzard sein Anzahl-Fenster zuletzt geöffnet hat (hooksecurefunc an
--- StackSplitFrame:OpenStackSplitFrame, nur mitgehört). Review 21.11.2026: Nicht jeder Umschalt+Rechtsklick öffnet es –
+-- StackSplitFrame:OpenStackSplitFrame, nur mitgehört). Review 21.11.2026: Nicht jeder Umschalt+Klick öffnet es –
 -- bei Stapeln mit Beute (Umschalt ist dort Blizzards Selbst-Plündern), einem Link in den Chat oder einem gesperrten
--- Stapel bleibt ein schon offenes Fenster (z. B. von einem Umschalt+Linksklick davor) einfach stehen.
+-- Stapel bleibt ein schon offenes Fenster (z. B. von einem Umschalt+Klick davor) einfach stehen.
 local opened   -- { owner, time }
 
 function Stacks.OnSplitOpened(parent)
     opened = { owner = parent, time = GetTime() }
     -- Blizzards Teil-Fenster geht auf: ezBags Feld zu, sonst landeten Ziffern und Enter im falschen Fenster (Review
-    -- 22.11.2026); die Übernahme per Umschalt+Rechtsklick öffnet ezBags Feld danach neu
+    -- 22.11.2026); die Übernahme per Umschalt+Klick öffnet ezBags Feld danach neu
     if Stacks.FieldCancel then Stacks.FieldCancel() end
 end
 
-local splitFrame = rawget(_G, "StackSplitFrame")   -- Blizzards Anzahl-Fenster (beim Laden schon da)
-if splitFrame and type(splitFrame.OpenStackSplitFrame) == "function" then
+-- Mithören an Blizzards Anzahl-Fenster: beim Laden und, falls es da noch fehlt, beim Anmelden (Spieltest vom 23.11.2026:
+-- „wo ist unser eigenes split fenster hin? (ezbag) was hast du getan?“ – ohne Hook erkennt ezBag den Klick nie)
+local splitHooked = false
+function Stacks.HookSplit()
+    if splitHooked then return true end
+    local splitFrame = rawget(_G, "StackSplitFrame")
+    if not (splitFrame and type(splitFrame.OpenStackSplitFrame) == "function") then return false end
     hooksecurefunc(splitFrame, "OpenStackSplitFrame", function(_, _, parent) Stacks.OnSplitOpened(parent) end)
+    splitHooked = true
+    return true
 end
+Stacks.HookSplit()
+ns.On("PLAYER_LOGIN", Stacks.HookSplit)
 
--- Blizzards Anzahl-Fenster, wenn Blizzard es bei genau diesem Klick für diesen Knopf geöffnet hat (gleicher Bildaufbau,
--- noch offen). → Fenster oder nil
+-- Blizzards Anzahl-Fenster, wenn Blizzard es bei diesem Klick für diesen Knopf geöffnet hat: noch offen, gehört dem
+-- Knopf und ging höchstens Stacks.SPLIT_WINDOW Sekunden vor dem Klick auf (vorher: nur im selben Bildaufbau; ob das
+-- den Spieltest vom 23.11.2026 erklärt, ist offen – die Zeile in /ez debug nennt den Grund). Ein Öffnen gilt nur für
+-- den nächsten Klick auf diesen Knopf (Stacks.OnItemClick); ein Fenster von einem früheren Klick bleibt Blizzards
+-- (Review 21.11.2026). → Fenster und Sekunden seit dem Öffnen, oder nil und Grund
+Stacks.SPLIT_WINDOW = 0.5
+Stacks.lastSplit = nil   -- Diagnose (/ez debug): Ergebnis der letzten Übernahme
 local function SplitOpenedFor(button)
     local split = rawget(_G, "StackSplitFrame")
-    if not (split ~= nil and split:IsShown() and split.owner == button) then return nil end
-    if not (opened and opened.owner == button and opened.time == GetTime()) then return nil end
-    return split
+    if not (split ~= nil and split:IsShown()) then return nil, "Blizzards Fenster nicht offen" end
+    if split.owner ~= button then return nil, "Fenster gehört einem anderen Knopf" end
+    if not (opened and opened.owner == button) then
+        return nil, splitHooked and "Öffnen nicht mitgehört" or "kein Hook an StackSplitFrame"
+    end
+    local age = GetTime() - opened.time
+    if age < 0 or age > Stacks.SPLIT_WINDOW then return nil, "Fenster von einem früheren Klick" end
+    return split, age
 end
 
 -- Gamepad-Oberfläche: Blizzards Fenster meldet sich dort beim Steuerungs-Verwalter ab; das soll nicht aus ezBag laufen
@@ -379,22 +394,75 @@ end
 
 -- Für Layout.lua und Bank.lua: Klick auf Blizzards Platz-Knopf einer Ansicht (nach Blizzards OnClick).
 --   Rechtsklick ohne Zusatztaste  zusammengefasste Stapel ganz weitergeben
---   Umschalt+Rechtsklick          Blizzards Anzahl-Fenster schließen, ezBags Feld bis zur Gesamtzahl
---   Strg+Rechtsklick              dasselbe Feld direkt
-function Stacks.OnItemClick(view, button, mouse)
-    if mouse ~= "RightButton" or IsAltKeyDown() then return false end
-    local ctrl, shift = IsControlKeyDown(), IsShiftKeyDown()
-    if ctrl and shift then return false end
-    if not view or ns.Select.IsActive(view) then return false end
+--   Teilen-Klick (SPLITSTACK)     links wie rechts: Blizzards Anzahl-Fenster schließen, ezBags Feld bis zur Gesamtzahl
+--                                 (öffnet Blizzard keines, das Feld direkt); Strg+Rechtsklick bleibt Blizzards
+-- Diagnose (/ez debug): Grund, warum ein Umschalt+Klick nicht bis zur Übernahme kam (Review 23.11.2026)
+-- Blizzards Taste fürs Teilen: SPLITSTACK (Standard Umschalt, vom Spieler umbelegbar – seine Belegung gilt; Nutzer am
+-- 23.11.2026: „nein ezbag soll blizz teilen ersetzen und die gleichen originalen tastenbelegung dafür verwenden“). Ohne IsModifiedClick: Umschalt
+-- Wie Blizzards OnClick: erst IsModifiedClick() (irgendeine Zusatztaste), dann SPLITSTACK – auch Alt oder Umschalt-Strg,
+-- wenn der Spieler so belegt (Review 23.11.2026).
+local function SplitKey()
+    local modified = rawget(_G, "IsModifiedClick")
+    if type(modified) == "function" then return modified() == true and modified("SPLITSTACK") == true end
+    return IsShiftKeyDown() and not IsControlKeyDown() and not IsAltKeyDown()
+end
+
+-- Blizzards Zusatztasten-Aktion (CHATLINK, DRESSUP …) gedrückt? Ohne IsModifiedClick Blizzards Standard: Strg für
+-- die Anprobe, sonst Umschalt
+local function ModifiedAction(action)
+    local modified = rawget(_G, "IsModifiedClick")
+    if type(modified) == "function" then return modified(action) == true end
+    if action == "DRESSUP" then return IsControlKeyDown() end
+    return IsShiftKeyDown()
+end
+
+-- Zusatztaste von SPLITSTACK für den Tooltip ("SHIFT", "CTRL" …)
+local function SplitMods()
+    local get = rawget(_G, "GetModifiedClick")
+    local mods = type(get) == "function" and get("SPLITSTACK") or nil
+    if type(mods) ~= "string" or mods == "" or mods == "NONE" then return "SHIFT" end
+    return mods
+end
+
+-- Rechtsklick auf Beute mit Blizzards Plündern-Taste (AUTOLOOTTOGGLE, Standard Umschalt): Blizzard macht daraus einen
+-- normalen Klick und plündert (ContainerFrameItemButtonMixin:OnClick), teilt also nicht
+local function LootClick(entry)
+    local modified = rawget(_G, "IsModifiedClick")
+    if type(modified) == "function" and modified("AUTOLOOTTOGGLE") ~= true then return false end
+    local _, _, info = BoundOf(entry)
+    return info ~= nil and info.hasLoot == true
+end
+
+local function SplitSkipped(why)
+    if SplitKey() then Stacks.lastSplit = why end
+    return false
+end
+
+local function ItemClick(view, button, mouse)
+    local alt, ctrl, shift = IsAltKeyDown(), IsControlKeyDown(), IsShiftKeyDown()
+    -- Teilen mit Blizzards Teilen-Klick, links wie rechts, mit der Belegung des Spielers (Entscheidung vom 23.11.2026);
+    -- der einfache Rechtsklick (ohne Zusatztaste) gibt zusammengefasste Stapel ganz weiter, Strg+Rechtsklick bleibt
+    -- Blizzards
+    local split = (mouse == "LeftButton" or mouse == "RightButton") and SplitKey()
+    if not (split or (mouse == "RightButton" and not alt and not shift and not ctrl)) then return false end
+    if not view then return SplitSkipped("Knopf gehört keiner Ansicht") end
+    if ns.Select.IsActive(view) then return SplitSkipped("Auswählen läuft") end
     local entry = view.byButton and view.byButton[button]
-    if not (entry and entry.button == button) then return false end
-    if shift then return Stacks.TakeOverSplit(entry, button, view.viewKey) end
-    if ctrl then
-        if IsDressable(entry.itemID) then return false end   -- Strg+Klick ist dort Blizzards Anprobe
-        return Stacks.AskAmount(entry, view.viewKey)
+    if not (entry and entry.button == button) then
+        return SplitSkipped("Platz nicht in der Ansicht (" .. tostring(view.viewKey) .. ")")
     end
+    local viewKey = SlotView(view.viewKey)
+    if split then return Stacks.TakeOverSplit(entry, button, viewKey, mouse) end
     if not entry.merged then return false end
-    return Stacks.AfterClick(entry, view.viewKey)
+    return Stacks.AfterClick(entry, viewKey)
+end
+
+function Stacks.OnItemClick(view, button, mouse)
+    local result = ItemClick(view, button, mouse)
+    -- Blizzard öffnet sein Fenster vor diesem Hook; danach gehört das Öffnen keinem weiteren Klick mehr (Review
+    -- 23.11.2026: sonst übernähme ein zweiter Klick ohne neues Öffnen binnen Stacks.SPLIT_WINDOW das alte Fenster)
+    if opened and opened.owner == button then opened = nil end
+    return result
 end
 
 ---------------------------------------------------------------------------
@@ -589,18 +657,7 @@ local function PassBuilt(target, built)
     if target == "mail" then
         local entries = {}
         for k, q in ipairs(built) do entries[k] = { bag = q.bag, slot = q.slot, itemID = q.itemID, count = q.count } end
-        local mailAPI = ezCore.API and ezCore.API("ezMail")
-        if mailAPI and type(mailAPI.AttachEntries) == "function" then
-            mailAPI.AttachEntries(entries)
-            return
-        end
-        local queue = ezCore.MailQueue
-        if not (queue and queue.Attach) then return end
-        if queue.IsAttaching() or queue.IsBusy() then return ns.Print(L.STACKS_MAIL_BUSY) end
-        queue.Attach(entries, function(left)
-            local k = type(left) == "table" and #left or 0
-            if k > 0 then ns.Print(ns.CountText("SELECT_MAIL_FULL", k)) end
-        end)
+        Stacks.Attach(entries)
     elseif target == "trade" then
         StartTrade(built, true)
     elseif target == "bag" then
@@ -861,6 +918,7 @@ function Stacks.OpenField(prompt, current, max, cb, anchor)
 end
 
 function Stacks.Field() return field end
+function Stacks.FieldShown() return field ~= nil and field:IsShown() == true end
 
 -- Die Frage des offenen Felds als Tooltip darüber
 function Stacks.ShowFieldPrompt()
@@ -872,9 +930,9 @@ function Stacks.ShowFieldPrompt()
     GameTooltip:Show()
 end
 
--- Das Feld mit der Gesamtzahl als Vorschlag. before: läuft gleich vor dem Öffnen (Umschalt+Rechtsklick schließt dort
--- Blizzards Anzahl-Fenster). → true, wenn gefragt
-function Stacks.AskAmount(entry, viewKey, before)
+-- Das Feld mit der Gesamtzahl als Vorschlag. before: läuft gleich vor dem Öffnen (schließt dort Blizzards
+-- Anzahl-Fenster); needMore: nur bei mehr als einem Stück (Feld ohne Blizzards Fenster). → true, wenn gefragt
+function Stacks.AskAmount(entry, viewKey, before, needMore)
     local target = Stacks.SplitTarget(viewKey)
     if not target then return false end
     if ns.InCombat() then
@@ -883,7 +941,7 @@ function Stacks.AskAmount(entry, viewKey, before)
     end
     if CursorHasItem() then return false end
     local _, total = Askable(entry, target)
-    if not total then return false end
+    if not total or (needMore and total < 2) then return false end
     if before then before() end
     local name = entry.link or entry.name or ""
     Stacks.OpenField(L["STACKS_ASK_" .. target]:format(name, total), total, total, function(n)
@@ -892,15 +950,69 @@ function Stacks.AskAmount(entry, viewKey, before)
     return true
 end
 
--- Umschalt+Rechtsklick (nach Blizzards OnClick): Hat Blizzard sein Anzahl-Fenster für diesen Knopf geöffnet und ist
--- ein Ziel offen (oder ohne Ziel in der Tasche), schließt ezBag es und zeigt sein Feld (Ausnahme 3 von Leitlinie 5;
--- Entscheidungen des Nutzers vom 21.11.2026 „Eigenes Feld, Ausnahme (Empfohlen)“ und vom 22.11.2026 „Ja, Feld überall
--- (Empfohlen)“). Sonst bleibt Blizzards Fenster. → true, wenn übernommen
-function Stacks.TakeOverSplit(entry, button, viewKey)
-    local split = SplitOpenedFor(button)
-    if not split then return false end   -- Blizzard hat bei diesem Klick kein Fenster geöffnet (Stapel von 1, Beute …)
-    if GamepadUI() then return false end
-    return Stacks.AskAmount(entry, viewKey, function() split:Hide() end)
+-- Ist Blizzards Anzahl-Fenster offen (für irgendeinen Knopf)?
+local function SplitShown()
+    local split = rawget(_G, "StackSplitFrame")
+    return split ~= nil and split:IsShown() == true
+end
+
+-- Nimmt Blizzards Klick den Gegenstand schon anders (Review 23.11.2026)? Mit Blizzards Link-Taste (CHATLINK) geht ein
+-- Link in ein Eingabefeld (Chat, Makrotext, Suchfelder – ezCore.LinkInput), im Auktionshaus setzt Blizzard den Namen in
+-- die Suche (ezAuction/Editor.lua, LinkGoesElsewhere); mit der Anprobe-Taste (DRESSUP) zeigt Blizzard Ausrüstung an.
+-- Dann kein Feld ohne Blizzards Fenster. → Grund oder nil
+local function ShiftClickTaken(entry)
+    if ModifiedAction("CHATLINK") then
+        if ezCore.LinkInput() ~= nil then return "Eingabefeld (Blizzard fügt einen Link ein)" end
+        local ah = rawget(_G, "AuctionHouseFrame")
+        if ah ~= nil and ah.IsShown and ah:IsShown() then return "Auktionshaus (Blizzard setzt den Namen in die Suche)" end
+    end
+    if ModifiedAction("DRESSUP") and C_Item ~= nil and type(C_Item.IsDressableItemByID) == "function"
+        and C_Item.IsDressableItemByID(entry.itemID) == true then
+        return "Anprobe (Blizzard zeigt den Gegenstand an)"
+    end
+    return nil
+end
+
+-- Umschalt+Klick (nach Blizzards OnClick): Hat Blizzard sein Anzahl-Fenster für diesen Knopf geöffnet, schließt
+-- ezBag es und zeigt sein Feld (Ausnahme 3 von Leitlinie 5; Entscheidungen des Nutzers vom 21.11.2026 „Eigenes Feld,
+-- Ausnahme (Empfohlen)“, vom 22.11.2026 „Ja, Feld überall (Empfohlen)“ und vom 23.11.2026 „die gleichen originalen
+-- tastenbelegung“). mouse: die Maustaste des Klicks. Öffnet Blizzard keines (zusammengefasste Einzelstücke), ist keines offen und geht der Klick
+-- nicht schon anderswohin (ShiftClickTaken), öffnet ezBag sein Feld direkt. Sonst bleibt Blizzards Fenster.
+-- → true, wenn übernommen
+function Stacks.TakeOverSplit(entry, button, viewKey, mouse)
+    if GamepadUI() then
+        Stacks.lastSplit = "Gamepad-Oberfläche"
+        return false
+    end
+    local split, why = SplitOpenedFor(button)   -- why: Grund, oder Sekunden seit dem Öffnen
+    if split then
+        local taken = Stacks.AskAmount(entry, viewKey, function() split:Hide() end)
+        Stacks.lastSplit = taken and ("übernommen (" .. math.floor(why * 1000 + 0.5) .. " ms nach dem Öffnen)")
+            or ("kein Feld (Ziel " .. tostring(Stacks.SplitTarget(viewKey)) .. ")")
+        return taken
+    end
+    if SplitShown() then   -- Blizzards Fenster gehört einem anderen Klick oder Knopf: es bleibt
+        Stacks.lastSplit = why
+        return false
+    end
+    local elsewhere = ShiftClickTaken(entry)
+    if not elsewhere and mouse == "RightButton" and LootClick(entry) then
+        elsewhere = "Plündern (Blizzards Rechtsklick auf Beute)"
+    end
+    if elsewhere then
+        Stacks.lastSplit = elsewhere
+        return false
+    end
+    local taken = Stacks.AskAmount(entry, viewKey, nil, true)
+    Stacks.lastSplit = taken and "direkt (Blizzard öffnete kein Fenster)" or ("kein Feld, " .. tostring(why))
+    return taken
+end
+
+if ezCore.Debug and type(ezCore.Debug.AddLine) == "function" then
+    ezCore.Debug.AddLine("ezBag.split", function()
+        return "ezBag Teilen-Feld: Hook " .. (splitHooked and "ja" or "nein") .. ", letzter Umschalt+Klick: "
+            .. tostring(Stacks.lastSplit or "keiner")
+    end, "ezBag")
 end
 
 ---------------------------------------------------------------------------
@@ -925,22 +1037,17 @@ function Stacks.TipText(entry, viewKey)
     return L["STACKS_TIP_" .. key]:format(ns.CountWord("STACK", #rest + 1), total)
 end
 
--- Zeile „Umschalt-Rechtsklick: Anzahl (bis 24) wählen, „Annehmen“ verkauft sie“ (bzw. Brief, Handel, Bank, Tasche).
--- Öffnet Blizzard bei Umschalt kein Fenster (1 Stück, Beute, Gamepad-Oberfläche), nennt sie Strg-Rechtsklick.
+-- Zeile „Umschalt-Klick: Anzahl (bis 24) wählen, „Okay“ verkauft sie“ (bzw. Brief, Handel, Bank, Tasche, Mauszeiger)
+-- mit Blizzards Teilen-Taste (SPLITSTACK, auch umbelegt); bei Beute nur der Linksklick (rechts plündert Blizzard).
+-- Keine Zeile bei einem Stück, mit Gamepad-Oberfläche und im Kampf ohne Ziel.
 function Stacks.SplitTipText(entry, viewKey)
     local target = Stacks.SplitTarget(viewKey)
-    if not target then return nil end
+    if not target or GamepadUI() then return nil end
     if target == "none" and ns.InCombat() then return nil end   -- dort bleibt im Kampf still Blizzards Fenster
-    local _, count, info = BoundOf(entry)
     local _, total = Askable(entry, target)
-    if not total then return nil end
-    local key = "SHIFT"
-    -- Stapel von 1 und Stapel mit Beute: Blizzard öffnet bei Umschalt kein Fenster (bzw. plündert) – Strg nennen
-    if not (count and count > 1) or info.hasLoot or GamepadUI() then
-        if IsDressable(entry.itemID) then return nil end
-        key = "CTRL"
-    end
-    return ezCore.ClickText("right", key, L["STACKS_SPLIT_" .. target]:format(total))
+    if not (total and total > 1) then return nil end
+    local _, _, info = BoundOf(entry)
+    return ezCore.ClickText(info and info.hasLoot and "left" or "any", SplitMods(), L["STACKS_SPLIT_" .. target]:format(total))
 end
 
 function Stacks.Section(tooltip)
@@ -949,8 +1056,8 @@ function Stacks.Section(tooltip)
     if not (view and VIEWS[view.viewKey]) then return end
     local entry = view.byButton and view.byButton[owner]
     if not (entry and entry.itemID) then return end
-    local all = entry.merged and Stacks.TipText(entry, view.viewKey)
-    local split = Stacks.SplitTipText(entry, view.viewKey)
+    local all = entry.merged and Stacks.TipText(entry, SlotView(view.viewKey))
+    local split = Stacks.SplitTipText(entry, SlotView(view.viewKey))
     if not (all or split) then return end
     ezCore.Tooltip.Gap(tooltip)
     local r, g, b = ns.TipRGB("hint")

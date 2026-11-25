@@ -132,10 +132,9 @@ end
 local function Pouches()
     local list = {}
     for _, bag in ipairs(ezCore.BagList("bags")) do
-        local free, family = C_Container.GetContainerNumFreeSlots(bag)
-        free, family = ns.Num(free), ns.Num(family)
+        local free = ns.Num((C_Container.GetContainerNumFreeSlots(bag)))
         local total = ns.Num(C_Container.GetContainerNumSlots(bag)) or 0
-        if bag ~= 0 and family and family ~= 0 and total > 0 then
+        if bag ~= 0 and total > 0 then       -- erkannt am Taschengegenstand (Klasse 11), nicht an der Familie am Platz
             local invID = C_Container.ContainerIDToInventoryID and C_Container.ContainerIDToInventoryID(bag)
             local id = invID and GetInventoryItemID("player", invID)
             local class = id and ItemClass(id)
@@ -163,7 +162,8 @@ function block:OnTooltip(tooltip)
     if #pouches > 0 then
         tooltip:AddLine(" ")
         for _, p in ipairs(pouches) do
-            ns.TipDoubleLine(tooltip, p.name, L.FREE_OF:format(p.free, p.total), "normal", "highlight")
+            -- Nur die freien Plätze wie im Taschen-Block (ezCore.FreeSpaceText; „Ja, überall (Empfohlen)“, 23.11.2026)
+            ns.TipDoubleLine(tooltip, p.name, ezCore.FreeSpaceText(p.free), "normal", "highlight")
         end
     end
     tooltip:AddLine(" ")

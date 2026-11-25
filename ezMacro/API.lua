@@ -13,8 +13,9 @@ ns.API = {
     -- AnnounceChannel(kind) → "RAID_WARNING" | "RAID" | "INSTANCE_CHAT" | "PARTY" | nil (allein)
     AnnounceChannel = function(kind) return ns.Announce.Channel(kind or "group") end,
 
-    -- Leisten-Profile (ezBars nutzt sie für seine Leisten). slots: Liste von Aktionsplätzen, nil = alle
-    -- (ezCore.ActionSlots.USABLE: 1–120 und 145–180; 121–144 fasst ezMacro nie an).
+    -- Leisten-Profile. Seit dem Architektur-Review 22.11.2026 ein Dienst in ezCore (ezCore.BarProfiles), den ezBars
+    -- direkt nutzt; diese Aufrufe bleiben unter ihren Namen und leiten über ns.Profiles dorthin weiter. slots: Liste
+    -- von Aktionsplätzen, nil = alle (ezCore.ActionSlots.USABLE: 1–120 und 145–180; 121–144 nie).
     -- ProfileNames() → { "Name", … } sortiert
     ProfileNames = function() return ns.Profiles.Names() end,
     -- ProfileList() → { { name, class, saved = Zeit, slots = Anzahl, macros = Anzahl, partial }, … } sortiert

@@ -1,11 +1,11 @@
--- Dauer befristeter Verzauberungen (Waffenzauber, Gifte, Wetzsteine) – laut wago.tools, Produkt wowf, Build 1.60.1.70938 (Client-Tabellen SpellEffect, SpellItemEnchantment, SpellEquippedItems).
--- Erzeugt am 2026-11-16 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
+-- Dauer befristeter Verzauberungen (Waffenzauber, Gifte, Wetzsteine) – laut wago.tools, Produkt wowf, Build 1.60.1.71037 (Client-Tabellen SpellEffect, SpellItemEnchantment, SpellEquippedItems).
+-- Erzeugt am 2026-11-24 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
 -- tools/wago.lua <Rohordner> --aus=tools/daten/wago). Nicht von Hand ändern – die wago-Prüfung in sh tools/test.sh
 -- meldet rot, wenn diese Datei nicht zu tools/daten/wago/ passt. Herkunft und Regeln: docs/wago-tools.md, Abschnitt 7.
 -- Leser: ezCore.ClientData (Wissen/ClientData.lua). Felder: spells[Zauber] = Verzauberung (SpellEffect 54 bzw. 360); enchants[Verzauberung] = { Dauer in Sekunden, Aufladungen }; fit[Zauber] = { Gegenstandsklasse, Unterklassen-Maske (Bit = Enum.ItemWeaponSubclass, 0 = jede), Platz-Maske (Bit = Enum.InventoryType, 0 = jeder) } – welche Waffe der Zauber annimmt
 local _, ns = ...
 ns.ClientTables = ns.ClientTables or {}
-ns.ClientTables.enchants = {build="1.60.1.70938",data={enchants={
+ns.ClientTables.enchants = {build="1.60.1.71037",data={enchants={
 [1]={3600,0},
 [2]={3600,0},
 [3]={3600,0},
@@ -123,6 +123,7 @@ ns.ClientTables.enchants = {build="1.60.1.70938",data={enchants={
 [8716]={3600,0},
 [8717]={3600,0},
 [8718]={3600,0},
+[8773]={300,0},
 },fit={
 [758]={2,0,2236416},
 [2823]={2,173555,0},
@@ -249,6 +250,7 @@ ns.ClientTables.enchants = {build="1.60.1.70938",data={enchants={
 [1302310]={2,1024,0},
 [1302311]={2,1024,0},
 [1302312]={2,1024,0},
+[1331725]={2,1048576,0},
 },spells={
 [758]=1803,
 [2823]=7,
@@ -375,4 +377,5 @@ ns.ClientTables.enchants = {build="1.60.1.70938",data={enchants={
 [1302310]=8718,
 [1302311]=8716,
 [1302312]=8717,
-}},date="2026-11-16"}
+[1331725]=8773,
+}},date="2026-11-24"}

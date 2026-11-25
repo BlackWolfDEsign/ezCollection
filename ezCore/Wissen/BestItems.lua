@@ -11,13 +11,25 @@ local Core = ezCore
     Wissen über den Gegenstand: ezCores Item-Wissen (Core.Knowledge.Get → facts.consumable; Art „weaponEnchant“ für
     Gift, Wetzstein, Gewichtsstein, Zauberöl). Bestand: Core.ForEachBagItem mit „carried“ (alles, was du bei dir trägst).
 
-      BestItems.Usable(facts, klasse)  → passt? Verbrauchsgut, jetzt benutzbar (facts.usableNow ~= false) und – wenn
-                                         das Item-Wissen „gut für <Klasse>“ nennt – für diese Klasse
-      BestItems.Score(facts, klasse)   → Wertung: Mindeststufe, +1000 „gut für meine Klasse“ (nicht für alle),
-                                         +500 Fläschchen (vor Elixier); nil ohne Verbrauchsgut
+      BestItems.Usable(facts, klasse, jedeKlasse?) → passt? Verbrauchsgut, jetzt benutzbar (facts.usableNow ~= false)
+                                         und – wenn das Item-Wissen „gut für <Klasse>“ nennt – für diese Klasse. Mit
+                                         jedeKlasse zählt „gut für“ nicht (ezBuffs Buff-Essen: Fehler vom Nutzer vom
+                                         23.11.2026 „fehlendes bufffood (in tasche vorhanden) beim hexer wird nicht
+                                         angezeigt“ – Essen mit ungünstigem Wert ist besser als gar keins)
+      BestItems.Fit(facts, klasse)     → "class" | "all" | "other" | nil: passt der Gegenstand laut Item-Wissen zur
+                                         Klasse? "class" = „gut für“ nennt sie (nicht für alle); "all" = für alle, ohne
+                                         Angabe, ohne Klasse oder einer der Werte nützt laut Item-Wissen jeder Klasse
+                                         (keine Klassenliste, etwa Ausdauer – „Ausdauer und Willenskraft“ nennt sonst
+                                         nur die Klassen der Willenskraft); "other" = nur andere Klassen; nil ohne
+                                         Verbrauchsgut
+      BestItems.Score(facts, klasse)   → Wertung: Mindeststufe, +1000 bei Fit "class", −NOT_FOR_CLASS (2000) bei Fit
+                                         "other" (nennt das Item-Wissen die Klasse nicht), +500 Fläschchen (vor
+                                         Elixier); nil ohne Verbrauchsgut
       BestItems.RULES[art]             → Regel zum Auffüllen (Paket ezmacro/ssot-doppelungen, vorher ezMacro/OneClick.lua):
                                          test(c) → passt die Art? prefer(c) → bevorzugt (ohne Buff, reine Art)?
-                                         Arten food, drink, bandage, potion (BestItems.CONSUMABLE_KINDS)
+                                         Arten food, drink, bandage, potion (BestItems.CONSUMABLE_KINDS), dazu
+                                         manaPotion (Manatrank; nur für ezCombats Trank im mittigen Symbol, nicht in
+                                         CONSUMABLE_KINDS – ezMacros Auffüllen bleibt, wie es ist)
       BestItems.Consumable(art)        → itemID, facts | nil, Grund ("unknown" | "noKnowledge" | "noItem"): bestes
                                          Essen, Getränk, Verband bzw. Heiltrank in den normalen Taschen – benutzbar
                                          (usableNow ~= false) und Mindeststufe ≤ deine Stufe; Rangfolge 1. bevorzugt
@@ -51,20 +63,49 @@ local function Consumable(facts)
     return type(c) == "table" and c or nil
 end
 
-function BestItems.Usable(facts, class)
+function BestItems.Usable(facts, class, anyClass)
     local c = Consumable(facts)
     if not c or facts.usableNow == false then return false end
+    if anyClass then return true end
     if Core.IsSecret(class) then class = nil end
     if c.goodFor and class and not c.goodFor[class] then return false end
     return true
 end
 
-function BestItems.Score(facts, class)
+-- Nützt einer der Werte laut Item-Wissen jeder Klasse (K.StatGoodFor ohne Klassenliste, etwa Ausdauer)? Das
+-- Item-Wissen übergeht solche Werte beim Schneiden von „gut für“ (Knowledge.lua, BuildGoodFor; dieselbe Wahl der
+-- Werte: consumable.stats, sonst facts.stats).
+local function StatForAll(facts, c)
+    local K = Core.Knowledge
+    local stats = type(c.stats) == "table" and c.stats or facts.stats
+    if type(stats) ~= "table" or type(K) ~= "table" or type(K.StatGoodFor) ~= "function" then return false end
+    for stat in pairs(stats) do
+        if type(K.StatGoodFor(stat)) ~= "table" then return true end
+    end
+    return false
+end
+
+function BestItems.Fit(facts, class)
     local c = Consumable(facts)
     if not c then return nil end
     if Core.IsSecret(class) then class = nil end
+    if not (type(c.goodFor) == "table" and class) or facts.goodForAll then return "all" end
+    if c.goodFor[class] then return "class" end
+    if StatForAll(facts, c) then return "all" end
+    return "other"
+end
+
+-- Abzug bei Fit "other": größer als alles, was Stufe und Fläschchen zusammen bringen – ein solcher Gegenstand steht
+-- hinter allem Passenden. Bei den heutigen Aufrufern erreicht ihn nur Buff-Essen (ezBuff: Usable(facts, klasse,
+-- true)); wer Score ohne Usable aufruft, bekommt den Abzug ebenso.
+BestItems.NOT_FOR_CLASS = 2000
+
+function BestItems.Score(facts, class)
+    local c = Consumable(facts)
+    if not c then return nil end
     local score = Core.Num(facts.minLevel) or 0
-    if c.goodFor and not facts.goodForAll and c.goodFor[class] then score = score + 1000 end
+    local fit = BestItems.Fit(facts, class)
+    if fit == "class" then score = score + 1000 elseif fit == "other" then score = score - BestItems.NOT_FOR_CLASS end
     if c.kind == "flask" then score = score + 500 end
     return score
 end
@@ -84,6 +125,9 @@ BestItems.RULES = {
     },
     potion = {
         test = function(c) return c.kind == "potion" and c.restoresHealth == true and not c.restoresMana end,
+    },
+    manaPotion = {
+        test = function(c) return c.kind == "potion" and c.restoresMana == true and not c.restoresHealth end,
     },
 }
 BestItems.CONSUMABLE_KINDS = { "food", "drink", "bandage", "potion" }
@@ -123,11 +167,7 @@ function BestItems.Consumable(kind)
     return bestID, bestFacts
 end
 
--- Bit n (0 …) der Maske gesetzt? Ohne bit-Bibliothek (die Masken passen in eine Lua-Zahl)
-local function HasBit(mask, n)
-    if type(mask) ~= "number" or type(n) ~= "number" or n < 0 or n > 52 then return false end
-    return math.floor(mask / 2 ^ n) % 2 == 1
-end
+local HasBit = Core.HasBitAt
 
 function BestItems.FitsHand(facts, hand)
     local c = Consumable(facts)

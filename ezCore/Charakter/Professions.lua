@@ -248,10 +248,7 @@ local function Set(store, id, name, readyAt)
 end
 
 local function KnowsSpell(id)
-    if IsPlayerSpell then
-        local ok, known = pcall(IsPlayerSpell, id)
-        if ok and known then return true end
-    end
+    if Core.KnowsSpell(id) then return true end
     return Core.Spells and Core.Spells.IsKnown and Core.Spells.IsKnown(id) or false
 end
 

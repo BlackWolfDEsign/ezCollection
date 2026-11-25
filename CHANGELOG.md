@@ -3,6 +3,132 @@
 Written by hand before every release; it describes what each module can do, not every commit. English first, German below each entry.
 Von Hand vor jeder Veröffentlichung gepflegt; beschreibt, was jedes Modul kann, nicht jeden Commit. Englisch zuerst, Deutsch darunter.
 
+## v1.0.0-beta4
+
+Fourth beta for WoW Forever: a second spellbook page that tells where you learn what, rotations that go onto your action bars, rescue and dispel hints, an auction house that shows upgrades at a glance, a wider recipe list, a suggestion for full bags, talent templates linked to rotations, an anonymous contribution text made in the game, and all shipped data brought up to client build 1.60.1. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).
+Vierte Beta für WoW Forever: eine zweite Zauberbuch-Seite, die sagt, wo du was lernst, Rotationen, die sich auf deine Aktionsleisten legen, Rettungs- und Bann-Hinweise, ein Auktionshaus, das Verbesserungen auf einen Blick zeigt, eine breitere Rezeptliste, ein Vorschlag bei voller Tasche, Talentvorlagen mit passenden Rotationen, ein anonymer Beitragstext direkt aus dem Spiel und alle mitgelieferten Daten auf dem Stand des Client-Builds 1.60.1. Vieles ist im Spiel noch ungetestet; Fehler bitte mit der Fehlerliste zum Kopieren melden (Esc » Optionen » AddOns » ezCollection » Erweitert).
+
+### ezCore
+
+- After an update a bubble at the minimap asks about what is new, with a checkbox per point; the introduction is up to date. “Agree to all” also switches on every kind of tracking, but leaves the fight summary off.
+- Nach einem Update fragt eine Blase an der Minikarte nach dem, was neu ist, mit einem Haken je Punkt; die Einführung ist auf dem heutigen Stand. „Allem zustimmen“ schaltet auch alle Arten des Aufspürens ein, lässt die Zusammenfassung nach dem Kampf aber aus.
+- “Help out” makes an anonymous text in the game (numbers, places, build and day only) that you copy and send; the copyable error list leaves out your own names. Contributions of other players come with the folder ezData and are shown as “from contributions” – loot, vendors, trainers, flight times, zone levels, disenchanting.
+- „Mithelfen“ macht im Spiel einen anonymen Text (nur Nummern, Orte, Build und Tag), den du kopierst und schickst; die Fehlerliste zum Kopieren lässt deine eigenen Namen weg. Beiträge anderer Spieler kommen mit dem Ordner ezData und stehen als „aus Beiträgen“ da – Beute, Händler, Lehrer, Flugzeiten, Gebietsstufen, Entzaubern.
+- Recipes, zone levels, dungeon entrances, flight routes, ranks and talents come from the tables of client build 1.60.1. Without a group role your role follows your talents, and your own talent tree is in the player tooltip. Action bar profiles work without ezMacro.
+- Rezepte, Zonenstufen, Dungeoneingänge, Flugstrecken, Ränge und Talente stammen aus den Tabellen des Client-Builds 1.60.1. Ohne Gruppenrolle folgt deine Rolle den Talenten, und dein Talentbaum steht im Spieler-Tooltip. Leisten-Profile gehen auch ohne ezMacro.
+- “Zoom the camera out further” is set again after login and says what the game accepted. “Deselect all” sits below “Select all”. Paragraphs on the spellbook pages are no longer cut off when they fit.
+- „Kamera weiter herauszoomen“ wird nach dem Anmelden noch einmal gesetzt und sagt, was das Spiel angenommen hat. „Alle abwählen“ steht unter „Alle auswählen“. Absätze auf den Zauberbuch-Seiten werden nicht mehr gekürzt, wenn sie hineinpassen.
+
+### ezAuction
+
+- ezGear's arrow stands in a fixed column between price and name. “Upgrades only” hides equipment that is worse for you; what is not known yet stays.
+- ezGears Pfeil steht in einer festen Spalte zwischen Preis und Name. „Nur Verbesserungen“ blendet Ausrüstung aus, die schlechter für dich ist; was noch nicht feststeht, bleibt stehen.
+- The auction house fee only counts once ezCore has measured it; until then profits are shown as gross.
+- Die Gebühr des Auktionshauses zählt erst, wenn ezCore sie gemessen hat; bis dahin sind Gewinne brutto.
+
+### ezBag
+
+- The reagent bag is a section of its own at the bottom of the bag; reagents, arrows, bullets and goods of profession bags move into their bags by themselves.
+- Die Reagenzientasche ist ein eigener Abschnitt unten in der Tasche; Reagenzien, Pfeile, Kugeln und Waren der Berufstaschen rücken von selbst in ihre Taschen nach.
+- With full bags a button at the loot window suggests which cheap item to destroy for more valuable loot, with both prices and a question first.
+- Bei voller Tasche schlägt ein Knopf am Plündernfenster vor, welches billige Teil für wertvollere Beute zerstört wird – mit beiden Preisen und einer Rückfrage.
+- ezBag's amount box uses the game's own split key, left and right, and passes the amount to the open window. Junk spares what is better than what you wear.
+- ezBags Anzahl-Feld nutzt die Teilen-Taste des Spiels, links wie rechts, und gibt die Anzahl an das offene Fenster weiter. Plunder verschont, was besser ist als das Angelegte.
+
+### ezBars
+
+- Bar 1 is off by default. Bar profiles also work without ezMacro.
+- Leiste 1 ist ab Werk aus. Leisten-Profile gehen auch ohne ezMacro.
+
+### ezBuff
+
+- Buff food is reminded for every class, checked at all times by default. The symbol on a party frame casts nothing on someone out of range.
+- An Buff-Essen wird bei jeder Klasse erinnert, geprüft wird ab Werk immer. Das Symbol am Gruppenrahmen wirkt auf niemanden außer Reichweite.
+
+### ezChat
+
+- The number of chat windows comes from the game; less work in the background.
+- Die Zahl der Chatfenster kommt vom Spiel; weniger Arbeit im Hintergrund.
+
+### ezCombat
+
+- The rotation goes onto action bars 1 and 2 at the push of a button, with a preview, a question and “Back”; all buttons are on the first page. It suggests only one of what excludes each other (curses, stings, seals, aspects, armors) and weighs the filler spell against your wand by your values.
+- Die Rotation legt sich auf Knopfdruck auf die Aktionsleisten 1 und 2, mit Vorschau, Rückfrage und „Zurück“; alle Knöpfe stehen auf der ersten Seite. Was sich ausschließt (Flüche, Stiche, Siegel, Aspekte, Rüstungen), schlägt sie nur einmal vor, und sie wägt den Füllzauber nach deinen Werten gegen den Zauberstab ab.
+- Near death: the rescue ability in the middle symbol, a potion as a small mark, and your own frame glows; a dispel hint on the portrait when you or a party member can be cleansed by you. One slider for the limit (15 % by default).
+- Fast tot: die Rettungsfähigkeit im mittigen Symbol, ein Trank als kleine Marke, dazu leuchtet dein Rahmen; ein Bann-Hinweis auf dem Porträt, wenn du dich oder einen Mitspieler bannen kannst. Ein Regler für die Grenze (ab Werk 15 %).
+- Combo points are shown only once, the row of your DoTs, the damage comparison and the fight summary are off by default, expiring DoTs and HoTs are announced earlier. A healer by talents also sees damage on the party frames.
+- Combo-Punkte stehen nur noch einmal da, die Reihe deiner DoTs, der Schadensvergleich und die Zusammenfassung nach dem Kampf sind ab Werk aus, auslaufende DoTs und HoTs werden früher angesagt. Wer nur laut Talenten Heiler ist, sieht am Gruppenrahmen auch Schaden.
+
+### ezCraft
+
+- The recipe list shows ezGear's arrow and the required level of what you make, is a little wider, and can be ordered by that level (Filter » Order); a click selects the recipe there too.
+- Die Rezeptliste zeigt ezGears Pfeil und die nötige Stufe dessen, was du herstellst, ist etwas breiter und lässt sich nach dieser Stufe ordnen (Filter » Reihenfolge); auch dort wählt ein Klick das Rezept.
+- “What comes when” and “What is where” for the open profession, with trainers, vendors and quests. The cost line breaks only between its parts.
+- „Was kommt wann“ und „Wo kommt was“ für den offenen Beruf, mit Lehrern, Händlern und Quests. Die Kostenzeile bricht nur zwischen ihren Teilen um.
+
+### ezData
+
+- New folder with contributions of other players, checked by the project. It is still empty and can be switched off in the addon list.
+- Neuer Ordner mit Beiträgen anderer Spieler, vom Projekt geprüft. Er ist noch leer und lässt sich in der Addon-Liste ausschalten.
+
+### ezGear
+
+- A yellow arrow for what is better as soon as your level or a weapon or armor skill is enough; two-handers are compared with a pair; weapon damage counts. The arrow also stands in the trade window with another player.
+- Gelber Pfeil für alles, was besser ist, sobald Stufe oder Waffen- und Rüstungsfertigkeit reichen; Zweihänder werden mit einem Paar verglichen; Waffenschaden zählt. Der Pfeil steht auch im Handelsfenster mit einem anderen Spieler.
+- The tooltip names the alts an item helps. The weighting “Automatic” follows your talent tree.
+- Der Tooltip nennt die Twinks, denen ein Gegenstand etwas bringt. Die Gewichtung „Automatisch“ folgt deinem Talentbaum.
+
+### ezHeal
+
+- A heal on a party member out of range no longer hits you: by default ezHeal sets the game's self cast to “key press” (this also applies to your action bars) and checks it after login; its switch brings your old value back.
+- Eine Heilung auf einen Mitspieler außer Reichweite trifft nicht mehr dich: ezHeal stellt „Selbstwirken“ des Spiels ab Werk auf „Tastendruck“ (das gilt auch für deine Aktionsleisten) und prüft es nach dem Anmelden; sein Schalter holt deinen alten Wert zurück.
+- ezHeal says when “Menu” or “Target” is missing in your click casting and brings it back.
+- ezHeal sagt, wenn „Menü“ oder „Ziel“ in deinem Klick-Zauber fehlt, und holt es zurück.
+
+### ezLoot
+
+- Possible loot of creatures and the contents of containers also come from contributions, always with their source.
+- Mögliche Beute von Gegnern und der Inhalt von Behältern kommen auch aus Beiträgen, immer mit Quelle.
+
+### ezMacro
+
+- Click casting uses Blizzard's own window; the key menu of its own is gone. New switches “Mouseover for allies” and “Mouseover for enemies” for the class macros, both on by default.
+- Klick-Zauber laufen über Blizzards eigenes Fenster; das eigene Tastenmenü ist weg. Neue Schalter „Maus über Mitspieler“ und „Maus über Gegner“ für die Klassenmakros, beide ab Werk an.
+
+### ezMap
+
+- Flight times are estimated from the length of the route and your measured speed until a flight is learned. The flight bar is hidden by a right-click.
+- Flugzeiten werden aus der Länge der Strecke und deiner gemessenen Geschwindigkeit geschätzt, bis ein Flug gelernt ist. Die Flugleiste blendet sich per Rechtsklick aus.
+- The arrow on the minimap is bigger, its tip stands on the target when in sight and moves on inside a quest area. Herbs and ores also from Questie, without double points.
+- Der Pfeil auf der Minikarte ist größer, seine Spitze steht in Sicht auf dem Ziel und springt im Questgebiet weiter. Kräuter und Erze auch laut Questie, ohne doppelte Punkte.
+
+### ezMarket, ezWorld
+
+- Both folders have a symbol in the addon list.
+- Beide Ordner haben ein Symbol in der Addon-Liste.
+
+### ezMerchant
+
+- “What is where” in the spellbook: class and weapon trainers, riding, armor skills, pet trainers, class quests and books, the nearest first, with a map button. “What comes when” also lists the warlock's grimoires, and ranks taught by books no longer count as waiting at the trainer.
+- „Wo kommt was“ im Zauberbuch: Klassenlehrer und Waffenmeister, Reiten, Rüstungsfertigkeiten, Ausbilder der Begleiter, Klassenquests und Bücher, der nächste zuerst, mit Kartenknopf. „Was kommt wann“ nennt auch die Grimoires der Hexenmeister, und Ränge aus Büchern zählen nicht mehr als „wartet beim Lehrer“.
+- “Keep what is worth more at the auction house” is off by default; the merchant filter shows yellow arrows.
+- „Im Auktionshaus Wertvolles behalten“ ist ab Werk aus; der Händlerfilter zeigt gelbe Pfeile.
+
+### ezPanel
+
+- Bags and ammunition show only the free slots; instance limit 5 per hour as in the current build.
+- Taschen und Munition zeigen nur den freien Platz; Instanzgrenze 5 je Stunde wie im aktuellen Build.
+
+### ezQuest
+
+- The leveling route plans targets as areas with a round trip and knows how big they are. Sharing offers a new party member the quests they lack with a button (sharing without a click is off by default) and catches up when several are accepted at once.
+- Die Leveling-Route plant Ziele als Gebiet mit Rundgang und kennt deren Größe. Teilen bietet einem neuen Mitspieler die fehlenden Quests mit einem Knopf an (Teilen ohne Klick ist ab Werk aus) und reicht nach, wenn mehrere auf einmal angenommen werden.
+
+### ezTalent
+
+- Every template names the matching rotations and the other way round. Notes on changed talents are up to date with the build; “Best with n points” respects locked rows.
+- Jede Vorlage nennt die passenden Rotationen und umgekehrt. Hinweise zu geänderten Talenten sind auf dem Stand des Builds; „Bestes mit n Punkten“ beachtet gesperrte Reihen.
+
 ## v1.0.0-beta3
 
 Third beta for WoW Forever: a reworked auction house with shopping lists shared with ezCraft, icon tabs on the profession window, whole combined stacks from the bags with one click, contents of boxes and chests in the tooltip, more townsfolk in the minimap's tracking menu and a clearer experience bar. The introduction now tells in a few lines what each module can do. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).

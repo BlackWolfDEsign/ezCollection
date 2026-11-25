@@ -1,5 +1,9 @@
-# Paket bauen und auf CurseForge und Wago Addons hochladen (BigWigs Packager) – nur bei einem Git-Tag „v…“
-# (z. B. v1.0.0-beta1). Ein Tag mit „beta“ bzw. „alpha“ landet im Kanal Beta bzw. Alpha, sonst im Kanal Release.
+# Paket bauen und als GitHub-Release ablegen (BigWigs Packager) – nur bei einem Git-Tag „v…“ (z. B. v1.0.0-beta1).
+# Auf CurseForge und Wago Addons geht es nur, wenn die Repo-Variable PORTALE den Wert „an“ hat (GitHub » Settings »
+# Secrets and variables » Actions » Variables); sonst bekommt der Packager ihre Schlüssel nicht und überspringt beide.
+# Nachholen: PORTALE auf „an“ stellen, den Lauf des Tags noch einmal ausführen („Re-run all jobs“, bei GitHub nur
+# begrenzte Zeit möglich) und PORTALE danach wieder löschen – sonst lädt der nächste Tag auch dort hoch.
+# Ein Tag mit „beta“ bzw. „alpha“ landet im Kanal Beta bzw. Alpha, sonst im Kanal Release.
 # Die Schlüssel liegen als Secrets im Repo (GitHub » Settings » Secrets and variables » Actions): CF_API_KEY für
 # CurseForge, WAGO_API_TOKEN für Wago – nie in einer Datei.
 name: Paket
@@ -50,6 +54,6 @@ jobs:
           # -n: Datei- und Anzeigename; der Paketordner heißt ezCore (.pkgmeta), das ZIP ezCollection-<Tag>-forever.zip.
           args: -g forever -n "ezCollection-{project-version}{classic}:{project-version}{classic}"
         env:
-          CF_API_KEY: ${{ secrets.CF_API_KEY }}
-          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+          CF_API_KEY: ${{ vars.PORTALE == 'an' && secrets.CF_API_KEY || '' }}
+          WAGO_API_TOKEN: ${{ vars.PORTALE == 'an' && secrets.WAGO_API_TOKEN || '' }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}

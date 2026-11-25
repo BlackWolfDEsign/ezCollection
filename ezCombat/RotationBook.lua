@@ -58,15 +58,17 @@ local TAB_Y = -158
 local TAB_ICON = "Interface\\Icons\\INV_Misc_PocketWatch_01"
 local SOURCE_ICON = "Interface\\Icons\\INV_Misc_Note_01"
 local AUTO_ICON = "Interface\\Icons\\INV_Misc_Book_09"
+local BUILD_ICON = "Interface\\Icons\\INV_Misc_Book_11"    -- Talentvorlage (ezTalents Reiter „Auswirkungen“ nutzt dasselbe)
 local REMOVE_ICON = "Interface\\Buttons\\UI-GroupLoot-Pass-Up"   -- Kreuz: selbst hinzugefügten Schritt entfernen
 local SEP = " · "
 local MENU_CHUNK = 20   -- Zauber je Untermenü in „Schritt hinzufügen“
+local ROW_H = 48        -- Zeile mit Knöpfen, deren Text immer in einer Zeile steht (ezCores SV.ACTION_H hat Platz für zwei)
 
 local view          -- Core.NewSpellbookView, angelegt beim Einloggen
 local chooserOpen = false       -- Spickzettel: Liste „Andere wählen“ aufgeklappt (bis zur Wahl bzw. zum Schließen)
 local unlearnedOpen = false     -- Spickzettel: „Noch nicht gelernt“ aufgeklappt
 local offOpen = false           -- Spickzettel: „Ausgeschaltet“ aufgeklappt
-local computedOpen = false      -- Spickzettel: „Wie diese Rotation berechnet wurde“ aufgeklappt
+local drawer = nil              -- Spickzettel: was unter der Zeile mit den drei Knöpfen offen ist (Book.DRAWERS), höchstens eines
 
 local function CharKey() return Core.charKey or "?" end
 
@@ -242,7 +244,7 @@ local function DurationText(step)
     return Fmt(source == "fallback" and L.ROTATION_MINUTES_FALLBACK or L.ROTATION_MINUTES, minutes)
 end
 
--- Bedingung eines Schritts in Worten („Fehlt oder läuft aus (Ziel) · erst nach Ablauf“, „Ab 40 Wut“, „Bei Aufwärmen
+-- Bedingung eines Schritts in Worten („Fehlt oder läuft aus (Ziel) · zum Ablauf“, „Ab 40 Wut“, „Bei Aufwärmen
 -- · 3 Stapel“, „Dauer-Buff fehlt oder läuft bald aus · hält 30 min“): when, Dauer, refresh, once, Stapel,
 -- Combo-Punkte und jede weitere Bedingung (need).
 function Book.ConditionText(step)
@@ -510,6 +512,12 @@ function Book.AddGuessTip(tooltip, step)
     if guess then tooltip[#tooltip + 1] = Tip(L.ROTATION_GUESS_TIP:format(guess), "orange") end
 end
 
+-- Zeile „Schließt sich aus mit: …“ (24.11.2026; Rotation.GroupNames), nur gelernte.
+function Book.AddGroupTip(tooltip, step, rotation)
+    local names = Rotation.GroupNames(step, rotation)
+    if #names > 0 then tooltip[#tooltip + 1] = Tip(Fmt(L.ROTATION_GROUP_TIP, table.concat(names, ", ")), "highlight") end
+end
+
 -- Bearbeiten direkt auf der Seite (Entscheidung des Nutzers vom 20.11.2026, „Klick tauscht, Ziehen schiebt“): der
 -- Tooltip eines Schritts nennt Klick (Fähigkeit tauschen; eigene Rotation: auch die Bedingung), Ziehen (Reihenfolge im
 -- selben Abschnitt, mit dessen Namen – auf dem Spickzettel sind die Abschnitte sonst nicht zu sehen) und – im Kampf –
@@ -534,6 +542,10 @@ end
 -- Einträge der Auswahl: „Nach Talentbaum“ und jede Rotation der Klasse. Genau einer ist aktiv. Berechnete Rotationen
 -- (Welle 21) tragen „berechnet“ und im Tooltip ihre Herkunft; gibt es für die Klasse keine, sagt eine Zeile, was fehlt
 -- und wie sie entstehen (Leitlinie 11) – solange der Schalter „Berechnete Rotationen zeigen“ an ist.
+-- Ein Eintrag bekommt so viele Textzeilen, wie er braucht (line.lines; Bild des Nutzers vom 24.11.2026: Namen und
+-- „Talentbaum 1 ·…“ waren abgeschnitten). Den Talentbaum nennt der Client mit Namen; der Zusatz „(vorläufig berechnet)“
+-- steht nur einmal, in der zweiten Zeile.
+local CHOICE_LINES = 10      -- mehr als jeder Eintrag braucht (Prüfung: Tests/rotation_talentbaum.lua, Abschnitt 4)
 local function ChoiceLines(lines, list, rotation, choice)
     local auto = choice == "auto"
     local default = Rotation.Default()
@@ -544,9 +556,9 @@ local function ChoiceLines(lines, list, rotation, choice)
         sub = (not auto) and autoTakes or nil,
         detail = auto and autoTakes or ns.ClickText(L.ROTATION_BOOK_PICK),
         icon = AUTO_ICON, title = L.ROTATION_AUTO, style = auto and "known" or "future",
-        tooltip = { Tip(autoTakes, "normal"), Tip(L.OPT_rotationChoice_TIP, "highlight"),
+        tooltip = { Tip(autoTakes, "normal"), Tip(Rotation.AutoWhy(), "normal"), Tip(L.OPT_rotationChoice_TIP, "highlight"),
             (not auto) and Tip(ns.ClickText(L.ROTATION_BOOK_PICK_TIP), "good") or nil },
-        choose = "auto", active = auto, tipWide = true }
+        choose = "auto", active = auto, tipWide = true, lines = CHOICE_LINES }
     for _, other in ipairs(list) do
         local active = choice == other.key
         local detail = ns.ClickText(L.ROTATION_BOOK_PICK)
@@ -555,26 +567,148 @@ local function ChoiceLines(lines, list, rotation, choice)
         elseif auto and other == rotation then
             detail = ns.ClickText(L.ROTATION_BOOK_PICK_FIXED)         -- die nimmt „Nach Talentbaum“ gerade: fest wählen
         end
-        local sub = Fmt(L.ROTATION_BOOK_TREE, other.tree or 0)
-        local computed = Rotation.IsComputed(other)
-        if computed then
-            sub = sub .. SEP .. (other.computed.provisional and L.ROTATION_BOOK_PROVISIONAL or L.ROTATION_BOOK_COMPUTED)
+        local parts = { Rotation.TreeName(other.tree) }
+        if Rotation.IsOwn(other) then parts[#parts + 1] = L.ROTATION_OWN_SHORT end
+        if Rotation.IsComputed(other) then
+            parts[#parts + 1] = other.computed.provisional and L.ROTATION_BOOK_PROVISIONAL or L.ROTATION_BOOK_COMPUTED
         end
-        if Rotation.IsEdited(other) then sub = sub .. SEP .. L.ROTATION_BOOK_EDITED end
+        if Rotation.IsEdited(other) then parts[#parts + 1] = L.ROTATION_BOOK_EDITED end
+        local sub = table.concat(parts, SEP)
         local tooltip = {}
         local how = Rotation.How(other)
         if how then tooltip[#tooltip + 1] = Tip(how, "normal") end
         for _, text in ipairs(Rotation.ComputedLines(other)) do tooltip[#tooltip + 1] = Tip(text, "highlight") end
         if not active then tooltip[#tooltip + 1] = Tip(ns.ClickText(L.ROTATION_BOOK_PICK_TIP), "good") end
-        lines[#lines + 1] = { kind = "spell", name = Rotation.Name(other), sub = sub, detail = detail,
+        lines[#lines + 1] = { kind = "spell", name = Rotation.ShortName(other), sub = sub, detail = detail,
             icon = RotationIcon(other), title = Rotation.Name(other), style = active and "known" or "future",
-            tooltip = tooltip, choose = other.key, active = active, tipWide = true }
+            tooltip = tooltip, choose = other.key, active = active, tipWide = true, lines = CHOICE_LINES }
     end
     if Rotation.ComputedShown() then
         local any = false
         for _, other in ipairs(list) do any = any or Rotation.IsComputed(other) end
         if not any then lines[#lines + 1] = TextLine(L.ROTATION_BOOK_COMPUTED_NONE, "computedNone") end
     end
+end
+
+-- Passende Talentvorlagen (n:m, 24.11.2026; Frage des Nutzers „für jede rotation mindestens ein talentbaum?“): je Vorlage
+-- ein Eintrag – Name, Punkte je Baum, Zweck; Klick zeigt sie in ezTalent im Talentfenster.
+local function BuildLines(lines, builds)
+    for index, build in ipairs(builds) do
+        local parts = {}
+        if index == 1 and #builds > 1 then parts[#parts + 1] = L.ROTATION_BUILDS_DEFAULT end
+        for _, purpose in ipairs(type(build.purpose) == "table" and build.purpose or {}) do parts[#parts + 1] = purpose end
+        if build.computed then
+            parts[#parts + 1] = build.provisional and L.ROTATION_BOOK_PROVISIONAL or L.ROTATION_BOOK_COMPUTED
+        end
+        local info = table.concat(parts, SEP)
+        local tooltip = { Tip(build.split or "", "highlight") }
+        if info ~= "" then tooltip[#tooltip + 1] = Tip(info, "normal") end
+        tooltip[#tooltip + 1] = Tip(ns.ClickText(L.ROTATION_BUILDS_CLICK_TIP), "good")
+        local name = build.computed and Rotation.WithoutComputed(build.name) or build.name or build.key
+        lines[#lines + 1] = { kind = "spell", name = name,
+            sub = (build.split or "") .. (info ~= "" and (SEP .. info) or ""), detail = ns.ClickText(L.ROTATION_BUILDS_CLICK),
+            icon = BUILD_ICON, title = build.name or build.key, style = "known", tooltip = tooltip, easy = true,
+            build = build.key, lines = CHOICE_LINES }
+    end
+end
+
+-- Rotation auf die Aktionsleisten 1 und 2 (RotationBars.lua, 24.11.2026): eine Zeile mit den Knöpfen „Ablegen“, „Ordnen“
+-- und „Zurück“ nebeneinander (Wunsch des Nutzers vom 25.11.2026: „die beiden rechtecke kannst du doch iwie zusammenlegen
+-- oder auf eine seite“), darunter je Fähigkeit, wo sie läge und wo sie jetzt liegt. Was „Zurück“ wiederherstellt, nennt
+-- sein Tooltip und die Rückfrage.
+local function BarLines(lines, plan)
+    local Bars = ns.RotationBars
+    local function Add(line)
+        line.easy = true
+        lines[#lines + 1] = line
+    end
+    local combat = ns.InCombat() and true or false
+    local fill, arrange = plan.fill, plan.arrange
+    local state = fill.new > 0 and Fmt(L.ROTATION_BARS_FILL_LABEL, fill.new)
+        or #fill.noRoom > 0 and Fmt(L.ROTATION_BARS_NO_ROOM, #fill.noRoom) or L.ROTATION_BARS_FILL_NONE
+    local order = arrange.same and L.ROTATION_BARS_ARRANGE_SAME or Fmt(L.ROTATION_BARS_ARRANGE_LABEL, arrange.new, arrange.moved)
+    local row = ActionLine("barsFill", state .. SEP .. order, L.ROTATION_BARS_FILL, L.ROTATION_BARS_FILL_TIP,
+        combat or fill.new == 0)
+    row.height = ROW_H
+    row.second = { key = "barsArrange", button = L.ROTATION_BARS_ARRANGE, tip = L.ROTATION_BARS_ARRANGE_TIP,
+        disabled = combat or arrange.same and true or false }
+    local undo = Bars.UndoInfo()
+    if undo then
+        row.third = { key = "barsUndo", button = L.ROTATION_BARS_UNDO, disabled = combat,
+            tip = Fmt(L.ROTATION_BARS_UNDO_LABEL, tostring(undo.name), Core.DateText(undo.time)) .. "\n"
+                .. Fmt(L.ROTATION_BARS_UNDO_TIP, Bars.STEPS) }
+    end
+    Add(row)
+    if not plan.target.bars[2] then Add(TextLine(L.ROTATION_BARS_HIDDEN, "barsHidden")) end
+    if plan.target.page > 1 then Add(TextLine(L.ROTATION_BARS_STANCE, "barsStance")) end
+    if plan.who then Add(TextLine(Fmt(L.ROTATION_BARS_OTHER, plan.who), "barsOther")) end
+    if plan.unlearned > 0 then Add(TextLine(Fmt(L.ROTATION_BARS_UNLEARNED, plan.unlearned), "barsUnlearned")) end
+    for _, item in ipairs(plan.entries) do
+        local now = Bars.NowText(item)
+        Add({ kind = "spell", name = item.name, sub = Bars.TargetText(item), detail = now, icon = item.icon,
+            spellID = item.id, title = item.name, style = (item.now or item.elsewhere) and "known" or "future",
+            tooltip = { Tip(Fmt(L.ROTATION_BARS_TARGET, Bars.TargetText(item)), "highlight"), Tip(now, "normal") },
+            tipWide = true, barItem = item.name, lines = CHOICE_LINES })
+    end
+end
+
+-- Eine Zeile für „Passende Talentvorlagen“, „Aktionsleisten 1–2“ und „Wie diese Rotation berechnet wurde“: die Zahlen oben,
+-- darunter je ein Knopf nebeneinander. Offen ist höchstens eines, sein Inhalt steht gleich darunter – so bleibt alles auf
+-- der ersten Seite. Was es nicht gibt, fehlt in der Zeile; warum, sagt ein Absatz darunter (Leitlinie 11; nach den Knöpfen,
+-- sonst schöbe er sie auf Seite 2). Bleibt nur eines, steht es wie jede Zeile mit Knopf da („Zeigen“/„Verbergen“).
+-- details: Absätze zur Herkunft einer berechneten Rotation.
+Book.DRAWERS = { builds = true, bars = true, computed = true }
+function Book.DrawerLines(lines, rotation, details)
+    local Bars = ns.RotationBars
+    local builds, buildsWhy = Rotation.Builds(rotation)
+    local plan, barsWhy
+    if Bars then plan, barsWhy = Bars.Plan(rotation) end
+    local function Add(line)
+        line.easy = true
+        lines[#lines + 1] = line
+        return line
+    end
+    local list, texts = {}, {}
+    if #builds > 0 then
+        local text = Fmt(L.ROTATION_BUILDS_LABEL, #builds)
+        texts[#texts + 1] = text
+        list[#list + 1] = { key = "builds", full = text, tip = L.ROTATION_BUILDS_TIP, show = L.ROTATION_BUILDS_SHOW,
+            hide = L.ROTATION_BUILDS_HIDE }
+    end
+    if plan then
+        local title = Bars.Title(plan)
+        local full = Fmt(L.ROTATION_BARS_LABEL, title, plan.have, #plan.entries)
+        texts[#texts + 1] = #texts > 0 and Fmt(L.ROTATION_BARS_SHORT, title, plan.have, #plan.entries) or full
+        list[#list + 1] = { key = "bars", full = full, tip = L.ROTATION_BARS_TIP, show = L.ROTATION_BARS_SHOW,
+            hide = L.ROTATION_BARS_HIDE }
+    end
+    if #details > 0 then
+        list[#list + 1] = { key = "computed", full = L.ROTATION_EASY_COMPUTED, tip = L.ROTATION_EASY_COMPUTED_TIP,
+            show = L.ROTATION_EASY_COMPUTED_SHOW, hide = L.ROTATION_EASY_COMPUTED_HIDE }
+    end
+    if #list == 1 then
+        local one = list[1]
+        Add(ActionLine(one.key, one.full, drawer == one.key and L.ROTATION_EASY_HIDE or L.ROTATION_EASY_SHOW, one.tip)).height = ROW_H
+    elseif #list > 1 then
+        local function Spec(one)
+            return one and { key = one.key, button = drawer == one.key and one.hide or one.show, tip = one.full .. "\n" .. one.tip }
+        end
+        local first = Spec(list[1])
+        local row = Add(ActionLine(first.key, table.concat(texts, SEP), first.button, first.tip))
+        row.second, row.third = Spec(list[2]), Spec(list[3])
+        row.height = ROW_H
+    end
+    if drawer == "builds" then
+        BuildLines(lines, builds)
+    elseif drawer == "bars" and plan then
+        BarLines(lines, plan)
+    elseif drawer == "computed" then
+        for _, text in ipairs(details) do Add(TextLine(text, "computed")) end
+    end
+    if #builds == 0 then
+        Add(TextLine(Fmt(L.ROTATION_BUILDS_WHY, buildsWhy or L.ROTATION_BUILDS_NONE), "buildsNone"))
+    end
+    if Bars and not plan then Add(TextLine(barsWhy, "barsNone")) end
 end
 
 -- Eintrag eines Schritts mit seinen Knöpfen (Ein/Aus, Hoch, Runter – am Rand des Abschnitts grau). Untereinander am
@@ -594,6 +728,7 @@ local function StepLine(rotation, section, entry, index, count, ctx, info, rank)
     local tooltip = { Tip(Rotation.StepText(step), "normal"), Tip(condition, "highlight") }
     if Rotation.StepText(step) == "" then tooltip[1] = Tip(Book.EasyText(step), "normal") end
     Book.AddGuessTip(tooltip, step)
+    Book.AddGroupTip(tooltip, step, rotation)
     if shown.known then AddSharedTip(tooltip, shown.id, step) end
     if state ~= "" then tooltip[#tooltip + 1] = Tip(state, "blue") end   -- Zustand (vorher STATE_COLOR, T9-6)
     -- Klick: Menü zum Tauschen (eigene Rotation: dazu die Bedingung), Ziehen: Reihenfolge; selbst hinzugefügte
@@ -922,6 +1057,7 @@ local function EasyLine(rotation, item, number, ctx, info)
     local sentence = Book.EasyText(step)
     local tooltip = { Tip(sentence, "normal"), Tip(Book.ConditionText(step), "highlight") }
     Book.AddGuessTip(tooltip, step)
+    Book.AddGroupTip(tooltip, step, rotation)
     AddSharedTip(tooltip, shown.id, step)
     if nowText then tooltip[#tooltip + 1] = Tip(nowText, "good") end
     local own = Rotation.IsOwn(rotation)
@@ -938,7 +1074,8 @@ end
 -- Zeilen des Spickzettels. Eigene Felder: easy (alle Zeilen), block (Kopf und Schritte eines Blocks), now (Schritt ist
 -- dran), unlearned (Schritt, der noch nicht gelernt ist), rotationName (Zeile mit dem Namen unter „Deine Rotation“),
 -- computed (eingeklappte Herkunft einer berechneten Rotation), computedNote (kurzer Hinweis, immer sichtbar), key
--- "choose" / "edit" / "unlearned" / "computed" (Zeilen mit Knopf).
+-- "choose" / "edit" / "unlearned" / "offlist" / "builds" / "bars" / "barsFill" / "computed" (Zeilen mit Knopf; weitere
+-- Knöpfe daneben in second und third).
 function Book.EasyLines()
     local lines = {}
     local list = Rotation.ForClass()
@@ -961,6 +1098,11 @@ function Book.EasyLines()
     local nameLine = TextLine(Rotation.Name(rotation), "rotationName")    -- der Name ganz, in eigener Zeile
     nameLine.easy, nameLine.rotation = true, rotation.key
     lines[#lines + 1] = nameLine
+    if choice == "auto" then        -- woran „Nach Talentbaum“ sich hält (24.11.2026)
+        local why = TextLine(Rotation.AutoWhy(), "autoWhy")
+        why.easy = true
+        lines[#lines + 1] = why
+    end
     lines[#lines + 1] = ActionLine("choose", L.ROTATION_EASY_CHOOSE_LABEL,
         chooserOpen and L.ROTATION_EASY_CHOOSE_CLOSE or L.ROTATION_EASY_CHOOSE, L.ROTATION_EASY_CHOOSE_TIP)
     lines[#lines].easy = true
@@ -976,8 +1118,8 @@ function Book.EasyLines()
     -- 2. So funktioniert sie (bleibt oben), Herkunft einer berechneten bzw. eigenen Rotation
     local how = Rotation.How(rotation)
     if how then lines[#lines + 1] = TextLine(Fmt(L.ROTATION_BOOK_HOW, how), "how") end
-    -- Herkunft einer berechneten Rotation (berechnet am, Annahmen, Quelle der Werte): eingeklappt, mit Knopf. Die kurzen
-    -- Hinweise (vorläufig, Heiler, nur von Hand wählbar) bleiben sichtbar – sie sagen, warum „Nach Talentbaum“ sie
+    -- Herkunft einer berechneten Rotation (berechnet am, Annahmen, Quelle der Werte): eingeklappt (Book.DrawerLines). Die
+    -- kurzen Hinweise (vorläufig, Heiler, nur von Hand wählbar) bleiben sichtbar – sie sagen, warum „Nach Talentbaum“ sie
     -- nicht nimmt.
     local NOTE = { [L.ROTATION_COMPUTED_PROVISIONAL] = true, [L.ROTATION_COMPUTED_HEALER] = true,
         [L.ROTATION_COMPUTED_MANUAL] = true }
@@ -990,20 +1132,10 @@ function Book.EasyLines()
         line.easy = true
         lines[#lines + 1] = line
     end
-    if #details > 0 then
-        lines[#lines + 1] = ActionLine("computed", L.ROTATION_EASY_COMPUTED,
-            computedOpen and L.ROTATION_EASY_HIDE or L.ROTATION_EASY_SHOW, L.ROTATION_EASY_COMPUTED_TIP)
-        lines[#lines].easy = true
-        if computedOpen then
-            for _, text in ipairs(details) do
-                local line = TextLine(text, "computed")
-                line.easy = true
-                lines[#lines + 1] = line
-            end
-        end
-    end
     local origin = OwnOrigin(rotation)
     if origin then lines[#lines + 1] = TextLine(origin, "origin") end
+    -- 2b. Passende Talentvorlagen (ezTalent), Aktionsleisten 1 und 2, Herkunft einer berechneten Rotation
+    Book.DrawerLines(lines, rotation, details)
     -- 3. Die drei Blöcke
     local ctx = { now = GetTime(), combat = ns.InCombat(), rotation = rotation, steps = Rotation.Steps(rotation),
         aoe = Rotation.Aoe() }
@@ -1436,8 +1568,10 @@ end
 
 -- Knopf einer Zeile: "toggle" (Schritt aus/an), "up"/"down" (eine Stelle im Abschnitt), "reset" (zurück zur
 -- Vorlage), "aoe" (Flächenmodus umschalten); Spickzettel: "edit" (Liste aller Schritte), "choose" (Liste „Andere
--- wählen“ auf/zu), "create" („Erstellen“: eigene Rotation, wie "saveown"), "unlearned" (Noch nicht gelernt auf/zu),
--- "offlist" (Ausgeschaltet auf/zu), "computed" (Wie diese Rotation berechnet wurde auf/zu); Liste aller Schritte: "done" (Fertig), "saveown", "import"; eigene
+-- wählen“ auf/zu), "create" („Erstellen“: eigene Rotation, wie "saveown"), "builds" (Passende Talentvorlagen auf/zu),
+-- "bars" (Aktionsleisten 1–2 auf/zu; dort "barsFill", "barsArrange" und "barsUndo": Ablegen, Ordnen, Zurück), "computed"
+-- (Wie diese Rotation berechnet wurde auf/zu) – von den dreien ist höchstens eines offen –, "unlearned" (Noch nicht
+-- gelernt auf/zu), "offlist" (Ausgeschaltet auf/zu); Liste aller Schritte: "done" (Fertig), "saveown", "import"; eigene
 -- Rotation: "rename", "export", "delete", "add" (Menü der Zauber), "remove" (selbst hinzugefügten Schritt entfernen).
 -- owner: der Knopf (für Menüs). → true, wenn sich etwas geändert hat. Wirkt nie einen Zauber.
 function Book.Button(line, key, owner)
@@ -1448,16 +1582,17 @@ function Book.Button(line, key, owner)
         chooserOpen = not chooserOpen
         return true
     end
+    if Book.DRAWERS[key] then
+        drawer = drawer ~= key and key or nil
+        return true
+    end
+    if key == "barsUndo" then return ns.RotationBars.Undo() end
     if key == "unlearned" then
         unlearnedOpen = not unlearnedOpen
         return true
     end
     if key == "offlist" then
         offOpen = not offOpen
-        return true
-    end
-    if key == "computed" then
-        computedOpen = not computedOpen
         return true
     end
     if key == "import" then return Book.ShowImport() end
@@ -1478,6 +1613,9 @@ function Book.Button(line, key, owner)
     if key == "export" then return Book.ShowExport(rotation) end
     if key == "delete" then return Book.AskDelete(rotation) end
     if key == "add" then return Book.AddMenu(line, owner) end
+    if key == "barsFill" or key == "barsArrange" then
+        return ns.RotationBars.Apply(key == "barsFill" and "fill" or "arrange", rotation)
+    end
     if not line.step then return false end
     if key == "toggle" then
         return Rotation.SetStepEnabled(rotation, line.step, not Rotation.StepEnabled(rotation, line.step))
@@ -1491,8 +1629,8 @@ function Book.Button(line, key, owner)
     return false
 end
 
--- Klick auf einen Eintrag: Rotation wählen bzw. Link der Quelle zum Kopieren anbieten. Schritte (Spickzettel und Liste
--- aller Schritte, seit 20.11.2026): Linksklick öffnet das Menü zum Tauschen (Book.StepMenu; Umschalt-Linksklick bei
+-- Klick auf einen Eintrag: Rotation wählen, Talentvorlage in ezTalent zeigen bzw. Link der Quelle zum Kopieren anbieten.
+-- Schritte (Spickzettel und Liste aller Schritte, seit 20.11.2026): Linksklick öffnet das Menü zum Tauschen (Book.StepMenu; Umschalt-Linksklick bei
 -- einer eigenen Rotation gleich das Menü „Bedingung“), Rechtsklick schaltet aus bzw. ein – auch selbst hinzugefügte
 -- und getauschte Schritte (die entfernt zusätzlich das Kreuz bzw. das Menü). Ein Schritt unter „Ausgeschaltet“ geht
 -- per Klick wieder an.
@@ -1502,6 +1640,8 @@ function Book.Click(line, button, owner)
     if line.choose then
         chooserOpen = false
         Rotation.Select(line.choose)
+    elseif line.build then
+        Rotation.ShowBuild(line.build)
     elseif line.source then
         Core.AskText(Fmt(L.ROTATION_BOOK_COPY_PROMPT, Rotation.Name(RotationOf(line))), line.source,
             function() end, 0)
@@ -1623,6 +1763,15 @@ ns.On("SPELLS_CHANGED", function() RefreshSoon() end)
 for _, event in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_TARGET_CHANGED", "BAG_UPDATE_DELAYED",
     "UPDATE_SHAPESHIFT_FORM", "PLAYER_LEVEL_UP" }) do
     ns.On(event, function() if Book.IsOpen() then RefreshSoon() end end)
+end
+-- Leisten geändert: „n von m auf einer Leiste“ neu (im Kampf ruht es, da lässt sich ohnehin nichts ablegen)
+for _, event in ipairs({ "ACTIONBAR_SLOT_CHANGED", "ACTIONBAR_PAGE_CHANGED", "UPDATE_BONUS_ACTIONBAR", "UPDATE_VEHICLE_ACTIONBAR",
+    "UPDATE_OVERRIDE_ACTIONBAR", "UPDATE_MACROS", "ACTIVE_TALENT_GROUP_CHANGED" }) do
+    ns.On(event, function()
+        if ns.InCombat() then return end
+        if ns.RotationBars then ns.RotationBars.Forget() end
+        if Book.IsOpen() then RefreshSoon() end
+    end)
 end
 -- UNIT_AURA kommt im Kampf mit gesperrter Einheit; geweckt wird der Zuhörer nur für den Spieler (ns.OnUnit).
 ns.OnUnit("UNIT_AURA", "player", function(_, unit)

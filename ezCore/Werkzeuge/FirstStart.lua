@@ -434,6 +434,11 @@ end
       ns.AGREE (je Modul)             { [Schlüssel] = "on" | "risk" | "choice" | { "on", on = , label = , what = } }:
                                       jeder Schalter des Moduls, der ab Werk aus ist und kein Ablauf ohne Klick
                                       (Intro.CONSENT); tools/Tests/agree_test.lua prüft die Vollständigkeit
+      ns.AGREE_NOTE (je Modul)        fn → Text | nil: Hinweis zu einer Blizzard-Einstellung (ezHeal stellt
+                                      „Selbstwirken“ ab Werk um, 23.11.2026) – steht in der Rückfrage von
+                                      „Allem zustimmen“, im Chat danach und auf der Seite des Moduls; kein Häkchen
+      Core.Intro.Notes(modul)         → { { module, text } … } der laufenden Module (mit modul: nur dieses)
+      Core.Intro.NoteText(modul)      → „Modul: Text“ je Zeile | nil
       Core.Intro.OWN_AGREE            dasselbe für ezCores eigene Schalter: { { Schlüssel, Art, group = , text = } … }
       Core.Intro.Registered()         → { { module, key, kind, entry } … } aller laufenden Module und ezCore
       Core.Intro.AlsoEntries()        → Intro.ALSO und die Anmeldungen mit „on“ (wie Intro.CONSENT)
@@ -461,7 +466,14 @@ end
       Core.Intro.Open()               öffnet sie; Core.Intro.Command(rest) – Befehl „einführung“ von ezCore
       Core.Intro.TryOffer()           → true, wenn das Angebot jetzt kam (Blase); false, Grund
       Core.Intro.ResetOffer()         → true, wenn es schon kam (kommt beim nächsten Einloggen wieder)
-    Gemerkt in ezCoreDB.intro = { offered = Anzahl, done = Zeitpunkt, never = true nach „Nicht mehr anbieten“ }.
+      Core.Intro.Existing(speicher)   → true, wenn der Spieler die Einführung schon hatte (angeboten, zugestimmt, „Nicht
+                                      mehr anbieten“); Core.Intro.OfferPending(speicher) → true, solange das Angebot noch kommt
+      * Nachfrage nach einem Update (Werkzeuge/ConsentNews.lua): Kommen Zeilen dazu, die der Spieler noch nicht
+        angeboten bekam, fragt EINE Blase nach genau diesen – mit Häkchen je Zeile, „Alle annehmen“ und „Fertig“.
+        Angeboten heißt: Die Zeile stand im Angebot der Einführung, in „Allem zustimmen“, auf einer Seite, die der
+        Spieler verlassen hat, oder in der Nachfrage (Intro.MarkKnown). Knopf „Neu seit dem Update“ auf dieser Seite.
+    Gemerkt in ezCoreDB.intro = { offered = Anzahl, done = Zeitpunkt, never = true nach „Nicht mehr anbieten“,
+    known = { [Intro.EntryId] = true } angebotene Zeilen, news = { Kennung … } die Zeilen der letzten Nachfrage }.
 ]]
 
 local Intro = {}
@@ -524,7 +536,8 @@ Intro.CONSENT = {
     { "ezMap", "trackingRemember" }, { "ezMap", "trackingSpellAuto" }, { "ezMap", "wayTrack" },
     { "ezMap", "wayAutoClear" }, { "ezMap", "trackingCouple" },
     { "ezQuest", "sortTracker" }, { "ezQuest", "sortSuperTrack" }, { "ezQuest", "worldSparkle" },
-    { "ezQuest", "worldIcons" }, { "ezQuest", "autoQuest" }, { "ezQuest", "autoShare" }, { "ezQuest", "routeWatch" },
+    { "ezQuest", "worldIcons" }, { "ezQuest", "autoQuest" }, { "ezQuest", "autoShare" }, { "ezQuest", "joinShare" },
+    { "ezQuest", "routeWatch" },
     { "ezCombat", "rotationEstimate" }, { "ezCombat", "rotation" },
     { "ezMacro", "autoThank" }, { "ezMacro", "autoSpit" }, { "ezMacro", "oneClickUpdate" }, { "ezMacro", "rankAuto" },
     { "ezMacro", "backupOnLogout" },
@@ -607,7 +620,6 @@ Intro.OWN_AGREE = {
     { "explorer", "choice", group = "discovery" },
     { "locked", "choice", group = "gatherCare", text = "gatherLocked" },
     { "developer", "choice", group = "comfort" },
-    { "editModeOpen", "choice", group = "comfort" },
 }
 
 Intro.OFFER_DELAY = 12          -- Sekunden nach dem Einloggen (die Chatzeile des ersten Starts kommt nach 8)
@@ -640,6 +652,7 @@ local function ModuleNs(name)
     if type(mns) ~= "table" or type(mns.S) ~= "table" then return nil end
     return mns
 end
+Intro.ModuleNs = ModuleNs      -- auch für die Nachfrage nach einem Update (Werkzeuge/ConsentNews.lua)
 
 local function ModuleL(name)
     if name == ADDON then return L end
@@ -722,6 +735,13 @@ function Intro.Get(entry)
         if not ok or Core.IsSecret(yes) or not yes then return nil end
     end
     local key = entry[2]
+    -- entry.get/entry.set: ein Zustand statt eines Schalters (ezMap „Alles aufspüren“: Blizzards Haken, kein Schlüssel in
+    -- ns.S; Spieltest 24.11.2026). get = fn() → true | false | nil (gilt hier nicht), set = fn(an) → false, wenn es nicht ging
+    if type(entry.get) == "function" then
+        local ok, value = Core.Try(entry[1], "Intro.Get", entry.get)
+        if not ok or Core.IsSecret(value) or value == nil then return nil end
+        return value == true
+    end
     if entry.group then return Core.OwnSetting(entry.group, key) == Wanted(entry) end
     if entry.hint then
         local def = HintEntry(entry)
@@ -749,8 +769,9 @@ function Intro.Default(entry)
         local defaults = Core.DEFAULTS[entry.group]
         return AsConsent(entry, defaults and defaults[entry[2]])
     end
-    -- Einträge in ezCores Hinweis-Helfer sind Abläufe, die ab Werk aus sind (Kern/OptInHint.lua)
-    if entry.hint then return false end
+    -- Einträge in ezCores Hinweis-Helfer sind Abläufe, die ab Werk aus sind (Kern/OptInHint.lua); ein Zustand
+    -- (entry.get) hat keinen Standard von ezCollection
+    if entry.hint or type(entry.get) == "function" then return false end
     local mns = ModuleNs(entry[1])
     local defaults = mns and mns.DEFAULTS
     if type(defaults) ~= "table" then return nil end
@@ -798,7 +819,9 @@ end
 -- der Fehlerliste) oder einem geheimen Wert: ja. Nur für Einstellungen eines Moduls, nicht für group/hint, und nur, wo
 -- „zustimmen“ die Einstellung einschaltet (ein umgekehrter Eintrag mit on = false schaltet sie aus – das geht immer). → bool
 function Intro.CanSwitchOn(entry)
-    if type(entry) ~= "table" or entry.group or entry.hint or not Wanted(entry) then return true end
+    if type(entry) ~= "table" or entry.group or entry.hint or type(entry.get) == "function" or not Wanted(entry) then
+        return true
+    end
     local mns = ModuleNs(entry[1])
     local list = mns and mns.SWITCHABLE
     local fn = type(list) == "table" and list[entry[2]] or nil
@@ -824,6 +847,10 @@ function Intro.Set(entry, value)
         return false, "blocked"
     end
     local key = entry[2]
+    if type(entry.get) == "function" then
+        local ok, done = Core.Try(entry[1], "Intro.Set", entry.set, value)
+        return ok and not Core.IsSecret(done) and done ~= false, "state"
+    end
     -- der Wert der Einstellung: „zugestimmt“ ist Wanted(entry), sonst das Gegenteil
     local target = Wanted(entry)
     if not value then target = not target end
@@ -857,6 +884,19 @@ function Intro.Set(entry, value)
     if type(setting) == "table" and type(setting.SetValue) == "function" then pcall(setting.SetValue, setting, target) end
     if mns.S[key] ~= target and type(mns.SetSetting) == "function" then mns.SetSetting(key, target) end
     return mns.S[key] == target, "module"
+end
+
+-- Knopf der Seite „Einführung“ zu einem Zustand: umschalten und sagen, was jetzt gilt (der Knopf zeigt den Stand nicht).
+-- → ok, Grund
+function Intro.ToggleState(entry)
+    local want = Intro.Get(entry) ~= true
+    local ok, why = Intro.Set(entry, want)
+    if ok then
+        ns.Print((want and L.INTRO_STATE_ON or L.INTRO_STATE_OFF):format(Intro.Label(entry)))
+    elseif why ~= "combat" then     -- Kampf sagt Intro.Set selbst
+        ns.Print(L.INTRO_STATE_FAILED:format(Intro.Label(entry)))
+    end
+    return ok, why
 end
 
 -- Art und Felder einer Anmeldung: "on" | "risk" | "choice" oder { Art, on = …, label = …, what = … }. → Art, Felder
@@ -927,6 +967,36 @@ function Intro.AlsoEntries()
         if reg.kind == "on" then Add(reg.entry) end
     end
     return list
+end
+
+-- Hinweise beim Zustimmen (Entscheidung des Nutzers vom 23.11.2026 zu ezHeal, wörtlich „kein umbau, beim zustimmen
+-- hinweis geben dass standardmäßig aus“, bestätigt mit „Ja, genau so“): Ein Modul meldet mit
+-- ns.AGREE_NOTE = fn → Text | nil einen Hinweis zu einer Blizzard-Einstellung an (ezHeal: stellt sie ab Werk um). Er
+-- steht in der Rückfrage von „Allem zustimmen“, im Chat danach und auf der Seite des Moduls – nur, solange fn einen
+-- Text liefert. Kein Häkchen; die Einführung setzt dabei nichts.
+-- → { { module, text } … } der laufenden Module (Reihenfolge der Module)
+function Intro.Notes(only)
+    local out = {}
+    for _, name in ipairs(Core.ModuleNames and Core.ModuleNames() or {}) do
+        local mns = name ~= ADDON and (only == nil or only == name) and ModuleNs(name) or nil
+        local fn = mns and mns.AGREE_NOTE
+        if type(fn) == "function" then
+            local ok, text = pcall(fn)
+            -- ein Fehler im Modul landet in dessen Fehlerliste (wie mns.Try), der Hinweis fehlt dann nur (Review 23.11.2026)
+            if not ok then Core.Error(name, text, "AGREE_NOTE") end
+            if ok and type(text) == "string" and not Core.IsSecret(text) and text ~= "" then
+                out[#out + 1] = { module = name, text = text }
+            end
+        end
+    end
+    return out
+end
+
+-- Hinweise als ein Text („ezHeal: …“, je Modul eine Zeile) | nil
+function Intro.NoteText(only)
+    local lines = {}
+    for _, note in ipairs(Intro.Notes(only)) do lines[#lines + 1] = L.INTRO_AGREE_LINE:format(note.module, note.text) end
+    return #lines > 0 and table.concat(lines, "\n") or nil
 end
 
 -- Zeilen aus Intro.CONSENT, danach Intro.ALSO und die Anmeldungen mit „on“ (Intro.AlsoEntries); row.also: kein
@@ -1132,6 +1202,34 @@ local function OfferStore()
     if type(db.intro) ~= "table" then db.intro = {} end
     return db.intro
 end
+Intro.OfferStore = OfferStore
+
+-- Hatte der Spieler die Einführung schon? Angeboten (auch „Später“), zugestimmt oder „Nicht mehr anbieten“. → bool
+function Intro.Existing(store)
+    store = store or OfferStore()
+    if type(store) ~= "table" then return false end
+    return store.done ~= nil or (tonumber(store.offered) or 0) > 0 or store.never == true
+end
+
+-- Kommt das Angebot der Einführung noch (nicht abgelehnt, nicht erledigt, noch nicht MAX_OFFERS-mal)? → bool
+function Intro.OfferPending(store)
+    store = store or OfferStore()
+    if type(store) ~= "table" then return false end
+    return store.never ~= true and store.done == nil and (tonumber(store.offered) or 0) < Intro.MAX_OFFERS
+end
+
+-- Diese Zeilen hat der Spieler angeboten bekommen (Nachfrage nach einem Update, Werkzeuge/ConsentNews.lua: dort
+-- Intro.MarkKnown; die Datei lädt nach dieser). → Anzahl neu gemerkter
+local function MarkKnown(rows)
+    if type(Intro.MarkKnown) ~= "function" then return 0 end
+    return Intro.MarkKnown(rows)
+end
+
+-- Merker anlegen, ehe das Angebot oder die Zustimmung zählt: bei einer Neuinstallation gilt dabei alles, was ab Werk an
+-- ist, als bekannt (Intro.Known in ConsentNews.lua unterscheidet das an Intro.Existing)
+local function PrepareKnown()
+    if type(Intro.Known) == "function" then Intro.Known() end
+end
 
 -- Laufende Module mit Seite in der Einführung (dieselbe Reihenfolge wie die Seiten)
 local function RunningPageModules()
@@ -1199,6 +1297,8 @@ function Intro.Settle(name, rows)
     local optIn = Core.OptInHint
     if type(rows) ~= "table" then rows = Intro.PageRows({ module = name }) end
     if optIn and type(optIn.MarkIds) == "function" then hints = optIn.MarkIds(Intro.HintIds(rows)) or 0 end
+    -- die Zeilen der Seite gelten als angeboten: eine Nachfrage nach einem Update fragt nicht noch einmal danach
+    MarkKnown(rows)
     return steps, hints
 end
 
@@ -1274,7 +1374,7 @@ function Intro.ApplyAll()
     end
     -- Nachlauf zum Review von PR 536: nur, was sich einschalten ließ, gilt als erledigt; ein Fehlschlag steht im Chat,
     -- sein Hinweis „Einschalten“ bleibt, und das Angebot gilt erst als erledigt, wenn nichts fehlschlug
-    local done, failed, agreed, names, also = 0, 0, {}, {}, {}
+    local done, failed, agreed, names, also, failedIds = 0, 0, {}, {}, {}, {}
     for _, row in ipairs(Intro.AgreeRows()) do
         local ok = Intro.Set(row.entry, true)
         if ok then
@@ -1284,11 +1384,20 @@ function Intro.ApplyAll()
         else
             failed = failed + 1
             names[#names + 1] = L.INTRO_AGREE_LINE:format(row.module, row.label)
+            failedIds[EntryId(row.entry)] = true
         end
     end
     local store = OfferStore()
+    PrepareKnown()
     if store and failed == 0 then store.done = store.done or (time and time() or 0) end
     Intro.SettleAll(agreed)
+    -- in der Rückfrage stand alles: was eingeschaltet wurde, was riskant ausblieb, was schon an war – nur was nicht
+    -- ging, bleibt offen (die Nachfrage nach einem Update fragt es wieder, wie ihr „Alle annehmen“)
+    local offered = {}
+    for _, row in ipairs(Intro.Rows(true)) do
+        if not failedIds[EntryId(row.entry)] then offered[#offered + 1] = row end
+    end
+    MarkKnown(offered)
     -- die Anzahl nennt nur Abläufe ohne Klick, die Mit-Schalter (Intro.ALSO) stehen in einer eigenen Zeile
     if done > #also or #also == 0 then
         ns.Print(L.INTRO_AGREE_DONE:format(done - #also, Core.SlashCmd(ns, L.INTRO_CMD_WORD)))
@@ -1303,6 +1412,8 @@ function Intro.ApplyAll()
     if failed > 0 then ns.Print(L.INTRO_AGREE_FAILED:format(failed, table.concat(names, ", "))) end
     local off = Intro.StaysOff()
     if off then ns.Print(off) end
+    -- Hinweise der Module (Intro.Notes; Entscheidung vom 23.11.2026), je eine Chatzeile
+    for _, note in ipairs(Intro.Notes()) do ns.Print(L.INTRO_AGREE_NOTE:format(note.module, note.text)) end
     return done, failed
 end
 
@@ -1317,10 +1428,13 @@ function Intro.AgreeAll(onCancel)
     if #rows == 0 then
         -- alles schon an: entschieden ist nichts Neues, kein Hinweis gilt dadurch als gesehen (Nachlauf PR 536)
         local store = OfferStore()
+        PrepareKnown()
         if store then store.done = store.done or (time and time() or 0) end
+        MarkKnown(Intro.Rows(true))
         ns.Print(skipped and L.INTRO_AGREE_NONE_SKIPPED:format(skipped) or L.INTRO_AGREE_NONE)
         local off = Intro.StaysOff()
         if off then ns.Print(off) end
+        for _, note in ipairs(Intro.Notes()) do ns.Print(L.INTRO_AGREE_NOTE:format(note.module, note.text)) end
         return false
     end
     local _, modules = Intro.AgreeList(rows)
@@ -1337,6 +1451,9 @@ function Intro.AgreeAll(onCancel)
     if skipped then prompt = prompt .. "\n\n" .. L.INTRO_AGREE_SKIPPED:format(skipped) end
     local risk = Intro.Excluded("risk")
     if risk then prompt = prompt .. "\n\n" .. L.INTRO_AGREE_RISK:format(risk) end
+    -- Hinweise der Module (Intro.Notes): „Allem zustimmen“ stellt dabei nichts um, sie stehen nur zum Lesen da
+    local notes = Intro.NoteText()
+    if notes then prompt = prompt .. "\n\n" .. L.INTRO_AGREE_NOTES:format(notes) end
     local function Cancel() if type(onCancel) == "function" then onCancel() end end
     if modules > Intro.AGREE_LINES then
         Core.TextDialog({ title = L.INTRO_AGREE_LABEL, text = prompt, readOnly = true, maxLetters = 0, owner = ADDON,
@@ -1405,6 +1522,9 @@ function Intro.PageText(page, index, count)
         -- zuerst, was das Modul kann (Kurzüberblick), dann wo es sitzt, der Befehl und die Häkchen
         local features = Intro.FeatureText(page.module)
         if features then body = features .. "\n\n" .. body end
+        -- Hinweis des Moduls (Intro.Notes, Entscheidung vom 23.11.2026), gelb hinter dem Befehl
+        local note = Intro.Notes(page.module)[1]
+        if note then body = body .. "\n\n" .. Core.Gold(L.INTRO_NOTE_HEAD) .. " " .. note.text end
     elseif page.key == "consent" then
         local on, all = 0, 0
         for _, row in ipairs((Intro.SplitAlso(Intro.Rows(true)))) do
@@ -1430,8 +1550,8 @@ end
 -- der Blase. Woran die Blase hängt (der erste sichtbare Rahmen), kommt aus derselben Liste – die obersten Rahmen des
 -- Fensters, Core.Panels.Frames (Nachlauf zum Review von PR 536: vorher eine zweite Liste hier, SSOT); frames nur, wo es
 -- davon abweichen muss. Ohne Eintrag – Händler, Briefkasten und Auktionshaus öffnen sich nur am NPC, Leisten und
--- Tooltips haben kein Fenster – oder wenn sich das Fenster nicht öffnen lässt (Talente unter der Mindeststufe), öffnet
--- sich die Einstellungsseite des Moduls wie bisher.
+-- Tooltips haben kein Fenster – oder wenn es der Spieler selbst öffnet (Zauberbuch, Talente, Klick-Zauber:
+-- Core.Panels.SelfOnly) und nicht schon offen hat, steht die Seite an der Einstellungsseite des Moduls.
 Intro.WINDOWS = {
     ezBag = { panel = "bags", side = "left" },
     ezCombat = { panel = "spellbook", side = "right" },
@@ -1535,15 +1655,19 @@ local function OpenFor(page)
         if nav.panel ~= win.panel then
             if Core.PanelShown(win.panel) == true then
                 nav.panel, nav.opened = win.panel, false        -- schon offen: bleibt beim Verlassen offen
+            elseif Core.Panels and Core.Panels.SelfOnly and Core.Panels.SelfOnly(win.panel) then
+                -- Zauberbuch, Talente und Klick-Zauber öffnet die Einführung nie (Kern/Panels.lua, selfOnly; Review vom
+                -- 23.11.2026): schließen dürfte sie sie beim Weiterblättern nicht, und nach dem Kampf liefe es ohne
+                -- Klick. Die Seite steht dann in Blizzards Einstellungsfenster wie bei einem Modul ohne Fenster.
+                nav.opened = false
             else
-                -- Gegenprüfung: Hatte der Spieler das Fenster auf einem anderen Reiter offen (Talente statt Zauberbuch,
-                -- Karte ohne Questlog), wechselt die Einführung nur den Reiter und schließt es beim Verlassen nicht
+                -- Gegenprüfung: Hatte der Spieler das Fenster auf einem anderen Reiter offen
+                -- (Karte ohne Questlog), wechselt die Einführung nur den Reiter und schließt es beim Verlassen nicht
                 local wasOpen = FirstVisible(frames) ~= nil
                 nav.switching = true
                 local ok, opened = Core.Try(nil, "Intro.OpenPanel", Core.OpenPanel, win.panel, nil, true)
-                -- „Steht“ heißt: das Fenster des Moduls selbst (Core.PanelShown), nicht nur sein Oberrahmen – unter
-                -- Stufe 10 öffnen die Talente nicht, ein offenes Zauberbuch zählt dann nicht. Blizzards
-                -- Einstellungsfenster erst zu, wenn es steht – sonst bleibt es für die Einstellungsseite offen.
+                -- „Steht“ heißt: das Fenster des Moduls selbst (Core.PanelShown), nicht nur sein Oberrahmen
+                -- (öffnet sich der Reiter nicht, zählt ein anderer nicht). Blizzards Einstellungsfenster erst zu, wenn es steht – sonst bleibt es für die Einstellungsseite offen.
                 local stands = Core.PanelShown(win.panel) == true
                 local settings = Panel()
                 if stands and settings and settings.IsShown and settings:IsShown() then
@@ -1667,6 +1791,8 @@ local function FillRows(box, page, rows)
     box:SetHeight(height + 10 + 22 + 12)
     return box.ezIntroRows
 end
+-- auch für die Nachfrage nach einem Update (Werkzeuge/ConsentNews.lua): dieselben Häkchen wie die Seiten
+Intro.FillRows = FillRows
 
 -- „Zurück“ dazu und „Weiter“ nach rechts (einmal je Blase)
 local function Decorate(box)
@@ -1774,6 +1900,8 @@ function Intro.AddPage(parent)
     page:Button(L.INTRO_SHORT_LABEL, L.INTRO_SHORT_BUTTON, function() Intro.ShowShort() end, L.INTRO_SHORT_TIP)
     page:Button(L.INTRO_PAGES_LABEL, L.INTRO_PAGES_BUTTON, function() Intro.Show(1) end, L.INTRO_PAGES_TIP)
     page:Button(L.INTRO_AGREE_LABEL, L.INTRO_AGREE_BUTTON, function() Intro.AgreeAll() end, Intro.AgreeTip())
+    -- Nachfrage nach einem Update wieder zeigen (Leitlinie 3; Werkzeuge/ConsentNews.lua)
+    page:Button(L.INTRO_NEWS_LABEL, L.INTRO_NEWS_BUTTON, function() Intro.ShowNews(true) end, L.INTRO_NEWS_TIP)
     page:Header(L.INTRO_MODULES_HEADER, L.INTRO_MODULES_HEADER_TIP)
     for _, name in ipairs(RunningPageModules()) do
         page:Button(name, L.INTRO_MODULE_BUTTON, function() Intro.ShowModule(name) end, Intro.PageTip(name))
@@ -1798,17 +1926,24 @@ function Intro.AddPage(parent)
                 -- Mit-Schalter von ezCore tragen ihre Gruppe im Namen (gleiche Schlüssel in zwei Gruppen); die Namen der
                 -- Abläufe ohne Klick bleiben, wie sie waren
                 local name = row.module .. "_" .. ((row.also and entry.group) and (entry.group .. "_") or "") .. row.key
-                local _, checkRow = page:ProxyCheckbox("intro_" .. name,
-                    function() return Intro.Get(entry) == true end,
-                    function(value) Intro.Set(entry, value) end,
-                    { label = L.INTRO_ROW_LABEL:format(row.module, row.label), -- Tooltip als Funktion: der Grund fürs Grau steht nur da, solange er gilt
-                      tooltip = function() return RowTip(entry, row.what, row.module) end,
-                      default = row.default == true })
-                -- grau wie auf der Seite des Moduls, solange aus und hier wirkungslos (Intro.CanSwitchOn; an bleibt
-                -- es bedienbar, damit man es ausschalten kann)
-                if type(checkRow) == "table" and type(checkRow.AddModifyPredicate) == "function" then
-                    pcall(checkRow.AddModifyPredicate, checkRow,
-                        function() return Intro.Get(entry) == true or Intro.CanSwitchOn(entry) end)
+                if type(entry.get) == "function" then
+                    -- ein Zustand (Blizzards Haken) ist kein Wert von ezCollection: Knopf statt Kästchen – Blizzards
+                    -- „Standard“ setzte ein Kästchen zurück und nähme dem Spieler seine Auswahl (Review 24.11.2026)
+                    page:Button(L.INTRO_ROW_LABEL:format(row.module, row.label), L.INTRO_STATE_BUTTON,
+                        function() Intro.ToggleState(entry) end, RowTip(entry, row.what, row.module))
+                else
+                    local _, checkRow = page:ProxyCheckbox("intro_" .. name,
+                        function() return Intro.Get(entry) == true end,
+                        function(value) Intro.Set(entry, value) end,
+                        { label = L.INTRO_ROW_LABEL:format(row.module, row.label), -- Tooltip als Funktion: der Grund fürs Grau steht nur da, solange er gilt
+                          tooltip = function() return RowTip(entry, row.what, row.module) end,
+                          default = row.default == true })
+                    -- grau wie auf der Seite des Moduls, solange aus und hier wirkungslos (Intro.CanSwitchOn; an bleibt
+                    -- es bedienbar, damit man es ausschalten kann)
+                    if type(checkRow) == "table" and type(checkRow.AddModifyPredicate) == "function" then
+                        pcall(checkRow.AddModifyPredicate, checkRow,
+                            function() return Intro.Get(entry) == true or Intro.CanSwitchOn(entry) end)
+                    end
                 end
             end
         end
@@ -1883,6 +2018,8 @@ local function InInstance()
     local ok, inside = pcall(fn)
     return ok and not Core.IsSecret(inside) and inside == true
 end
+
+Intro.InInstance = InInstance
 
 local function LaterText()
     ns.Print(L.INTRO_OFFER_LATER_DONE:format(Core.SlashCmd(ns, L.INTRO_CMD_WORD)))
@@ -1972,7 +2109,8 @@ function Intro.TryOffer()
     local store = OfferStore()
     if not store then return false, "db" end
     if store.never then return false, "off" end
-    if store.done or (tonumber(store.offered) or 0) >= Intro.MAX_OFFERS then return false, "done" end
+    -- dieselbe Bedingung wie die Nachfrage nach einem Update (Werkzeuge/ConsentNews.lua: wartet, solange es noch kommt)
+    if not Intro.OfferPending(store) then return false, "done" end
     if Intro.offeredNow then return false, "session" end
     if Core.InCombat() then
         Core.AfterCombat(function()
@@ -1987,7 +2125,10 @@ function Intro.TryOffer()
     local box = target and OfferHints().Show(Intro.OFFER_HINT, target, target, L.INTRO_OFFER, side)
     if not box then return false, "target" end
     Intro.offeredNow = true
+    PrepareKnown()
     store.offered = (tonumber(store.offered) or 0) + 1
+    -- das Angebot steht für alle Zeilen von heute: nach einem Update fragt ezCore nur nach den dann neuen
+    MarkKnown(Intro.Rows(true))
     DecorateOffer(box)
     -- Der Text nutzt die Breite der (für die Knöpfe verbreiterten) Blase, die Höhe kommt für drei Knopfreihen neu
     -- (Blizzards Maße der Blase rechnen mit einer Reihe; 15 oben, 10 Abstand, 22 + 4 + 22 + 4 + 22 Knöpfe, 12 unten)
@@ -2002,7 +2143,9 @@ end
 function Intro.ResetOffer()
     local store = OfferStore()
     if not store then return false end
-    local was = store.done ~= nil or (tonumber(store.offered) or 0) > 0 or store.never == true
+    local was = Intro.Existing(store)
+    -- Bestand bleibt Bestand: der Merker entsteht vor dem Zurücksetzen (sonst gälte er danach als Neuinstallation)
+    if was then PrepareKnown() end
     store.done, store.offered, store.never = nil, nil, nil
     Intro.offeredNow = nil
     if offerHints then offerHints.Hide(Intro.OFFER_HINT) end

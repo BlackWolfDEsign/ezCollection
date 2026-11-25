@@ -217,6 +217,7 @@ local function Canvas()
     end
     return map.ScrollContainer and map.ScrollContainer.Child or nil
 end
+MapPins.Canvas = Canvas      -- Blizzards Zeichenfläche der Weltkarte (auch ezMaps Routen)
 
 -- Oberste Rahmenstufe von Blizzards Flächen auf der Weltkarte (MapPins.AREA_LEVELS) oder nil, wenn die Karte keine
 -- Ebenen-Verwaltung hat. Nur lesend (GetPinFrameLevelsManager, GetValidFrameLevel) – nichts in Blizzards Tabellen.

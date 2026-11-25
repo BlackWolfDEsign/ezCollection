@@ -4,13 +4,16 @@ local L = ns.L
 -- Kurzüberblick und Rundgang (ezCore/Tests/einfuehrung_funktionen_test.lua): je Zeile von L.INTRO_FEATURES der
 -- Schritt (oder die Schritte) des Rundgangs, der sie zeigt; false = kein eigenes Ziel (Automatik, Tooltip, Daten oder
 -- ein Fenster ohne Rundgang). Eine neue Zeile im Kurzüberblick braucht hier ihren Eintrag.
-ns.FEATURE_STEPS = { "bar", "layout", { "layout", "keys" }, "move" }
+ns.FEATURE_STEPS = { "bar", "layout", { "layout", "keys" }, "move", "profile" }
 local Core = ezCore
 
 --[[
     Rundgang mit Erklärblasen (Abschlussrunde „Tooltip-Guide“, Entscheidung des Nutzers 13.11.2026), gebaut mit
-    ezCore (Core.NewTour). Fünf Blasen an der ersten sichtbaren ezBars-Leiste: was die Leiste ist, Anordnung,
-    Verschieben, Tasten belegen, Aktionsplätze. Jede Blase hat „OK“ und ein X; danach kommt die nächste.
+    ezCore (Core.NewTour). Sechs Blasen an der ersten sichtbaren ezBars-Leiste: was die Leiste ist, Anordnung,
+    Verschieben, Tasten belegen, Aktionsplätze, Leisten-Profil. Jede Blase hat „OK“ und ein X; danach kommt die nächste.
+    Die Blase „Leisten-Profil“ kam am 23.11.2026 dazu (Einführung auf den Stand nach v1.0.0-beta3 gebracht; die
+    Profile liegen seit dem 22.11.2026 in ezCore und gehen auch ohne ezMacro). Wer den Rundgang schon gesehen hat,
+    bekommt nur sie – ezCore zeigt die noch nicht gesehenen Schritte.
 
     Start: sobald eine Leiste zum ersten Mal zu sehen ist (nach dem Einloggen, wenn eine Leiste eingeschaltet wird,
     beim Öffnen der Einstellungsseite) – nie im Kampf, dann gleich danach (tour:StartSoon). Gesehene Blasen merkt ezBarsDB.tour;
@@ -57,6 +60,8 @@ Tour.STEPS = {
     { key = "move", target = Tour.Bar, text = L.TOUR_MOVE },
     { key = "keys", target = Tour.FirstButton, text = L.TOUR_KEYS },
     { key = "slots", target = Tour.Bar, text = L.TOUR_SLOTS },
+    -- Knöpfe „Als Profil speichern“ und „Profil laden“ auf der Seite „Leiste n: Anordnung“ (Options.lua)
+    { key = "profile", target = Tour.Bar, text = L.TOUR_PROFILE },
 }
 
 -- Speicher und Starter aus ezCore (V-035): owner = ns → gesehene Blasen in ezBarsDB.tour; tour:StartSoon bündelt

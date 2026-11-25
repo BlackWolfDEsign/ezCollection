@@ -14,10 +14,15 @@ local Core = ezCore
                                        fn = nil meldet ab
       Junk.Rule()                    → owner, fn der geltenden Regel (nil, nil = Graues); ohne angemeldete Regel nimmt
                                        ezCore ezBags Schnittstelle IsJunk(bag, slot), wenn ezBag läuft
-      Junk.Check(bag, slot, info)    → verkaufen, markiert, geschützt – Seltenes und Besseres wird nie verkauft
+      Junk.Check(bag, slot, info)    → verkaufen, markiert, geschützt, besser – Seltenes und Besseres wird nie verkauft;
+                                       besser: graues Teil mit Pfeil (unten), bleibt liegen
+      Junk.Limits(info, markiert)    → dasselbe für etwas, das die Regel verkaufen würde (ezBags Auskunft IsJunk)
       Junk.Collect(opts)             → Liste { { bag, slot, itemID, price, count } }, Zahl geschützter, behaltene
                                        (nur mit opts.skipAuctionWorth: { { bag, slot, itemID, count } } – Gegenstände,
-                                       die im Auktionshaus mehr bringen, Core.Prices.WorthMark)
+                                       die im Auktionshaus mehr bringen, Core.Prices.WorthMark), bessere Teile
+                                       ({ { bag, slot, itemID, link } })
+      Junk.TellBetter(liste, owner, immer)  → true, wenn die Chatzeile „nicht verkauft, laut ezGear besser“ kam (je
+                                       Gegenstand einmal je Sitzung; immer = true auch wiederholt)
       Junk.Value(opts)               → Summe in Kupfer, Anzahl Plätze (was Sell jetzt verkaufen würde)
       Junk.Sell(opts)                → true, behaltene (Liste wie bei Collect), wenn der Verkauf beginnt (Händler
                                        offen, nicht schon dabei)
@@ -39,13 +44,18 @@ local Core = ezCore
       JUNK_WHAT, T18-1); ezMerchants Knopf fragt den Kampf vorher selbst und sagt denselben Satz.
       Nachricht: JUNK_SOLD (verkauft, kupfer, geschützt, owner)
 
-    Einkaufsliste (A43, Welle 23b; vorher nur in ezBag als ns.CraftNeed): Material, das ezCrafts Einkaufsliste braucht,
-    verkauft der Dienst nie – auch ohne ezBag (ezMerchant verkauft dann ohne Regel). Check meldet es als „nicht verkaufen“
-    (nicht als geschützt, wie ezBags Regel).
-      Junk.CraftNeed(gegenstand)     → Bedarf (Zahl > 0) oder nil: Gesamtbedarf aus ezCore.API("ezCraft").Needs(),
-                                       gemerkt bis EZCRAFT_SHOPPING_CHANGED, RECIPES_CHANGED oder einem Ereignis des
-                                       Berufefensters; Junk.Sell liest vor jedem Verkauf frisch. Läuft ezCraft nicht: nil
-      Junk.ClearCraftNeeds()         Zwischenspeicher verwerfen
+    Einkaufslisten (A43, Welle 23b; vorher nur in ezBag als ns.CraftNeed): Material, das eine gemeinsame Einkaufsliste
+    braucht (Core.Lists, ezCraft und ezAuction), verkauft der Dienst nie – auch ohne ezBag (ezMerchant verkauft dann ohne
+    Regel). Check meldet es als „nicht verkaufen“ (nicht als geschützt, wie ezBags Regel).
+      Junk.CraftNeed(gegenstand)     → Bedarf (Zahl > 0) oder nil: Core.Lists.NeedFor, gemerkt dort bis LISTS_CHANGED,
+                                       RECIPES_CHANGED oder einem Ereignis des Berufefensters; Junk.Sell liest vor jedem
+                                       Verkauf frisch. Seit der Durchsicht vom 24.11.2026 nicht mehr über ezCrafts
+                                       Schnittstelle (die dieselbe Rechnung weiterreicht) – so gilt es auch ohne ezCraft
+      Junk.ClearCraftNeeds()         Zwischenspeicher verwerfen (Core.Lists.Invalidate)
+
+    Besser als das Angelegte (Entscheidung des Nutzers vom 24.11.2026, „Verschonen (Recommended)“): Ausrüstung mit grünem
+    oder gelbem Pfeil laut ezGear verkauft der Dienst nie, auch nicht, solange ezGear noch lädt (Core.GearProtects, dieselbe
+    Regel wie „Platz schaffen“). Ausnahme: von Hand als Plunder markiert. Nie still: die Chatzeile nennt die Teile.
 
     Rücksicht (Leitlinie 9): Wer sellJunk übernimmt (Leatrix Plus, Tweaks, Forever++), steht in Core.WhoHandles;
     Eigentümer des Schlüssels ist das erste geladene Modul aus Core.FEATURE_OWNERS.sellJunk (ezBag, sonst
@@ -102,30 +112,29 @@ local function Grey(info)
     return Core.Num(info.quality) == 0
 end
 
--- Einkaufsliste von ezCraft (A43): nil = noch nicht gelesen, false = ezCraft lieferte nichts Brauchbares
-local craftNeeds
-
+-- Bedarf der gemeinsamen Einkaufslisten (A43)
 function Junk.CraftNeed(item)
     local itemID = Core.ItemID(item)
-    if not itemID then return nil end
-    if craftNeeds == nil then
-        local api = Core.API and Core.API("ezCraft")
-        -- ezCraft (noch) nicht da: nichts merken, beim nächsten Mal wieder fragen
-        if not (type(api) == "table" and type(api.Needs) == "function") then return nil end
-        local ok, map = pcall(api.Needs)
-        craftNeeds = ok and type(map) == "table" and map or false
-    end
-    local n = craftNeeds and Core.Num(craftNeeds[itemID])
+    local n = itemID and Core.Num(Core.Lists.NeedFor(itemID))
     if n and n > 0 then return n end
     return nil
 end
 
-function Junk.ClearCraftNeeds() craftNeeds = nil end
+function Junk.ClearCraftNeeds() Core.Lists.Invalidate() end
 
-Core.Listen("EZCRAFT_SHOPPING_CHANGED", Junk.ClearCraftNeeds, Core.name)
-Core.Listen("RECIPES_CHANGED", Junk.ClearCraftNeeds, Core.name)
+-- Das offene Berufefenster liefert andere Zutaten als das Rezept-Wissen (ezCrafts Anbieter, Lists.SetProvider)
 for _, event in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_CLOSE" }) do
     ns.On(event, Junk.ClearCraftNeeds)
+end
+
+-- Die Grenzen nach der Regel – eine Stelle für den Dienst und ezBags Auskunft IsJunk.
+function Junk.Limits(info, marked)
+    if (Core.Num(info.quality) or 0) >= 3 then return false, marked, true, false end    -- Seltenes und Besseres nie
+    if Junk.CraftNeed(info.itemID) then return false, marked, false, false end          -- A43: Material der Einkaufsliste
+    local price = Core.VendorPrice(info.hyperlink or info.itemID)
+    if (price or 0) <= 0 then return false, marked, false, false end
+    if not marked and Core.GearProtects(ns, info.itemID, info.hyperlink) then return false, marked, false, true end
+    return true, marked, false, false
 end
 
 function Junk.Check(bag, slot, info, opts)
@@ -148,12 +157,8 @@ function Junk.Check(bag, slot, info, opts)
     else
         sell, marked, protected = Grey(info), false, false
     end
-    local quality = Core.Num(info.quality) or 0
-    if sell and quality >= 3 then return false, marked, true end   -- Seltenes und Besseres nie
     if not sell then return false, marked, protected end
-    if Junk.CraftNeed(info.itemID) then return false, marked, false end   -- A43: Material der Einkaufsliste
-    local price = Core.VendorPrice(info.hyperlink or info.itemID)
-    return (price or 0) > 0, marked, false
+    return Junk.Limits(info, marked)
 end
 
 -- AH-13: lohnt der Gegenstand im Auktionshaus mehr? (nur mit opts.skipAuctionWorth gefragt)
@@ -166,13 +171,15 @@ end
 
 function Junk.Collect(opts)
     opts = type(opts) == "table" and opts or {}
-    local list, protected, kept = {}, 0, opts.skipAuctionWorth == true and {} or nil
+    local list, protected, kept, better = {}, 0, opts.skipAuctionWorth == true and {} or nil, {}
     Core.ForEachBagItem(function(bag, slot, info)
         if info.isLocked then return end
-        local sell, marked, isProtected = Junk.Check(bag, slot, info, opts)
+        local sell, marked, isProtected, isBetter = Junk.Check(bag, slot, info, opts)
         if opts.onlyMarked and not marked then return end
         if isProtected then
             protected = protected + 1
+        elseif isBetter then
+            better[#better + 1] = { bag = bag, slot = slot, itemID = info.itemID, link = info.hyperlink }
         elseif sell then
             local count = Core.Num(info.stackCount) or 1
             if kept and AuctionWorth(info, bag, slot) then
@@ -183,7 +190,35 @@ function Junk.Collect(opts)
             end
         end
     end, "sell")
-    return list, protected, kept
+    return list, protected, kept, better
+end
+
+-- Nicht verkauft, weil laut ezGear besser (oder noch nicht bewertet): sagen, welche – je Gegenstand einmal je Sitzung,
+-- damit die Automatik nicht bei jedem Händler dasselbe schreibt; immer = true (Klick) jedes Mal.
+local TELL_MAX = 3
+local told = {}
+function Junk.TellBetter(list, owner, always)
+    local fresh, old, seen = {}, {}, {}
+    for _, e in ipairs(type(list) == "table" and list or {}) do
+        if not seen[e.itemID] then
+            seen[e.itemID] = true
+            local into = told[e.itemID] and old or fresh
+            into[#into + 1] = e
+        end
+    end
+    if #fresh == 0 and (#old == 0 or not always) then return false end
+    for _, e in ipairs(old) do fresh[#fresh + 1] = e end      -- Neues zuerst; nur was beim Namen steht, gilt als gesagt
+    local names = {}
+    for i = 1, math.min(#fresh, TELL_MAX) do
+        local e = fresh[i]
+        told[e.itemID] = true
+        names[i] = type(e.link) == "string" and not Core.IsSecret(e.link) and e.link or ("#" .. tostring(e.itemID))
+    end
+    local more = #fresh - TELL_MAX
+    local text = table.concat(names, ", ")
+    if more > 0 then text = text .. " " .. Core.L.JUNK_BETTER_MORE:format(more) end
+    Core.Print(owner or Core.name, Core.L.JUNK_BETTER:format(text))
+    return true
 end
 
 function Junk.Value(opts)
@@ -258,6 +293,7 @@ local function Report(r)
         local ok, err = pcall(r.opts.onDone, sold, gained, r.protected, r.kept, r.stopped)
         if not ok then Core.Error(r.opts.owner or Core.name, err, "Junk.Sell onDone") end
     end
+    Junk.TellBetter(r.better, r.opts.owner, r.opts.byHand == true)
     -- nach der Summe des Moduls (onDone): auch mit quiet, sonst bliebe der Abbruch stumm
     if r.stopped == "combat" then Core.Print(r.opts.owner or Core.name, L.JUNK_STOPPED_COMBAT) end
     Core.Fire("JUNK_SOLD", sold, gained, r.protected, r.opts.owner)
@@ -279,8 +315,8 @@ local function Round()
         return Finish(r)
     end
     if Core.Call(rawget(_G, "CursorHasItem")) or Core.Call(rawget(_G, "InRepairMode")) then return end
-    local list, protected, kept = Junk.Collect(r.opts)
-    r.protected = protected
+    local list, protected, kept, better = Junk.Collect(r.opts)
+    r.protected, r.better = protected, better
     if kept and not r.kept then r.kept = kept end
     local used = 0
     for _, e in ipairs(list) do

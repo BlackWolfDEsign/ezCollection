@@ -77,6 +77,9 @@ Draw.MOVED = 0.0005         -- Kartenanteil: kleinere Bewegungen zeichnen nicht 
 Draw.FAMILY = {
     gold = { from = "normal", to = "orange", style = "solid" },    -- Leveling-Route (ezQuest), Wege anderer Module
     blue = { from = "link", to = "blue", style = "dash" },         -- Sammel-Route (ezMap)
+    -- Rundgang im Gebiet eines Schritts der Leveling-Route (ezQuest, Entscheidung des Nutzers vom 22.11.2026): dünn und
+    -- ohne Pfeile, damit er neben der Route nicht wie eine zweite Route aussieht
+    goldThin = { from = "normal", to = "orange", style = "solid", thick = 1.5, arrows = false },
 }
 Draw.ALPHA_START = 1        -- Deckkraft des ersten Abschnitts (zum nächsten Schritt)
 Draw.ALPHA_END = 0.4        -- Deckkraft des letzten Abschnitts
@@ -106,11 +109,15 @@ local function RoleRGB(role)
     return { Draw.NEXT_COLOR[1], Draw.NEXT_COLOR[2], Draw.NEXT_COLOR[3] }
 end
 
--- Farbfamilie → { from = { r, g, b }, to = { r, g, b }, alpha, style }. name: Schlüssel aus Draw.FAMILY; ohne Namen und
--- mit color = { r, g, b, a } (ältere Aufrufer von ShowPath) eine Familie aus dieser einen Farbe (nur blasser zum Ende).
+-- Farbfamilie → { from = { r, g, b }, to = { r, g, b }, alpha, style, thick, arrows }. name: Schlüssel aus Draw.FAMILY;
+-- ohne Namen und mit color = { r, g, b, a } (ältere Aufrufer von ShowPath) eine Familie aus dieser einen Farbe (nur
+-- blasser zum Ende). thick: Strichstärke in Bildpunkten (Standard Draw.LINE_THICK); arrows = false: ohne Pfeile.
 function Draw.Family(name, color)
     local def = type(name) == "string" and Draw.FAMILY[name] or nil
-    if def then return { from = RoleRGB(def.from), to = RoleRGB(def.to), alpha = 1, style = def.style, name = name } end
+    if def then
+        return { from = RoleRGB(def.from), to = RoleRGB(def.to), alpha = 1, style = def.style, name = name,
+            thick = def.thick, arrows = def.arrows }
+    end
     local c = type(color) == "table" and color or Draw.NEXT_COLOR
     local rgb = { tonumber(c[1]) or 1, tonumber(c[2]) or 1, tonumber(c[3]) or 1 }
     return { from = rgb, to = rgb, alpha = tonumber(c[4]) or 1, style = "solid" }
@@ -228,16 +235,24 @@ end
 -- Rings kehrt zum ersten Punkt zurück), die auf dem Bildschirm näher als Draw.GROUP_PX an einer schon gesetzten Marke
 -- liegen, kommen zu ihr – auch wenn andere Schritte dazwischen liegen (Linie A – B – A: eine Marke „1, 3“ an A).
 -- nextN: Nummer des nächsten Schritts; limit: höchstens so viele Orte → Liste { x, y, first, last, labels, parts, isNext }
+-- Ein Schritt neben der Karte (Gruppe mit off) bekommt seine Marke dort, wo die Linie den Rand erreicht (ex, ey aus
+-- Painter:Path; Nachlauf der Routen, Paket „Fundorte“ 22.11.2026 – vorher übersprungen, Nummer und Ziel des
+-- nächsten Schritts fehlten): der Ort hat dann edge = true und die eigentliche Lage in rx, ry (für den Tooltip).
+-- Ohne Linie zum Rand (ex fehlt) bleibt er ohne Marke.
 function Draw.Spots(groups, scale, nextN, limit)
     scale = (type(scale) == "number" and scale > 0) and scale or 1
     local near = Draw.GROUP_PX / scale
     local spots, numbered = {}, {}
     for _, g in ipairs(groups) do
-        if not g.gap and not g.noMark and g.first ~= nil and not numbered[g.first] then
+        local edge = g.off == true and g.ex ~= nil and g.ey ~= nil
+        if not g.gap and (not g.noMark or edge) and g.first ~= nil and not numbered[g.first] then
             numbered[g.first] = true
+            local gx, gy = g.x, g.y
+            if edge then gx, gy = g.ex, g.ey end
             local spot
             for _, s in ipairs(spots) do
-                if (g.x - s.x) ^ 2 + (g.y - s.y) ^ 2 < near * near then
+                -- Randmarke und gewöhnliche Marke nie zusammen: Hinweis „neben der Karte“ und Entfernung gelten je Ort
+                if (s.edge == true) == edge and (gx - s.x) ^ 2 + (gy - s.y) ^ 2 < near * near then
                     spot = s
                     break
                 end
@@ -250,8 +265,8 @@ function Draw.Spots(groups, scale, nextN, limit)
             elseif limit == nil or #spots < limit then
                 local labels = {}
                 for _, l in ipairs(g.labels) do labels[#labels + 1] = l end
-                spots[#spots + 1] = { x = g.x, y = g.y, first = g.first, last = g.last, labels = labels, parts = { g },
-                    isNext = Holds(g, nextN) }
+                spots[#spots + 1] = { x = gx, y = gy, first = g.first, last = g.last, labels = labels, parts = { g },
+                    isNext = Holds(g, nextN), edge = edge or nil, rx = edge and g.x or nil, ry = edge and g.y or nil }
             end
         end
     end
@@ -324,6 +339,7 @@ local function MarkEnter(self)
     if not (tip and (self.ezLabel or self.ezName)) then return end
     tip:SetOwner(self, "ANCHOR_RIGHT")
     Draw.FillTip(tip, self.ezName, self.ezLabels, nil, self.ezMap, self.ezX, self.ezY)
+    if self.ezEdge then Core.TipLine(tip, ns.L.ROUTE_TIP_EDGE, "hint", true) end
     tip:Show()
 end
 
@@ -552,10 +568,11 @@ end
 -- (Sammel-Route); hover = { to (Gruppe des Ziels), name (Route) } für den Tooltip über der Linie (freiwillig)
 function Painter:Segment(ax, ay, bx, by, color, style, hover)
     local dashed = style == "dash" and self:Dashes(ax, ay, bx, by, color)
-    local lineColor, thick = color, nil
+    -- Strichstärke und Pfeile der Familie (Painter:Path setzt sie für die Dauer eines Wegs; Rundgang „goldThin“)
+    local lineColor, thick = color, self.lineThick
     if dashed then lineColor, thick = { color[1], color[2], color[3], color[4] * Draw.GUIDE_ALPHA }, Draw.GUIDE_THICK end
     if not self:Line(ax, ay, bx, by, lineColor, thick) then return false end
-    self:Arrows(ax, ay, bx, by, color)
+    if not self.noArrows then self:Arrows(ax, ay, bx, by, color) end
     if hover then
         self.segs[#self.segs + 1] = { ax = ax, ay = ay, bx = bx, by = by, to = hover.to, name = hover.name }
     end
@@ -583,11 +600,27 @@ function Painter:Mark(g, isNext, fam, name, target)
     if m.SetScale then m:SetScale(1 / scale) end
     m:SetSize(size, size)
     m:ClearAllPoints()
-    -- neben dem Knick statt darauf: Blizzards Symbole und ezMaps Punkte liegen über der Linienebene
-    m:SetPoint("CENTER", self.layer, "TOPLEFT", g.x * scale + Draw.MARK_OFFSET, -g.y * scale + Draw.MARK_OFFSET)
+    -- neben dem Knick statt darauf: Blizzards Symbole und ezMaps Punkte liegen über der Linienebene. Am Kartenrand
+    -- (Schritt neben der Karte, g.edge) zur Mitte hin versetzt und das Ziel auf der Seite zur Mitte – sonst stünden
+    -- Marke und Ziel halb neben der Karte
+    local w, h = tonumber(self.w), tonumber(self.h)
+    local ox, oy, left = Draw.MARK_OFFSET, Draw.MARK_OFFSET, false
+    if g.edge and w and h then
+        if g.x > w / 2 then ox, left = -ox, true end
+        if g.y < h / 2 then oy = -oy end
+    end
+    m:SetPoint("CENTER", self.layer, "TOPLEFT", g.x * scale + ox, -g.y * scale + oy)
     m.Circle:SetVertexColor(c[1], c[2], c[3], c[4])
     m.Text:SetText(Draw.MarkText(g))
     if m.Text.SetAlpha then m.Text:SetAlpha(isNext and 1 or Draw.MARK_TEXT_ALPHA) end
+    m.Target:ClearAllPoints()
+    if left then
+        m.Target:SetPoint("RIGHT", m, "LEFT", -3, 0)
+        if m.Target.SetJustifyH then m.Target:SetJustifyH("RIGHT") end
+    else
+        m.Target:SetPoint("LEFT", m, "RIGHT", 3, 0)
+        if m.Target.SetJustifyH then m.Target:SetJustifyH("LEFT") end
+    end
     if isNext and target then
         m.Target:SetText(target)
         m.Target:Show()
@@ -601,9 +634,11 @@ function Painter:Mark(g, isNext, fam, name, target)
     m.ezTarget = isNext and target or nil
     m.ezNext = isNext and true or false
     m.ezFirst, m.ezLast = g.first, g.last
-    local w, h = tonumber(self.w), tonumber(self.h)
+    m.ezEdge = g.edge and true or false
     m.ezMap = self.map
-    m.ezX, m.ezY = w and w > 0 and g.x / w or nil, h and h > 0 and g.y / h or nil
+    -- Entfernung im Tooltip zur eigentlichen Lage des Schritts, nicht zum Rand
+    local rx, ry = g.rx or g.x, g.ry or g.y
+    m.ezX, m.ezY = w and w > 0 and rx / w or nil, h and h > 0 and ry / h or nil
     m:Show()
     return m
 end
@@ -645,7 +680,7 @@ function Painter:Path(seq, opts)
         local a, b = groups[k - 1], groups[k]
         -- zwei Schritte neben der Karte: keine Linie quer über die Karte (Spielbefund vom 21.11.2026 – eine Linie ohne
         -- Punkte lief durch Elwynn); vom letzten Schritt auf der Karte führt die Linie bis zum Rand in Richtung des nächsten
-        if not a.gap and not b.gap and not (a.off and b.off) then list[#list + 1] = { a.x, a.y, b } end
+        if not a.gap and not b.gap and not (a.off and b.off) then list[#list + 1] = { a.x, a.y, b, from = a } end
     end
     -- Abschnitte zu Schritten neben der Karte (off) enden am Kartenrand: EINE durchgehende Linie statt zweier Stücke
     -- (Spielbefund vom 19.11.2026, Bilder 35–37 und 42: „es sieht wie 2 leveling routen aus“; vorher fiel ein Schritt
@@ -656,8 +691,14 @@ function Painter:Path(seq, opts)
         local ax, ay, bx, by = s[1], s[2], s[3].x, s[3].y
         local t0, t1 = Draw.ClipT(ax, ay, bx, by, area)
         if t0 and t1 > t0 then
-            clipped[#clipped + 1] = { ax + (bx - ax) * t0, ay + (by - ay) * t0,
-                { x = ax + (bx - ax) * t1, y = ay + (by - ay) * t1 }, to = s[3] }
+            local sx, sy = ax + (bx - ax) * t0, ay + (by - ay) * t0
+            local ex, ey = ax + (bx - ax) * t1, ay + (by - ay) * t1
+            clipped[#clipped + 1] = { sx, sy, { x = ex, y = ey }, to = s[3] }
+            -- Schritt neben der Karte (Nachlauf der Routen, Paket „Fundorte“ 22.11.2026): seine Marke steht dort, wo die
+            -- Linie zu ihm den Rand erreicht bzw. von ihm kommend die Karte betritt (Draw.Spots, Feld ex/ey der Gruppe)
+            local to, from = s[3], s.from
+            if to.off and t1 < 1 and not to.ex then to.ex, to.ey = ex, ey end
+            if from and from.off and t0 > 0 and not from.ex then from.ex, from.ey = sx, sy end
         end
     end
     list = clipped
@@ -668,13 +709,14 @@ function Painter:Path(seq, opts)
         local f, rect = self:DashFactor(list)
         self.dashFactor, self.dashRect = f or false, rect
     end
+    self.lineThick, self.noArrows = fam.thick, fam.arrows == false
     for k, s in ipairs(list) do
         local color = Draw.Shade(fam, #list > 1 and (k - 1) / (#list - 1) or 0)
         if self:Segment(s[1], s[2], s[3].x, s[3].y, color, fam.style, { to = s.to, name = opts.name }) then
             drawn = drawn + 1
         end
     end
-    self.dashFactor, self.dashRect = nil, nil
+    self.dashFactor, self.dashRect, self.lineThick, self.noArrows = nil, nil, nil, nil
     if opts.marks ~= false then
         local onlyNext = (opts.numbers or Draw.NumbersMode()) ~= "all"
         for _, spot in ipairs(Draw.Spots(groups, scale, opts.nextN, max(0, Draw.MARK_MAX - self.nMarks))) do

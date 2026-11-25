@@ -80,6 +80,12 @@ function J.SetAuto(on)
     return ns.Enabled("autoSellJunk") == true
 end
 
+-- Nur Teile, die laut ezGear besser sind: ezCore sagt, welche liegen bleiben (statt „kein Plunder“). → true, wenn gesagt
+function J.TellBetter(S, better)
+    if type(better) ~= "table" or #better == 0 or type(S.TellBetter) ~= "function" then return false end
+    return S.TellBetter(better, ADDON, true) == true
+end
+
 -- Plunder jetzt verkaufen (Knopf). → true, wenn der Verkauf beginnt
 -- Mit und ohne ezBag dieselben Hinweise: ohne Händler SELL_JUNK_NEED_MERCHANT, ohne Plunder SELL_JUNK_NONE bzw.
 -- SELL_JUNK_NONE_BAG. ezBags SellJunk schweigt in beiden Fällen (seine Meldung kommt nur, wenn etwas verkauft oder
@@ -109,15 +115,16 @@ function J.SellNow()
     local preview = J.Keep() and { skipAuctionWorth = true } or nil
     if bag then
         if S and type(S.Collect) == "function" then
-            local list, protected, kept = S.Collect(preview)
+            local list, protected, kept, better = S.Collect(preview)
             local nKept = type(kept) == "table" and #kept or 0
             if type(list) == "table" and #list == 0 and (tonumber(protected) or 0) == 0 then
+                local said = J.TellBetter(S, better)
                 if nKept > 0 then return J.KeptOnly(kept) end
-                ns.Print(L.SELL_JUNK_NONE_BAG)
+                if not said then ns.Print(L.SELL_JUNK_NONE_BAG) end
                 return false
             end
             -- ezBags SellJunk kennt das Auslassen nicht: dann ezCores Dienst direkt (es gilt ezBags Regel)
-            if nKept > 0 then return J.Start(S) end
+            if nKept > 0 then return J.Start(S, true) end
         end
         local ok, started = pcall(bag.SellJunk)
         if not ok then
@@ -126,13 +133,14 @@ function J.SellNow()
         end
         return started == true
     end
-    local list, _, kept = S.Collect(preview)
+    local list, _, kept, better = S.Collect(preview)
     if type(list) ~= "table" or #list == 0 then
+        local said = J.TellBetter(S, better)
         if type(kept) == "table" and #kept > 0 then return J.KeptOnly(kept) end
-        ns.Print(L.SELL_JUNK_NONE)
+        if not said then ns.Print(L.SELL_JUNK_NONE) end
         return false
     end
-    return J.Start(S)
+    return J.Start(S, true)
 end
 
 -- Automatisch beim Ansprechen des Händlers – nur ohne ezBag (sonst verkauft ezBag nach seinem Schalter), mit
@@ -246,11 +254,11 @@ function J.Done(_, _, _, list)
 end
 
 -- Verkauf über ezCores Dienst im Namen von ezMerchant; mit keepAuctionWorth lässt er Wertvolles aus (skipAuctionWorth).
--- → true, wenn der Verkauf beginnt
-function J.Start(S)
+-- byHand = Klick (ezCore nennt dann jedes Mal, was es laut ezGear verschont). → true, wenn der Verkauf beginnt
+function J.Start(S, byHand)
     S = S or Core.Junk
     local mine = visit
-    local opts = { owner = ADDON, onDone = function(...) if mine == visit then return J.Done(...) end end }
+    local opts = { owner = ADDON, byHand = byHand == true or nil, onDone = function(...) if mine == visit then return J.Done(...) end end }
     if J.Keep() then opts.skipAuctionWorth = true end
     local started, list = S.Sell(opts)
     if started and type(list) == "table" then J.SetKept(list) end
@@ -303,7 +311,7 @@ function J.Entries(list)
             local w = P and P.AuctionWorth(link or e.itemID) or nil
             local vendor = w and w.vendor or Core.VendorPrice(link or e.itemID) or 0
             out[#out + 1] = { link = link or ("item:" .. e.itemID), itemID = e.itemID, count = count, worth = w,
-                vendor = vendor * count, value = w and w.value * count or nil }
+                vendor = vendor * count, value = w and P.Proceeds(w.price, count) or nil }
         end
     end
     table.sort(out, function(a, b)
@@ -483,7 +491,7 @@ function J.SellAnyway()
     end
     kept = nil
     J.UpdateBar()
-    return S.Sell({ owner = ADDON, onDone = function() RefreshSoon() end }) == true
+    return S.Sell({ owner = ADDON, byHand = true, onDone = function() RefreshSoon() end }) == true
 end
 
 ns.API.KeepAuctionWorth = function() return J.Keep() end

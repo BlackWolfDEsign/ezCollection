@@ -3,7 +3,7 @@
 ## Notes: Talent and legacy templates at Blizzard's own windows: load a template or a preset of your class as a preview into the tree, apply it as pending changes (confirm with Blizzard's button) or adjust and save it, share as text; a side panel lists the effects of the chosen talents and spell tooltips name the talents that change them; overview of your characters. Part of ezCollection.
 ## Notes-deDE: Talent- und Vermächtnis-Vorlagen an Blizzards eigenen Fenstern: Vorlage oder Vorauswahl deiner Klasse als Vorschau in den Baum laden, übernehmen (bestätigt mit Blizzards Knopf) oder anpassen und speichern, als Text teilen; ein Seitenteil fasst die Auswirkungen der gewählten Talente zusammen, Zauber-Tooltips nennen, was sie verändert; Übersicht deiner Charaktere. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 0.7.0
+## Version: 0.8.0
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\Ability_Marksmanship
 ## RequiredDeps: ezCore

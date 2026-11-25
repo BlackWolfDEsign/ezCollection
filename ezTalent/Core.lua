@@ -161,7 +161,11 @@ Core.NewModule(ADDON, ns, {
         -- Tooltip-Zeilen mit Rollen statt Farbzahlen (T9-6)
         "TipLine",
         -- Gesamtreview 18.11.2026 (D3, kern/einheit-rest; ohne neue Nummer): Texthelfer statt Kopien im Modul
-        "CombatText", "Word", "CmdText" },
+        "CombatText", "Word", "CmdText",
+        -- Talentbaum des Charakters und Rotation zu Talentvorlage, n:m (24.11.2026; ohne neue Nummer)
+        "Talents.MainTree", "RotationBuilds.Rotations",
+        -- Talente öffnen, ohne das Zauberbuch umzuschalten (24.11.2026; ohne neue Nummer)
+        "Panels.SelfOpen", "Panels.SelfWay" },
     db = "ezTalentDB",
     -- ui: was sich die Oberfläche merkt (offenes Seitenteil je Fenster); hints: gesehene Erklärblasen (Tour.lua);
     -- measure: Grundwerte je Klasse, Volk und Stufe aus „Werte für die Simulation messen“ (Measure.lua, ohne Namen)
@@ -322,14 +326,24 @@ function ns.StatusLines()
 end
 
 ---------------------------------------------------------------------------
--- Talentfenster öffnen (Blizzards eigene Wege; ezCore kennt sie unter „talents“)
+-- Talentfenster öffnen (ezCore kennt Blizzards Wege unter „talents“)
 ---------------------------------------------------------------------------
 
-function ns.OpenTalents()
-    if Core.TogglePanel and Core.Call(Core.TogglePanel, "talents") == true then return true end
-    local util = rawget(_G, "PlayerSpellsUtil")
-    if util and util.ToggleClassTalentFrame then return Core.Call(util.ToggleClassTalentFrame) ~= false end
-    return false
+-- Nur öffnen, nie umschalten oder schließen: Das schriebe aus Addon-Code in Blizzards Aktionsleisten (ezCore/Kern/Panels.lua,
+-- „selfOnly“; „leiste weg“ vom 23.11.2026). Ist das Zauberbuch oder Klick-Zauber offen oder Kampf, nennt ezCore den Grund.
+-- quiet: ohne Hinweis (der Aufrufer meldet selbst). Unter der Mindeststufe für Talente tut Blizzards Weg nichts und meldet
+-- nichts – dann "closed". → true (offen) | false, Grund
+function ns.OpenTalents(quiet)
+    if Core.PanelShown("talents") == true then
+        if not quiet then ns.Print(Core.Panels.SelfHint("talents")) end     -- zweiter Klick: schließen macht der Spieler
+        return true
+    end
+    local ok, why = Core.OpenPanel("talents", nil, { mode = "open", quiet = quiet })
+    if ok and Core.PanelShown("talents") == false and Core.Panels.SelfOpen("talents") ~= "own" then
+        if not quiet then ns.Print(L.TALENTS_CLOSED) end
+        return false, "closed"
+    end
+    return ok, why
 end
 
 -- Vermächtnis-Fenster: Blizzards eigener Umschalter (lädt Blizzard_LegacySystem bei Bedarf).

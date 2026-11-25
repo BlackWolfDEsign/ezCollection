@@ -53,10 +53,7 @@ function Salvage.Known(kind)
     if not k then return false end
     local Sp = Core.Spells
     if Sp and Sp.IsKnown then return Sp.IsKnown(k.spell) == true end
-    local fn = rawget(_G, "IsPlayerSpell")
-    if type(fn) ~= "function" then return false end
-    local ok, known = pcall(fn, k.spell)
-    return ok and Core.Bool(known, false) == true
+    return Core.KnowsSpell(k.spell) == true
 end
 
 function Salvage.Label(kind)

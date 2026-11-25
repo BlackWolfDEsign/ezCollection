@@ -207,8 +207,9 @@ function MapButton.AddTrainers(root, opts)
     return MapButton.FillTrainers(menu, opts)
 end
 
--- Dungeoneingänge der gezeigten Karte (auf einer Kontinentkarte die ihrer Zonen): zuerst aus ezCore.Dungeons, das
--- sie aus Blizzards Daten liest, dann die selbst betretenen (Entrances.lua nennt je Eintrag die Quelle). Nach Stufe
+-- Dungeoneingänge der gezeigten Karte (auf einer Kontinentkarte die ihrer Zonen): zuerst aus ezCore.Dungeons, das sie
+-- zur Laufzeit aus Blizzards Daten liest, dann die selbst betretenen, zuletzt die der Client-Tabellen (Entrances.lua nennt
+-- je Eintrag die Quelle). Nach Stufe
 -- gefärbt wie in Blizzards Gruppensuche; Klick setzt die Markierung.
 function MapButton.Entrances(mapID)
     return ns.Entrances.For(mapID)
@@ -223,6 +224,7 @@ local function EntranceLabel(e)
     end
     -- Quelle nennen, wenn der Eingang nicht vom Client kommt
     if e.source == "self" then label = label .. " " .. L.ENTRANCE_SELF_MARK end
+    if e.source == "tables" then label = label .. " " .. L.ENTRANCE_TABLES_MARK end
     return label
 end
 
@@ -254,18 +256,18 @@ function MapButton.AddRecent(root)
 end
 
 -- Mit gesetzter Markierung: der Flugmeister, der dem Ziel am nächsten liegt (Klick setzt die Markierung auf ihn),
--- und darunter die Flugzeit von deinem nächsten Flugmeister dorthin – mit Quelle („bei dir gemessen“) oder „noch
--- unbekannt“. Kein Routenplaner (Flights.lua). Für das Kartenmenü und das Menü „Aufspüren“.
+-- und darunter die Flugzeit von deinem nächsten Flugmeister dorthin – mit Quelle („bei dir gemessen“, „geschätzt“) oder
+-- „noch unbekannt“. Kein Routenplaner (Flights.lua). Für das Kartenmenü und das Menü „Aufspüren“.
 function MapButton.AddDestinationFlight(root)
     if not ns.Enabled("flightDest") then return false end
-    local dest, own, seconds = ns.Flights.AtWaypoint()
+    local dest, own, seconds, estimated, flights = ns.Flights.AtWaypoint()
     if not dest then return false end
     local label = ns.Flights.DestinationLabel(dest)
     Tip(Menu.Button(root, label, function() ns.Flights.GoMaster(dest) end), label, L.MENU_FLIGHT_DEST_TIP)
-    local line = ns.Flights.DestinationTimeLabel(dest, own, seconds)
+    local line = ns.Flights.DestinationTimeLabel(dest, own, seconds, estimated)
     if line then
         local title = Menu.Title(root, line)
-        if seconds then Tip(title, line, L.MENU_FLIGHT_DEST_TIME_TIP) end
+        if seconds then Tip(title, line, ns.Flights.DestinationTimeTip(estimated, flights)) end
     end
     return true
 end

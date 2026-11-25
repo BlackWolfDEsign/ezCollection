@@ -12,9 +12,14 @@ local Core = ezCore
       BLIZZARD_PAGES[page] = { bar, visible, frame }   Seite → Blizzards Zusatzleiste (Nummer in den Optionen)
       BONUS_PAGES[class] = { … }   Seiten 7–10, auf die die Hauptleiste mit Haltung/Gestalt wechselt
       IsBonusPage(page, class) → true, wenn die Klasse (Standard: eigene) diese Seite mit Haltung nutzt
+      BonusPage() → Seite 7–10, auf die die Hauptleiste gerade mit Haltung/Gestalt wechselt, sonst nil
+      MainPage() → Seite der Hauptleiste (Haltung, sonst 1); nil, "vehicle", solange Fahrzeug-, Übernahme- oder Sonderleiste
+                   zu sehen ist; nil, "page", Seite, solange die Hauptleiste auf eine andere Seite geblättert ist
+      BarShown(page) → true/false: ist Blizzards Zusatzleiste dieser Seite (BLIZZARD_PAGES) zu sehen? nil: keine Zusatzleiste
       Has(slot) → true/false (geheim: true, lieber zeigen)
       Info(slot) → { kind, id, subType, text, texture } oder nil (leer oder gesperrt); nie geheime Werte
       Texture(slot) → Symbol oder nil
+      Text(slot) → Beschriftung des Platzes (bei Makros der Name) oder nil; leer und gesperrt sind nil
       SpellID(slot) → Zauber-ID, auch aus Makros, die einen Zauber zeigen (Untertyp „spell“ oder GetMacroSpell)
       ClickBindings(kind) → { [actionID] = true } für Blizzards Klick-Zauber ("spell" oder "macro"); liest über
           Core.ClickBindings.IDs (eine Stelle für C_ClickBindings, ClickBindings.lua)
@@ -56,6 +61,44 @@ function AS.IsBonusPage(page, class)
     return false
 end
 
+-- Wie Blizzards ActionBarController (Build 1.60.1.71091): HasBonusActionBar → GetBonusBarIndex; ältere Clients über
+-- GetBonusBarOffset + 6. Andere Seiten als 7–10 (Sonderleisten) zählen nicht.
+function AS.BonusPage()
+    local api, page = C_ActionBar or {}, nil
+    if api.HasBonusActionBar and api.GetBonusBarIndex then
+        if Core.Plain((Core.Call(api.HasBonusActionBar))) ~= true then return nil end
+        page = Core.Num((Core.Call(api.GetBonusBarIndex)))
+    else
+        local offset = Core.Num((Core.Call(rawget(_G, "GetBonusBarOffset"))))
+        if offset and offset > 0 then page = offset + 6 end
+    end
+    return page and page >= 7 and page <= 10 and page or nil
+end
+
+function AS.MainPage()
+    local api = C_ActionBar or {}
+    for _, name in ipairs({ "HasVehicleActionBar", "HasOverrideActionBar", "HasTempShapeshiftActionBar" }) do
+        local value = Core.Call(api[name] or rawget(_G, name))
+        if Core.IsSecret(value) or value == true then return nil, "vehicle" end
+    end
+    -- Haltungen zählen bei Blizzard nur auf Seite 1
+    local shown = Core.Num((Core.Call(api.GetActionBarPage or rawget(_G, "GetActionBarPage"))))
+    if shown and shown ~= 1 then return nil, "page", shown end
+    return AS.BonusPage() or 1
+end
+
+function AS.BarShown(page)
+    local info = AS.BLIZZARD_PAGES[Core.Num(page) or 0]
+    if not info then return nil end
+    local check = rawget(_G, info.visible)
+    if type(check) == "function" then
+        local value = Core.Plain((Core.Call(check)))
+        if value ~= nil then return value == true end
+    end
+    local frame = rawget(_G, info.frame)
+    return type(frame) == "table" and type(frame.IsShown) == "function" and Core.Plain((Core.Call(frame.IsShown, frame))) == true
+end
+
 function AS.IsUsable(slot)
     slot = Core.Num(slot)
     return slot ~= nil and slot >= 1 and slot == math.floor(slot) and (slot <= 120 or (slot >= 145 and slot <= AS.MAX))
@@ -91,6 +134,13 @@ function AS.Texture(slot)
     return Core.Plain(Core.Call((C_ActionBar and C_ActionBar.GetActionTexture) or rawget(_G, "GetActionTexture"), slot))
 end
 
+function AS.Text(slot)
+    slot = Core.Num(slot)
+    if not slot then return nil end
+    local text = Core.Plain((Core.Call((C_ActionBar and C_ActionBar.GetActionText) or rawget(_G, "GetActionText"), slot)))
+    return type(text) == "string" and text ~= "" and text or nil
+end
+
 -- Art, ID, Untertyp ohne geheime Werte; nil für leere oder gesperrte Plätze.
 local function Raw(slot)
     slot = Core.Num(slot)
@@ -114,11 +164,10 @@ end
 function AS.Info(slot)
     local kind, id, subType = Raw(slot)
     if not kind then return nil end
-    local text = Core.Plain(Core.Call(rawget(_G, "GetActionText"), slot))
     return {
         kind = kind, id = id,
         subType = type(subType) == "string" and subType ~= "" and subType or nil,
-        text = type(text) == "string" and text ~= "" and text or nil,
+        text = AS.Text(slot),
         texture = AS.Texture(slot),
     }
 end

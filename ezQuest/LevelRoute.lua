@@ -30,9 +30,12 @@ local Core = ezCore
                   Gespeichert wird nur, welche Quests die Route selbst in Blizzards Verfolgung aufgenommen hat
                   (ezQuestDB.routeWatched[charKey], nur IDs), damit sie nach /reload wieder herauskommen.
       bei dir     besuchte Händler (Core.Npcs), eigene Sammel-Stellen (Core.Gathering.Nodes, cnt ≥ 2).
-    Rechnung: Stationen je offenem Teilziel (Ort der dichtesten Gruppe seiner Fundorte, nie die Mitte aller) und je
-    Abgabe (erst nach allen Zielen der Quest – Vorrang); Weg in Weltkoordinaten (Core.Route.WorldDistance, Yards),
-    Zeit = Weg / LR.SPEED + Arbeit am Ziel; Bewertung = Summe der EP mal Ankunftszeit der Abgaben (viel EP früh) plus
+    Rechnung: Stationen je offenem Teilziel und je Abgabe (erst nach allen Zielen der Quest – Vorrang). Seit der
+    Entscheidung des Nutzers vom 22.11.2026 („Gebiet mit Rundgang (Empfohlen)“) ist ein Teilziel ein Gebiet aus den
+    Nestern seiner Fundorte laut Questie mit einem Rundgang durch so viele Nester, wie die Restzahl braucht; Blizzards
+    Questpunkt wählt nur das Gebiet (RouteAreas.lua, dort Begriffe, Wahl und Navigation). Weg in Weltkoordinaten
+    (Core.Route.WorldDistance, Yards) vom Ausgang des vorigen Schritts (LR.LegDist), Zeit = Weg / LR.SPEED + Rundgang
+    + Arbeit am Ziel; Bewertung = Summe der EP mal Ankunftszeit der Abgaben (viel EP früh) plus
     eine große Strafe je Quest, die bis zu ihrer Abgabe grau würde (Stufe entlang des Wegs hochgerechnet). Die EP jeder
     Abgabe zählen mit dem Stufenabstand gewichtet (Spieltest vom 20.11.2026; LR.Weight): orange und rot laut Client bei
     der Stufe an dieser Stelle drängen weniger nach vorn, ebenso jetzt schon graue und – ohne Gruppe – Elite-, Gruppen-
@@ -69,7 +72,8 @@ local Core = ezCore
     „Zielverfolgung einschalten“ gilt, ab Werk aus. Die Verfolgung (routeWatch) gibt es nur mit Haken, ab Werk aus und
     im Menü der Route sichtbar.
     Schätzwerte (Vermutungen, im Tooltip „geschätzt“): LR.SPEED, LR.WORK, LR.TURNIN, LR.VENDOR_TIME, LR.GATHER_TIME,
-    LR.WORTH, die Hochrechnung der Stufe (je weitere Stufe so viele EP wie die jetzige) und LR.TRIVIAL_FALLBACK.
+    LR.WORTH, die Hochrechnung der Stufe (je weitere Stufe so viele EP wie die jetzige) und ohne Antwort des Clients
+    die Grenze „grau“ (ezCores Core.QuestDifficulty mit seinem Rückfall Core.QUEST_TRIVIAL_FALLBACK).
 ]]
 
 local LR = {}
@@ -79,6 +83,7 @@ LR.OWNER = "ezQuest.route"
 LR.PATH_FAMILY = "gold"  -- Farbfamilie der Linie in ezMap (Gold bis Orange; die Sammel-Route ist blau, Spieltest 19.11.2026)
 LR.SPEED = 7            -- Yards je Sekunde zu Fuß (Vermutung: warcraft.wiki.gg „Movement speed“, Classic)
 LR.WORK = 20            -- Sekunden je Einheit eines Ziels (Gegner, Gegenstand, Objekt; Vermutung)
+LR.PLACES = 120         -- Fundorte je Teilziel laut Questie (ezCores Vorgabe 60 schnitte bei Beute vieler Gegner Gebiete ab)
 LR.WORK_MAX = 15        -- höchstens so viele Einheiten je Teilziel gezählt
 LR.TURNIN = 10          -- Sekunden je Abgabe (Vermutung)
 LR.VENDOR_TIME = 30     -- Sekunden je Händlerhalt (Vermutung)
@@ -106,7 +111,6 @@ LR.SMOOTH_ROUNDS = 20   -- höchstens so viele Verschiebungen gegen das Hin und 
 LR.NEXT_BONUS = 1.5     -- Gewicht der Abgabe einer Quest mit Folgequest (die Kette läuft dort gleich weiter)
 LR.TIMED_BONUS = 3      -- Gewicht einer Quest mit Zeitlimit (kommt nach vorn)
 LR.GREY_PENALTY = 1e12  -- Strafe je Quest, die bis zu ihrer Abgabe grau würde
-LR.TRIVIAL_FALLBACK = Core.QUEST_TRIVIAL_FALLBACK or 5 -- Stufen unter dir, ab denen grau gilt ohne Client (Vermutung)
 -- Stufenabstand (Spieltest vom 20.11.2026, wörtlich „optimiert wäre es an lvl stufe bzw lvl differenz von questlevel zu
 -- meinem lvl und zeit ersparnis“): Gewicht der Abgabe je Farbe der Quest laut Client (Core.QuestDifficulty) bei der
 -- Stufe, die du an dieser Stelle der Route voraussichtlich hast. Kleiner heißt: drängt weniger nach vorn (Vermutungen).
@@ -356,7 +360,7 @@ end
 local function QuestiePlaces(questID, zone)
     local Q = Core.Sources and Core.Sources.Questie
     if not (Q and type(Q.QuestPlaces) == "function") then return nil end
-    local ok, places = pcall(Q.QuestPlaces, questID, zone and { map = zone } or nil)
+    local ok, places = pcall(Q.QuestPlaces, questID, { map = zone, places = LR.PLACES })
     return ok and type(places) == "table" and places or nil
 end
 
@@ -364,11 +368,21 @@ end
 -- Stationen
 ---------------------------------------------------------------------------
 
--- Grenze „grau“ laut Client (UnitQuestTrivialLevelRange), sonst LR.TRIVIAL_FALLBACK (Vermutung) → Stufen, Quelle
-function LR.TrivialRange()
-    local range = Num(Call(rawget(_G, "UnitQuestTrivialLevelRange"), "player"))
-    if range and range >= 0 then return range, "client" end
-    return LR.TRIVIAL_FALLBACK, "estimate"
+-- Grenze „grau“ über ezCores Core.QuestDifficulty (ein Helfer, ein Rückfall; Leitlinie 2): so viele Stufen unter
+-- level (Standard: deine Stufe) ist eine Quest noch nicht grau. Die erste Stufe, die ezCore „trivial“ nennt, setzt die
+-- Grenze; die Quelle ist ezCores („client“ laut Blizzards DifficultyUtil, sonst „estimate“ nach denselben Grenzen mit
+-- UnitQuestTrivialLevelRange bzw. Core.QUEST_TRIVIAL_FALLBACK). → Stufen, Quelle
+function LR.TrivialRange(level)
+    level = Num(level) or Core.PlayerLevel()
+    if not level or level < 1 then return Core.QUEST_TRIVIAL_FALLBACK, "estimate" end
+    level = math.floor(level)
+    local src = "estimate"
+    for d = 0, level - 1 do
+        local key, s = Core.QuestDifficulty(level - d, level)
+        src = s or src
+        if key == "trivial" then return math.max(0, d - 1), src end
+    end
+    return level - 1, src   -- bis Stufe 1 nichts grau
 end
 
 -- Was ezQuest zum Rechnen braucht: Ort des Spielers, Zone, Stufe, Erfahrung, Einstellungen → ctx oder nil, Grund
@@ -381,7 +395,7 @@ function LR.Context()
     local xp = Num(Call(rawget(_G, "UnitXP"), "player")) or 0
     local xpMax = Num(Call(rawget(_G, "UnitXPMax"), "player"))
     if not xpMax or xpMax <= 0 then xpMax = nil end
-    local range, rangeSrc = LR.TrivialRange()
+    local range, rangeSrc = LR.TrivialRange(level)
     return { start = start, zone = ZoneOf(map), continent = start.continent, level = level, xp = xp, xpMax = xpMax,
         range = range, rangeSrc = rangeSrc, hard = ns.Enabled("routeHard"), detour = Num(ns.S and ns.S.routeDetour) or 60,
         alone = not LR.InGroup() }
@@ -473,10 +487,14 @@ function LR.Weight(q, level, ctx)
     return w
 end
 
-local function Work(o)
+-- Offene Einheiten eines Teilziels laut Client (mindestens 1; ohne Angabe 1)
+function LR.Units(o)
     local need, have = Num(o.need), Num(o.have) or 0
-    local units = need and math.max(1, need - have) or 1
-    return LR.WORK * math.min(units, LR.WORK_MAX)
+    return need and math.max(1, need - have) or 1
+end
+
+local function Work(o)
+    return LR.WORK * math.min(LR.Units(o), LR.WORK_MAX)
 end
 
 local function Station(kind, q, place, src)
@@ -513,6 +531,10 @@ end
     einen Ort in deiner Zone hat (Entscheidung 10: eigene Zone und alle Abgaben). Gründe: "elite", "dungeon", "high"
     (nur mit „Schwere Quests einplanen“ aus), "zone" (Ziel in einer anderen Zone), "continent", "noplace" (Ziel ohne Ort),
     "noturnin" (Abgabe ohne Ort), "capped" (mehr als LR.MAX_STATIONS Stationen). tick (freiwillig) zählt Rechenschritte.
+    Ein Ziel ist seit dem 22.11.2026 ein Gebiet mit Rundgang (RouteAreas.lua: LR.AreaPart, LR.BuildTour); der Ort der
+    Station ist das erste Nest ihres Rundgangs, s.parts nennt die Teilziele (je { quest, obj, area … }). Blizzards Punkt
+    der Quest wählt das Gebiet; ohne Fundorte laut Questie – oder liegen sie bei keinem Gebiet um ihn – bleibt er allein
+    der Ort (wie vorher).
 ]]
 function LR.Stations(quests, ctx, client, tick)
     local stations, after, outside = { ctx.start }, {}, {}
@@ -528,76 +550,90 @@ function LR.Stations(quests, ctx, client, tick)
         local list = {}
         local qp
         if not reason then
+            -- Blizzards Punkt der Quest (offene Ziele: ihr Gebiet; fertige Quest: die Abgabe)
+            local cp
+            local c = client[q.id]
+            if c then
+                cp = { map = c.map, x = c.x, y = c.y }
+                if World(cp) then cp.zone = ZoneOf(cp.map) else cp = nil end
+            end
+            qp = QuestiePlaces(q.id, ctx.zone) or false
+            -- Abgabe zuerst (die Rundgänge der Ziele treten zu ihr hin aus); ihre Gründe zählen wie bisher erst nach
+            -- denen der Ziele. Ort laut Spiel (fertige Quest), sonst laut Questie. Name des NPC und Folgequest kommen
+            -- laut Questie auch zum Ort laut Spiel – sonst bündelte die Route zwei Abgaben beim selben NPC nie und nennte
+            -- ihn nicht (Fund der Gegenprüfung vom 17.11.2026)
+            local turn, turnSrc, nameSrc
+            if q.complete and cp then
+                turn, turnSrc = { map = cp.map, x = cp.x, y = cp.y, zone = cp.zone, continent = cp.continent, wx = cp.wx,
+                    wy = cp.wy }, "client"
+            end
+            local finish = qp and type(qp.finish) == "table" and #qp.finish > 0 and LR.BestPlace(qp.finish, ctx, tick)
+                or nil
+            if not turn then
+                turn, turnSrc = finish, finish and "questie" or nil
+            elseif finish and finish.name and finish.continent == turn.continent
+                and R().WorldDistance(turn, finish) <= LR.NAME_NEAR then
+                turn.name, nameSrc = finish.name, "questie"
+            end
             -- Ziele
             if not q.complete then
                 local used = {}
+                local to = turn and turn.continent == ctx.continent and turn or nil
                 for _, o in ipairs(q.objectives) do
                     if not o.done and not reason then
-                        local place, groups, home, src
-                        local c = client[q.id]
-                        if c then
-                            place = { map = c.map, x = c.x, y = c.y }
-                            if World(place) then place.zone, groups, home, src = ZoneOf(place.map), 1, true, "client" else place = nil end
+                        o.qid = q.id
+                        local e = qp and LR.MatchObjective(o, qp, used)
+                        local part, why
+                        if e then part, why = LR.AreaPart(q, o, e, ctx, to, cp, tick) end
+                        local s
+                        if part then
+                            s = Station("obj", q, ctx.start, "questie")
+                            s.parts, s.groups, s.name = { part }, part.groups, part.name
+                            if not LR.BuildTour(s, part.anchor, to, tick) then s, why = nil, "noplace" end
                         end
-                        if not place then
-                            qp = qp or QuestiePlaces(q.id, ctx.zone) or false
-                            local e = qp and LR.MatchObjective(o, qp, used)
-                            if e then
-                                place, groups, home = LR.BestPlace(e.places, ctx, tick)
-                                src = "questie"
-                                if place and not place.name then place.name = e.name end
+                        if s then
+                            -- Ziele derselben Quest, deren Nester sich überschneiden, sind ein Schritt mit gemeinsamem
+                            -- Rundgang (vorher: bis LR.MERGE Yards um einen Punkt; Spielbefund vom 18.11.2026)
+                            LR.SyncParts(s)
+                            local into
+                            for _, t in ipairs(list) do
+                                if t.kind == "obj" and t.tour and LR.Overlap(t, s) then into = t break end
                             end
-                        end
-                        if not place then
-                            reason = "noplace"
-                        elseif place.continent ~= ctx.continent then
-                            reason = "continent"
-                        elseif not home or place.zone ~= ctx.zone then
-                            reason = "zone"
-                        else
-                            -- Ziele derselben Quest in derselben Gegend (bis LR.MERGE Yards; laut Spiel steht jede Quest
-                            -- an einem Punkt) sind ein Schritt (Spielbefund vom 18.11.2026: „lvl route wirkt komisch“ –
-                            -- vorher je Ziel ein Schritt am selben Ort, auf der Karte Knicke ohne eigenes Ziel)
-                            local s = LR.SameArea(list, place)
-                            if s then
-                                s.objs = s.objs or { s.obj }
-                                s.objs[#s.objs + 1] = o
-                                s.work = s.work + Work(o)
-                                s.groups = math.max(s.groups or 1, groups or 1)
+                            if into then
+                                LR.AddParts(into, s)
+                                LR.BuildTour(into, into.parts[1].anchor or ctx.start, to, tick)
                             else
-                                s = Station("obj", q, place, src)
-                                s.obj, s.work, s.groups = o, Work(o), groups
                                 list[#list + 1] = s
                             end
+                        elseif cp then
+                            -- Blizzards Punkt allein. Ziele derselben Quest am selben Punkt sind ein Schritt (laut Spiel
+                            -- steht jede Quest an einem Punkt; Spielbefund vom 18.11.2026: „lvl route wirkt komisch“ –
+                            -- vorher je Ziel ein Schritt am selben Ort, auf der Karte Knicke ohne eigenes Ziel)
+                            local cpart = { quest = q, obj = o, src = "client" }
+                            s = LR.SameArea(list, cp)
+                            if s then
+                                s.parts[#s.parts + 1] = cpart
+                                s.work = s.work + Work(o)
+                            else
+                                s = Station("obj", q, cp, "client")
+                                s.parts, s.work, s.groups = { cpart }, Work(o), 1
+                                list[#list + 1] = s
+                            end
+                            LR.SyncParts(s)
+                        else
+                            reason = (why == "zone" or why == "continent") and why or "noplace"
                         end
                     end
                 end
             end
-            -- Abgabe: Ort laut Spiel (fertige Quest), sonst laut Questie. Name des NPC und Folgequest kommen laut Questie
-            -- auch zum Ort laut Spiel – sonst bündelte die Route zwei Abgaben beim selben NPC nie und nennte ihn nicht
-            -- (Fund der Gegenprüfung vom 17.11.2026)
+            -- Abgabe
             if not reason then
-                local place, src, nameSrc
-                local c = client[q.id]
-                if q.complete and c then
-                    place = { map = c.map, x = c.x, y = c.y }
-                    if World(place) then place.zone, src = ZoneOf(place.map), "client" else place = nil end
-                end
-                if qp == nil then qp = QuestiePlaces(q.id, ctx.zone) or false end
-                local finish = qp and type(qp.finish) == "table" and #qp.finish > 0 and LR.BestPlace(qp.finish, ctx, tick)
-                    or nil
-                if not place then
-                    place, src = finish, finish and "questie" or nil
-                elseif finish and finish.name and finish.continent == place.continent
-                    and R().WorldDistance(place, finish) <= LR.NAME_NEAR then
-                    place.name, nameSrc = finish.name, "questie"
-                end
-                if not place then
+                if not turn then
                     reason = "noturnin"
-                elseif place.continent ~= ctx.continent then
+                elseif turn.continent ~= ctx.continent then
                     reason = "continent"
                 else
-                    local s = Station("turnin", q, place, src)
+                    local s = Station("turnin", q, turn, turnSrc)
                     s.work, s.xp, s.nameSrc = LR.TURNIN, q.xp, nameSrc
                     s.next = qp and qp.next or nil
                     list[#list + 1] = s
@@ -625,19 +661,28 @@ end
 -- Bewertung: Zeit, EP-gewichtete Ankunft, Stufe entlang des Wegs
 ---------------------------------------------------------------------------
 
--- Abstandstabelle (Yards) einmal je Rechnung → dist(a, b) über die Indizes der Stationen (tick: je Zeile)
+-- Abstandstabelle (Yards) einmal je Rechnung → dist(a, b) über die Indizes der Stationen (tick: je Zeile). Von einem
+-- Ziel mit Rundgang geht der Weg an dessen letztem Nest weiter (LR.LegDist): dann ist die Tabelle nicht symmetrisch
+-- und wird ganz gerechnet, sonst nur zur Hälfte wie vorher.
 function LR.DistanceTable(stations, tick)
     local D, dist = {}, R().WorldDistance
+    local tours = false
     for i = 1, #stations do
         D[i] = {}
         stations[i].i = i
+        if stations[i].tour then tours = true end
     end
     for i = 1, #stations do
-        for j = i, #stations do
-            local d = i == j and 0 or dist(stations[i], stations[j])
-            D[i][j], D[j][i] = d, d
+        if tours then
+            for j = 1, #stations do D[i][j] = i == j and 0 or LR.LegDist(stations[i], stations[j]) end
+            if tick then tick(#stations) end
+        else
+            for j = i, #stations do
+                local d = i == j and 0 or dist(stations[i], stations[j])
+                D[i][j], D[j][i] = d, d
+            end
+            if tick then tick(#stations - i + 1) end
         end
-        if tick then tick(#stations - i + 1) end
     end
     return function(a, b) return D[a.i][b.i] end
 end
@@ -713,7 +758,12 @@ local function StepsValid(stations, order)
     local handed = {}
     for pos = 2, #order do
         local s = stations[order[pos]]
-        if s.kind == "obj" and s.quest and handed[s.quest.id] then return false end
+        if s.kind == "obj" then
+            -- auch ein gemeinsamer Rundgang mehrerer Quests (LR.JoinAreas): keine ihrer Abgaben davor
+            for _, q in ipairs(LR.QuestsOf(s)) do
+                if handed[q.id] then return false end
+            end
+        end
         if s.kind == "turnin" then
             for _, q in ipairs(LR.QuestsOf(s)) do handed[q.id] = true end
         end
@@ -937,8 +987,11 @@ end
     etwas später brächte – auf der Karte sieht das wie ein Umweg aus. Kreuzen sich zwei Strecken (Lage in Weltkoordinaten,
     echter Schnitt, nicht nur Berührung), dreht LR.Uncross das Stück dazwischen um (2-opt); genommen wird es nur, wenn
     der Vorrang hält (jedes Ziel vor seiner Abgabe), keine Quest zusätzlich grau wird und keine Quest mit Zeitlimit
-    später ankommt – dieselben Bedingungen wie LR.Smooth. Ein Umdrehen kürzt den Weg immer. Höchstens
-    LR.UNCROSS_ROUNDS Züge je Rechnung; tick (freiwillig) zählt den Aufwand. → Zahl der Züge
+    später ankommt – dieselben Bedingungen wie LR.Smooth. Ohne Rundgänge kürzt ein Umdrehen den Weg immer; seit den
+    Gebieten mit Rundgang (22.11.2026) beginnt eine Strecke am letzten Nest des vorigen Schritts (LR.Exit), und ein
+    umgedrehtes Stück läuft seine Rundgänge von der anderen Seite – darum zählt die Kreuzung ab LR.Exit, und genommen wird
+    ein Zug nur, wenn die Route dadurch kürzer wird (Review vom 22.11.2026). Höchstens LR.UNCROSS_ROUNDS Züge je
+    Rechnung; tick (freiwillig) zählt den Aufwand. → Zahl der Züge
 ]]
 LR.UNCROSS_ROUNDS = 30
 
@@ -959,12 +1012,19 @@ function LR.Crosses(a, b, c, d)
     return o1 ~= 0 and o2 ~= 0 and o3 ~= 0 and o4 ~= 0 and o1 ~= o2 and o3 ~= o4
 end
 
+-- Kreuzen sich die gelaufenen Strecken i → i+1 und j → j+1 einer Reihenfolge? Eine Strecke beginnt am letzten Nest
+-- eines Rundgangs (LR.Exit) → true | false
+local function LegsCross(stations, order, i, j)
+    return LR.Crosses(LR.Exit(stations[order[i]]), stations[order[i + 1]], LR.Exit(stations[order[j]]),
+        stations[order[j + 1]])
+end
+
 -- Zahl der Kreuzungen einer Reihenfolge (für die Prüfungen)
 function LR.Crossings(stations, order)
     local n = 0
     for i = 1, #order - 1 do
         for j = i + 2, #order - 1 do
-            if LR.Crosses(stations[order[i]], stations[order[i + 1]], stations[order[j]], stations[order[j + 1]]) then
+            if LegsCross(stations, order, i, j) then
                 n = n + 1
             end
         end
@@ -986,8 +1046,7 @@ function LR.Uncross(stations, order, dist, ctx, after, tick)
             for j = i + 2, #order - 1 do
                 if tick then tick(1) end
                 local key = order[i] .. ":" .. order[i + 1] .. ":" .. order[j] .. ":" .. order[j + 1]
-                if not tried[key] and LR.Crosses(stations[order[i]], stations[order[i + 1]], stations[order[j]],
-                    stations[order[j + 1]]) then
+                if not tried[key] and LegsCross(stations, order, i, j) then
                     local cand = {}
                     for k, v in ipairs(order) do cand[k] = v end
                     local lo, hi = i + 1, j
@@ -998,7 +1057,8 @@ function LR.Uncross(stations, order, dist, ctx, after, tick)
                     if tick then tick(3 * #cand) end     -- Kopie, Vorrang, Zeit
                     local ok = Valid(cand, after)
                     local w = ok and LR.Walk(stations, cand, dist, ctx) or nil
-                    if w and Greys(w) <= grey and not TimedLater(cand, w, timed)
+                    -- nur kürzer (mit Rundgängen ist das nicht mehr selbstverständlich, Review vom 22.11.2026)
+                    if w and w.total < walk.total - 1e-9 and Greys(w) <= grey and not TimedLater(cand, w, timed)
                         and not HeldWorse(stations, cand, ctx, held, w.cost) then
                         for k, v in ipairs(cand) do order[k] = v end
                         walk, grey, moved, changed = w, Greys(w), moved + 1, true
@@ -1141,7 +1201,8 @@ function LR.AddVendor(steps, from, detourMax)
         for at = 1, stop do
             local prev = at == 1 and from or steps[at - 1]
             local nxt = steps[at]
-            local d = dist(prev, v) + (nxt and (dist(v, nxt) - dist(prev, nxt)) or 0)
+            -- vom Ausgang eines Rundgangs aus (RouteAreas.lua: LR.LegDist)
+            local d = LR.LegDist(prev, v) + (nxt and (dist(v, nxt) - LR.LegDist(prev, nxt)) or 0)
             if d < math.huge and (not bestD or d < bestD) then best, bestAt, bestD = v, at, d end
         end
     end
@@ -1207,7 +1268,8 @@ function LR.AddGather(steps, from, zone, detourMax)
             local best, bestD
             for i, n in ipairs(nodes) do
                 if not used[i] then
-                    local d = dist(prev, n) + dist(n, nxt) - dist(prev, nxt)
+                    -- vom Ausgang eines Rundgangs aus (RouteAreas.lua: LR.LegDist)
+                    local d = LR.LegDist(prev, n) + dist(n, nxt) - LR.LegDist(prev, nxt)
                     if d < math.huge and d <= detourMax and (not bestD or d < bestD) then best, bestD = i, d end
                 end
             end
@@ -1267,7 +1329,8 @@ end
 local function Totals(steps, ctx)
     local stations, order = { ctx.start }, { 1 }
     for i, s in ipairs(steps) do stations[i + 1], order[i + 1] = s, i + 1 end
-    local walk = Walk(stations, order, R().WorldDistance, ctx, true)
+    -- vom Ausgang des vorigen Schritts zum laufenden Nest des nächsten (RouteAreas.lua: LR.Exit, LR.Spot)
+    local walk = Walk(stations, order, function(a, b) return R().WorldDistance(LR.Exit(a), LR.Spot(b)) end, ctx, true)
     local known = true
     for _, s in ipairs(steps) do
         for _, q in ipairs(LR.QuestsOf(s)) do
@@ -1337,11 +1400,16 @@ local function Finish(stations, order, dist, ctx, outside, sources, tick, after)
     LR.ZoneLast(stations, order, ctx)
     local steps = {}
     for pos = 2, #order do steps[#steps + 1] = stations[order[pos]] end
+    -- Ziele mehrerer Quests mit sich überschneidenden Nestern: ein Schritt mit gemeinsamem Rundgang (vor dem Bündeln
+    -- der Abgaben – dazwischen stehen danach womöglich Abgaben beim selben NPC direkt hintereinander)
+    LR.JoinAreas(steps, ctx, tick)
     steps = Bundle(steps)
     local result = { steps = steps, outside = outside, t = time(), sources = sources, ctx = ctx, following = false }
     local added, vendor, detour, need, known = LR.AddVendor(steps, ctx.start, ctx.detour)
     if not added then result.vendorHint = LR.VendorHint(vendor, detour, need, known) end
     result.gather = LR.AddGather(steps, ctx.start, ctx.zone, ctx.detour)
+    -- Rundgänge mit den endgültigen Nachbarn: Eintritt von der Seite des vorigen, Austritt zum nächsten Schritt
+    LR.Tours(steps, ctx.start, tick)
     result.xp, result.seconds, result.level, result.xpKnown = Totals(steps, ctx)
     table.sort(outside, function(a, b)
         local la, lb = a.quest.level or 0, b.quest.level or 0
@@ -1436,6 +1504,9 @@ function LR.Compute(verbose, auto)
     local function Done(result, pending)
         local following = state and state.following
         local marked, chosen = state and state.marked, state and state.chosen
+        local markedNest = state and state.markedNest
+        -- ein begonnener Rundgang geht weiter, statt an deinem Ort von vorn zu beginnen (RouteAreas.lua)
+        ns.Try("LevelRouteKeep", LR.KeepWalks, state and state.steps, result.steps)
         state = result
         state.following = following or false
         state.at, state.auto, state.ms = Core.Now(), auto and true or false, t0 and spentMs or nil
@@ -1449,6 +1520,8 @@ function LR.Compute(verbose, auto)
             for _, s in ipairs(state.steps) do
                 if LR.SamePlace(s, marked) then
                     state.marked, state.chosen = s, chosen
+                    -- die Markierung steht schon dort, wenn auch das laufende Nest dasselbe ist (RouteAreas.lua)
+                    if LR.SamePlace(LR.Spot(s), markedNest) then state.markedNest = LR.Spot(s) end
                     break
                 end
             end
@@ -1620,10 +1693,13 @@ function LR.OnNewPlace()
 end
 
 -- Sitzt du auf einem Flugtier (UnitOnTaxi)? Gesperrt oder unbekannt gilt als nein – lieber eine Route als keine
-function LR.OnTaxi()
-    local onTaxi = rawget(_G, "UnitOnTaxi")
-    if type(onTaxi) ~= "function" then return false end
-    local raw = onTaxi("player")
+function LR.OnTaxi() return LR.PlayerFlag("UnitOnTaxi") end
+
+-- Ja/Nein-Abfrage des Clients zu dir (geheim oder unbekannt: nein) → true | false
+function LR.PlayerFlag(name)
+    local fn = rawget(_G, name)
+    if type(fn) ~= "function" then return false end
+    local raw = fn("player")
     if Core.IsSecret(raw) then return false end
     return Core.Bool(raw, false) == true
 end
@@ -1786,7 +1862,8 @@ function LR.StepText(s, n)
             if not o.done and o.text then texts[#texts + 1] = o.text end
         end
         local what = #texts > 0 and table.concat(texts, ", ") or (s.obj and s.obj.text) or s.name or ""
-        return head .. L.ROUTE_STEP_OBJ:format(s.quest.title, what)
+        -- gemeinsamer Rundgang mehrerer Quests (LR.JoinAreas): alle Titel
+        return head .. L.ROUTE_STEP_OBJ:format(s.quests and Quests(s) or s.quest.title, what)
     elseif s.kind == "turnin" then
         local who = s.name and (" – " .. s.name) or ""
         local xp = LR.ShownXP(s)
@@ -1850,7 +1927,11 @@ local function OpenAt(steps, n, k)
     if t.kind ~= "turnin" then return true end
     for j = n, k - 1 do
         local o = steps[j]
-        if o.kind == "obj" and HasQuest(t, o.quest.id) then return false end
+        if o.kind == "obj" then
+            for _, q in ipairs(LR.QuestsOf(o)) do
+                if HasQuest(t, q.id) then return false end
+            end
+        end
     end
     return true
 end
@@ -1879,12 +1960,12 @@ function LR.WhyHere(s)
     end
     local dist = R().WorldDistance
     lines[#lines + 1] = L.ROUTE_HERE_HEAD
-    local d = dist(prev, s)
+    local d = dist(LR.Exit(prev), s)      -- vom Ausgang eines Rundgangs (wie die Route rechnet)
     local nearK, nearD
     for k = n, #steps do
         local t = steps[k]
         if (t.kind == "obj" or t.kind == "turnin") and OpenAt(steps, n, k) then
-            local dk = dist(prev, t)
+            local dk = dist(LR.Exit(prev), t)
             if dk < math.huge and (not nearD or dk < nearD - 1e-6) then nearK, nearD = k, dk end
         end
     end
@@ -1925,10 +2006,23 @@ function LR.StepTip(s)
             if s.name and s.nameSrc == "questie" then lines[#lines + 1] = L.ROUTE_TIP_NAME_QUESTIE:format(s.name) end
             if s.next then lines[#lines + 1] = L.ROUTE_TIP_NEXT end
         else
-            for _, o in ipairs(LR.ObjsOf(s)) do
-                if o.need and not o.done then lines[#lines + 1] = L.ROUTE_TIP_PROGRESS:format(o.have or 0, o.need) end
+            local parts = s.parts
+            if not parts then
+                parts = {}
+                for _, o in ipairs(LR.ObjsOf(s)) do parts[#parts + 1] = { obj = o, quest = q } end
             end
-            if (s.groups or 1) > 1 then lines[#lines + 1] = L.ROUTE_TIP_GROUPS:format(s.groups - 1) end
+            for _, part in ipairs(parts) do
+                local o = part.obj
+                if o.need and not o.done then
+                    local line = L.ROUTE_TIP_PROGRESS:format(o.have or 0, o.need)
+                    lines[#lines + 1] = s.quests and (part.quest.title .. ": " .. line) or line
+                end
+            end
+            -- Gebiet und Rundgang laut Questie, geschätzt (RouteAreas.lua), mit den Grenzen; Blizzards Punkt allein: wie
+            -- vorher nur der Stand
+            local area = LR.AreaLines(s)
+            for _, line in ipairs(area) do lines[#lines + 1] = line end
+            if #area == 0 and (s.groups or 1) > 1 then lines[#lines + 1] = L.ROUTE_TIP_GROUPS:format(s.groups - 1) end
         end
     elseif s.kind == "vendor" then
         if s.need == "repair" then
@@ -1940,8 +2034,9 @@ function LR.StepTip(s)
         lines[#lines + 1] = L.ROUTE_TIP_GATHER:format(Num(s.cnt) or 0, math.floor((s.detour or 0) + 0.5))
     end
     for _, line in ipairs(LR.WhyHere(s)) do lines[#lines + 1] = line end
-    lines[#lines + 1] = L.ROUTE_TIP_PLACE:format(Core.MapName and Core.MapName(s.map) or tostring(s.map),
-        Core.Decimal((s.x or 0) * 100, 1), Core.Decimal((s.y or 0) * 100, 1))
+    local spot = LR.Spot(s)     -- Rundgang: das laufende Nest (RouteAreas.lua)
+    lines[#lines + 1] = L.ROUTE_TIP_PLACE:format(Core.MapName and Core.MapName(spot.map) or tostring(spot.map),
+        Core.Decimal((spot.x or 0) * 100, 1), Core.Decimal((spot.y or 0) * 100, 1))
     return table.concat(lines, "\n"), LR.SourceText(s.src)
 end
 
@@ -1955,7 +2050,7 @@ function LR.OutsideText(e)
     local why = L[REASONS[e.reason] or "ROUTE_WHY_NOPLACE"]
     if e.reason == "grey" then
         why = why:format(e.level or "?")
-        -- Leitlinie 11: ohne Antwort des Clients ist die Grenze „grau“ geschätzt (LR.TRIVIAL_FALLBACK)
+        -- Leitlinie 11: ohne Antwort des Clients ist die Grenze „grau“ geschätzt (LR.TrivialRange, ezCores Rückfall)
         if e.rangeSrc == "estimate" then why = why .. L.ROUTE_GREY_GUESS end
     elseif e.reason == "worth" then
         why = why:format(Core.Minutes(math.max(1, math.floor((e.extra or 0) / 60 + 0.5))), Core.FormatNumber(e.quest.xp or 0))
@@ -1979,7 +2074,10 @@ end
 local function Map() return Core.API("ezMap") end
 
 function LR.Title(s)
-    return L.ROUTE_WAY_TITLE:format(LR.StepText(s))
+    local title = L.ROUTE_WAY_TITLE:format(LR.StepText(s))
+    -- Rundgang: welches Nest (RouteAreas.lua)
+    if s.tour and #s.tour > 1 then title = title .. L.ROUTE_NEST:format(s.at or 1, #s.tour) end
+    return title
 end
 
 -- Derselbe Ort (Karte und Lage bis LR.SAME_PLACE)? Für Markierung und gewählten Schritt nach dem Neurechnen (Done).
@@ -2027,6 +2125,19 @@ end
 -- kommt. auto = true: Weiterrücken ohne Klick (LR.Follow) – der Pfeil folgt nur mit ezMaps wayTrack (ab Werk aus; seit
 -- Nr. 94 der Einstellungs-Prüfung vom 19.11.2026 ohne eigenen Haken routeArrow), dann ohne wiederholte Meldung einer
 -- Ablehnung (ezMap, opts.track = "auto"; Fund 2 des code-reviewers vor dem Merge).
+-- Blizzards Markierung über ezMap auf den laufenden Punkt des Schritts s (bei einem Rundgang das laufende Nest,
+-- LR.Spot) → ok, Fehlertext von ezMap. auto wie bei LR.Mark. Merkt sich das markierte Nest (state.markedNest).
+function LR.SetMark(s, auto)
+    local api = Map()
+    if not (api and type(api.SetWaypoint) == "function") then return false end
+    local spot = LR.Spot(s)
+    local opts = { owner = LR.OWNER, label = L.ROUTE_OWNER, quiet = true, noHistory = true }
+    if auto and not LR.ArrowHeld() then opts.track = "auto" end   -- ezMap schaltet den Pfeil nur mit wayTrack ein
+    local ok, err = api.SetWaypoint(spot.map, spot.x, spot.y, LR.Title(s), opts)
+    if ok and state then state.markedNest = spot end
+    return ok, err
+end
+
 function LR.Mark(n, verbose, auto)
     local s = state and state.steps[n or 1]
     if not s then return false, "none" end
@@ -2036,9 +2147,7 @@ function LR.Mark(n, verbose, auto)
         if verbose then ns.Print(L.ROUTE_NO_EZMAP) end
         return false, "nomap"
     end
-    local opts = { owner = LR.OWNER, label = L.ROUTE_OWNER, quiet = true, noHistory = true }
-    if auto and not LR.ArrowHeld() then opts.track = "auto" end   -- ezMap schaltet den Pfeil nur mit wayTrack ein
-    local ok, err = api.SetWaypoint(s.map, s.x, s.y, LR.Title(s), opts)
+    local ok, err = LR.SetMark(s, auto)
     if not ok then
         if verbose and err then ns.Print(err) end
         return false, "failed"
@@ -2050,6 +2159,7 @@ function LR.Mark(n, verbose, auto)
     -- der davor eingefügt wird (Fund der Gegenprüfung vom 17.11.2026)
     state.chosen = (verbose and not auto and (n or 1) > 1) and true or false
     if verbose and not auto then LR.SayNoArrow(api) end
+    ns.Try("LevelRouteNest", LR.UpdateNestTicker)     -- Rundgang: von Nest zu Nest (RouteAreas.lua)
     return true
 end
 
@@ -2063,7 +2173,9 @@ function LR.Follow()
     local owner = api.WaypointOwner()
     if owner == LR.OWNER then
         if #state.steps > 0 then
-            if state.marked == state.steps[1] then return end
+            -- derselbe Schritt, dasselbe Nest (ein noch nicht begonnener Rundgang plant nach Änderungen von deinem Ort
+            -- aus neu, LR.Retour – dann zieht die Markierung zum neuen ersten Nest)
+            if state.marked == state.steps[1] and state.markedNest == LR.Spot(state.steps[1]) then return end
             if state.chosen then
                 for _, s in ipairs(state.steps) do
                     if s == state.marked then return end
@@ -2115,22 +2227,28 @@ end
 -- Pfeil auf der Minikarte zum nächsten Schritt (Spieltest des Nutzers vom 19.11.2026, wörtlich „einen kleinen pfeil für
 -- die leveling route anzeigen, aber so dass es gut sichtbar ist aber nicht stört“): ezMap zeichnet ihn an Blizzards
 -- Minimap (ShowMiniArrow), der Schalter routeMiniArrow (ab Werk an, eine reine Anzeige) steht hier. Unabhängig von der
--- Linie auf der Weltkarte. → true, wenn gezeigt
+-- Linie auf der Weltkarte. Springen im Questgebiet, Aufleuchten und Zeile: RouteAreas.lua („Pfeil auf der Minikarte“,
+-- Wunsch vom 24.11.2026). → true, wenn gezeigt
 function LR.DrawArrow()
     local api = Map()
     if not (api and type(api.ShowMiniArrow) == "function" and type(api.ClearMiniArrow) == "function") then return false end
-    local s = state and state.steps[1]
-    if not (s and ns.Enabled("levelRoute") and ns.Enabled("routeMiniArrow")) then
+    if not LR.ArrowWanted() then
         api.ClearMiniArrow(LR.OWNER)
+        LR.ForgetArrow()
         return false
     end
-    return api.ShowMiniArrow(LR.OWNER, { map = s.map, x = s.x, y = s.y },
-        { family = LR.PATH_FAMILY, size = ns.S and ns.S.routeMiniArrowSize }) == true
+    local s = state.steps[1]
+    local spot = LR.Spot(s)      -- Rundgang: zum laufenden Nest (RouteAreas.lua)
+    local pulse = LR.NoteJump(s, spot)
+    LR.arrowText = LR.ArrowText()
+    return api.ShowMiniArrow(LR.OWNER, { map = spot.map, x = spot.x, y = spot.y }, { family = LR.PATH_FAMILY,
+        size = ns.S and ns.S.routeMiniArrowSize, near = "fade", text = LR.arrowText, pulse = pulse }) == true
 end
 
 function LR.DrawPath()
     local api = Map()
     ns.Try("LevelRouteArrow", LR.DrawArrow)
+    ns.Try("LevelRouteArea", LR.DrawArea)      -- Nester und Rundgang des laufenden Schritts (RouteAreas.lua)
     if not (api and type(api.ShowPath) == "function") then return 0 end
     if not (state and ns.Enabled("routeLine") and #state.steps >= 1) then
         api.ClearPath(LR.OWNER)
@@ -2138,7 +2256,9 @@ function LR.DrawPath()
     end
     local pts = {}
     for n, s in ipairs(state.steps) do
-        local p = { map = s.map, x = s.x, y = s.y, label = LR.StepText(s, n), target = LR.StepText(s) }
+        -- ein Schritt mit Rundgang steht mit seinem laufenden Nest in der Linie; die übrigen Nester zeigt LR.DrawArea
+        local spot = LR.Spot(s)
+        local p = { map = spot.map, x = spot.x, y = spot.y, label = LR.StepText(s, n), target = LR.StepText(s) }
         if s.kind == "gather" then p.icon = LR.GatherIcon(s) end
         pts[#pts + 1] = p
     end
@@ -2238,10 +2358,14 @@ function LR.Retotal()
 end
 
 function LR.Changed()
+    ns.Try("LevelRouteAreas", LR.MarkAreas)     -- gewählte Gebiete merken (RouteAreas.lua)
+    -- ein noch nicht begonnener Rundgang des ersten Schritts plant von deinem Ort aus neu (RouteAreas.lua)
+    ns.Try("LevelRouteRetour", LR.Retour)
     ns.Try("LevelRouteTotals", LR.Retotal)
     ns.Try("LevelRouteFollow", LR.Follow)
     ns.Try("LevelRoutePath", LR.DrawPath)
     ns.Try("LevelRouteWatch", LR.Watch)
+    ns.Try("LevelRouteNest", LR.UpdateNestTicker)
 end
 
 -- Schritt n entfernen (übersprungen: in die Liste „nicht in der Route“) → der Schritt oder nil
@@ -2269,11 +2393,18 @@ function LR.Clear(verbose)
     LR.Cancel()
     local api = Map()
     if api and type(api.OwnsWaypoint) == "function" and api.OwnsWaypoint(LR.OWNER) then api.ClearWaypoint() end
-    if api and type(api.ClearPath) == "function" then api.ClearPath(LR.OWNER) end
+    if api and type(api.ClearPath) == "function" then
+        api.ClearPath(LR.OWNER)
+        api.ClearPath(LR.OWNER_AREA)        -- Nester und Rundgang (RouteAreas.lua)
+    end
     if api and type(api.ClearMiniArrow) == "function" then api.ClearMiniArrow(LR.OWNER) end
+    LR.ForgetArrow()
     local had = state ~= nil
     state = nil
+    ns.Try("LevelRouteNest", LR.UpdateNestTicker)     -- ohne Route kein Blick auf deinen Ort
     LR.skipped, LR.skippedHalts = {}, {}
+    -- besuchte Nester und gewählte Gebiete gelten nur, solange eine Route besteht (RouteAreas.lua)
+    LR.visited, LR.unlocked, LR.areaMark = {}, {}, {}
     -- verworfen per Klick bzw. /ezq route aus: nicht gleich wieder von selbst rechnen (bis zum nächsten „Route berechnen“)
     if verbose then LR.autoHeld = true end
     ns.Try("LevelRouteWatch", LR.Watch)     -- eigene Aufnahmen in Blizzards Verfolgung wieder heraus
@@ -2295,27 +2426,39 @@ end
 
 -- Questlog geändert: erfüllte Teilziele fallen weg (QUEST_LOG_UPDATE); quiet: ohne LR.Changed (Nachholen nach einer
 -- Rechnung in Scheiben)
+-- Fertig ist ein Schritt erst, wenn der Client seine Teilziele erfüllt meldet – nicht beim Ankommen am Nest
+-- (Entscheidung des Nutzers vom 22.11.2026, RouteAreas.lua).
 function LR.OnLogUpdate(quiet)
     if not state then return 0 end
     local cache = {}
+    local partly = {}       -- Schritte mit Rundgang: ein Teilziel erfüllt, andere noch offen
     local n = RemoveSteps(function(s)
         if s.kind ~= "obj" then return false end
-        local list = cache[s.quest.id]
-        if not list then
-            list = LR.Objectives(s.quest.id)
-            cache[s.quest.id] = list
-        end
-        -- zusammengefasste Ziele (LR.ObjsOf): der Schritt fällt erst weg, wenn alle erfüllt sind
-        local first
+        -- zusammengefasste Ziele (LR.ObjsOf), auch mehrerer Quests in einem gemeinsamen Rundgang (je Teilziel seine
+        -- Quest, so.qid): der Schritt fällt erst weg, wenn alle erfüllt sind
+        local first, finished = nil, false
         for _, so in ipairs(LR.ObjsOf(s)) do
+            local qid = so.qid or s.quest.id
+            local list = cache[qid]
+            if not list then
+                list = LR.Objectives(qid)
+                cache[qid] = list
+            end
             local o = list[so.index]
+            local was = so.done
             if o then so.have, so.done = o.have, o.done end
+            if so.done and not was then finished = true end
             if not so.done then first = first or so end
         end
-        if first then s.obj = first end
+        if first then
+            s.obj = first
+            if finished and s.tour then partly[#partly + 1] = s end
+        end
         return first == nil
     end)
-    if n > 0 and not quiet then LR.Changed() end
+    -- wer ein Teilziel früher erfüllt, überspringt dessen übrige Nester: Rundgang ab deinem Ort neu
+    for _, s in ipairs(partly) do ns.Try("LevelRouteRetour", LR.RetourStep, s) end
+    if (n > 0 or #partly > 0) and not quiet then LR.Changed() end
     return n
 end
 
@@ -2324,6 +2467,7 @@ end
 function LR.DropQuest(questID)
     if not state then return 0 end
     local n = 0
+    local shrunk = {}       -- gemeinsame Rundgänge, aus denen die Quest herausfiel
     for i = #state.steps, 1, -1 do
         local s = state.steps[i]
         if s.kind == "turnin" and s.quests then
@@ -2342,11 +2486,27 @@ function LR.DropQuest(questID)
             else
                 s.quest, s.xp = s.quests[1], xp
             end
+        elseif s.kind == "obj" and s.quests and s.parts then
+            -- gemeinsamer Rundgang mehrerer Quests (RouteAreas.lua): nur die Teilziele dieser Quest heraus
+            for k = #s.parts, 1, -1 do
+                if s.parts[k].quest.id == questID then
+                    table.remove(s.parts, k)
+                    n = n + 1
+                end
+            end
+            if #s.parts == 0 then
+                table.remove(state.steps, i)
+            else
+                LR.SyncParts(s)
+                shrunk[#shrunk + 1] = s
+            end
         elseif s.quest and s.quest.id == questID then
             table.remove(state.steps, i)
             n = n + 1
         end
     end
+    -- ihre Nester fallen aus dem gemeinsamen Rundgang: neu ab deinem Ort (Review vom 22.11.2026)
+    for _, s in ipairs(shrunk) do ns.Try("LevelRouteRetour", LR.RetourStep, s) end
     return n
 end
 
@@ -2435,11 +2595,12 @@ function LR.Insert(questID, quiet)
         for _, a in ipairs(list) do l[#l + 1] = map[a] end
         deps[map[b]] = l
     end
-    R().Insert(groups, order, new, { dist = R().WorldDistance, after = deps })
+    -- Abstand vom Ausgang eines Rundgangs zum Ort des nächsten Schritts (RouteAreas.lua: LR.LegDist)
+    R().Insert(groups, order, new, { dist = LR.LegDist, after = deps })
     -- eine schwere neue Quest kommt allein nicht zuerst; bräche das den Vorrang, bleibt die Reihenfolge davor
     local placed = {}
     for k, v in ipairs(order) do placed[k] = v end
-    LR.HoldBack(groups, order, R().WorldDistance, ctx, nil, questID)
+    LR.HoldBack(groups, order, LR.LegDist, ctx, nil, questID)
     if not StepsValid(groups, order) then
         for k = #order, 1, -1 do order[k] = placed[k] end
     end
@@ -2450,6 +2611,10 @@ function LR.Insert(questID, quiet)
     LR.ZoneLast(groups, order, ctx)
     local steps = {}
     for pos = 2, #order do steps[#steps + 1] = groups[order[pos]] end
+    -- überschneidet sich ein Ziel der neuen Quest mit einem Ziel-Schritt: ein Schritt mit gemeinsamem Rundgang; danach
+    -- die Rundgänge mit den neuen Nachbarn (RouteAreas.lua)
+    LR.JoinAreas(steps, ctx)
+    LR.Tours(steps, ctx.start)
     state.steps = steps
     if quiet then
         state.steps = Bundle(state.steps)
@@ -2554,7 +2719,9 @@ local function AddToggles(root)
     if LR.HasGather() then Toggle("routeGather") end
     Toggle("routeHard")
     Toggle("routeLine")
+    Toggle("routeArea")         -- Nester und Rundgang des laufenden Schritts (RouteAreas.lua)
     Toggle("routeMiniArrow")
+    Toggle("routeArrowText")    -- Zeile in der Minikarte (RouteAreas.lua, 24.11.2026)
     -- ohne Klick an Blizzards Zuständen: ab Werk aus, hier sichtbar zum Einschalten (Grundsatz des Nutzers vom 17.11.2026);
     -- „Pfeil beim Weiterrücken mitnehmen“ entfiel mit Nr. 94 der Einstellungs-Prüfung (ezMaps wayTrack gilt)
     Toggle("routeWatch")
@@ -2612,6 +2779,14 @@ function LR.AddMenu(root)
                 LR.Mark(1, true)
                 return Menu.Close()
             end), L.ROUTE_MARK, L.ROUTE_MARK_TIP), LR.ICONS.mark)
+            -- Rundgang im laufenden Schritt: das nächste Nest von Hand (Leitlinie 3; etwa wenn ein Nest leer ist)
+            local cur = LR.Current()
+            if cur and cur.tour and #cur.tour > 1 then
+                Menu.Icon(Tip(Menu.Button(box, L.ROUTE_NEST_NEXT, function()
+                    LR.NestClick()
+                    return Menu.Close()
+                end), L.ROUTE_NEST_NEXT, L.ROUTE_NEST_NEXT_TIP), LR.ICONS.mark)
+            end
             Menu.Icon(Tip(Menu.Button(box, L.ROUTE_SKIP, function()
                 LR.Skip(1)
                 return Menu.Refresh()
@@ -2660,12 +2835,18 @@ ns.API.AddLevelRouteMenu = function(root) return LR.AddMenu(root) end
 
 local WORDS_CLEAR = { aus = true, off = true, clear = true, verwerfen = true, discard = true }
 local WORDS_NEXT = { weiter = true, next = true, markieren = true, mark = true }
+local WORDS_NEST = { nest = true, camp = true }
 
--- /ezq route [weiter|aus] → true
+-- /ezq route [weiter|nest|aus] → true
 function LR.Command(rest)
     rest = Core.Trim(rest or ""):lower()
     if WORDS_CLEAR[rest] then
         if not LR.Clear(true) then ns.Print(L.ROUTE_NONE_YET) end
+        return true
+    end
+    if WORDS_NEST[rest] then
+        -- zusätzlich zum Knopf „Nächstes Nest markieren“ im Menü der Route (Leitlinie 3)
+        if not LR.NestClick() then ns.Print(L.ROUTE_NEST_NONE) end
         return true
     end
     if WORDS_NEXT[rest] then
@@ -2759,8 +2940,12 @@ ns.OnSettingChanged(function(key)
         -- eingeschaltet: gleich rechnen, ohne Route (auch nach „Route verwerfen“ – das Einschalten ist der Wunsch)
         LR.autoHeld = false
         LR.AutoSchedule()
-    elseif key == "routeLine" or key == "routeMiniArrow" then
+    elseif key == "routeLine" or key == "routeMiniArrow" or key == "routeArea" then
         ns.Try("LevelRoutePath", LR.DrawPath)
+        ns.Try("LevelRouteNest", LR.UpdateNestTicker)   -- der Pfeil läuft die Nester mit ab (RouteAreas.lua)
+    elseif key == "routeArrowText" then
+        ns.Try("LevelRouteArrow", LR.DrawArrow)
+        ns.Try("LevelRouteNest", LR.UpdateNestTicker)
     elseif key == "routeMiniArrowSize" then
         ns.Try("LevelRouteArrow", LR.DrawArrow)     -- nur der Pfeil, nicht die Linie auf der Weltkarte
     elseif key == "routeWatch" then

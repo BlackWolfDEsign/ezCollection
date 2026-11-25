@@ -81,15 +81,20 @@ function Core.IsLoaded(name)
     if C_AddOns and C_AddOns.IsAddOnLoaded then
         return C_AddOns.IsAddOnLoaded(name) == true
     end
-    return IsAddOnLoaded and IsAddOnLoaded(name) == true
+    local isLoaded = rawget(_G, "IsAddOnLoaded")
+    return type(isLoaded) == "function" and isLoaded(name) == true
 end
 
+-- → true | false, Grund (Blizzards zweite Rückgabe von LoadAddOn, etwa "MISSING" oder "DISABLED"; ezData, DBShip.lua).
+-- Die alte globale Funktion nur über rawget: ezCore ruft das seit ezData bei jedem Einloggen, auch dort, wo es sie
+-- nicht gibt.
 function Core.LoadAddOn(name)
     if Core.IsLoaded(name) then return true end
-    local load = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
+    local load = (C_AddOns and C_AddOns.LoadAddOn) or rawget(_G, "LoadAddOn")
     if not load then return false end
-    local ok, loaded = pcall(load, name)
-    return ok and loaded == true or Core.IsLoaded(name)
+    local ok, loaded, why = pcall(load, name)
+    if (ok and loaded == true) or Core.IsLoaded(name) then return true end
+    return false, ok and type(why) == "string" and why or nil
 end
 
 -- fn sofort, wenn das Addon schon geladen ist, sonst sobald es lädt. Ein Fehler in fn landet im
@@ -312,6 +317,20 @@ local function KeyOrder(a, b)
     return tostring(a) < tostring(b)
 end
 local function TextOrder(a, b) return tostring(a) < tostring(b) end
+
+-- Bit-Masken ohne Bibliothek (Lua 5.1, Zahl als Summe von Zweierpotenzen); eine Fassung statt fünf (Durchsicht
+-- 24.11.2026; ezTalent/Optimize.lua behält seine, sie lädt auch ohne ezCore).
+-- HasBit: Ist das Bit mit diesem Wert (1, 2, 4 …) gesetzt? Ohne Prüfung der Werte – auch für heiße Schleifen.
+function Core.HasBit(mask, value) return math.floor(mask / value) % 2 == 1 end
+
+-- Bit n (0 = niedrigstes) einer Maske aus Client-Tabellen: geprüft; negative Werte als 32 Bit, -1 = alle.
+function Core.HasBitAt(mask, n)
+    mask, n = Core.Num(mask), Core.Num(n)
+    if not mask or not n or n < 0 or n > (mask < 0 and 31 or 52) then return false end
+    if mask == -1 then return true end
+    if mask < 0 then mask = mask + 4294967296 end
+    return Core.HasBit(mask, 2 ^ n)
+end
 
 -- Schlüssel einer Tabelle in fester Reihenfolge: Zahlen nach Wert, Texte nach Alphabet, gemischte nach Art
 -- (boolean, number, string). byText = true vergleicht alle als Text („10“ vor „9“; so sortierte Glow.lua bisher).
@@ -542,6 +561,21 @@ function Core.ItemCount(item, bank, charges)
     if not fn then return 0 end
     local ok, count = pcall(fn, item, bank and true or false, charges and true or false)
     return ok and Core.Num(count) or 0
+end
+
+-- Gegenstands-Kennung eines Links ohne Namen und ohne das, was nur dieses Exemplar betrifft (Verzauberung, Sockel, uniqueID,
+-- Stufe und Spezialisierung des Trägers, Herkunft): „item:12345:…“ mit Zusatz und Bonus, also dem, wonach auch das
+-- Item-Wissen unterscheidet (Knowledge.VariantKey) – zum Merken (Core.GearOf); nil ohne Link.
+function Core.ItemString(link)
+    if Core.IsSecret(link) or type(link) ~= "string" then return nil end
+    local body = link:match("item:([%-%d:]+)")
+    if not body then return nil end
+    local fields = {}
+    for field in (body .. ":"):gmatch("([^:]*):") do fields[#fields + 1] = field end
+    for _, i in ipairs({ 2, 3, 4, 5, 6, 8, 9, 10, 12 }) do
+        if fields[i] then fields[i] = "" end
+    end
+    return (("item:" .. table.concat(fields, ":")):gsub(":+$", ""))
 end
 
 function Core.ItemID(item)
@@ -823,6 +857,17 @@ function Core.More(count, inline)
     local L = Core.L
     if inline then return Core.Plural(count, L.MORE_INLINE_ONE, L.MORE_INLINE_MANY) end
     return Core.Plural(count, L.MORE_ONE, L.MORE_MANY)
+end
+
+-- Pfeil einer Aufklappzeile (Nutzer am 24.11.2026, wörtlich: „"und x weitere" brauch noch einen aufklapppfeil“):
+-- Blizzards Pfeil nach unten = zugeklappt, nach oben = offen. FoldTexture(open) → Datei; FoldText(open, text) → Text mit
+-- dem Pfeil davor (für Textfelder; die Zauberbuch-Ansicht zeichnet ihn selbst, line.fold).
+function Core.FoldTexture(open)
+    return open and "Interface\\Buttons\\Arrow-Up-Up" or "Interface\\Buttons\\Arrow-Down-Up"
+end
+
+function Core.FoldText(open, text)
+    return "|T" .. Core.FoldTexture(open) .. ":14:14|t " .. tostring(text or "")
 end
 
 ---------------------------------------------------------------------------
@@ -1114,6 +1159,7 @@ end
                                            Ohne Treffer nach Core.Map.MAX_DEPTH Schritten: nil
       Core.Map.WorldPos(mapID, x, y)     → Kontinent, wx, wy (Meter) – für Entfernungen über Zonengrenzen
       Core.Map.PosOn(ziel, mapID, x, y)  → x, y auf der Karte ziel (0–1) oder nil, wenn der Punkt dort nicht liegt
+      Core.Map.FromWorld(kontinent, wx, wy) → mapID, x, y der Zone dort (Kleinkarten auf ihre Zone umgerechnet) oder nil
       Core.Map.PosOn(ziel, mapID, x, y, true) → x, y auch außerhalb von 0–1 (Richtung und Linie zu einem Punkt neben
                                            der Karte, etwa für Routen über den Kartenrand); nil ohne Weltlage oder
                                            auf einem anderen Kontinent als die Karte ziel
@@ -1217,6 +1263,25 @@ function Map.PosFromCorners(target, continent, wx, wy)
     local det = ax * by - bx * ay
     if math.abs(det) < 1e-9 then return nil end
     return (dx * by - bx * dy) / det, (ax * dy - dx * ay) / det
+end
+
+-- Weltlage → Zone dort samt Lage (die Client-Tabellen führen Weltkoordinaten: Flugpunkte, Dungeoneingänge). Nennt der
+-- Client eine Kleinkarte, wird auf die Zone darüber umgerechnet. → mapID, x, y (0–1) oder nil
+function Map.FromWorld(continent, wx, wy)
+    continent, wx, wy = Core.Num(continent), Core.Num(wx), Core.Num(wy)
+    local api, vector = rawget(_G, "C_Map"), rawget(_G, "CreateVector2D")
+    if not (continent and wx and wy) or type(api) ~= "table" or type(api.GetMapPosFromWorldPos) ~= "function"
+        or type(vector) ~= "function" then return nil end
+    local ok, mapID, pos = pcall(api.GetMapPosFromWorldPos, continent, vector(wx, wy))
+    local x, y = Map.XY(ok and pos or nil)
+    mapID = ok and Core.Num(mapID) or nil
+    if not (mapID and x and y) or x < 0 or x > 1 or y < 0 or y > 1 then return nil end
+    local zone = Map.Parent(mapID, "Zone")
+    if zone and zone ~= mapID then
+        local zx, zy = Map.PosOn(zone, mapID, x, y)
+        if zx then return zone, zx, zy end
+    end
+    return mapID, x, y
 end
 
 function Map.PosOn(target, mapID, x, y, outside)
@@ -1367,6 +1432,10 @@ end
       Core.RestrictionActive(art)     → true/false/nil   gilt die Addon-Sperre des Spiels? art: "combat" | "encounter" |
                                         "challenge" | "pvp" | "map" | "chat" oder Blizzards Nummer; ohne art: irgendeine
       Core.RestrictionState(art)      → "inactive" | "activating" | "active" | nil
+      Core.PvPPossible()              → true, grund | false   ist Kampf mit der anderen Fraktion möglich? grund:
+                                        "instance" (Schlachtfeld, Arena), "match" (Sperre „PvP-Match“), "flag" (für
+                                        PvP markiert, auch Kriegsmodus), "ffa" (jeder gegen jeden), "unknown" (Antwort
+                                        gesperrt oder Fehler – im Zweifel möglich); Restschaden: im PvP ganz aus
       Core.OnRestrictionChanged(fn, owner)   fn(art, aktiv, zustand), sobald eine Sperre beginnt oder endet
                                         (Nachricht RESTRICTION_CHANGED) – „lesbar ab wann“ hängt an der Sperre, nicht
                                         an PLAYER_REGEN_ENABLED
@@ -1531,6 +1600,27 @@ end
 
 function Core.OnRestrictionChanged(fn, owner)
     return Core.Listen("RESTRICTION_CHANGED", fn, owner)
+end
+
+-- PvP möglich? Entscheidung des Nutzers vom 22.11.2026 zu Restschaden und Weg A („Ganz aus (Empfohlen)“): alles, was
+-- nachrechnet oder Daten austauscht, ist aus, sobald Kampf mit der anderen Fraktion möglich ist. Eine gesperrte
+-- Antwort oder ein Fehler heißt „möglich“; fehlt eine Abfrage im Client ganz, zählt sie nicht.
+local PVP_FLAGS = { { "UnitIsPVP", "flag" }, { "UnitIsPVPFreeForAll", "ffa" } }
+
+function Core.PvPPossible()
+    local _, kind = Core.InInstance()
+    if kind == "pvp" or kind == "arena" then return true, "instance" end
+    local match = Core.RestrictionState("pvp")
+    if match == "active" or match == "activating" then return true, "match" end
+    for _, flag in ipairs(PVP_FLAGS) do
+        local fn = rawget(_G, flag[1])
+        if type(fn) == "function" then
+            local ok, value = pcall(fn, "player")
+            if not ok or Core.IsSecret(value) then return true, "unknown" end
+            if value == true or value == 1 then return true, flag[2] end
+        end
+    end
+    return false
 end
 
 -- Das Ereignis kennt nicht jeder Client; ezCore meldet es dann nicht an (Core.RegisterEvent).
@@ -1801,15 +1891,16 @@ function Core.Migrated(key)
     return type(done) == "table" and key ~= nil and done[key] ~= nil and done[key] ~= false or false
 end
 
--- Rolle des Spielers: "TANK" | "HEALER" | "DAMAGER" | nil (unbekannt), dazu die Quelle ("group" | "spec").
+-- Rolle des Spielers: "TANK" | "HEALER" | "DAMAGER" | nil (unbekannt), dazu die Quelle ("group" | "talents" | "leveling").
 -- Spieltest 20.11.2026 (ezCombat, Kampfanzeige am Rahmen): „angezeigt wird am rahmen nur, was den spieler betrifft“.
 -- Reihenfolge:
 --   1. Rolle in der Gruppe (UnitGroupRolesAssigned("player"), „NONE“ zählt nicht). Laut Datenkatalog kann das Spiel
 --      sie sperren (docs/datenkatalog-client.md, Gruppe) – dann gilt die zuletzt offen gelesene Gruppenrolle, solange
 --      der Spieler in einer Gruppe ist (Review 20.11.2026: sonst spränge ein Heiler bei Kampfbeginn auf Schaden).
---   2. Rolle der aktiven Spezialisierung: Index über C_SpecializationInfo.GetSpecialization (Forever) bzw. global
---      GetSpecialization, Rolle über GetSpecializationRole bzw. die fünfte Rückgabe von GetSpecializationInfo.
---      Ob Forever (Camelot, eine Spezialisierung je Klasse) dort eine verlässliche Rolle nennt, prüft der Spieltest.
+--   2. Rolle des Talentbaums mit den meisten bestätigten Punkten (Core.Talents.MainTree, Talents.Role; Auftrag des Nutzers
+--      vom 24.11.2026: „Ja, umstellen“). Bis dahin die der Spezialisierung: Forever führt je Klasse nur eine, Rolle Schaden
+--      (Client-Tabelle ChrSpecialization) – ein Heiler ohne Gruppenrolle hieß Schaden.
+--   3. Noch keine Talentpunkte: Schaden (wie ezGears Leveling-Rolle). Talente (noch) nicht lesbar: unbekannt.
 -- Blizzards Abfragen werden nur gelesen, per pcall, jeder Wert zuerst auf geheim geprüft (Leitlinie 6).
 Core.ROLES = { TANK = true, HEALER = true, DAMAGER = true }
 -- Klassen, die heilen können (Blizzards Klassen-Kennungen) – für „Rolle unbekannt“: wer nicht heilen kann, heilt nicht.
@@ -1827,17 +1918,6 @@ local function InGroup()
     local ok, grouped = Call(rawget(_G, "IsInGroup"))
     return ok and not Core.IsSecret(grouped) and grouped == true
 end
-local function SpecRole()
-    local api = rawget(_G, "C_SpecializationInfo")
-    local getSpec = type(api) == "table" and api.GetSpecialization or rawget(_G, "GetSpecialization")
-    local ok, index = Call(getSpec)
-    if not ok or Core.IsSecret(index) or type(index) ~= "number" then return nil end
-    local okRole, role = Call(rawget(_G, "GetSpecializationRole"), index)
-    role = okRole and KnownRole(role) or nil
-    if role then return role end
-    local okInfo, _, _, _, _, infoRole = Call(rawget(_G, "GetSpecializationInfo"), index)
-    return okInfo and KnownRole(infoRole) or nil
-end
 function Core.PlayerRole()
     local ok, role = Call(rawget(_G, "UnitGroupRolesAssigned"), "player")
     if ok and Core.IsSecret(role) then
@@ -1847,8 +1927,11 @@ function Core.PlayerRole()
         if ok then lastGroupRole = role end
         if role then return role, "group" end
     end
-    role = SpecRole()
-    if role then return role, "spec" end
+    local tree, known = Core.Talents.MainTree()
+    if not known then return nil end
+    if not tree then return "DAMAGER", "leveling" end
+    role = KnownRole((Core.Talents.Role(Core.PlayerClass(), tree)))
+    if role then return role, "talents" end
     return nil
 end
 
@@ -1857,4 +1940,56 @@ function Core.PlayerCanHeal()
     local ok, _, class = Call(rawget(_G, "UnitClass"), "player")
     if not ok or Core.IsSecret(class) or type(class) ~= "string" then return nil end
     return Core.HEAL_CLASSES[class] == true
+end
+
+--[[
+    Lange Arbeit in Scheiben (24.11.2026, „Beitrag vorbereiten“):
+      Core.Sliced(fn, opts) → Auftrag mit Cancel(), Done()
+        fn(tick) läuft als Koroutine; tick() gibt nach opts.ms Millisekunden je Bild ab (Standard 5; ohne Uhr nach 2000
+        Aufrufen), tick(true) sofort. fn gibt das Ergebnis zurück, opts.onDone(ergebnis) bekommt es.
+        Im Kampf pausiert der Auftrag und läuft danach weiter. Fehler: Fehlerliste (opts.owner, opts.where), kein onDone,
+        dafür opts.onError().
+]]
+function Core.Sliced(fn, opts)
+    opts = type(opts) == "table" and opts or {}
+    local clock = rawget(_G, "debugprofilestop")
+    if type(clock) ~= "function" then clock = nil end
+    local budget, count, start = Core.Num(opts.ms) or 5, 0, 0
+    local job, done, cancelled = {}, false, false
+    local function tick(now)
+        count = count + 1
+        if not now then
+            if clock then
+                if count % 16 ~= 0 or clock() - start < budget then return end
+            elseif count < 2000 then
+                return
+            end
+        end
+        count = 0
+        coroutine.yield()
+    end
+    local co = coroutine.create(function() return fn(tick) end)
+    local function Step()
+        if done or cancelled then return end
+        if Core.InCombat() then
+            Core.AfterCombat(Step, job, opts.owner)
+            return
+        end
+        start = clock and clock() or 0
+        local ok, result = coroutine.resume(co)
+        if not ok then
+            done = true
+            Core.Error(opts.owner or Core.name, result, opts.where or "Sliced")
+            if type(opts.onError) == "function" then Core.Try(opts.owner, opts.where or "Sliced", opts.onError) end
+        elseif coroutine.status(co) == "dead" then
+            done = true
+            if type(opts.onDone) == "function" then Core.Try(opts.owner, opts.where or "Sliced", opts.onDone, result) end
+        else
+            C_Timer.After(0, Step)
+        end
+    end
+    function job.Cancel() cancelled = true end
+    function job.Done() return done or cancelled end
+    Step()
+    return job
 end

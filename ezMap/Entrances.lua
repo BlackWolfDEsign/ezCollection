@@ -8,9 +8,12 @@ local Core = ezCore
     Datenquellen in der Reihenfolge des Nutzers (Regel „Datenquellen“, 13.11.2026) – nichts stammt aus einem
     fremden Addon, auch keine Tabelle:
       1. der Client: ezCore.Dungeons.Entrances(uiMapID) liest C_EncounterJournal.GetDungeonEntrancesForMap
+         (Forever liefert keine, Spieltest 14.11.2026)
       2. selbst Gesammeltes: Betrittst du einen Dungeon oder Schlachtzug zu Fuß, gilt deine letzte Lage draußen vor
          dem Ladebildschirm als Eingang. Nicht nach einer Beschwörung oder einem Teleport der Gruppensuche – dann
          stand man nicht am Eingang –, nicht im Schlachtfeld.
+      3. die Client-Tabellen (ezCore.Dungeons.TableEntrance, seit 24.11.2026): wohin der Geist nach dem Tod läuft – die
+         Stelle kann ein Stück vor dem Portal liegen
     Jede Angabe nennt ihre Quelle (Tooltip des Symbols, Zusatz im Menü).
 
     Seit Welle 10 (MAP-17, DG-06) liegen die selbst betretenen Eingänge in ezCores Entdecker-Datenbank (Tabellen
@@ -25,8 +28,8 @@ local Core = ezCore
     Datenbank seit Welle 23c selbst (Art „instance“, Core.Discovery.InstanceName); ezMap schreibt einen Namen, den
     es beim Betreten liest, dorthin und übergibt die alten ezMapDB.entranceNames einmal (Welle 23, A9). Die alte
     Ablage bleibt liegen und ist nur noch Rückfall, solange die Datenbank nicht gespeichert wird.
-    Die Eingänge aus Core.Dungeons.Entrances nimmt ezMap nur mit der Quelle „client“: die selbst betretenen stehen
-    über Entrances.All mit Zählung, Art und Name schon in der Liste (Quelle „von dir betreten“, Leitlinie 11).
+    Die Eingänge aus Core.Dungeons.Entrances nimmt ezMap mit den Quellen „client“ und „tables“: die selbst betretenen
+    stehen über Entrances.All mit Zählung, Art und Name schon in der Liste (Quelle „von dir betreten“, Leitlinie 11).
 
     Symbole: seit Welle 15 (SAM-22) über ezCores Punkteschicht Core.MapPins (Anbieter „ezMap.entrances“, ein Rahmen
     für alle Fundorte; vorher eigene Knöpfe auf einem eigenen Rahmen). Kein AddDataProvider, kein AcquirePin –
@@ -396,11 +399,11 @@ function Entrances.PosOn(target, mapID, x, y) return Core.Map.PosOn(target, mapI
 
 -- Eingänge für eine gezeigte Karte (auf einer Kontinentkarte auch die ihrer Zonen), nach Name sortiert:
 -- { name, map, x, y (Lage auf der eigenen Karte, für die Markierung), sx, sy (Lage auf der gezeigten Karte oder nil),
---   entry (ezCore.Dungeons-Eintrag oder nil), source = "client" | "self", raid, n, inst }
+--   entry (ezCore.Dungeons-Eintrag oder nil), source = "client" | "self" | "tables", raid, n, inst }
 -- Fassade (MAP-17): zuerst der Client über ezCore.Dungeons.Entrances, dann die selbst betretenen aus ezCores
--- Datenbank (Entrances.All) – kennt der Client einen Eingang, gilt seiner.
+-- Datenbank (Entrances.All), zuletzt die der Client-Tabellen (24.11.2026) – jeder Eingang einmal.
 function Entrances.For(mapID)
-    local list, client = {}, {}
+    local list, client, tables = {}, {}, {}
     mapID = ns.Num(mapID)
     if not mapID then return list end
     local D = Core.Dungeons
@@ -418,19 +421,33 @@ function Entrances.For(mapID)
                 if e.source == nil or e.source == "client" then
                     local sx, sy = Entrances.PosOn(mapID, id, e.x, e.y)
                     list[#list + 1] = { name = e.name, map = id, x = e.x, y = e.y, sx = sx, sy = sy, entry = e.entry,
-                        source = "client" }
+                        source = "client", raid = e.raid, inst = e.inst }
                     client[e.name] = true
+                elseif e.source == "tables" then
+                    tables[#tables + 1] = { e = e, map = id }
                 end
             end
         end
     end
+    local own = {}
     for _, e in ipairs(Entrances.All()) do
         if not client[e.name] then
             local sx, sy = Entrances.PosOn(mapID, e.map, e.x, e.y)
             if sx then
+                own[e.name] = true
+                if e.inst then own[e.inst] = true end
                 list[#list + 1] = { name = e.name, map = e.map, x = e.x, y = e.y, sx = sx, sy = sy, entry = e.entry,
                     source = "self", raid = e.raid, n = e.n, inst = e.inst }
             end
+        end
+    end
+    for _, t in ipairs(tables) do
+        local e = t.e
+        -- auf dieser Karte selbst betreten: dein Fund gilt
+        if not client[e.name] and not own[e.name] and not own[e.inst] then
+            local sx, sy = Entrances.PosOn(mapID, t.map, e.x, e.y)
+            list[#list + 1] = { name = e.name, map = t.map, x = e.x, y = e.y, sx = sx, sy = sy, entry = e.entry,
+                source = "tables", raid = e.raid, inst = e.inst }
         end
     end
     table.sort(list, function(a, b)
@@ -447,6 +464,7 @@ function Entrances.SourceText(e)
         local text = Entrances.Service() and L.ENTRANCE_SOURCE_SELF or L.ENTRANCE_SOURCE_SELF_LAST
         return text:format(ns.Num(e.n) or 1)
     end
+    if e.source == "tables" then return L.ENTRANCE_SOURCE_TABLES end
     return L.ENTRANCE_SOURCE_CLIENT
 end
 

@@ -88,23 +88,12 @@ end
 
 -- Dazulernen: Wechselt die Hauptleiste bei einer Klasse, die die Tabelle oben nicht kennt (oder auf einer Seite,
 -- die dort fehlt), merkt ezBars die Seite für diese Klasse (ezBarsDB.stancePages) und meldet Überschneidungen.
--- Blizzard: Bonusleiste 1 … 4 = Seite 7 … 10 (C_ActionBar.GetBonusBarIndex bzw. GetBonusBarOffset + 6).
+-- Bonusleiste 1 … 4 = Seite 7 … 10 (ezCore.ActionSlots.BonusPage).
 function Slots.LearnBonusBar()
     local class = Slots.Class()
     if not (class and ns.db) then return false end
-    local page
-    local api = C_ActionBar or {}
-    if api.HasBonusActionBar and api.GetBonusBarIndex then
-        local ok, active = pcall(api.HasBonusActionBar)
-        if not (ok and active == true) then return false end
-        local okIndex, value = pcall(api.GetBonusBarIndex)
-        page = okIndex and ezCore.Num(value) or nil
-    elseif rawget(_G, "GetBonusBarOffset") then
-        local ok, offset = pcall(GetBonusBarOffset)
-        offset = ok and ezCore.Num(offset) or nil
-        if offset and offset > 0 then page = offset + 6 end
-    end
-    if not (page and page >= 7 and page <= 10) or Slots.IsStancePage(page, class) then return false end
+    local page = AS.BonusPage()
+    if not page or Slots.IsStancePage(page, class) then return false end
     ns.db.stancePages = type(ns.db.stancePages) == "table" and ns.db.stancePages or {}
     ns.db.stancePages[class] = type(ns.db.stancePages[class]) == "table" and ns.db.stancePages[class] or {}
     ns.db.stancePages[class][page] = true
@@ -113,19 +102,7 @@ end
 
 -- Zeigt eine sichtbare Blizzard-Leiste diese Seite? Dann ihr Name, sonst nil.
 function Slots.BlizzardUser(page)
-    local info = Slots.BLIZZARD[page]
-    if not info then return nil end
-    local visible
-    local check = rawget(_G, info.visible)
-    if type(check) == "function" then
-        local ok, value = pcall(check)
-        if ok and value ~= nil then visible = value == true end
-    end
-    if visible == nil then
-        local frame = rawget(_G, info.frame)
-        visible = type(frame) == "table" and type(frame.IsShown) == "function" and frame:IsShown() == true
-    end
-    return visible and L.PAGE_BLIZZARD:format(info.bar) or nil
+    return AS.BarShown(page) and L.PAGE_BLIZZARD:format(AS.BLIZZARD_PAGES[page].bar) or nil
 end
 
 -- Name der Seite für die Auswahl und den Status.

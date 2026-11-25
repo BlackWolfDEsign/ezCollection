@@ -11,6 +11,7 @@ local Core = ezCore
     Menüs von ezCraft (eine Suche über das Modul; das Seitenteil Panel.lua hat Knöpfe und Reiter, aber kein Menü):
       Book.lua    Menü „Fundorte“ am Knopf der Sammelberufe im Berufsbuch (Kräuterkunde, Bergbau, Kürschnerei, Angeln)
       Filter.lua  Abschnitt „Farbe (ezCraft)“ in Blizzards Filtermenü des Berufefensters (ergänzt, nicht nachgebaut)
+      Sort.lua    Abschnitt „Reihenfolge (ezCraft)“ im selben Menü
 
     Quellen in dieser Reihenfolge (Leitlinien 1 und 11), keine eigenen Bilddateien:
       1. Blizzards Bild derselben Sache zur Laufzeit: Gegenstandssymbol des Rohstoffs (Core.ItemIcon, C_Item), Bild des
@@ -61,6 +62,8 @@ Icons.DEF = {
     green = { file = { "Interface\\Common\\Indicator-Green", COLORS } },
     gray = { file = { "Interface\\Common\\Indicator-Gray", COLORS } },
     white = { file = COLORS, crop = true },
+    -- Reihenfolge der Rezeptliste (Sort.lua): Blizzards Besen der Taschen
+    sort = { atlas = "bags-button-autosort-up", file = { I .. "INV_Pet_Broom", I .. "INV_Misc_Note_01" } },
 }
 
 -- Die Helfer stehen in den needs von Core.lua: fehlt einer (älteres ezCore), meldet ezCore „zu alt“ und ezCraft startet

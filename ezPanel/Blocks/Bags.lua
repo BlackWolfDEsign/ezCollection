@@ -4,13 +4,16 @@ local L = ns.L
 --[[
     Taschen (Titan Bag): freie oder belegte Plätze der normalen Taschen.
     Spezialtaschen (Köcher, Kräuter-, Seelentaschen …) zählen getrennt, weil
-    dort nicht jeder Gegenstand hineinpasst. Erkennung über die Taschenart, die
-    das Spiel selbst meldet (GetContainerNumFreeSlots).
+    dort nicht jeder Gegenstand hineinpasst. Erkennung: ezCore.IsSpecialBag (die
+    Familie am Platz, sonst der Taschengegenstand).
     Verbesserungen: richtige Farben auch im Modus „frei“, eine Prüfung pro
     Taschen-Update (BAG_UPDATE_DELAYED), Warnung bei vollen Taschen, Plätze der
     anderen Charaktere.
     ezBag: Klick öffnet die (von ezBag gruppierte) Originaltasche; ist ezBag
     da, gibt es seine Einstellungen im Menü und den letzten Bankbesuch im Tooltip.
+    Nur die freien (bzw. belegten) Plätze, kein „frei/gesamt“ mehr – Text über
+    ezCore.FreeSpaceText wie in ezBag (Auftrag des Nutzers vom 23.11.2026, für
+    ezPanel: „Ja, überall (Empfohlen)“).
 ]]
 
 local block = ns.RegisterBlock({
@@ -51,9 +54,9 @@ local function Read()
     for _, bag in ipairs(BagRange()) do
         local total = C_Container.GetContainerNumSlots(bag) or 0
         if total > 0 then
-            local free, family = C_Container.GetContainerNumFreeSlots(bag)
-            free = free or 0
-            local special = family ~= nil and family ~= 0
+            local free = ns.Num((C_Container.GetContainerNumFreeSlots(bag))) or 0
+            -- die Reagenzientasche zählt mit, Berufstaschen und Köcher (auch im Reagenzien-Platz) nicht
+            local special = ezCore.IsSpecialBag(bag)
             table.insert(data.bags, { bag = bag, name = BagName(bag), free = free, total = total, special = special })
             if special then
                 data.specialFree, data.specialTotal = data.specialFree + free, data.specialTotal + total
@@ -92,8 +95,8 @@ function block:GetText()
     if total == 0 then return "?" end
     local fraction = free / total
     local color = ns.Gradient(math.min(1, fraction * 3))   -- ab einem Drittel frei grün
-    local value = cfg.mode == "used" and (total - free) or free
-    return color .. value .. "|r/" .. total
+    local value = cfg.mode == "used" and tostring(total - free) or ezCore.FreeSpaceText(free, true)
+    return color .. value .. "|r"
 end
 
 -- Warnung „Taschen voll“ auch bei verborgener Leiste (ns.QueueUpdate ruft Alert statt GetText).
@@ -122,12 +125,17 @@ function block:OnTooltip(tooltip)
     for _, b in ipairs(data.bags) do
         local name = b.name
         if b.special then name = name .. " " .. ns.Grey(L.BAGS_SPECIAL) end
-        ns.TipDoubleLine(tooltip, name, L.FREE_OF:format(b.free, b.total), b.special and "hint" or "highlight", "highlight")
+        ns.TipDoubleLine(tooltip, name, ezCore.FreeSpaceText(b.free), b.special and "hint" or "highlight", "highlight")
     end
     tooltip:AddLine(" ")
-    ns.TipDoubleLine(tooltip, L.BAGS_FREE, ("%d / %d"):format(data.free, data.total), "normal", "highlight")
+    ns.TipDoubleLine(tooltip, L.BAGS_FREE, ezCore.FreeSpaceText(data.free, true), "normal", "highlight")
+    -- Mit „Belegte Plätze“ zeigt die Leiste die belegten: dann steht die Zahl auch hier (seit „frei/gesamt“ weg ist,
+    -- ließe sie sich sonst nirgends ablesen; Auftrag des Nutzers vom 23.11.2026 „dann schließe fix die offnen punkte noch ab“)
+    if cfg.mode == "used" then
+        ns.TipDoubleLine(tooltip, L.BAGS_USED, tostring(math.max(0, data.total - data.free)), "normal", "highlight")
+    end
     if data.specialTotal > 0 then
-        ns.TipDoubleLine(tooltip, L.BAGS_SPECIAL_FREE, ("%d / %d"):format(data.specialFree, data.specialTotal), "normal", "highlight")
+        ns.TipDoubleLine(tooltip, L.BAGS_SPECIAL_FREE, ezCore.FreeSpaceText(data.specialFree, true), "normal", "highlight")
     end
 
     if ns.ezBag.Active() then
@@ -142,7 +150,7 @@ function block:OnTooltip(tooltip)
         for _, e in ipairs(ns.Characters()) do
             -- Nie erfasste Charaktere (etwa aus dem Titan-Import, auch gelöschte) bleiben weg wie in den anderen
             -- Twink-Listen; „unbekannt“ steht nur, wo ezCore einen unbrauchbaren Stand gespeichert hat.
-            local free, total, seen = AltSlots(e.c, e.key)
+            local free, _, seen = AltSlots(e.c, e.key)
             if not e.isMe and (free or e.c.bagFree ~= nil or e.c.bagTotal ~= nil) then
                 if first then
                     tooltip:AddLine(" ")
@@ -150,9 +158,9 @@ function block:OnTooltip(tooltip)
                     first = false
                 end
                 if free then
-                    ns.TipDoubleLine(tooltip, ns.CharName(e.c, e.key), L.FREE_OF:format(free, total) .. ns.AltStand(e.c, seen), "highlight", "highlight")
+                    ns.TipDoubleLine(tooltip, ns.CharName(e.c, e.key), ezCore.FreeSpaceText(free) .. ns.AltStand(e.c, seen), "highlight", "highlight")
                 else
-                    -- Nie „0 / 0 frei“: ohne Stand sagt die Zeile, wie er entsteht.
+                    -- Nie „0 frei“ ohne Stand: die Zeile sagt, wie er entsteht.
                     ns.TipDoubleLine(tooltip, ns.CharName(e.c, e.key), L.BAGS_ALT_UNKNOWN, "highlight", "hint")
                 end
             end

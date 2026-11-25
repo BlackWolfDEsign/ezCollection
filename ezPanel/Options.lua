@@ -7,6 +7,8 @@ local page
 local blockSettings = {}
 local alertSettings = {}   -- [Quellen-ID] = Setting der Unterseite „Meldungen“
 local alertState = {}      -- [Quellen-ID] = gezeigt? – Spiegel für die Häkchen; gespeichert ist nur die Abwahl (Alerts.lua)
+local alertNames = {}      -- [Quellen-ID] = Name, unter dem das gezeigte Häkchen angelegt ist
+local alertCount = {}      -- [Quellen-ID] = Zahl der angelegten Häkchen (ein neuer Name legt ein neues an)
 local syncing = false
 
 -- Ergänzende Addons (Abschlussrunde; „Erweitert“ und README). Pflicht ist nur ezCore. Alle drei bringen
@@ -128,22 +130,30 @@ local function Register()
                 return list
             end, { label = L.OPT_ALERT_SOURCES })
         end
+        -- Meldet ein Modul dieselbe Kennung mit anderem Namen neu an (AddWarning), bekommt sie ein neues Häkchen mit dem
+        -- neuen Namen und Tooltip; das alte blendet seine Bedingung aus. Blizzards Einstellungen lassen sich nach dem
+        -- Anlegen nicht umbenennen, und in Blizzards Tabellen schreibt ezPanel nicht (Leitlinie 5) – nur Blizzards
+        -- eigene Aufrufe (RegisterAddOnSetting, CreateCheckbox, AddShownPredicate). Das neue steht am Ende der Liste.
         function ns.AddAlertSetting(source)
             local id = source.id
-            if type(id) ~= "string" or alertSettings[id] or not (ns.blocks.alerts and ns.blocks.alerts.cfg) then return end
+            if type(id) ~= "string" or not (ns.blocks.alerts and ns.blocks.alerts.cfg) then return end
+            local name = tostring(source.name or id)
+            if alertSettings[id] and alertNames[id] == name then return end
+            local n = (alertCount[id] or 0) + 1
+            -- das erste Häkchen behält seinen Namen (ezPanel_alert_<id>), weitere bekommen eine eigene Vorsilbe
+            local variable = n == 1 and ("ezPanel_alert_" .. id) or ("ezPanel_alert#" .. n .. "_" .. id)
             alerts:Try(function()
                 alertState[id] = ns.AlertSourceEnabled(id)
-                local setting = alerts:Setting(id, Settings.VarType.Boolean, alertState, tostring(source.name or id), true,
-                    "ezPanel_alert_" .. id)
+                local setting = alerts:Setting(id, Settings.VarType.Boolean, alertState, name, true, variable)
                 setting:SetValueChangedCallback(function(_, value)
                     if syncing then return end
                     ns.SetAlertSourceEnabled(id, value)
                 end)
                 local init = Settings.CreateCheckbox(alerts.category, setting, ns.AlertSourceTip(source))
                 if type(init) == "table" and init.AddShownPredicate then
-                    init:AddShownPredicate(function() return ns.AlertSourceKnown(id) end)
+                    init:AddShownPredicate(function() return alertSettings[id] == setting and ns.AlertSourceKnown(id) end)
                 end
-                alertSettings[id] = setting
+                alertSettings[id], alertNames[id], alertCount[id] = setting, name, n
             end)
         end
         for _, source in ipairs(ns.AlertSources()) do ns.AddAlertSetting(source) end

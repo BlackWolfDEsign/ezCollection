@@ -261,29 +261,50 @@ MF.MeterType, MF.Color = MeterType, Color
 -- Nur, was den Spieler betrifft (Spieltest 20.11.2026: „heal etc muss es mir nicht anzeigen wenn ich selbst kein healer
 -- bin ... angezeigt wird am rahmen nur, was den spieler betrifft“; Schalter meterFramesOwnRole, ab Werk an): als Heiler
 -- Heilung, als Schaden oder Tank Schaden. Rolle aus ezCore (Core.PlayerRole: Gruppe, gesperrt die zuletzt offen
--- gelesene, sonst Spezialisierung). Unbekannt: wer nicht heilen kann (Core.PlayerCanHeal, Klasse), sieht Schaden; eine
--- Klasse, die heilen kann, sieht beides – der Tooltip neben dem Rahmen sagt es (Review 20.11.2026: nicht stumm raten).
+-- gelesene, sonst Talentbaum, ohne Punkte Schaden). Unbekannt: wer nicht heilen kann (Core.PlayerCanHeal, Klasse), sieht
+-- Schaden; eine Klasse, die heilen kann, sieht beides – der Tooltip neben dem Rahmen sagt es (Review 20.11.2026: nicht
+-- stumm raten). Heiler nur laut Talentbaum: ebenfalls beides (Spieltest 24.11.2026, Paladin mit Heilig-Talenten, der die
+-- Gruppe tankt, wörtlich „ich kann als pala tank zwar heilen aber schadensanzeige fehlt“) – der Baum sagt, was man
+-- gelernt hat, nicht, was man in dieser Gruppe tut; eine Gruppenrolle Heiler zeigt weiter nur die Heilung.
 -- Im Kampf gelten die Arten vom Kampfbeginn (frozen): ein Wechsel – auch eine im Kampf gesperrte Rolle – legte die
 -- Balken sonst um, ohne dass sie neu gesetzt werden dürfen.
 MF.ROLE_KEY = "meterFramesOwnRole"
 function MF.OwnRoleOnly() return not (ns.S ~= nil and ns.S[MF.ROLE_KEY] == false) end
--- Art der Rolle: "healing" | "damage" | nil (unbekannt, beides)
-function MF.RoleType(role)
-    if role == nil and Core.PlayerRole then role = Core.PlayerRole() end
-    if role == "HEALER" then return "healing" end
+-- Art der Rolle: "healing" | "damage" | nil, Grund ("talents" Heiler nur laut Talentbaum, "unknown") für beides; source
+-- wie bei Core.PlayerRole
+function MF.RoleType(role, source)
+    if role == nil and Core.PlayerRole then role, source = Core.PlayerRole() end
+    if role == "HEALER" then
+        if source == "talents" then return nil, "talents" end
+        return "healing"
+    end
     if role ~= nil then return "damage" end
     local canHeal = Core.PlayerCanHeal and Core.PlayerCanHeal()
     if canHeal == false then return "damage" end
-    return nil
+    return nil, "unknown"
 end
-local frozen = nil                -- { key = … } beim Kampfbeginn (MF.OwnType), nil außerhalb des Kampfes
+local frozen = nil                -- { key = …, why = … } beim Kampfbeginn (MF.OwnType), nil außerhalb des Kampfes
 function MF.OwnType()
-    if frozen and ns.InCombat() then return frozen.key end
+    if frozen and ns.InCombat() then return frozen.key, frozen.why end
     return MF.RoleType()
 end
-function MF.FreezeRole(on) frozen = on and { key = MF.RoleType() } or nil end
--- Rolle unbekannt und darum beide Arten (Hinweis im Tooltip)?
+function MF.FreezeRole(on)
+    if not on then
+        frozen = nil
+        return
+    end
+    local key, why = MF.RoleType()
+    frozen = { key = key, why = why }
+end
+-- Rolle unbekannt (oder nur laut Talentbaum Heiler) und darum beide Arten (Hinweis im Tooltip)?
 function MF.RoleUnknown() return MF.OwnRoleOnly() and MF.OwnType() == nil end
+-- Warum beides? → Text | nil (nur, was die Rolle betrifft, oder eine der beiden Arten ist ausgeschaltet). Im Kampf der
+-- Grund vom Kampfbeginn (Review 24.11.2026).
+function MF.RoleHint()
+    if not MF.RoleUnknown() or #MF.ActiveTypes() < 2 then return nil end
+    local _, why = MF.OwnType()
+    return why == "talents" and L.METER_FRAMES_ROLE_TALENTS or L.METER_FRAMES_ROLE_UNKNOWN
+end
 
 -- Eingeschaltete Arten, für die der Client eine Art im Schadensmesser kennt (Zeilen: Schaden und Heilung) – mit
 -- „Nur, was deine Rolle betrifft“ nur die der eigenen Rolle.
@@ -1346,7 +1367,8 @@ function MF.ShowSideTooltip(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText(L.METER_FRAMES_HOVER_TITLE)
     Core.TipLine(GameTooltip, L.METER_FRAMES_HOVER_EXPLAIN, "highlight", true)
-    if MF.RoleUnknown() then Core.TipLine(GameTooltip, L.METER_FRAMES_ROLE_UNKNOWN, "hint", true) end
+    local roleHint = MF.RoleHint()
+    if roleHint then Core.TipLine(GameTooltip, roleHint, "hint", true) end
     local lines = MF.UnitLines(unit)
     if #lines > 0 and Core.Tooltip and Core.Tooltip.Gap then Core.Tooltip.Gap(GameTooltip) end
     for _, line in ipairs(lines) do GameTooltip:AddLine(line.text, line.r, line.g, line.b, true) end
@@ -1406,6 +1428,8 @@ function MF.StatusLine()
     local count = GF and #GF.List() or 0
     local text = L["STATUS_METER_FRAMES_MODE_" .. string.upper(lastMode or "none")] or L.STATUS_METER_FRAMES_MODE_NONE
     local line = L.STATUS_METER_FRAMES:format(count, text) .. " " .. MF.SessionLine() .. " " .. MF.ViewLine()
+    local roleHint = MF.RoleHint()
+    if roleHint then line = line .. " " .. roleHint end
     local meter, frames = MF.OtherMeter(), MF.OtherFrames()
     if meter then line = line .. " " .. L.METER_FRAMES_DETAILS:format(meter) end
     if frames then line = line .. " " .. L.METER_FRAMES_REPLACED:format(frames) end
@@ -1466,6 +1490,7 @@ ns.On("CVAR_UPDATE", function(_, name) if name == "showPartyPets" then dirty = t
 ns.On("PARTY_LEADER_CHANGED", function() dirty = true end)
 -- Rolle in der Gruppe ändert sich (Schalter „Nur, was deine Rolle betrifft“): Zeilen neu
 ns.On("PLAYER_ROLES_ASSIGNED", function() dirty = true end)
+Core.Listen("TALENTS_CHANGED", function() dirty = true end, "ezCombat.MeterFrames")    -- ohne Gruppe: der Talentbaum
 -- Gestalt, Spezialisierung oder Kraftart des Spielers wechselt: Blizzard zeigt oder verbirgt dann seine Klassenleiste
 -- (Combo-Punkte, Runen …) bzw. die zweite Kraftleiste unter dem Spielerrahmen (GF.SlotClear: clearBelow, clear)
 ns.On("UPDATE_SHAPESHIFT_FORM", function() dirty = true end)

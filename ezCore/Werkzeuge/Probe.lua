@@ -89,7 +89,7 @@ Core.Probe = Probe
 Probe.VERSION = 1
 -- Fassung der Probe: steht an jedem Lauf (pv) und in der Ablage (rev), damit der Bericht mehrerer Helfer weiß, welche
 -- Stationen und Grenzen galten. Ändert sich mit jeder Änderung an Stationen, Grenzen oder Zählung.
-Probe.REV = "2026-11-15-klein"
+Probe.REV = "2026-11-23-rest3"   -- Sonderprobe X10 entfernt (Restschaden entfällt); davor 2026-11-22-rest2 (X10), 2026-11-22-rest (Station R, X9)
 -- gleiche Antwort ein weiteres Mal: kein Eintrag, nur Zähler und „zuletzt gesehen“ je Prüfwert (probe.same); die
 -- Beschreibung steht beim ersten Mal (Fassung 2026-11-14-nachprobe: noch ein Verweis { …, same = Prüfwert } je Abfrage)
 Probe.SAME = true
@@ -4291,6 +4291,8 @@ function Probe.AddSettings(page)
     end
     page:Button(L.OPT_probeHelper, L.PROBE_HELPER_BUTTON, function() ns.Print(Probe.HelperText()) end, L.OPT_probeHelper_TIP)
     page:Button(L.OPT_probeHere, L.PROBE_HERE_BUTTON, function() Probe.Here() end, L.OPT_probeHere_TIP)
+    -- Station R hat keinen Anlass (kein „when“): eigener Knopf (Leitlinie 3), im Kampf /ez probe rest
+    page:Button(L.OPT_probeRest, L.PROBE_HERE_BUTTON, function() Probe.Run("R") end, L.OPT_probeRest_TIP)
     page:Button(L.OPT_probeRecord, L.PROBE_RECORD_BUTTON, function() Record.Toggle() end, L.OPT_probeRecord_TIP)
     page:Button(L.OPT_probeTempo, L.PROBE_TEMPO_BUTTON, function() Tempo.Toggle() end, L.OPT_probeTempo_TIP)
     page:Button(L.OPT_probeDoc, L.PROBE_DOC_BUTTON, function()

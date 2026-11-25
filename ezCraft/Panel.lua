@@ -31,12 +31,16 @@ local Data = ns.Data
       Symbol-Reiter      Core.CreateSideTab im Seitenreiter-Stapel unten rechts, wie die Reiter der anderen Module;
                          eingedrückt, solange das Seitenteil offen ist; Zustand in ezCraftDB.window.open, Tooltip,
                          /ezcraft fenster. Der Pfeil von Core.NewSidePanel bleibt verborgen.
-      Ansichten          Listen (Grundansicht, beim Öffnen des Berufefensters immer), Fehlend, Abklingzeiten,
-                         Entzaubern – je ein Symbol-Reiter; ein zweiter Klick auf den gewählten oder das X schließt.
+      Ansichten          Listen (Grundansicht, beim Öffnen des Berufefensters immer), Abklingzeiten, Entzaubern,
+                         darunter – solange ein Beruf gewählt ist – „Was kommt wann“ und „Wo kommt was“ (Teach.lua; Nutzer
+                         am 24.11.2026: „wenn beruf ausgewählt dann zeige die beiden reiter im unteren rechteck an“; sie
+                         ersetzen die Ansicht „Fehlend“) – je ein Symbol-Reiter; ein zweiter Klick auf den gewählten oder
+                         das X schließt.
                          Die Ansicht „Rezept“ ging am 21.11.2026 in Blizzards Rezeptbereich auf (Schematic.lua; Wunsch
                          des Nutzers: „der rest aus dem ezcraft rezepte ist uninteressant“); Inhalt scrollt
       Seite „Berufe“     dasselbe Seitenteil auch auf Blizzards Seite „Berufe“ (BookPage, Taste K; Schalter bookPanel,
-                         Entscheidung des Nutzers Nr. 22 vom 16.11.2026) – ohne den Reiter „Fehlend“
+                         Entscheidung des Nutzers Nr. 22 vom 16.11.2026) – ohne die zwei Berufs-Reiter,
+                         außer für einen über „Fundorte“ gewählten Sammelberuf
       Knopfleiste        unten, je Ansicht die passenden Knöpfe („Im AH suchen“, „Anfordern“, „Leeren“, „Neu lesen“,
                          „Ignorierte zurück“) – Blizzards Vorlage der Herstellen-Knöpfe
 
@@ -51,10 +55,11 @@ local ROW_H = 18
 -- Symbol-Reiter; „shopping“ (Listen) ist die Grundansicht. Die Ansicht „Rezept“ ging am 21.11.2026 in Blizzards
 -- Rezeptbereich auf (Schematic.lua; Wunsch des Nutzers: „das Rezepte von ezCraft soll direkt in das original blizz
 -- anzeige rezept gebaut werden … standardmäßig sollen dann die ezcraft listen beim berufe angezigt werden“).
-local TAB_KEYS = { "shopping", "missing", "cooldowns", "salvage" }
+local TAB_KEYS = { "shopping", "cooldowns", "salvage", "when", "where" }
 local VIEW_ICONS = {
     shopping = "Interface\\Icons\\INV_Misc_Note_01",
-    missing = "Interface\\Icons\\INV_Scroll_03",
+    when = "Interface\\Icons\\INV_Misc_Book_11",       -- dieselben Symbole wie die Zauberbuch-Reiter (ezMerchant)
+    where = "Interface\\Icons\\INV_Misc_Map_01",
     cooldowns = "Interface\\Icons\\INV_Misc_PocketWatch_01",
     salvage = "Interface\\Icons\\INV_Enchant_Disenchant",
 }
@@ -108,8 +113,8 @@ local function CraftingShown()
 end
 
 -- Entscheidung des Nutzers vom 16.11.2026 (Nr. 22, vorläufig nach Empfehlung): das Seitenteil auch auf der Seite
--- „Berufe“, mit Schalter bookPanel (ab Werk an). Dort gibt es kein gewähltes Rezept: der Reiter „Fehlend“ fehlt,
--- Listen, Abklingzeiten und Entzaubern bleiben.
+-- „Berufe“, mit Schalter bookPanel (ab Werk an). Dort ist kein Beruf gewählt: die Reiter „Was kommt wann“ und „Wo kommt
+-- was“ fehlen (außer für einen über „Fundorte“ gewählten Sammelberuf), Listen, Abklingzeiten und Entzaubern bleiben.
 local function OnBook()
     return ns.Enabled("bookPanel") and not CraftingShown() and Visible(Professions()) and Visible(BookPage())
 end
@@ -139,18 +144,20 @@ end
 
 -- Ansichten, die sich abschalten lassen (oder ohne ezCore-Teil fehlen).
 local function TabAvailable(key)
-    if key == "missing" and OnBook() then return false end
-    if key == "missing" then return ns.Enabled("missingTab") end
+    -- nur mit gewähltem Beruf (Schlüssel missingTab aus der Zeit der Ansicht „Fehlend“)
+    if key == "when" or key == "where" then return ns.Enabled("missingTab") and ns.Teach.Current() ~= nil end
     if key == "cooldowns" then return ns.Enabled("cooldownTab") and Data.HasCooldowns() end
     -- „Entzaubern“ nur, wenn der Charakter es kann (und ezCore die Tabelle hat)
     if key == "salvage" then return ns.Enabled("salvageTab") and ns.Salvage ~= nil and ns.Salvage.CanDisenchant() end
     return true
 end
 
--- Gewählte Ansicht; ohne Wahl, abgeschaltet oder das gemerkte „recipe“ von vor dem 21.11.2026: die Listen.
+-- Gewählte Ansicht; ohne Wahl, abgeschaltet oder das gemerkte „recipe“ von vor dem 21.11.2026: die Listen. „missing“
+-- (bis zum 24.11.2026) heißt „when“.
 local function Tab()
     local tab = ns.db and ns.db.window.tab or "shopping"
-    if tab == "recipe" or not TabAvailable(tab) then tab = "shopping" end
+    if tab == "missing" then tab = "when" end
+    if tab == "recipe" or not VIEW_ICONS[tab] or not TabAvailable(tab) then tab = "shopping" end
     return tab
 end
 
@@ -253,6 +260,11 @@ local function NewRow()
         GameTooltip:Show()
     end)
     row:SetScript("OnLeave", GameTooltip_Hide)
+    row:SetScript("OnClick", function(self)      -- nur Zeilen mit eigener Aktion („… und n weitere“)
+        if not self.onClick then return end
+        Core.PlaySound("IG_MAINMENU_OPTION_CHECKBOX_ON")
+        self.onClick()
+    end)
     return row
 end
 
@@ -271,7 +283,7 @@ local function Row(kind, height)
         row = NewRow()
         cur.rows[cur.used] = row
     end
-    row.kind, row.tip = kind, nil
+    row.kind, row.tip, row.onClick = kind, nil, nil
     for _, button in ipairs(row.buttons) do button:Hide() end
     row.icon:Hide()
     row.left:SetText("")
@@ -636,43 +648,207 @@ local function ShowShopping()
     end
 end
 
--- Ansicht „Fehlend“ als Liste „Noch zu lernen“ (Welle 15b): Fundort und Stufe je Rezept, sortiert nach Erreichbarkeit
--- (jetzt lernbar, Stufe unbekannt, Fertigkeit zu niedrig; darin dein Gebiet zuerst). Rechts die Stufe, links unter dem
--- Namen der erste Fundort; Kartenknopf, wo ein Ort bekannt ist. Der Tooltip nennt alle Fundorte und Blizzards Text.
-local function ShowMissing()
-    local list, total, rank = ns.Where.ToLearn()
-    if total == 0 then
-        Text(L.MISSING_NO_WINDOW, 0.7, 0.7, 0.7)
-        return
+---------------------------------------------------------------------------
+-- „Was kommt wann“ und „Wo kommt was“ für den gewählten Beruf (Daten: Teach.lua; bis zum 24.11.2026 eine Ansicht „Fehlend“)
+---------------------------------------------------------------------------
+
+Panel.TEACH_MAX = { later = 15, unknown = 8, trainers = 5, zone = 8, noplace = 8 }
+local expanded, expandedFor = {}, nil      -- aufgeklappte Abschnitte, gelten für den gewählten Beruf
+
+-- Höchstens max Einträge eines Abschnitts; der Rest hinter einer anklickbaren Zeile „… und n weitere“ (aufgeklappt:
+-- „Weniger zeigen“) – wie im Zauberbuch-Reiter „Wo kommt was“ (Nutzer am 24.11.2026: „das "5weitere" AUSKLAPPBAR“).
+local function Capped(key, list, max, draw)
+    local open = expanded[key]
+    local shown = open and #list or math.min(#list, max)
+    for i = 1, shown do draw(list[i]) end
+    if #list <= max then return end
+    -- mit Aufklapp-Pfeil (Nutzer am 24.11.2026: „"und x weitere" brauch noch einen aufklapppfeil“)
+    local row = Text(Core.FoldText(open, open and L.TEACH_LESS or Core.More(#list - max)))
+    Core.Style.SetTextColor(row.left, "normal")
+    row.tip = function(tooltip) tooltip:SetText(open and L.TEACH_LESS_TIP or L.TEACH_MORE_TIP) end
+    row.onClick = function()
+        expanded[key] = not open or nil
+        Panel.Refresh()
     end
-    Header(L.MISSING_HEAD:format(#list, total))
-    if #list == 0 then
-        Text(L.MISSING_NONE, 0.7, 0.7, 0.7)
-        return
-    end
-    for _, entry in ipairs(list) do
-        local first = entry.where[1] and ns.Where.Line(entry.where[1]) or Data.SourceFirstLine(entry.source)
+end
+
+-- Kartenknopf an einer Zeile: Blizzards Weltkarte am Ort, auf Wunsch der Wegpunkt (Where.Show)
+local function PlaceButton(row, place)
+    local button = RowButton(row, 1, "map", L.WHERE_SHOW_TIP:format(place.name or "?", Core.MapName(place.map) or place.zone or "?"),
+        function() ns.Where.Show(place) end, function(self) Core.ShowTip(self, L.WHERE_SHOW, self.tip) end)
+    row.right:ClearAllPoints()
+    row.right:SetPoint("RIGHT", button, "LEFT", -4, 0)
+    return button
+end
+
+-- Ein Rezept: Symbol, Name, rechts right, darunter sub, Kartenknopf zu place; Tooltip mit Fertigkeit, Stufe, Preis und
+-- allen Fundorten samt Quelle.
+local function TeachRow(entry, rank, right, sub, place)
+    local row = ItemRow(entry.icon or Data.CooldownIcon(entry.id or entry.recipeID), entry.name or "?", right or "")
+    if place then PlaceButton(row, place) end
+    if sub then Sub(sub) end
+    row.tip = function(tooltip)
+        tooltip:SetText(entry.name or "?")
         local skill = ns.Where.SkillText(entry, rank)
-        local color = entry.reach == 3 and RED_FONT_COLOR or (entry.reach == 1 and GREEN_FONT_COLOR or nil)
-        local row = ItemRow(entry.icon, entry.name, skill and Colored(skill, color) or "")
-        local best = ns.Where.Best(entry.where)
-        if best then
-            local button = RowButton(row, 1, "map", L.WHERE_SHOW_TIP:format(best.name or "?", Core.MapName(best.map) or "?"),
-                function() ns.Where.Show(best) end, function(self) Core.ShowTip(self, L.WHERE_SHOW, self.tip) end)
-            row.right:ClearAllPoints()
-            row.right:SetPoint("RIGHT", button, "LEFT", -4, 0)
+        if skill then ns.TipLine(tooltip, L.WHERE_SKILL_LINE:format(skill), "normal") end
+        if entry.lvl and entry.lvl > 0 then ns.TipLine(tooltip, L.TEACH_LEVEL:format(entry.lvl), "normal") end
+        if entry.price and entry.price > 0 then ns.TipLine(tooltip, L.TEACH_PRICE:format(Core.Money(entry.price)), "normal") end
+        -- Farbstufen laut Client-Tabellen (standen bis zum 24.11.2026 im Zauberbuch-Reiter „Wo kommt was“)
+        local K, id = Core.Knowledge, entry.id or entry.recipeID
+        local st = id and K and type(K.RecipeStages) == "function" and Core.Plain(Core.Call(K.RecipeStages, id)) or nil
+        if type(st) == "table" and Core.Num(st.yellow) and Core.Num(st.gray) then
+            ns.TipLine(tooltip, L.TEACH_STAGES:format(st.yellow, st.gray), "hint", true)
         end
-        if first then Sub(first) end   -- eine Unterzeile: der erste Fundort
-        row.tip = function(tooltip)
-            tooltip:SetText(entry.name)
-            if skill then ns.TipLine(tooltip, L.WHERE_SKILL_LINE:format(skill), "normal") end
-            for _, e in ipairs(entry.where) do
-                local text = ns.Where.Line(e)
-                if text then ns.TipLine(tooltip, text, "highlight", true) end
+        local trainer, lines = false, 0
+        for _, e in ipairs(entry.where or {}) do
+            local text = ns.Where.Line(e)
+            if text then
+                ns.TipLine(tooltip, text, "highlight", true)
+                lines = lines + 1
+                if e.kind == "trainer" then trainer = true end
             end
-            if #entry.where == 0 then ns.TipLine(tooltip, entry.source or L.MISSING_NO_SOURCE, "highlight", true) end
+        end
+        if entry.npcName and not trainer then
+            ns.TipLine(tooltip, L.TEACH_SEEN:format(entry.npcName), "hint", true)
+            lines = lines + 1
+        end
+        if entry.source or lines == 0 then
+            if lines == 0 or not entry.where or #entry.where == 0 then
+                ns.TipLine(tooltip, entry.source or L.MISSING_NO_SOURCE, "highlight", true)
+            end
         end
     end
+    return row
+end
+
+-- Überschrift der Ansicht: „Kochkunst 66/75“
+local function ProfHead(prof)
+    if prof.rank and prof.max then return Header(L.TEACH_HEAD:format(prof.name or "?", prof.rank, prof.max)) end
+    if prof.rank then return Header(("%s %d"):format(prof.name or "?", prof.rank)) end
+    return Header(prof.name or "?")
+end
+
+local function Hint(text)
+    cur.cursorY = cur.cursorY + LOOK.sectionGap - LOOK.entryGap   -- Hinweise als eigener Block (12 Luft)
+    Text(text, 0.6, 0.6, 0.6)
+end
+
+-- Unterzeile: erster Fundort, sonst der Lehrer, bei dem das Angebot gesehen wurde, sonst Blizzards Text
+local function FirstLine(entry)
+    if entry.where and entry.where[1] then return ns.Where.Line(entry.where[1]) end
+    if entry.npcName then return L.TEACH_SEEN:format(entry.npcName) end
+    return Data.SourceFirstLine(entry.source)
+end
+
+-- „Was kommt wann“: jetzt lernbar, kommt noch (nach Fertigkeit), Fertigkeit unbekannt.
+local function ShowWhen()
+    local prof = ns.Teach.Current()
+    if not prof then return Text(L.MISSING_NO_WINDOW, 0.7, 0.7, 0.7) end
+    local when = ns.Teach.When(prof)
+    ProfHead(prof)
+    if when.window and when.total > 0 then
+        Text(when.missing > 0 and L.MISSING_HEAD:format(when.missing, when.total) or L.MISSING_NONE, 0.8, 0.8, 0.8)
+    end
+    if when.all == 0 then
+        if not (when.window and when.total > 0) then
+            Text(when.seen and L.TEACH_NOTHING or L.TEACH_NO_OFFERS:format(L.TAB_where), 0.7, 0.7, 0.7)
+        end
+    else
+        if #when.now > 0 then
+            Header(L.TEACH_NOW:format(#when.now))
+            for _, e in ipairs(when.now) do
+                local right = e.price and e.price > 0 and Core.Money(e.price) or Colored(ns.Where.SkillText(e, when.rank) or "", GREEN_FONT_COLOR)
+                TeachRow(e, when.rank, right, FirstLine(e), ns.Where.Best(e.where))
+            end
+        end
+        if #when.later > 0 then
+            Header(L.TEACH_LATER:format(#when.later))
+            Capped("later", when.later, Panel.TEACH_MAX.later, function(e)
+                local text = ns.Where.SkillText(e, when.rank)
+                if e.lvl and e.lvl > (Core.PlayerLevel and Core.PlayerLevel() or 1) then
+                    text = (text and (text .. ", ") or "") .. L.TEACH_LEVEL:format(e.lvl)
+                end
+                TeachRow(e, when.rank, Colored(text or "", RED_FONT_COLOR), FirstLine(e), ns.Where.Best(e.where))
+            end)
+        end
+        if #when.unknown > 0 then
+            Header(L.TEACH_UNKNOWN:format(#when.unknown))
+            Capped("unknown", when.unknown, Panel.TEACH_MAX.unknown, function(e)
+                TeachRow(e, when.rank, ns.Where.SkillText(e, when.rank), FirstLine(e), ns.Where.Best(e.where))
+            end)
+        end
+        if not when.seen and prof.own then Hint(L.TEACH_NO_OFFERS:format(L.TAB_where)) end
+    end
+    Hint(when.window and L.TEACH_SRC_WHEN or L.TEACH_SRC_WHEN_NOWINDOW)
+end
+
+-- „Wo kommt was“: die Lehrer (nächster zuerst), dann je Gebiet die Rezepte, die es nicht beim Lehrer gibt (dein Gebiet
+-- zuerst), dann die ohne bekannten Ort.
+local function ShowWhere()
+    local prof = ns.Teach.Current()
+    if not prof then return Text(L.MISSING_NO_WINDOW, 0.7, 0.7, 0.7) end
+    local TS = Core.TrainerSpots
+    local data = ns.Teach.Where(prof)
+    local zone = Data.PlayerZone()
+    ProfHead(prof)
+    Header(L.TEACH_TRAINERS)
+    if #data.trainers == 0 then
+        Text(data.pending and L.TEACH_PENDING or (data.withMap and L.TEACH_TRAINERS_NONE or L.TEACH_TRAINERS_NOMAP), 0.7, 0.7, 0.7)
+    else
+        Capped("trainers", data.trainers, Panel.TEACH_MAX.trainers, function(t)
+            local here = zone ~= nil and t.map == zone
+            local row = ItemRow(prof.icon, TS.Name(t), here and Colored(L.TEACH_HERE, GREEN_FONT_COLOR) or "")
+            local source, place = TS.SourceLabel(t), TS.Place(t)
+            if t.map and t.x and t.y then
+                PlaceButton(row, { map = t.map, x = t.x, y = t.y, name = TS.Name(t), zone = place })
+            end
+            Sub(source and L.TEACH_PLACE_SRC:format(place, source) or place)
+            row.tip = function(tooltip)
+                tooltip:SetText(TS.Name(t))
+                ns.TipLine(tooltip, place, "highlight")
+                if source then ns.TipLine(tooltip, source, "hint") end
+                if t.map and t.x and t.y then ns.TipLine(tooltip, L.TEACH_MAP_TIP, "hint", true) end
+            end
+        end)
+        if data.pending then Text(L.TEACH_PENDING, 0.6, 0.6, 0.6) end
+    end
+    for _, z in ipairs(data.zones) do
+        Header(z.mine and L.TEACH_ZONE_MINE:format(z.name) or z.name)
+        Capped("zone" .. z.map, z.list, Panel.TEACH_MAX.zone, function(x)
+            local onMap = x.place.x and x.place.y and x.place or nil      -- nur mit Kartenpunkt ein Kartenknopf
+            TeachRow(x.entry, data.rank, ns.Where.SkillText(x.entry, data.rank), ns.Where.Line(x.place), onMap)
+        end)
+    end
+    if #data.noplace > 0 then
+        Header(L.TEACH_NOPLACE)
+        Capped("noplace", data.noplace, Panel.TEACH_MAX.noplace, function(x)
+            TeachRow(x.entry, data.rank, ns.Where.SkillText(x.entry, data.rank),
+                x.place and ns.Where.Line(x.place) or Data.SourceFirstLine(x.entry.source))
+        end)
+    end
+    if #data.zones == 0 and #data.noplace == 0 and data.blind == 0 then
+        Header(L.TEACH_ELSEWHERE)
+        Text(L.TEACH_ELSEWHERE_NONE, 0.7, 0.7, 0.7)
+    end
+    if data.taught > 0 then
+        Hint(Core.Plural(data.taught, L.TEACH_TAUGHT_ONE, L.TEACH_TAUGHT_MANY, L.TAB_when))
+    end
+    if data.blind > 0 then Hint(Core.Plural(data.blind, L.TEACH_BLIND_ONE, L.TEACH_BLIND_MANY)) end
+    Hint(L.TEACH_SRC_WHERE)
+end
+
+-- Ansicht für einen Sammelberuf auf der Seite „Berufe“ öffnen (Menü „Fundorte“, Book.lua) → true, wenn zu sehen
+-- nur mit Seitenteil: ezCraft im Berufefenster an (Schalter „panel“, „bookPanel“) und angelegt
+function Panel.CanTeach() return ns.Enabled("missingTab") and ns.Enabled("panel") and ui.side ~= nil and OnBook() end
+
+function Panel.OpenTeach(key, tab)
+    if not Panel.CanTeach() then return false end
+    if not ns.Teach.Pick(key) or not ns.Teach.Current() then
+        ns.Teach.Unpick()
+        return false
+    end
+    Panel.SelectTab(tab == "where" and "where" or "when")
+    return true
 end
 
 -- Fertige oben („Transmutation bei Mira bereit“), darunter die laufenden nach Twink gruppiert (ezCore.Professions).
@@ -827,7 +1003,7 @@ local function UpdateButtons(tab)
             ns.Print(L.SALVAGE_RESET_DONE:format(ns.Salvage.ClearIgnored()))
         end, L.BTN_SALVAGE_RESET_TIP, ns.Salvage.IgnoredCount() > 0)
         SetButton(3, nil)
-    else
+    else      -- „Was kommt wann“, „Wo kommt was“
         SetButton(1, L.BTN_REFRESH, function()
             Data.InvalidateMissing()
             Panel.Refresh()
@@ -1468,7 +1644,10 @@ function Panel.Refresh()
         ShowSalvage()
         if not Core.InCombat() then RearmUnderMouse(armedBefore) end
     else
-        ShowMissing()
+        local prof = ns.Teach.Current()
+        local key = prof and (prof.key or prof.name)
+        if expandedFor ~= key then expanded, expandedFor = {}, key end
+        if tab == "when" then ShowWhen() else ShowWhere() end
     end
     EndRows()
     UpdateButtons(tab)
@@ -1543,9 +1722,15 @@ local function Attach()
         local timer = rawget(_G, "C_Timer")
         if type(timer) == "table" and type(timer.After) == "function" then timer.After(0, Panel.PlaceTabs) end
     end)
-    pf:HookScript("OnHide", Panel.Refresh)
+    pf:HookScript("OnHide", function()
+        ns.Teach.Unpick()
+        Panel.Refresh()
+    end)
     local page = CraftingPage()
-    page:HookScript("OnShow", Panel.Refresh)
+    page:HookScript("OnShow", function()
+        ns.Teach.Unpick()         -- jetzt gilt der Beruf des Fensters
+        Panel.Refresh()
+    end)
     page:HookScript("OnHide", Panel.Refresh)
     -- Seite „Berufe“ (Nr. 22): Seitenteil ohne Rezeptbezug
     local book = BookPage()
@@ -1587,6 +1772,10 @@ Core.Listen("PRICES_SCAN_DONE", RefreshIfOpen, ADDON)
 Core.Listen("PROF_COOLDOWNS_CHANGED", RefreshIfOpen, ADDON)
 Core.Listen("OTHER_ADDONS_CHANGED", RefreshIfOpen, ADDON)   -- ein Addon meldet später, was es übernimmt (craftCost)
 ns.On("ZONE_CHANGED_NEW_AREA", RefreshIfOpen)      -- „hier sammelbar“ hängt am Gebiet
+-- „Wo kommt was“: ein Lehrer wurde besucht, Questie hat die Lehrer einer Karte gelesen
+Core.Listen("NPCS_CHANGED", RefreshIfOpen, ADDON)
+Core.Listen("QUESTIE_TOWNSFOLK", RefreshIfOpen, ADDON)
+ns.On("SKILL_LINES_CHANGED", RefreshIfOpen)
 Core.Listen("GATHERING_CHANGED", RefreshIfOpen, ADDON)   -- Fundorte vergessen oder zusammengelegt (SAM-24)
 ns.Listen("SHOPPING_CHANGED", function() RefreshSoon() end)
 ns.Listen("SHIPMENTS_CHANGED", RefreshIfOpen)

@@ -240,7 +240,7 @@ local function FitTopRow()
             x = x + tw + 12
         end
     end
-    -- „belegt/gesamt (frei)“ gleich hinter dem Fachnamen, gefärbt wie am Rucksack; ein Schalter für Rucksack und Bank
+    -- Freie Plätze aller Fächer gleich hinter dem Fachnamen (ezCore.FreeSpaceText), gefärbt wie am Rucksack; ein Schalter für Rucksack und Bank
     -- (bagCount, Einstellungs-Prüfung vom 19.11.2026, Nr. 56/57).
     if ns.S.bagCount then
         local free, total = Bank.SlotSpace()
@@ -250,7 +250,7 @@ local function FitTopRow()
             end
             countText:ClearAllPoints()
             countText:SetPoint("LEFT", bankFrame, "TOPLEFT", x, -(SEARCH_Y + 10))
-            countText:SetText(("%d/%d (%d)"):format(total - free, total, free))
+            countText:SetText(ezCore.FreeSpaceText(free))
             countText:SetTextColor(ns.SpaceColor(free, total))
             countText:Show()
             x = x + math.ceil(countText:GetStringWidth() or 0) + 10

@@ -25,7 +25,7 @@ local L = Core.L
                                 nicht ab (Zeile „key: Fehler“). Statt einer Hülle um Debug.Lines.
         Debug.Developer(), Debug.SetDeveloper(an)   Entwicklerschalter (comfort.developer, ab Werk aus; Schalter
                                 „Entwicklerwerkzeuge“ unter „Erweitert“, /ez debug entwickler): nur mit ihm laufen die
-                                Sonderproben der Daten-Probe und wirkt der Testschalter comfort.editModeOpen.
+                                Sonderproben der Daten-Probe.
 
     Selbsttest – /ez test (Core.SelfTest)
       Prüft, ob die Blizzard-Vorlagen, Atlanten und APIs, die ezCore nutzt, in diesem Client da sind
@@ -249,8 +249,9 @@ end
 ---------------------------------------------------------------------------
 -- Entwicklerschalter (Gesamtreview 18.11.2026, Entscheidung 1, Funde T1-5/T11-4/T2-7): Werkzeuge mit Nebenwirkung,
 -- die nur Entwickler und Helfer brauchen – die Sonderproben der Daten-Probe (X2 bis X8, F7: Komplett-Scan, Wegpunkt,
--- Rezept-Filter, Betrachten, Sammelabfrage, Menge im Warenkauf, Minikarten-Zoom) und der Testschalter
--- comfort.editModeOpen – wirken nur, solange er an ist. Ab Werk aus; an über den Schalter „Entwicklerwerkzeuge“
+-- Rezept-Filter, Betrachten, Sammelabfrage, Menge im Warenkauf, Minikarten-Zoom) – wirken nur, solange er an ist
+-- (den Testschalter comfort.editModeOpen hat der Nutzer am 22.11.2026 gestrichen). Ab Werk aus; an über den Schalter
+-- „Entwicklerwerkzeuge“
 -- unter „Erweitert“ (Leitlinie 3) oder „/ez debug entwickler“. Die Automatik der Daten-Probe hängt nicht daran.
 --   Debug.Developer()        → true | false
 --   Debug.SetDeveloper(an)   → neuer Zustand (false, solange ezCoreDB noch nicht geladen ist); setzt über das
@@ -273,18 +274,13 @@ function Debug.SetDeveloper(on)
     return tbl.developer == true
 end
 
--- Zeilen unter „Erweitert“ (Collection.lua): der Entwicklerschalter, darunter der Testschalter comfort.editModeOpen
--- (Mover.lua) – der nur zu sehen ist, solange der Entwicklerschalter an ist (opts.shown von page:OwnCheckbox; Blizzards
--- Liste wertet die Bedingung nach jedem Umschalten neu aus). → Zeile des Entwicklerschalters, Zeile des Testschalters
--- (je nil ohne Client-Unterstützung)
+-- Zeile unter „Erweitert“ (Collection.lua): der Entwicklerschalter. Den Testschalter comfort.editModeOpen darunter hat
+-- der Nutzer am 22.11.2026 gestrichen („Verschieben“ öffnet immer den eigenen Modus, Mover.lua).
+-- → Zeile des Entwicklerschalters (nil ohne Client-Unterstützung)
 function Debug.AddDeveloperRows(page)
     if type(page) ~= "table" or type(page.OwnCheckbox) ~= "function" then return nil end
     local _, devRow = page:OwnCheckbox("comfort", "developer")
-    local testRow
-    if Core.Mover and Core.Mover.Open then
-        _, testRow = page:OwnCheckbox("comfort", "editModeOpen", { shown = Debug.Developer })
-    end
-    return devRow, testRow
+    return devRow
 end
 
 -- „/ez debug entwickler [an|aus]“: ohne Zusatz umschalten; meldet den neuen Zustand
@@ -300,11 +296,13 @@ local function DeveloperCommand(more)
     return on
 end
 
--- „/ez debug [an|aus|zeigen|entwickler [an|aus]]“
+-- „/ez debug [an|aus|zeigen|entwickler [an|aus]|taint]“
 function Debug.Command(rest)
     local word, more = Core.Trim(rest or ""):lower():match("^(%S*)%s*(.-)$")
     if word == "entwickler" or word == "developer" or word == "dev" then
         DeveloperCommand(more)
+    elseif word == "taint" and Core.TaintScan then
+        Core.TaintScan.Run()
     elseif word == "an" or word == "on" or word == "start" then
         if Debug.Start() then ns.Print(L.DEBUG_STARTED:format(Debug.MAX_SECONDS)) else ns.Print(L.DEBUG_RUNNING) end
     elseif word == "aus" or word == "off" or word == "stop" then
@@ -397,6 +395,7 @@ Core.SELFTEST = {
         { "CreateFrame" }, { "hooksecurefunc" }, { "C_Timer.After" }, { "GetTime" }, { "InCombatLockdown" },
         { "StaticPopup_Show" }, { "GameTooltip" }, { "UIParent" }, { "SlashCmdList" },
         { "issecretvalue", optional = true }, { "canaccessvalue", optional = true }, { "debugprofilestop", optional = true },
+        { "issecurevariable", optional = true },   -- Taint-Suche (TaintScan.lua); ohne sie meldet der Knopf „nicht verfügbar“
         { "C_XMLUtil.GetTemplateInfo", optional = true }, { "C_Texture.GetAtlasInfo", optional = true },
         -- Einstellungen
         { "Settings.RegisterVerticalLayoutCategory" }, { "Settings.RegisterAddOnSetting" }, { "Settings.RegisterAddOnCategory" },
@@ -419,6 +418,7 @@ Core.SELFTEST = {
         -- Zauber, Aktionsplätze, Auren
         { "C_Spell.GetSpellName", optional = true }, { "C_Spell.GetSpellInfo", optional = true },
         { "C_Spell.GetSpellCooldown", optional = true }, { "C_SpellBook.IsSpellKnown", optional = true },
+        { "C_SpellBook.IsSpellInSpellBook", optional = true }, { "C_ActionBar.GetActionText", optional = true },
         { "C_ActionBar.GetActionCooldown", optional = true }, { "GetActionInfo" },
         { "C_UnitAuras.GetAuraDataByIndex", optional = true },
         -- Karte, Kontakte, Namen
@@ -432,6 +432,9 @@ Core.SELFTEST = {
         { "GetProfessions", optional = true }, { "C_TradeSkillUI.GetRecipeSchematic", optional = true },
         { "RequestRaidInfo", optional = true }, { "GetSavedInstanceInfo", optional = true },
         { "NotifyInspect", optional = true }, { "C_PaperDollInfo.GetInspectItemLevel", optional = true },
+        { "C_PaperDollInfo.GetTemporaryEnchantmentInfo", optional = true },
+        { "C_SpecializationInfo.GetInspectSpecialization", optional = true },
+        { "C_AutoComplete.GetAutoCompleteRealms", optional = true },
         { "C_CurrencyInfo.GetCurrencyInfo", optional = true },
         -- Bearbeitungsmodus (nur zuhören)
         { "EventRegistry.RegisterCallback", optional = true }, { "EditModeManagerFrame", optional = true },
@@ -775,6 +778,9 @@ Core.AddSelfTest("ezCore", function()
     Collect(Spells.DISPELS)
     Collect(Spells.RESURRECTS)
     Collect(Spells.HELPERS)
+    for _, list in pairs(Spells.RESCUES or {}) do
+        for _, entry in ipairs(list) do ids[entry.id] = true end
+    end
     for id in pairs(Spells.FORM_IDS or {}) do ids[id] = true end
     for id in pairs(Spells.MacroSpells and Spells.MacroSpells() or {}) do ids[id] = true end
     local sorted = {}
@@ -789,7 +795,23 @@ end)
 -- nur, ruft geschützt und zeigt Zahlen – nie Namen, nie eine ganze GUID. Ortsgebundenes sagt „hier nicht prüfbar“.
 ---------------------------------------------------------------------------
 
-local RECIPE = 2330          -- ein Rezept der Alchemie – dieselbe Nummer wie in docs/datengrundlage.md 3.3
+-- Ein Rezept eines Berufs, den der Charakter nicht hat und dessen Fenster nicht offen ist: drei Hauptberufe, höchstens zwei
+-- hat er (2963 Leinenstoffballen, 2149 Handgefertigte Lederstiefel, 2329 Elixier der Löwenstärke; alle im Build). Bis
+-- 24.11.2026 stand hier 2330 (Schwacher Heiltrank) – das gibt es auf Forever nicht (SpellName): die Antworten darauf
+-- belegen nichts (docs/datengrundlage.md 3.3). → Rezept, Fertigkeitslinie
+local FOREIGN = { { 2963, 197 }, { 2149, 165 }, { 2329, 171 } }
+function Core.ForeignRecipe()
+    local own = {}
+    local P = Core.Professions
+    for _, e in ipairs(P and P.Read and P.Read() or {}) do if e.line then own[e.line] = true end end
+    local info = Core.Call(Core.Peek(rawget(_G, "C_TradeSkillUI"), "GetBaseProfessionInfo"))
+    local open = type(info) == "table" and not Core.IsSecret(info) and Core.Num(Core.Peek(info, "professionID"))
+    if open then own[open] = true end
+    for _, e in ipairs(FOREIGN) do
+        if not own[e[2]] then return e[1], e[2] end
+    end
+    return FOREIGN[1][1], FOREIGN[1][2]
+end
 
 local function Shown(name)
     local frame = rawget(_G, name)
@@ -818,6 +840,7 @@ Core.AddSelfTest("ezCore", function()
 
     -- Rezepte ohne offenes Berufefenster
     local window = Shown("ProfessionsFrame") or Shown("TradeSkillFrame")
+    local RECIPE = Core.ForeignRecipe()
     local output, results = Core.SelfTestCall(Label("recipeOutput"), "C_TradeSkillUI.GetRecipeOutputItemData", RECIPE)
     if results then
         local data = results[2]

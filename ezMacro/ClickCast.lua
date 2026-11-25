@@ -7,14 +7,12 @@ local Core = ezCore
     vom 13.11.2026: „ezHeal als eigenes schlankes Modul mit dem Makro-Teil in ezMacro“, ezHeal bleibt die Klick-Schicht
     für Heilen, Bannen und Wiederbeleben, Buffs zusätzlich in den Klick-Vorlagen).
 
-    1. Knopf „Klick-Zauber“ im Makro-Browser (unter „Anpassen“): legt das gewählte Makro über ezCores Dienst
-       Core.ClickBindings auf eine Maustaste mit Umschalttaste – Blizzards Klick-Zaubern, wirkt auf Gruppen- und
-       Raidrahmen. Ablauf: Taste im Menü wählen (je Taste steht dabei, was heute dort liegt) → Rückfrage (Core.Confirm)
-       → fehlt das Makro in Blizzards Makroverwaltung, legt ezMacro es zuerst an → ClickCast.Assign. Geschrieben wird
-       seit dem Paket ezmacro/klickzauber-besitzer von EINEM Besitzer: Läuft ezHeal, über ezCore.API("ezHeal").AssignMacro
-       (ezHeal ist die Klick-Schicht, seine Merkliste und „Zurück“ bleiben stimmig); nur ohne ezHeal wie bisher
-       CB.Assign(CB.Macro(name, taste, umschalttasten), { owner = "ezMacro" }). Nur außerhalb des Kampfes; ezCore
-       sichert die alte Belegung (Core.ClickBindings.Restore) und lässt „Ziel“ und „Menü“ auf ihren Tasten.
+    1. Knopf „Klick-Zauber“ im Makro-Browser (unter „Anpassen“): öffnet Blizzards Fenster „Klick-Zauber“ und hängt das
+       gewählte Makro an den Mauszeiger (ClickCast.Hand); fehlt es in Blizzards Makroverwaltung, legt ezMacro es zuerst
+       an. Die Taste wählt der Spieler in Blizzards Fenster wie aus dem Zauberbuch (Spieltest vom 23.11.2026); der Chat
+       nennt dazu ezHeals Vorschlag, die Selbstwirk-Taste und ein fremdes Klick-Addon. Nur außerhalb des Kampfes.
+       Bis zum 23.11.2026 hatte der Knopf ein eigenes Tastenmenü mit Rückfrage und schrieb über ezHeal bzw. ezCore
+       (Entscheidung des Nutzers vom 23.11.2026: „menü weg wenn verhalten gleich bleibt“).
 
     2. Gruppe „Heilen und Buffen per Klick“ im Reiter „Makros“ (eigene Auswahl): Maus-über-Makros für Heilen,
        Bannen, Wiederbeleben und Buffs auf Mitspieler.
@@ -27,21 +25,25 @@ local Core = ezCore
 local ClickCast = {}
 ns.ClickCast = ClickCast
 
-local Menu = Core.Menu
-
--- Text oder nil (ezCores Texttabelle liefert für einen fehlenden Schlüssel den Schlüssel selbst)
-local function Text(key)
-    local value = L[key]
-    if type(value) == "string" and value ~= key then return value end
-    return nil
-end
-
--- Tasten zur Wahl (Maustaste, Umschalttasten). Links und Rechts ohne Umschalttaste bleiben Blizzards „Ziel“ und
--- „Menü“ und stehen deshalb nicht in der Liste.
+-- Empfohlene Tasten (Maustaste, Umschalttasten) für den Erklärtext (ClickCast.Guide). Links und Rechts ohne
+-- Umschalttaste bleiben Blizzards „Ziel“ und „Menü“ und stehen deshalb nicht in der Liste. Keine Alt-Taste: Alt ist ab Werk Blizzards Selbstwirk-Taste, die
+-- gedrückt jeden Klick-Zauber auf dich lenkt (Fehler des Nutzers vom 23.11.2026, Ursache in docs/roadmap/ezHeal.md);
+-- an ihrer Stelle Maustaste 4 und 5 ohne Umschalttaste – ezHeals Vorlagen lassen sie frei.
 ClickCast.KEYS = {
     { "left", "SHIFT" }, { "right", "SHIFT" }, { "left", "CTRL" }, { "right", "CTRL" },
-    { "left", "ALT" }, { "right", "ALT" }, { "middle", nil }, { "middle", "SHIFT" },
+    { "button4", nil }, { "button5", nil }, { "middle", nil }, { "middle", "SHIFT" },
 }
+
+-- Liegt die Taste auf Blizzards Selbstwirk-Taste (ezCore liest sie aus dem Client; ein Vorschlag aus ezHeal mit eigener
+-- Wahl, oder der Spieler hat Umschalt/Strg als Selbstwirk-Taste)? Dann wirkt ein Klick-Zauber dort auf dich – der
+-- Chat beim Knopf sagt es (ClickCast.HandText).
+function ClickCast.HitsSelfCast(modifiers)
+    local cb = Core.ClickBindings
+    if type(cb) ~= "table" or type(cb.HitsSelfCast) ~= "function" or type(cb.SelfCastKey) ~= "function" then return false end
+    local selfKey = cb.SelfCastKey()
+    if selfKey == nil then return false end
+    return cb.HitsSelfCast(modifiers, selfKey) ~= nil   -- ezCore: Selbstwirk-Taste oder nil
+end
 
 local function CB()
     local cb = Core.ClickBindings
@@ -55,9 +57,9 @@ function ClickCast.Available()
 end
 
 -- Rücksicht auf fremde Addons (Leitlinie 9): Läuft ein Addon, das die Klicks auf Gruppenrahmen selbst belegt
--- (ezCore: Core.WhoHandles("clickCast"), heute Clique), nennen Tooltip und Rückfrage es. Der Knopf bleibt: Er
--- wirkt nur auf ausdrücklichen Wunsch mit Rückfrage; Blizzards Klick-Zauber und Clique können sich aber auf
--- derselben Taste überschneiden – das soll der Spieler vor dem Ja wissen. → Name | nil
+-- (ezCore: Core.WhoHandles("clickCast"), heute Clique), nennen Tooltip und Chat-Hinweis es. Der Knopf bleibt: Er
+-- wirkt nur auf ausdrücklichen Wunsch; Blizzards Klick-Zauber und Clique können sich aber auf derselben Taste
+-- überschneiden – das soll der Spieler vor dem Speichern wissen. → Name | nil
 function ClickCast.Other()
     local name = ns.OtherFor("clickCast")     -- Gerüst: Core.WhoHandles, innen gesichert
     if type(name) == "string" and name ~= "" then return name end
@@ -66,9 +68,10 @@ end
 
 local Plain = Core.Plain   -- Wert nur, wenn er nicht geheim ist (ezCore, Leitlinie 2)
 
--- Tastentexte aus ezCore (Core.ClickBindings.KeyText/Describe samt Texten CLICK_MOD_*, CLICK_BUTTON_*, CLICK_ACTION_*,
--- CLICK_FREE, CLICK_IS_MACRO, CLICK_OTHER in ezCores Locale; EC-109, MACRO-20) – eine Fassung mit ezHeal. Die beiden
--- Namen hier bleiben als Weiterleitung (Leitlinie 8).
+-- Tastentexte aus ezCore (Core.ClickBindings.KeyText samt Texten CLICK_MOD_*, CLICK_BUTTON_* in ezCores Locale; EC-109,
+-- MACRO-20) – eine Fassung mit ezHeal. Der Name hier bleibt als Weiterleitung (Leitlinie 8). Das eigene Tastenmenü
+-- (Menu, KeysFor, Ask, Run, Assign, Owner, CurrentOn, Describe) ist seit dem 23.11.2026 weg: Entscheidung des Nutzers
+-- „menü weg wenn verhalten gleich bleibt“ – Blizzards Fenster „Klick-Zauber“ zeigt Belegung und Konflikte selbst.
 
 -- „Umschalt + Linksklick“
 function ClickCast.KeyText(button, modifiers)
@@ -77,137 +80,74 @@ end
 
 -- Roter Faden (Spieltest 20.11.2026, wörtlich „Klick-Zauber muss auch klar erklärt werden, wann wo(rahmen, makro,
 -- fähigkeit) welche tasten(kombi) wie verwendet wird, sonst fehlt der rote faden und verständnis“): Leiste, Rahmen und
--- Fähigkeit in drei Zeilen, dazu die Tasten aus ClickCast.KEYS (eine Quelle für Menü und Text). → Text
+-- Fähigkeit in drei Zeilen, dazu die Tasten aus ClickCast.KEYS (eine Quelle für Text und Prüfung). → Text
+-- Tasten, die schon belegt sind (von ezHeals Vorlagen oder von Hand, laut Blizzards Klick-Zaubern), fehlen in der
+-- Empfehlung; sind alle belegt oder nennt das Spiel die Belegung nicht, stehen alle da (Durchsicht 24.11.2026).
+function ClickCast.FreeKeys()
+    local cb = Core.ClickBindings
+    if type(cb) ~= "table" or type(cb.List) ~= "function" or type(cb.Find) ~= "function" then return ClickCast.KEYS, false end
+    local list, complete = Core.Call(cb.List)
+    local bits = type(cb.ModifierBits) == "function" and Core.Call(cb.ModifierBits)
+    -- unvollständig gelesen oder Umschalttasten unbekannt: nichts „frei“ nennen
+    if type(list) ~= "table" or complete == false or type(bits) ~= "table" then return ClickCast.KEYS, false end
+    local free = {}
+    for _, key in ipairs(ClickCast.KEYS) do
+        if not Core.Call(cb.Find, list, key[1], key[2]) then free[#free + 1] = key end
+    end
+    if #free == 0 then return ClickCast.KEYS, false end
+    return free, #free < #ClickCast.KEYS
+end
+
 function ClickCast.Guide()
     local keys = {}
-    for _, key in ipairs(ClickCast.KEYS) do keys[#keys + 1] = ClickCast.KeyText(key[1], key[2]) end
+    local list, some = ClickCast.FreeKeys()
+    for _, key in ipairs(list) do keys[#keys + 1] = ClickCast.KeyText(key[1], key[2]) end
     return table.concat({ L.CLICK_GUIDE_HEAD, L.CLICK_GUIDE_BAR, L.CLICK_GUIDE_FRAME, L.CLICK_GUIDE_SPELL,
-        L.CLICK_GUIDE_KEYS:format(table.concat(keys, ", ")) }, "\n")
+        (some and L.CLICK_GUIDE_KEYS_FREE or L.CLICK_GUIDE_KEYS):format(table.concat(keys, ", ")) }, "\n")
 end
 
--- Was liegt heute auf einer Taste? → Text (Zaubername samt Rang aus ezMacros Zauberwissen, wenn es ihn kennt)
-function ClickCast.Describe(entry)
-    local spellName = type(entry) == "table" and entry.kind == "spell" and entry.id ~= nil and ns.SpellName(entry.id) or nil
-    return Core.ClickBindings.Describe(entry, spellName)
-end
-
--- Aktuelle Belegung (Liste) oder nil
-local function Current()
-    local cb = CB()
-    if not cb then return nil end
-    local list = cb.List()
-    return type(list) == "table" and list or nil
-end
-
-function ClickCast.CurrentOn(button, modifiers, list)
-    local cb = CB()
-    list = list or Current()
-    if not (cb and list) then return Core.L.CLICK_FREE end
-    return ClickCast.Describe((cb.Find(list, button, modifiers)))
-end
-
--- Tasten für einen Eintrag: der Vorschlag (entry.click, aus ezHeals Vorlage) zuerst.
-function ClickCast.KeysFor(entry)
-    local keys, seen = {}, {}
-    local function add(key, suggested)
-        local id = tostring(key[1]) .. ":" .. tostring(key[2] or "")
-        if seen[id] then return end
-        seen[id] = true
-        keys[#keys + 1] = { key[1], key[2], suggested = suggested or nil }
+-- Knopf „Klick-Zauber“ wie Blizzards Klick-Zauber aus dem Zauberbuch (Spieltest vom 23.11.2026, wörtlich: „wieso
+-- "klick-zauber" tasteneinstellungeN nicht wie bei klick-zauber(klickbelegunG) aus zauberbuch“; Leitlinie 1): öffnet
+-- Blizzards Fenster „Klick-Zauber“ (Core.OpenPanel("clickbindings")) und hängt das Makro an den Mauszeiger
+-- (PickupMacro, wie „auf Leiste ziehen“); fehlt es, legt ezMacro es zuerst an. Die Taste wählt der Spieler in Blizzards
+-- Fenster: in die Liste klicken (Blizzard nimmt das Makro vom Zeiger in eine neue Zeile), mit der Tasten-Kombination auf
+-- diese Zeile klicken, „Speichern“ (Blizzard_ClickBindingUI.lua, Zweig forever: AddFromCursorInfo). Der Chat sagt es
+-- samt ezHeals Vorschlag und Blizzards Selbstwirk-Taste. An Blizzards Fenster ändert ezMacro nichts (Leitlinie 5).
+function ClickCast.HandText(entry, name)
+    local parts = { L.CLICK_HAND:format(name) }
+    if type(entry) == "table" and type(entry.click) == "table" then
+        local suggested = L.CLICK_TIP_SUGGESTED:format(ClickCast.KeyText(entry.click[1], entry.click[2]))
+        if ClickCast.HitsSelfCast(entry.click[2]) then suggested = suggested .. " " .. Core.Red(L.CLICK_SELFCAST) end
+        parts[#parts + 1] = suggested .. "."
     end
-    if type(entry) == "table" and type(entry.click) == "table" then add(entry.click, true) end
-    for _, key in ipairs(ClickCast.KEYS) do add(key) end
-    return keys
-end
-
----------------------------------------------------------------------------
--- Belegen
----------------------------------------------------------------------------
-
--- Ein Besitzer der Klick-Belegung (Paket ezmacro/klickzauber-besitzer; Entscheidung des Nutzers vom 13.11.2026:
--- „ezHeal bleibt die Klick-Schicht“): Läuft ezHeal, schreibt ezHeal (ezCore.API("ezHeal").AssignMacro) – seine
--- Merkliste und sein „Zurück“ wissen dann, dass auf der Taste jetzt ein Makro liegt. Nur ohne ezHeal schreibt ezMacro
--- wie bisher selbst über ezCore (dann gibt es keinen zweiten Schreiber). → Schnittstelle von ezHeal | nil
-function ClickCast.Owner()
-    local api = Core.API and Core.API("ezHeal")
-    if type(api) == "table" and type(api.AssignMacro) == "function" then return api end
-    return nil
-end
-
--- Makro (Name) auf die Taste legen. → true | false, grund ("combat" heißt: kommt nach dem Kampf)
-function ClickCast.Assign(name, button, modifiers)
-    local cb = CB()
-    if not (cb and cb.Writable()) then return false, "missing" end
-    if ns.InCombat() then return false, "combat" end
-    local owner = ClickCast.Owner()
-    if owner then
-        -- ein Fehler in ezHeal landet in ezCores Fehlerliste unter ezHeal (Core.Try), die Taste bleibt, wie sie war
-        local ok, done, reason = Core.Try("ezHeal", "AssignMacro (ezMacro)", owner.AssignMacro, name, button, modifiers,
-            { via = "ezMacro" })
-        if not ok then return false, "ownerError" end
-        if done ~= true then return false, reason or "ownerError" end
-        return true, reason
+    local cb = Core.ClickBindings
+    local selfKey = type(cb) == "table" and type(cb.SelfCastKey) == "function" and cb.SelfCastKey() or nil
+    if selfKey then
+        local text = type(cb.ModifierText) == "function" and cb.ModifierText(selfKey) or nil
+        parts[#parts + 1] = L.CLICK_HAND_SELFCAST:format(Plain(text) or selfKey)
     end
-    local entry, why = cb.Macro(name, button, modifiers)
-    if not entry then return false, why or "invalid" end
-    return cb.Assign(entry, { owner = "ezMacro" })
-end
-
-local function Report(name, keyText, ok, reason)
-    if ok then
-        ns.Print((reason == "same" and L.CLICK_SAME or L.CLICK_DONE):format(name, keyText))
-    elseif reason == "combat" then
-        ns.Print(L.CLICK_LATER:format(name, keyText))
-    else
-        ns.Print(L.CLICK_FAILED:format(name, Text("CLICK_ERR_" .. tostring(reason)) or tostring(reason)))
-    end
-end
-
--- Nach der Rückfrage: fehlt das Makro, zuerst anlegen (Import.lua), dann belegen.
-function ClickCast.Run(entry, name, body, perChar, button, modifiers)
-    if ns.InCombat() then
-        ns.CombatNotice()
-        return false
-    end
-    name = ns.Import.CleanName(name)
-    local keyText = ClickCast.KeyText(button, modifiers)
-    local function assign()
-        local ok, reason = ClickCast.Assign(name, button, modifiers)
-        Report(name, keyText, ok, reason)
-    end
-    if ns.Import.Find(name) then
-        assign()
-        return true
-    end
-    return ns.Import.Apply(entry, name, body, perChar, false, assign)
-end
-
--- Rückfrage mit Makro, Taste und dem, was dort heute liegt.
-function ClickCast.Ask(entry, name, body, perChar, button, modifiers)
-    if ns.InCombat() then
-        ns.CombatNotice()
-        return false
-    end
-    if not ClickCast.Available() then
-        ns.Print(L.CLICK_FAILED:format(name, L.CLICK_ERR_missing))
-        return false
-    end
-    name = ns.Import.CleanName(name)
-    local text = L.CLICK_CONFIRM:format(name, ClickCast.KeyText(button, modifiers), ClickCast.CurrentOn(button, modifiers))
-    -- Gibt es schon ein Makro dieses Namens, belegt ClickCast.Run genau dieses (mit seinem Text) – das sagt die Frage
-    if ns.Import.Find(name) then
-        text = text .. "\n" .. L.CLICK_CONFIRM_EXISTING:format(name)
-    else
-        text = text .. "\n" .. L.CLICK_CONFIRM_CREATE
-    end
+    -- Leitlinie 9: läuft ein Addon, das die Klicks auf Rahmen selbst belegt (heute Clique), kann es sich mit Blizzards
+    -- Klick-Zaubern auf derselben Taste überschneiden – das sagte bisher die Rückfrage des Menüs
     local other = ClickCast.Other()
-    if other then text = text .. "\n" .. L.CLICK_OTHER_ADDON:format(other, other) end
-    Core.Confirm(text, function() ClickCast.Run(entry, name, body, perChar, button, modifiers) end)
-    return true
+    if other then parts[#parts + 1] = L.CLICK_OTHER_ADDON:format(other, other) end
+    return table.concat(parts, " ")
 end
 
--- Menü am Knopf „Klick-Zauber“: je Taste ein Eintrag mit dem, was dort heute liegt; der Vorschlag oben.
-function ClickCast.Menu(owner, entry, name, body, perChar)
+-- → true | false (Kampf, kein Klick-Zaubern, Makro nicht anzulegen oder nicht aufzunehmen). Geht Blizzards Fenster nicht
+-- auf, hängt das Makro trotzdem am Zeiger, und der Chat nennt den Weg über das Zauberbuch (Review vom 23.11.2026).
+-- Klick-Zauber behalten die Maus-Kette immer (Schalter „Maus über“, Resolver.lua): Zeigt das Feld die Vorlage ohne
+-- Maus, kommt die Fassung mit Kette und „(MO)“ auf die Taste – ohne sie wirkte der Klick auf das Ziel statt auf den
+-- angeklickten Rahmen. Eine Anpassung des Spielers bleibt, wie sie ist. → Name, Text
+function ClickCast.FullChain(entry, name, body)
+    if type(entry) == "table" and ns.MouseoverActive(entry) == false and not ns.IsEdited(entry)
+        and body == (ns.EntryBody(entry)) then
+        return ns.MouseoverOtherName(entry) or name, (ns.Resolve(entry.body))
+    end
+    return name, body
+end
+
+function ClickCast.Hand(entry, name, body, perChar)
+    name, body = ClickCast.FullChain(entry, name, body)
     if ns.InCombat() then
         ns.CombatNotice()
         return false
@@ -216,19 +156,35 @@ function ClickCast.Menu(owner, entry, name, body, perChar)
         ns.Print(L.CLICK_FAILED:format(tostring(name), L.CLICK_ERR_missing))
         return false
     end
-    local list = Current()
-    local clean = ns.Import.CleanName(name)
-    Menu.Open(owner, function(root)
-        Menu.Title(root, L.CLICK_MENU_TITLE:format(clean))
-        for _, key in ipairs(ClickCast.KeysFor(entry)) do
-            local keyText, now = ClickCast.KeyText(key[1], key[2]), ClickCast.CurrentOn(key[1], key[2], list)
-            local label = keyText .. " – " .. now
-            if key.suggested then label = label .. " " .. L.CLICK_SUGGESTED end
-            local item = Menu.Button(root, label, function() ClickCast.Ask(entry, name, body, perChar, key[1], key[2]) end)
-            if item then Menu.Tip(item, keyText, L.CLICK_MENU_KEY_TIP:format(keyText, clean, now)) end
+    name = ns.Import.CleanName(name)
+    local function hand(index, existing)
+        if not index or ns.InCombat() or type(PickupMacro) ~= "function" then return false end
+        -- erst das Fenster (Blizzard ordnet dabei neu), dann der Zeiger. Sperrt ezCore das Öffnen von „Klick-Zauber“
+        -- (Kern/Panels.lua, selfOnly mit OPEN_SELF_ONLY; seit dem Versuch vom 23.11.2026 aus): dann der Weg
+        local opened, why = Core.OpenPanel("clickbindings", nil, true)
+        ClearCursor()
+        PickupMacro(index)
+        local text = opened == true and ClickCast.HandText(entry, name) or L.CLICK_HAND_NOFRAME:format(name)
+        if why == "self" and Core.Panels.SelfHint then
+            text = L.CLICK_HAND_SELF:format(name) .. " " .. (Core.Panels.SelfHint("clickbindings") or "") .. " "
+                .. ClickCast.HandText(entry, name)
         end
-    end)
-    return true
+        if existing then text = text .. " " .. L.CLICK_HAND_EXISTING:format(name) end
+        ns.Print(text)
+        return true
+    end
+    -- Gibt es schon ein Makro dieses Namens, kommt genau dieses an den Zeiger (wie bisher beim Belegen); weicht sein
+    -- Text ab, sagt es der Chat (vorher die Rückfrage des Menüs)
+    local Import = ns.Import
+    local index = Import.Find(name)
+    if index then
+        local differs = Import.CleanBody(Import.BodyOf(index) or "") ~= Import.CleanBody(body or "")
+        return hand(index, differs)
+    end
+    local handed
+    local ok = Import.Apply(entry, name, body, perChar, false, function(newIndex) handed = hand(newIndex) end)
+    if handed ~= nil then return handed end
+    return ok == true
 end
 
 ---------------------------------------------------------------------------

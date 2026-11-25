@@ -287,10 +287,12 @@ local function DimRow(row, index, pet)
     return dim
 end
 
--- Blizzard füllt eine Zeile (hooksecurefunc): merken, welche Zeile welchen Index zeigt, und abdunkeln.
-function P.OnRow(row, index)
+-- Blizzard füllt eine Zeile (hooksecurefunc): merken, welche Zeile welchen Index zeigt, und abdunkeln. Der zweite Wert
+-- ist wie bei Blizzard der Knoten der Liste (data) oder gleich dessen Daten; der Index steht in skillIndex.
+function P.OnRow(row, element)
     if type(row) ~= "table" or not row.SetAlpha then return end
-    index = ns.Num(index)
+    local data = type(element) == "table" and (element.data or element) or nil
+    local index = type(data) == "table" and ns.Num(data.skillIndex) or nil
     rows[row] = index
     DimRow(row, index, P.Active() and P.PetSpells() or nil)
 end
@@ -306,7 +308,8 @@ function P.RefreshRows()
 end
 
 -- Kann ezMerchant Blizzards Zeilen abdunkeln? (Die Funktion, an die es sich hängt, gibt es nicht in jeder Fassung.)
-P.ROW_HOOK = "ClassTrainerFrame_SetServiceButton"
+-- Forever (Blizzard_TrainerUI.lua, Zeilen der ScrollBox): ClassTrainerFrame_InitServiceButton(skillButton, elementData).
+P.ROW_HOOK = "ClassTrainerFrame_InitServiceButton"
 function P.CanDim() return P.hooked == true end
 
 ---------------------------------------------------------------------------
@@ -570,7 +573,7 @@ ns.OnReady(function()
         ClassTrainerFrame:HookScript("OnShow", function() UpdateSoon() end)
         ClassTrainerFrame:HookScript("OnHide", function() P.Update() end)
         if not P.hooked and type(_G[P.ROW_HOOK]) == "function" then
-            hooksecurefunc(P.ROW_HOOK, function(row, index) ns.Try("PetRow", P.OnRow, row, index) end)
+            hooksecurefunc(P.ROW_HOOK, function(row, element) ns.Try("PetRow", P.OnRow, row, element) end)
             P.hooked = true
         end
         P.Update()

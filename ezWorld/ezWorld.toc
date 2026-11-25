@@ -4,8 +4,9 @@
 ## Notes: Storage of ezCollection's discovery database (loot counts, vendors, trainers, gathering spots, entrances). No own functions: ezCore reads and writes it. Without this folder nothing of it is saved.
 ## Notes-deDE: Speicher der Entdecker-Datenbank von ezCollection (Beute-Zählung, Händler, Lehrer, Fundorte, Eingänge). Ohne eigene Funktionen: ezCore liest und schreibt. Ohne diesen Ordner wird davon nichts gespeichert.
 ## Author: BlackWolf-Design
-## Version: 0.1.1
+## Version: 0.1.2
 ## Category: ezCollection
+## IconTexture: Interface\Icons\INV_Misc_Book_09
 ## SavedVariables: ezWorldDB
 ## X-ezCollection-Carrier: ezCore
 ## X-Website: https://github.com/BlackWolfDEsign/ezCollection

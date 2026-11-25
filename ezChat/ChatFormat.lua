@@ -285,7 +285,7 @@ local function EachChatFrame(fn)
     local seen, names = {}, {}
     for i, name in ipairs(CHAT_FRAMES or {}) do names[i] = name end   -- Blizzards Liste nur lesen
     if #names == 0 then
-        for i = 1, (NUM_CHAT_WINDOWS or 10) do names[i] = "ChatFrame" .. i end
+        for i = 1, ns.NumChatWindows() do names[i] = "ChatFrame" .. i end
     end
     for _, name in ipairs(names) do
         local frame = _G[name]

@@ -9,7 +9,8 @@ local Core = ezCore
     Auf anderen Clients bleibt es bei „Name-Realm“.
 
     Core.InitIdentity() (beim Einloggen) setzt:
-      Core.realm        normalisierter Realm („DieAldor“)
+      Core.realm        normalisierter Realm („DieAldor“), nie leer (Core.ResolveRealm)
+      Core.realmSource  woher er stammt: "client", "hint", "guid", "name", "server", "id" (Platzhalter) oder "unknown"
       Core.uniqueNames  Vor- und Nachnamen aktiv?
       Core.surnameSep   Trennzeichen zwischen Vor- und Nachname
       Core.selfName     voller eigener Name
@@ -44,12 +45,125 @@ function Core.RealmKey(realm)
     return Core.NormalizeRealm(realm):lower()
 end
 
+--[[
+    Realm ermitteln (Spielbefund vom 22.11.2026): Der Client von WoW Forever liefert keinen Realmnamen
+    (GetNormalizedRealmName und GetRealmName leer, GetRealmID 0 – auch noch am Auktionshaus, Spieltest vom 21.11.2026).
+    Core.realm wurde dadurch "" und neue Charakter-Sätze hießen „Name-“; derselbe Charakter stand doppelt. Jetzt wird
+    nie ein leerer Realm gespeichert. Reihenfolge:
+      "client"  GetNormalizedRealmName, sonst GetRealmName
+      "hint"    ein früher in dieser Installation gelesener Name zur Realm-Kennung aus der GUID (ezCoreDB.realmHints,
+                geschrieben, sobald der Client einen Namen liefert)
+      "guid"    der Realm eines gespeicherten Satzes mit derselben Spieler-GUID
+      "name"    nur bei regional eindeutigen Namen (Forever): der Realm des einzigen Satzes mit demselben vollen Namen
+      "server"  der Realm, den alle gespeicherten Sätze mit derselben Realm-Kennung in der GUID tragen (nur, wenn es
+                genau einer ist)
+      "id"      Platzhalter „#<Realm-Kennung>“ aus der GUID (Player-<Kennung>-…): trennt Realms, bis ein Name bekannt ist
+      "unknown" „?“ (ohne GUID)
+    Core.RealmKnown(realm) unterscheidet echte Namen von „?“ und Platzhaltern; Keys.RealmName (Preis-Bereiche) nimmt
+    Core.realm nur, wenn er vom Client stammt.
+]]
+
+-- Ist realm ein echter Realmname (nicht leer, nicht „?“, kein Platzhalter „#…“)?
+function Core.RealmKnown(realm)
+    if Core.IsSecret(realm) or type(realm) ~= "string" then return false end
+    return realm ~= "" and realm ~= "?" and realm:sub(1, 1) ~= "#"
+end
+
+-- Realm laut Client in normalisierter Form, sonst nil.
+function Core.ClientRealm()
+    for _, fname in ipairs({ "GetNormalizedRealmName", "GetRealmName" }) do
+        local name = Core.Plain(Core.Call(rawget(_G, fname)))
+        if type(name) == "string" then
+            name = Core.NormalizeRealm(name)
+            if name ~= "" then return name end
+        end
+    end
+    return nil
+end
+
+-- Realm-Kennung aus einer Spieler-GUID („Player-1234-0A1B2C3D“ → "1234"), sonst nil.
+function Core.GuidRealmID(guid)
+    if Core.IsSecret(guid) or type(guid) ~= "string" then return nil end
+    return guid:match("^Player%-(%d+)%-")
+end
+
+-- Anzeigename eines Realms: der gespeicherte Anzeigename, sonst der Schlüssel; ein Platzhalter „#1234“ als „Realm Nr. 1234“.
+function Core.RealmLabel(realm, realmName)
+    if type(realmName) == "string" and not Core.IsSecret(realmName) and realmName ~= "" then return realmName end
+    if type(realm) ~= "string" or Core.IsSecret(realm) or realm == "" then return "?" end
+    local id = realm:match("^#(%d+)$")
+    if id and Core.L and Core.L.REALM_BY_ID then return Core.L.REALM_BY_ID:format(id) end
+    return realm
+end
+
+-- Realm eines gespeicherten Satzes: das Feld realm, sonst der Teil hinter dem letzten Bindestrich des Schlüssels.
+local function RecordRealm(key, c)
+    local realm = type(c) == "table" and c.realm or nil
+    if not Core.RealmKnown(realm) and type(key) == "string" then realm = key:match("%-([^%-]+)$") end
+    return Core.RealmKnown(realm) and realm or nil
+end
+Core.RecordRealm = RecordRealm
+
+-- Genau ein Wert in der Menge { [RealmKey] = realm }? → realm
+local function OnlyOne(set)
+    local one, n = nil, 0
+    for _, realm in pairs(set) do one, n = realm, n + 1 end
+    if n == 1 then return one end
+    return nil
+end
+
+-- → realm, quelle (siehe oben). guid und full: GUID und voller Name des gespielten Charakters (fehlen sie, wird gelesen).
+function Core.ResolveRealm(guid, full)
+    local realm = Core.ClientRealm()
+    if realm then return realm, "client" end
+    if guid == nil then guid = Core.Plain(Core.Call(rawget(_G, "UnitGUID"), "player")) end
+    if type(guid) ~= "string" or guid == "" then guid = nil end
+    local id = Core.GuidRealmID(guid)
+    local db = Core.db
+    local hints = type(db) == "table" and type(db.realmHints) == "table" and db.realmHints or nil
+    if id and hints and Core.RealmKnown(hints[id]) then return Core.NormalizeRealm(hints[id]), "hint" end
+    local chars = type(db) == "table" and type(db.chars) == "table" and db.chars or {}
+    local byName, byServer = {}, {}
+    local wanted = Core.uniqueNames ~= false and type(full) == "string" and full ~= "" and full:lower() or nil
+    for key, c in pairs(chars) do
+        local known = type(c) == "table" and RecordRealm(key, c)
+        if known then
+            if guid and c.guid == guid then return known, "guid" end
+            -- derselbe Name, aber eine andere bekannte GUID (Realm-Transfer, neu vergebener Name): kein Treffer
+            local other = type(c.guid) == "string" and not Core.IsSecret(c.guid) and c.guid ~= "" and c.guid or nil
+            if wanted and type(c.name) == "string" and c.name:lower() == wanted and not (guid and other) then
+                byName[Core.RealmKey(known)] = known
+            end
+            if id and Core.GuidRealmID(c.guid) == id then byServer[Core.RealmKey(known)] = known end
+        end
+    end
+    realm = OnlyOne(byName)
+    if realm then return realm, "name" end
+    realm = OnlyOne(byServer)
+    if realm then return realm, "server" end
+    if id then return "#" .. id, "id" end
+    return "?", "unknown"
+end
+
+-- Liefert der Client jetzt einen Realmnamen, wird er zur Realm-Kennung der GUID gemerkt (ezCoreDB.realmHints), damit das
+-- nächste Anmelden ihn auch ohne Client-Antwort kennt. → Name oder nil
+function Core.RememberRealmHint(guid)
+    local realm = Core.ClientRealm()
+    local db = Core.db
+    if not realm or type(db) ~= "table" then return nil end
+    if guid == nil then guid = Core.Plain(Core.Call(rawget(_G, "UnitGUID"), "player")) end
+    local id = Core.GuidRealmID(guid)
+    if not id then return realm end
+    db.realmHints = type(db.realmHints) == "table" and db.realmHints or {}
+    db.realmHints[id] = realm
+    return realm
+end
+
 function Core.InitIdentity()
     local name, surname = UnitName("player")
     name = name or "?"
-    local realm = GetNormalizedRealmName and GetNormalizedRealmName()
-    if not realm or realm == "" then realm = Core.NormalizeRealm(GetRealmName and GetRealmName() or "?") end
-    Core.realm = realm
+    local guid = Core.Plain(Core.Call(rawget(_G, "UnitGUID"), "player"))
+    if type(guid) ~= "string" or guid == "" then guid = nil end
     -- Liefert UnitName für den eigenen Charakter einen zweiten Teil, ist es der Nachname (WoW Forever).
     Core.uniqueNames = UniqueNamesEnabled() or (type(surname) == "string" and surname ~= "")
     Core.surnameSep = SurnameSeparator()
@@ -59,13 +173,15 @@ function Core.InitIdentity()
             full = name .. Core.surnameSep .. surname
         else
             -- Ersatz, wenn der Nachname fehlt: voller Name aus der GUID
-            local guid = UnitGUID and UnitGUID("player")
             if guid and GetPlayerInfoByGUID then
                 local ok, _, _, _, _, _, n = pcall(GetPlayerInfoByGUID, guid)
                 if ok and type(n) == "string" and not Core.IsSecret(n) and n ~= "" then full = n end
             end
         end
     end
+    local realm, source = Core.ResolveRealm(guid, full or name)
+    Core.realm, Core.realmSource = realm, source
+    if source == "client" then Core.RememberRealmHint(guid) end
     Core.selfName = full or (name .. "-" .. realm)
     Core.charKey = (full or name) .. "-" .. realm
     Core.oldCharKey = name .. "-" .. realm
@@ -254,10 +370,11 @@ end
 -- Realms, an die Post gehen kann: der eigene und verbundene Realms (als RealmKey-Menge).
 function Core.MailRealms()
     local set = { [Core.RealmKey(Core.realm)] = true }
-    if GetAutoCompleteRealms then
-        local ok, realms = pcall(GetAutoCompleteRealms)
-        if ok and type(realms) == "table" then
-            for _, realm in ipairs(realms) do set[Core.RealmKey(realm)] = true end
+    local realms = Core.Plain((Core.Call((C_AutoComplete and C_AutoComplete.GetAutoCompleteRealms)
+        or rawget(_G, "GetAutoCompleteRealms"))))
+    if type(realms) == "table" then
+        for _, realm in ipairs(realms) do
+            if not Core.IsSecret(realm) then set[Core.RealmKey(realm)] = true end
         end
     end
     return set
@@ -403,4 +520,87 @@ function Core.NpcID(guid)
     local kind, id = guid:match("^(%a+)%-%d+%-%d+%-%d+%-%d+%-(%d+)")
     if id and (kind == "Creature" or kind == "Vehicle" or kind == "Pet") then return tonumber(id) end
     return nil
+end
+
+---------------------------------------------------------------------------
+-- Text zum Weitergeben ohne eigene Namen (Nutzer, 24.11.2026: „Natürlich anonymer Export“)
+---------------------------------------------------------------------------
+
+--[[
+    Core.Anonymous(text) → Text, in dem die Namen der eigenen Charaktere (auch Vor- und Nachname einzeln), ihrer Realms,
+    die eigene Gilde und die Mitglieder der Gruppe ersetzt sind (L.ANON_CHAR, L.ANON_REALM, L.ANON_GUILD, L.ANON_PLAYER).
+    Ersetzt wird nur ein ganzes Wort: „Al“ trifft nicht „Alles“ (Genitiv „Als“ und andere Schreibweisen bleiben). Dazu jede
+    Spieler-GUID („Player-…“, nennt Realm und Charakter). Unbekannte Namen (aus Fehlertexten fremder Addons) kennt ezCore
+    nicht – der Hinweis an der Fehlerliste bleibt deshalb.
+]]
+-- Teil eines Wortes: ASCII-Buchstabe, Ziffer oder ein Zeichen aus zwei Bytes ab C3 (Umlaute, Kyrillisch, Griechisch). C2
+-- (geschütztes Leerzeichen, »«, ·) und alle Zeichen aus drei Bytes (Striche, Anführungen, Pfeile, Schriften ohne
+-- Wortabstand) sind Grenzen: im Zweifel wird eher zu viel ersetzt.
+local function PartOfWord(text, i, step)
+    local c = text:byte(i)
+    if not c then return false end
+    if c < 128 then return text:sub(i, i):match("%w") ~= nil end
+    if step < 0 then
+        while i > 1 and c >= 128 and c < 192 do i = i - 1 c = text:byte(i) end
+    end
+    return c >= 195 and c < 224
+end
+
+local function ReplaceWord(text, word, by)
+    local out, from = {}, 1
+    while true do
+        local a, b = text:find(word, from, true)
+        if not a then break end
+        if PartOfWord(text, a - 1, -1) or PartOfWord(text, b + 1, 1) then
+            out[#out + 1] = text:sub(from, a)
+            from = a + 1
+        else
+            out[#out + 1] = text:sub(from, a - 1) .. by
+            from = b + 1
+        end
+    end
+    out[#out + 1] = text:sub(from)
+    return table.concat(out)
+end
+
+function Core.Anonymous(text)
+    if type(text) ~= "string" or Core.IsSecret(text) then return text end
+    local L, words = Core.L, {}
+    text = text:gsub("Player%-%d+%-%x+", L.ANON_PLAYER)
+    local function Add(name, by)
+        if Core.IsSecret(name) or type(name) ~= "string" then return end
+        name = Core.Trim(name)
+        if #name >= 2 and name ~= "?" and words[name] == nil then words[name] = by end
+    end
+    local function AddPerson(name, by)
+        if Core.IsSecret(name) or type(name) ~= "string" then return end
+        Add(name, by)
+        for part in name:gmatch("%S+") do Add(part, by) end
+    end
+    local function AddRealm(realm)
+        if Core.RealmKnown(realm) then
+            Add(realm, L.ANON_REALM)
+            Add(Core.NormalizeRealm(realm), L.ANON_REALM)
+        end
+    end
+    AddPerson(Core.fullName, L.ANON_CHAR)
+    AddPerson(Core.firstName, L.ANON_CHAR)
+    AddRealm(Core.realm)
+    for key, c in pairs(Core.db and type(Core.db.chars) == "table" and Core.db.chars or {}) do
+        if type(key) == "string" then AddPerson(key:match("^(.-)%-"), L.ANON_CHAR) end
+        if type(c) == "table" then AddPerson(c.name, L.ANON_CHAR) end
+        AddRealm(Core.RecordRealm(key, c))
+    end
+    Add(Core.Plain(Core.Call(rawget(_G, "GetGuildInfo"), "player")), L.ANON_GUILD)
+    local unitName = rawget(_G, "UnitName")
+    for i = 1, 4 do AddPerson(Core.Plain(Core.Call(unitName, "party" .. i)), L.ANON_PLAYER) end
+    if Core.Plain(Core.Call(rawget(_G, "IsInRaid"))) == true then
+        for i = 1, 40 do AddPerson(Core.Plain(Core.Call(unitName, "raid" .. i)), L.ANON_PLAYER) end
+    end
+    -- längere zuerst: der volle Name vor seinen Teilen
+    local list = {}
+    for name in pairs(words) do list[#list + 1] = name end
+    table.sort(list, function(a, b) if #a ~= #b then return #a > #b end return a < b end)
+    for _, name in ipairs(list) do text = ReplaceWord(text, name, words[name]) end
+    return text
 end

@@ -24,10 +24,13 @@ local _, ns = ...
       ZO  Zockify, Forever                    https://zockify.com/forever/
       ME  Method, WoW Forever                 https://method.gg/wow-forever/
       WG  wow.gg, Guides                      https://wow.gg/guides/
-    Hotfixes 05.–13.11.2026: Blizzard-Forum, Hotfix-Sammelthread https://us.forums.blizzard.com/en/wow/t/2403040
-    (gelesen 13.11.2026, erneut 14.11.2026 – letzter Eintrag 13.11.; ns.PRESET_HOTFIX_READ) – kein Hotfix hat ein
-    Talent hinzugefügt, entfernt oder in Lage, Rang oder Voraussetzung geändert; einige ändern die Wirkung gewählter
-    Talente (ns.PRESET_HOTFIXES unten). Das Nachlesen bleibt Daueraufgabe (docs/roadmap/ezTalent.md).
+    Hotfixes 05.–20.11.2026: Blizzard-Forum, Hotfix-Sammelthread https://us.forums.blizzard.com/en/wow/t/2403040
+    (gelesen 13.11.2026, erneut 14.11.2026 und 22.11.2026 – letzter Eintrag 20.11.; ns.PRESET_HOTFIX_READ) – kein
+    Hotfix hat ein Talent hinzugefügt, entfernt oder in Lage, Rang oder Voraussetzung geändert; einige ändern die
+    Wirkung gewählter Talente (ns.PRESET_HOTFIXES unten). Das Nachlesen bleibt Daueraufgabe (docs/roadmap/ezTalent.md).
+    Dazu seit dem 22.11.2026 die Client-Tabellen (Leitlinie 12; Entscheidung des Nutzers „Ja, Client zählt
+    (Empfohlen)“): Jede Vorauswahl ist gegen die Talentbäume von Build 1.60.1.71037 geprüft (Lage, Höchstrang, Schwelle,
+    Vorgänger, 51 Punkte – alle 43 gültig), und jeder Vermerk, dessen neue Werte dort stehen, nennt den Build.
 
     Nachführen am 14.11.2026 (Einstufung unverändert 19 „geprüft“, 24 „eine Quelle“; kein Baum neu):
       - kami-labs: alle sechs Seiten mit Vermerk „textdate“ erneut gelesen – weiter „Published on 14 septembre 2026“
@@ -109,26 +112,57 @@ ns.PRESET_SITES = {
 --   kein Talent genannt: Hotfixes zu Grundfähigkeiten, die ein gewähltes Talent nur verbessert (Judgement 11.11. und
 --     Judgement of Command 13.11. – das Urteil des Befehls zählt danach wieder als Nahkampfangriff wie vor dem 11.11.;
 --     Berserker Rage und Frost Nova 13.11.)
-ns.PRESET_HOTFIX_READ = "2026-11-14"   -- so weit ist der Sammelthread gelesen (Tooltip der Vermerke nennt das Datum)
+--   Nachgelesen am 22.11.2026 (Einträge 16., 17., 19. und 20.11.; 14. und 15.11. hat der Thread keinen Eintrag), bewusst
+--     ohne Vermerk: Dark Inspiration (wirkte mehrfach mit mehreren Schattenpriestern in einer Gruppe, 16.11.), Thundering
+--     Strikes (verlangte für die Krit-Chance eine angelegte Waffe, 16.11.), Boot Knife (Shank nahm ohne Combo-Punkte auf
+--     dem Ziel die Punkte eines anderen Ziels, 16.11.), Demonic Aegis (blieb nach dem Verlernen in Demon Armor bzw. Demon
+--     Skin erhalten, 20.11.) – Randfälle. Reckless Swings (06.11. nur Tooltip) hat seit dem 16.11. einen Vermerk.
+-- Ein Vermerk mit Hotfix-Tag „Datum“ nennt den Tag der letzten Wirkungsänderung laut Thread (je Talent eine Zeile; frühere
+-- Änderungen im Kommentar). build = „<Build>“ heißt: die neuen Werte stehen auch in den Client-Tabellen dieses Builds
+-- (laut wago.tools, Produkt wowf; Leitlinien 11 und 12) – nur dort gesetzt, wo der Wert in den Tabellen nachgeprüft ist:
+-- Wrack (Grundwert 36 » 25,2 = 30 % weniger, Wirkung 2 ohne Schadensaufschlag), Bane of Havoc (globale Abklingzeit
+-- 1,5 Sek.), Mental Dexterity (33/66/100 %), Maelstrom Weapon (20 % je Stapel auf allen Rängen), Stormstrike (100 %
+-- Waffenschaden, Abklingzeit 8 Sek.), Summon Hawk (11 % Mana), Wild Growth (Koeffizient 0,066), Vampiric Embrace (10 %,
+-- dazu 100 % mehr Heilung für dich selbst), Arcane Blast (Dauer 18 Sek.). build belegt die Werte, nicht jede Änderung
+-- des genannten Tages: bei Maelstrom Weapon und Wild Growth stammen die Werte vom 10. bzw. 13.11., der Tag 16.11. ist
+-- eine Verhaltensänderung. Ohne build ist der Thread die einzige Quelle; die meisten davon ändern Verhalten ohne eigene
+-- Tabellenzahl (was ein Talent auslöst, verbraucht oder trifft). Ob die Tabellen bei Two-Handed Weapon Specialization,
+-- Soul Siphon, Lightning Overload und Natural Instinct Werte führen (Schulmaske, Zauberauswahl, Grundwert), ist noch
+-- nicht nachgeprüft (docs/roadmap/ezTalent.md, „Offen“). Nach einem Build-Wechsel prüft
+-- Tests/run.lua, dass der Build hier zu ezTalent/Computed.lua passt (docs/wago-tools.md, „Neuer Client-Stand“).
+ns.PRESET_HOTFIX_READ = "2026-11-22"   -- so weit ist der Sammelthread gelesen (Tooltip der Vermerke nennt das Datum)
+local B = "1.60.1.71037"                -- Build der Client-Tabellen, gegen den die Werte der Vermerke geprüft sind
 ns.PRESET_HOTFIXES = {
-    WARRIOR = { { "Sweeping Strikes", "2026-11-10" } },                              -- verliert keine Aufladung ohne zweites Ziel
-    PALADIN = { { "Unsealed Wrath", "2026-11-11" } },                                -- im Thread „Unsealed Fury“: keine Echos mehr
+    WARRIOR = { { "Sweeping Strikes", "2026-11-10" },                                -- verliert keine Aufladung ohne zweites Ziel
+        { "Unbridled Wrath", "2026-11-16" },                                         -- löst jetzt auch durch Cleave und Heroic Strike aus
+        { "Flurry", "2026-11-16" },                                                  -- Cleave und Heroic Strike verbrauchen keine Stapel mehr
+        { "Reckless Swings", "2026-11-16" } },                                       -- löst jetzt auch durch Cleave und Heroic Strike aus
+    PALADIN = { { "Unsealed Wrath", "2026-11-11" },                                  -- im Thread „Unsealed Fury“: keine Echos mehr
                                                                                      -- durch Angriffe des Windzorntotems
-    WARLOCK = { { "Soul Siphon", "2026-11-10" }, { "Wrack", "2026-11-10" },          -- Gebrechen: Wirkung umgebaut
-        { "Bane of Havoc", "2026-11-10" } },                                         -- löst jetzt die globale Abklingzeit aus
-    SHAMAN = { { "Mental Dexterity", "2026-11-10" }, { "Maelstrom Weapon", "2026-11-10" },
-        { "Stormstrike", "2026-11-10" },                                             -- Verstärkung: Werte (live 12.11.)
-        { "Lightning Overload", "2026-11-09" } },                                    -- richtiger Schaden für Blitzschlag
-    HUNTER = { { "Summon Hawk", "2026-11-10" } },                                    -- Manakosten, Falkenschaden
+        { "Two-Handed Weapon Specialization", "2026-11-19" } },                      -- erhöht jetzt allen Heiligschaden mit Zweihandwaffe
+    WARLOCK = { { "Soul Siphon", "2026-11-10" },                                     -- Gebrechen: Wirkung umgebaut (06.11.: Wrack
+        { "Wrack", "2026-11-10", build = B },                                        -- verstärkt sich nicht mehr selbst)
+        { "Bane of Havoc", "2026-11-10", build = B } },                              -- löst jetzt die globale Abklingzeit aus
+    SHAMAN = { { "Mental Dexterity", "2026-11-10", build = B },                      -- Verstärkung: Werte (live 12.11.)
+        { "Maelstrom Weapon", "2026-11-16", build = B },                             -- Werte 10.11. (live 12.11.); 16.11.: wirkt nicht mehr auf zwei Zauber
+        { "Stormstrike", "2026-11-10", build = B },
+        { "Lightning Overload", "2026-11-09" },                                      -- richtiger Schaden für Blitzschlag
+        { "Flurry", "2026-11-17" } },                                                -- verliert keine Stapel mehr durch Angriffe des Windzorntotems
+    HUNTER = { { "Summon Hawk", "2026-11-10", build = B } },                         -- Manakosten, Falkenschaden
     DRUID = { { "Nature's Swiftness", "2026-11-10" },                                -- wirkt auch auf Wild Growth
         { "Natural Instinct", "2026-11-09" },                                        -- gilt jetzt für Lacerate und Pounce
         { "Rend and Tear", "2026-11-11" },                                           -- wirkt auch auf die Blutung von Pounce
         { "Bloom", "2026-11-06" },                                                   -- heilt das Ziel jetzt richtig
-        { "Wild Growth", "2026-11-13" } },                                           -- Heilwert 6,6 % statt 3,3 %, nicht mehr im Laufen
+        { "Wild Growth", "2026-11-16", build = B },                                  -- 13.11.: Heilwert 6,6 % statt 3,3 %, nicht mehr im
+                                                                                     -- Laufen; 16.11.: die Ränge gehen in die Abklingzeit
+        { "Genesis", "2026-11-16" } },                                               -- erhöht jetzt auch die Blutung von Pounce
     PRIEST = { { "Twilight Focus", "2026-11-11" },                                   -- wirkt in Schattengestalt
-        { "Power Infusion", "2026-11-09" } },                                        -- bleibt auf Verbündeten bestehen
+        { "Power Infusion", "2026-11-09" },                                          -- bleibt auf Verbündeten bestehen
+        { "Vampiric Embrace", "2026-11-16", build = B } },                           -- heilt 10 % statt 20 % des Schattenschadens, dich selbst
+                                                                                     -- doppelt (laut Thread allein unverändert)
     MAGE = { { "Arcane Concentration", "2026-11-09" },                               -- Chance auf Zauber und jedes Geschoss verteilt
-        { "Arcane Blast", "2026-11-06" } },                                          -- Dauer jetzt wie vorgesehen 18 Sekunden
+        { "Arcane Blast", "2026-11-06", build = B } },                               -- Dauer jetzt wie vorgesehen 18 Sekunden
+    ROGUE = { { "Blade Flurry", "2026-11-20" } },                                    -- Shank trifft jetzt ein weiteres Ziel
 }
 
 local function S(site, path, stand, role, note)

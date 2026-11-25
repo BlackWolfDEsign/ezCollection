@@ -367,8 +367,8 @@ function T.TableIDs()
     local ok, list = pcall(CD.ClassSpells, class)
     for _, e in ipairs(ok and type(list) == "table" and list or {}) do
         -- ohne Lernzauber des Begleiters und ohne ausgelöste Zauber (Welle 27; ein ausgelöster trägt die Nummer seines
-        -- Geschwisters und ersetzte sonst dessen ID unter Name#Rang)
-        local id = type(e) == "table" and e.pet ~= true and e.triggered ~= true and ns.Num(e.id)
+        -- Geschwisters und ersetzte sonst dessen ID unter Name#Rang), ohne Abwandlungen (heißen alle „Verwandlung“, Rang 0)
+        local id = type(e) == "table" and e.pet ~= true and e.triggered ~= true and e.variant ~= true and ns.Num(e.id)
         if id then
             local okName, name, fromClient = pcall(S.Name, id)
             if okName and fromClient == true and type(name) == "string" and name ~= "" then
@@ -520,7 +520,7 @@ function T.WaitingList(level)
     local out = {}
     local ok, future = pcall(S.BookEntries)
     for _, entry in ipairs(ok and type(future) == "table" and future or {}) do
-        if type(entry) == "table" and (ns.Num(entry.level) or 0) <= level then out[#out + 1] = entry end
+        if S.WaitsAtTrainer(entry, level) then out[#out + 1] = entry end
     end
     return T.Newest(out), false
 end
@@ -551,7 +551,14 @@ ns.AddStatusLine(function()
     local kind = S.PetKind()
     if not kind then return nil end
     local seen = S.TrainerSeen(kind)
-    if not seen then return L.STATUS_PET_TRAINER_NONE end
+    if not seen then
+        -- Hexenmeister: Grimoires laut Client-Tabellen (Core.PetSpells)
+        local U = ns.Upcoming
+        if not (U and U.PetTables) then return L.STATUS_PET_TRAINER_NONE end
+        local res = U.PetTables()
+        if res and res.kind == "book" then return U.PetBooksStatus(res) end
+        return (select(2, U.PetNoData()))
+    end
     -- ohne gerufenen Begleiter zählt die Ansicht nichts als „jetzt“ (Spellbook.lua, U.PetPresent) – hier ebenso
     local U = ns.Upcoming
     if U and U.PetPresent and not U.PetPresent() then return L.STATUS_PET_TRAINER_NOPET:format(Core.Ago(seen)) end

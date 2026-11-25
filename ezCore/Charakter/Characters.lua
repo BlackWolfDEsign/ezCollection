@@ -8,6 +8,7 @@ local L = Core.L
 
     Felder je Charakter (wer sie schreibt):
       name, realm, realmName, class, faction, level, money,
+      moneyAt (Zeit des letzten verlässlichen Gold-Stands),
       lastSeen, online, resting, guid                             ezCore (Characters.lua)
       guild (Schlüssel der Gilde, false ohne Gilde)               ezCore (Inventory.lua)
       bags, bank, equip, mail = { [itemID] = Anzahl },
@@ -22,6 +23,7 @@ local L = Core.L
       currencies = { [id] = Anzahl }, lastFaction                  ezCore (CharData.lua)
       durability = { pct, low, broken, t }                         ezCore (Durability.lua)
       books = { [questID] = true }                                 ezCore (Collections.lua)
+      petSpells = { [Linie] = { [Zauber] = Rang } }                ezCore (PetSpells.lua; lesen über PetSpells.List)
       playedLevelAt                                                ezPanel-Bausteine (alle anderen Felder schreibt ezCore)
 
     Bis ezCore gab es drei Kopien mit drei Schlüsseln (ezBag: Vorname-Realm, ezPanel: voller
@@ -101,7 +103,7 @@ end
 function Core.CharName(c, key, sep, plain)
     local name = c and c.name or (key and key:match("^(.-)%-")) or key or "?"
     if c and c.realm and Core.RealmKey(c.realm) ~= Core.RealmKey(Core.realm) then
-        name = name .. (sep or " - ") .. (c.realmName or c.realm)
+        name = name .. (sep or " - ") .. Core.RealmLabel(c.realm, c.realmName)
     end
     if plain then return name end
     return Core.ClassText(name, c and c.class)
@@ -261,7 +263,8 @@ end
 
 -- Gold aller Charaktere – eine Liste für ezBag und ezPanel: { { key, c, money } … } reichste zuerst, Summe.
 -- filter.realm / filter.faction = true: nur dieser Realm / die eigene Fraktion; filter.hidden = { [key] = true };
--- filter.sort = "name". Der eigene Charakter steht immer drin (auch mit 0 Gold).
+-- filter.sort = "name". Der eigene Charakter steht immer drin (auch mit 0 Gold), mit dem Gold, das der Client gerade
+-- nennt (ist es 0, der gespeicherte Stand – früh beim Laden kennt der Client das Gold noch nicht).
 function Core.GoldList(filter)
     filter = filter or {}
     local list, total = {}, 0
@@ -272,6 +275,10 @@ function Core.GoldList(filter)
             local ok = not (filter.realm and Core.RealmKey(c.realm) ~= myRealm)
                 and not (filter.faction and c.faction ~= myFaction)
             local money = Core.Num(c.money) or 0
+            if key == Core.charKey then
+                local live = Core.Num(Core.Call(rawget(_G, "GetMoney")))
+                if live and live > 0 then money = live end
+            end
             if ok and (money > 0 or key == Core.charKey) then
                 list[#list + 1] = { key = key, c = c, money = money }
                 total = total + money
@@ -424,21 +431,315 @@ function Chars.Migrate()
     return count
 end
 
+local MoveCharRefs   -- was außerhalb des Satzes an seinem Schlüssel hängt (unten)
+
 -- Alte Schlüssel des gerade gespielten Charakters (nur Vorname) übernehmen.
-local function AdoptOldKey(chars)
+function Chars.AdoptOldKey(chars)
     local old = Core.oldCharKey
     if old and old ~= Core.charKey and type(chars[old]) == "table" then
+        -- Trägt der alte Satz die GUID eines anderen Charakters (gleicher Vorname, kein Nachname), bleibt er seiner
+        local guid = Core.Plain(Core.Call(rawget(_G, "UnitGUID"), "player"))
+        if type(guid) == "string" and type(chars[old].guid) == "string" and chars[old].guid ~= guid then return end
         local target = chars[Core.charKey] or {}
         chars[Core.charKey] = target
         Merge(target, chars[old])
         chars[old] = nil
-        local profs = Core.db.knowledge and Core.db.knowledge.charProfs
-        if type(profs) == "table" and profs[old] then
-            profs[Core.charKey] = profs[Core.charKey] or profs[old]
-            profs[old] = nil
-        end
+        MoveCharRefs(old, Core.charKey, false)
     end
 end
+
+---------------------------------------------------------------------------
+-- Sätze ohne echten Realm übernehmen (Spielbefund vom 22.11.2026)
+---------------------------------------------------------------------------
+
+--[[
+    Solange der Client keinen Realmnamen lieferte, war Core.realm "" und neue Sätze hießen „Name-“, ältere
+    „Name-<Realm>“: derselbe Charakter stand doppelt, und „dieser Realm“ (Core.GoldList) filterte falsch. Jetzt ist
+    Core.realm nie leer (Core.ResolveRealm, Names.lua). Chars.AdoptRealmless führt jeden Satz ohne echten Realm (leer,
+    „?“ oder Platzhalter „#…“, Core.RealmKnown) mit dem passenden zusammen:
+      - der eigene (gleiche GUID oder – bei regional eindeutigen Namen – gleicher voller Name) → Core.charKey
+      - ein Twink → der Satz mit derselben GUID und echtem Realm, sonst (Forever) der einzige mit demselben vollen Namen,
+        sonst „Name-<Realm>“ mit dem Realm, den ezCoreDB.realmHints bzw. die übrigen Sätze seiner Realm-Kennung (GUID)
+        nennen; ist keiner bekannt, aber die GUID da, „Name-#<Kennung>“ (nie wieder leer)
+      - ohne GUID und ohne Treffer bleibt er, wie er ist
+    Zusammenführen: der neuere Stand (lastSeen) gewinnt, fehlende Felder kommen vom älteren; das Gold vom Satz mit dem
+    jüngeren moneyAt, wo einer es kennt. Nichts wird addiert – der übernommene Satz verschwindet, Gold und Bestände zählen
+    einmal. Mit um: Berufe (knowledge.charProfs), Merker renamedNoted und ezPanelFactions, „zuletzt erfasst von“ der
+    Gildenbanken, Verläufe (wer) und Sicherungen der Klick-Belegung; für die Daten der Module geht die Nachricht CHAR_KEY_MOVED (alt, neu).
+    Läuft bei jedem Anmelden vor dem Anlegen des eigenen Satzes und tut nur etwas, solange solche Sätze da sind;
+    db.migrated.realmless[alt] = neu hält fest, was wohin ging.
+      Chars.AdoptRealmless(chars) → Anzahl übernommener Sätze
+]]
+
+-- Satz mit Schlüssel „Name-Realm“, dessen Realm kein echter ist?
+local function IsRealmless(key, c)
+    if type(key) ~= "string" or type(c) ~= "table" then return false end
+    if Core.RealmKnown(c.realm) then return false end
+    local tail = key:match("%-([^%-]*)$")
+    if tail == nil then return false end   -- kein Schlüssel der Form „Name-Realm“: nicht anfassen
+    return not Core.RealmKnown(tail)
+end
+
+local function RecordName(key, c)
+    if type(c.name) == "string" and c.name ~= "" and not Core.IsSecret(c.name) then return c.name end
+    return key:match("^(.*)%-[^%-]*$")
+end
+
+-- Gold beim Zusammenführen: ein Stand mit moneyAt (verlässlich gespeichert) vor einem ohne, bei beiden der jüngere; ohne
+-- moneyAt (alle Sätze vor dem 22.11.2026) ein Stand über 0 vor einer 0 – die 0 stammt meist vom Abmelden –, bei zwei
+-- Ständen über 0 der neuere Satz (Befund des code-reviewers).
+local function PickMoney(newer, older)
+    local atNew, atOld = Core.Num(newer.moneyAt), Core.Num(older.moneyAt)
+    if atNew or atOld then
+        if atOld and (not atNew or atOld > atNew) then return older end
+        return newer
+    end
+    if (Core.Num(newer.money) or 0) <= 0 and (Core.Num(older.money) or 0) > 0 then return older end
+    return newer
+end
+
+-- Zwei Sätze desselben Charakters → ein neuer Satz, srcNewer. Der neuere (lastSeen) gewinnt Feld für Feld; das Gold
+-- nach PickMoney; die Gegenstandslisten (items.bags, .bank, .mail, .equip) je Abschnitt, damit z. B. die Bankliste des
+-- älteren Satzes zu seiner Bank-Zählung passt, wenn der neuere die Bank nie gesehen hat.
+local function MergeRecords(target, src)
+    local srcNewer = (Core.Num(src.lastSeen) or 0) > (Core.Num(target.lastSeen) or 0)
+    local newer, older = target, src
+    if srcNewer then newer, older = src, target end
+    local out = {}
+    for k, v in pairs(older) do out[k] = v end
+    for k, v in pairs(newer) do out[k] = v end
+    local money = PickMoney(newer, older)
+    out.money, out.moneyAt = money.money, money.moneyAt
+    if type(newer.items) == "table" and type(older.items) == "table" then
+        local items = {}
+        for k, v in pairs(older.items) do items[k] = v end
+        for k, v in pairs(newer.items) do items[k] = v end
+        out.items = items
+    end
+    -- ein leerer Anzeigename aus der Zeit ohne Realm verdrängt keinen echten
+    if not Core.RealmKnown(out.realmName) then out.realmName = Core.RealmKnown(older.realmName) and older.realmName or nil end
+    return out, srcNewer
+end
+
+-- Was außerhalb des Satzes an seinem Schlüssel hängt (in ezCore), vom alten auf den neuen Schlüssel: Berufe, Hinweise,
+-- Ruf-Übernahme, Gildenbanken, Verläufe (wer) und die Sicherungen der Klick-Belegung.
+function MoveCharRefs(old, new, srcNewer)
+    local db = Core.db
+    if type(db) ~= "table" then return end
+    local profs = type(db.knowledge) == "table" and db.knowledge.charProfs or nil
+    if type(profs) == "table" and profs[old] ~= nil then
+        if profs[new] == nil or srcNewer then profs[new] = profs[old] end
+        profs[old] = nil
+    end
+    local migrated = type(db.migrated) == "table" and db.migrated or {}
+    local noted = migrated.renamedNoted
+    if type(noted) == "table" then
+        if noted[old] ~= nil then
+            if noted[new] == nil then noted[new] = noted[old] end
+            noted[old] = nil
+        end
+        for k, v in pairs(noted) do if v == old then noted[k] = new end end
+    end
+    local factions = migrated.ezPanelFactions
+    if type(factions) == "table" and old ~= "_at" and old ~= "eligible" and new ~= "_at" and new ~= "eligible" then
+        if factions[old] ~= nil then
+            if factions[new] == nil then factions[new] = factions[old] end
+            factions[old] = nil
+        end
+        local eligible = factions.eligible
+        if type(eligible) == "table" and eligible[old] ~= nil then
+            if eligible[new] == nil then eligible[new] = eligible[old] end
+            eligible[old] = nil
+        end
+    end
+    for _, g in pairs(type(db.guilds) == "table" and db.guilds or {}) do
+        if type(g) == "table" and g.by ~= nil and g.by == old then g.by = new end
+    end
+    for _, list in pairs(type(db.history) == "table" and db.history or {}) do
+        for _, e in ipairs(type(list) == "table" and list or {}) do
+            if type(e) == "table" and e.c == old then e.c = new end
+        end
+    end
+    -- Sicherungen: der erste Stand ist der älteste, der letzte der jüngste der beiden
+    local clicks = type(db.clickBindings) == "table" and db.clickBindings.backups or nil
+    local from = type(clicks) == "table" and clicks[old] or nil
+    if type(from) == "table" then
+        local to = type(clicks[new]) == "table" and clicks[new] or {}
+        local function Pick(which, later)
+            local a, b = to[which], from[which]
+            if type(a) ~= "table" then a = nil end
+            if type(b) ~= "table" then b = nil end
+            if not (a and b) then return a or b end
+            local newer = (Core.Num(b.time) or 0) > (Core.Num(a.time) or 0)
+            if newer == later then return b end
+            return a
+        end
+        clicks[new] = { first = Pick("first", false), last = Pick("last", true) }
+        clicks[old] = nil
+    end
+end
+
+-- Zielschlüssel für einen Satz ohne echten Realm → Schlüssel, Realm (oder nil, wenn er bleibt).
+local function RealmlessTarget(chars, key, c, myGuid)
+    local name = RecordName(key, c)
+    if not name or name == "" then return nil end
+    local guid = type(c.guid) == "string" and not Core.IsSecret(c.guid) and c.guid ~= "" and c.guid or nil
+    -- der gespielte Charakter
+    if (guid and myGuid and guid == myGuid)
+        or (Core.uniqueNames and Core.fullName and name:lower() == Core.fullName:lower()) then
+        return Core.charKey, Core.realm
+    end
+    -- Sätze mit echtem Realm: dieselbe GUID, sonst (Forever) derselbe volle Name – aber nie ein Satz, dessen GUID bekannt ist
+    -- und abweicht (Realm-Transfer oder ein neu vergebener Name; Befund des code-reviewers)
+    local wanted, byName, byGuid = name:lower(), {}, {}
+    for other, o in pairs(chars) do
+        local realm = other ~= key and type(o) == "table" and Core.RecordRealm(other, o)
+        if realm then
+            local oGuid = type(o.guid) == "string" and not Core.IsSecret(o.guid) and o.guid ~= "" and o.guid or nil
+            local oName = RecordName(other, o)
+            if guid and oGuid == guid then
+                byGuid[#byGuid + 1] = { key = other, realm = realm, name = oName and oName:lower(), seen = Core.Num(o.lastSeen) or 0 }
+            elseif Core.uniqueNames and oName and oName:lower() == wanted and not (guid and oGuid) then
+                byName[#byName + 1] = { key = other, realm = realm }
+            end
+        end
+    end
+    if #byGuid > 0 then
+        -- mehrere Sätze mit derselben GUID (Umbenennung): der mit demselben Namen, sonst der zuletzt gesehene; ist auch
+        -- das nicht eindeutig, bleibt der Satz, wie er ist
+        local pick
+        if #byGuid == 1 then pick = byGuid[1] end
+        if not pick then
+            local same = {}
+            for _, e in ipairs(byGuid) do if e.name == wanted then same[#same + 1] = e end end
+            if #same == 1 then pick = same[1] end
+        end
+        if not pick then
+            local best, tie
+            for _, e in ipairs(byGuid) do
+                if not best or e.seen > best.seen then best, tie = e, false elseif e.seen == best.seen then tie = true end
+            end
+            if not tie then pick = best end
+        end
+        if not pick then return nil end
+        return pick.key, pick.realm
+    end
+    if #byName == 1 then return byName[1].key, byName[1].realm end
+    local id = Core.GuidRealmID(guid)
+    if not id then return nil end
+    local hints = type(Core.db.realmHints) == "table" and Core.db.realmHints or {}
+    local realm = Core.RealmKnown(hints[id]) and Core.NormalizeRealm(hints[id]) or nil
+    if not realm then
+        local seen, n = nil, 0
+        for other, o in pairs(chars) do
+            local r = type(o) == "table" and Core.GuidRealmID(o.guid) == id and Core.RecordRealm(other, o)
+            if r and (not seen or Core.RealmKey(r) ~= Core.RealmKey(seen)) then seen, n = r, n + 1 end
+        end
+        if n == 1 then realm = seen end
+    end
+    -- derselbe Realm wie der gespielte Charakter (gleiche Kennung), auch wenn sein Realm nur ein Platzhalter ist
+    if not realm and id == Core.GuidRealmID(myGuid) then realm = Core.realm end
+    realm = realm or ("#" .. id)
+    local target = name .. "-" .. realm
+    if target == key then return nil end
+    return target, realm
+end
+
+function Chars.AdoptRealmless(chars)
+    local db = Core.db
+    if type(db) ~= "table" or type(chars) ~= "table" then return 0 end
+    local myGuid = Core.Plain(Core.Call(rawget(_G, "UnitGUID"), "player"))
+    if type(myGuid) ~= "string" or myGuid == "" then myGuid = nil end
+    local todo = {}
+    for key, c in pairs(chars) do
+        if key ~= Core.charKey and IsRealmless(key, c) then todo[#todo + 1] = key end
+    end
+    table.sort(todo)
+    local n = 0
+    for _, key in ipairs(todo) do
+        local c = chars[key]
+        local target, realm = RealmlessTarget(chars, key, c, myGuid)
+        if target and target ~= key then
+            local merged, srcNewer = c, true
+            if type(chars[target]) == "table" then merged, srcNewer = MergeRecords(chars[target], c) end
+            merged.realm = realm
+            if not Core.RealmKnown(merged.realmName) then merged.realmName = nil end
+            chars[target], chars[key] = merged, nil
+            MoveCharRefs(key, target, srcNewer)
+            db.migrated = type(db.migrated) == "table" and db.migrated or {}
+            db.migrated.realmless = type(db.migrated.realmless) == "table" and db.migrated.realmless or {}
+            db.migrated.realmless[key] = target
+            Core.Fire("CHAR_KEY_MOVED", key, target)
+            n = n + 1
+        end
+    end
+    return n
+end
+
+---------------------------------------------------------------------------
+-- Gold: nur verlässliche Stände speichern (Spielbefund vom 22.11.2026)
+---------------------------------------------------------------------------
+
+--[[
+    Für alle Twinks stand 0 Gold, obwohl einige Silber haben (Spielbefund vom 22.11.2026: ein Twink mit 13 Silber hatte
+    nach seiner Sitzung money 0, der Hauptcharakter folgte live über PLAYER_MONEY). Beim Abmelden kennt der Client die
+    Taschen nicht mehr (Inventory.ScanBags, FP-07), und GetMoney() liefert dann – wie vermutlich früh beim Laden – 0; jede
+    Stelle schrieb das blind. Chars.SaveMoney(sicher, anlass) schreibt jetzt nur:
+      - einen Stand über 0 (immer),
+      - eine 0 nur aus Blizzards PLAYER_MONEY (sicher = true): dann hat sich das Gold wirklich auf 0 geändert.
+    Anmelden, Betreten der Welt, das Nachlesen Chars.MONEY_SETTLE Sekunden danach, der Taschen-Scan und das Abmelden
+    schreiben also nur einen Stand über 0. Grenze: Hat ein Twink wirklich 0 Gold und ist ein älterer Stand über 0
+    gespeichert, bleibt dieser, bis sich sein Gold einmal ändert. Nach PLAYER_LEAVING_WORLD bis zum nächsten
+    PLAYER_ENTERING_WORLD (Ladebildschirm, Abmelden) gilt auch eine 0 aus PLAYER_MONEY nicht als sicher – ob Forever dort
+    PLAYER_MONEY mit 0 schickt, ist nicht belegt. moneyAt merkt die Zeit des letzten geschriebenen Stands (für
+    Chars.AdoptRealmless). Chars.MoneyTrace hält fest, was der Client wann nannte (/dump ezCore.Characters.MoneyTrace im
+    Spiel; zeigt, ob GetMoney() bei PLAYER_LOGIN auf Forever noch 0 liefert); beim Abmelden kommt eine Kopie nach
+    ezCoreDB.moneyTrace (nur die letzte Sitzung, mit dem Wert beim Abmelden – /dump ezCore.db.moneyTrace nach dem
+    nächsten Anmelden).
+      Chars.EventMoney()    → das Gold des Clients bei PLAYER_MONEY; nil, wenn er eine 0 im Ladebildschirm nennt (nicht
+                              sicher). Für Verlauf und Sitzung – sonst zählte das ganze Gold als Ausgabe
+      Chars.MoneyBaseline() → Ausgangsstand für Gold-Differenzen (Verlauf, Sitzung in History.lua): das Gold des Clients,
+                              solange es über 0 liegt, sonst der zuletzt verlässlich gespeicherte Stand, sonst nil.
+                              Auch das Gold „jetzt“ für Anzeigen (ezPanel)
+]]
+Chars.MONEY_SETTLE = 3
+Chars.MoneyTrace = {}
+-- zwischen PLAYER_LEAVING_WORLD und PLAYER_ENTERING_WORLD – auch ganz am Anfang, bis die Welt das erste Mal da ist
+local leaving = true
+
+function Chars.SaveMoney(sure, why)
+    local money = Core.Num(Core.Call(rawget(_G, "GetMoney")))
+    local trace = Chars.MoneyTrace
+    if why then
+        trace[why] = money
+        if why == "event" then trace.events = (trace.events or 0) + 1 end
+    end
+    local me = Core.me
+    if not me or not money or money < 0 then return false end
+    if money > 0 or (sure == true and not leaving) then
+        me.money, me.moneyAt = money, time()
+        return true
+    end
+    return false
+end
+
+function Chars.EventMoney()
+    local money = Core.Num(Core.Call(rawget(_G, "GetMoney")))
+    if not money or money < 0 or (money == 0 and leaving) then return nil end
+    return money
+end
+
+function Chars.MoneyBaseline()
+    local live = Core.Num(Core.Call(rawget(_G, "GetMoney")))
+    if live and live > 0 then return live end
+    local me = Core.me
+    local stored = type(me) == "table" and Core.Num(me.money) or nil
+    if stored and (stored > 0 or Core.Num(me.moneyAt)) then return stored end
+    return nil
+end
+
+function Chars.OnLeaveWorld() leaving = true end
+ns.On("PLAYER_LEAVING_WORLD", function() Chars.OnLeaveWorld() end)
 
 ---------------------------------------------------------------------------
 -- Der aktuelle Charakter
@@ -449,11 +750,16 @@ local function UpdateMe()
     if not me then return end
     me.name = Core.fullName or Core.firstName
     me.realm = Core.realm
-    me.realmName = GetRealmName and GetRealmName() or me.realmName
+    local realmName = Core.Plain(Core.Call(rawget(_G, "GetRealmName")))
+    if type(realmName) == "string" and realmName ~= "" then
+        me.realmName = realmName
+    elseif not Core.RealmKnown(me.realmName) then
+        me.realmName = nil   -- leeren Anzeigenamen aus der Zeit ohne Realm nicht stehen lassen
+    end
     me.class = select(2, UnitClass("player"))
     me.faction = UnitFactionGroup("player")
     me.level = UnitLevel("player")
-    me.money = GetMoney()
+    Chars.SaveMoney(false, "login")
     -- feste Kennung für Core.CharRenamedTo (T4-NR1); nur ein lesbarer Wert wird gemerkt
     local guid = Core.Plain(Core.Call(rawget(_G, "UnitGUID"), "player"))
     if type(guid) == "string" and guid ~= "" then me.guid = guid end
@@ -524,7 +830,10 @@ function Chars.Login()
         Core.Error(Core.name, migrated, "Migrate")
         migrated = 0
     end
-    AdoptOldKey(db.chars)
+    local okOld, errOld = pcall(Chars.AdoptOldKey, db.chars)
+    if not okOld then Core.Error(Core.name, errOld, "AdoptOldKey") end
+    local okAdopt, errAdopt = pcall(Chars.AdoptRealmless, db.chars)
+    if not okAdopt then Core.Error(Core.name, errAdopt, "AdoptRealmless") end
 
     local me = db.chars[Core.charKey] or {}
     db.chars[Core.charKey] = me
@@ -542,9 +851,23 @@ function Chars.Login()
     Core.Fire("CHARS_READY", me)
 end
 
-ns.On("PLAYER_MONEY", function()
-    if Core.me then Core.me.money = GetMoney() end
-end)
+ns.On("PLAYER_MONEY", function() Chars.SaveMoney(true, "event") end)
+
+-- Nach jedem Ladebildschirm: Gold sofort und nach Chars.MONEY_SETTLE Sekunden noch einmal (beides nur über 0). Liefert der
+-- Client inzwischen einen Realmnamen, merkt ezCore ihn fürs nächste Anmelden (Core.RememberRealmHint) – den Schlüssel
+-- dieser Sitzung ändert das nicht.
+function Chars.OnEnterWorld()
+    leaving = false
+    Chars.SaveMoney(false, "enter")
+    Core.RememberRealmHint()
+    if C_Timer and C_Timer.After then
+        C_Timer.After(Chars.MONEY_SETTLE, function()
+            Chars.SaveMoney(false, "settled")
+            Core.RememberRealmHint()
+        end)
+    end
+end
+ns.On("PLAYER_ENTERING_WORLD", function() Chars.OnEnterWorld() end)
 
 ns.On("PLAYER_LEVEL_UP", function(_, level)
     if Core.me then Core.me.level = Core.Num(level) or UnitLevel("player") end
@@ -602,7 +925,14 @@ ns.On("PLAYER_LOGOUT", function()
     me.lastSeen = time()
     me.resting = IsResting and IsResting() and true or false
     me.online = nil
-    me.money = GetMoney()
+    leaving = true
+    Chars.SaveMoney(false, "logout")   -- beim Abmelden liefert der Client oft 0: nur ein Stand über 0 zählt
+    -- Verlauf dieser Sitzung für den Spieltest (S6): was GetMoney() wann lieferte, auch beim Abmelden
+    if type(Core.db) == "table" then
+        local copy = { at = time() }
+        for k, v in pairs(Chars.MoneyTrace) do copy[k] = v end
+        Core.db.moneyTrace = copy
+    end
 end)
 
 -- ezCore zuerst: alle Module finden beim Einloggen fertige Charakterdaten vor.

@@ -899,9 +899,10 @@ end)
 
 -- Vergessener Twink (Core.ForgetChar): alles, was ezCombat je Charakter merkt, geht mit – seine eigenen Rotationen,
 -- der Merker „Anpassen“ der Seite, die gewählte Rotation (ezCombatDB.rotations), seine Anpassungen der Vorlagen
--- (rotationEdits, Welle 26 – die Lücke bestand seit Welle 24) und die gesehenen Auren (rotationSeen). Die Felder sind
+-- (rotationEdits, Welle 26 – die Lücke bestand seit Welle 24), die gesehenen Auren (rotationSeen) und die Schritte für
+-- „Zurück“ auf den Aktionsleisten (rotationBars). Die Felder sind
 -- je Charakter-Schlüssel (Core.charKey) gemerkt; andere Charaktere bleiben unberührt.
-Own.FORGET_FIELDS = { "ownRotations", "rotationBookEdit", "rotations", "rotationEdits", "rotationSeen" }
+Own.FORGET_FIELDS = { "ownRotations", "rotationBookEdit", "rotations", "rotationEdits", "rotationSeen", "rotationBars" }
 if type(Core.Listen) == "function" then
     Core.Listen("CHAR_FORGOTTEN", function(key)
         local db = ns.db

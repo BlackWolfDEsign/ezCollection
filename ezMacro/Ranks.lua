@@ -120,7 +120,7 @@ function Ranks.BarSlots()
 end
 
 -- Aktionsplätze, auf denen ein Makro liegt (MACRO-36): Blizzard nennt für einen Makro-Platz den Makronamen
--- (GetActionText, über Core.ActionSlots.Info); zeigt das Makro keinen Zauber, ist die ID der Index des Makros.
+-- (ActionSlots.Text, über Core.ActionSlots.Info); zeigt das Makro keinen Zauber, ist die ID der Index des Makros.
 -- → { [Makroname] = { Platz, … } }, { [Index] = { Platz, … } } (Plätze ohne Namen),
 --   { [Makroname] = { [Index] = { Platz, … } } } (Plätze mit Namen und Index, für gleichnamige Makros)
 local function MacroSlots()

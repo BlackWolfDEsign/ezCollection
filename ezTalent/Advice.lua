@@ -420,24 +420,80 @@ function Advice.ForgetBest()
     trees, bests = {}, {}
 end
 
--- Baum aus dem Client, je Konfiguration und Baum einmal gelesen (die Regeln ändern sich nicht im Spiel).
+-- Baum aus dem Client, je Konfiguration und Baum gemerkt, bis sich Punkte ändern: Knoten und Pfeile ändern sich im
+-- Spiel nicht, die festen Schwellen rechnet Traits.Thresholds aber aus dem Rest, den der Client zum jetzigen Stand nennt
+-- (Spieltest 23.11.2026) – darum neu lesen nach TRAIT_NODE_CHANGED und TRAIT_CONFIG_UPDATED (unten).
 function Advice.Tree(ctx)
     if type(ctx) ~= "table" or not ctx.configID then return nil end
     local id = ctx.configID .. ":" .. tostring(ctx.treeID)
-    -- nur Erfolge merken: beim ersten Zeichnen kann der Client den Baum noch nicht liefern (Review 20.11.2026)
-    if not trees[id] then trees[id] = Optimize.FromClient(ctx) end
-    return trees[id]
+    if trees[id] then return trees[id] end
+    -- nur Erfolge merken: beim ersten Zeichnen kann der Client den Baum noch nicht liefern (Review 20.11.2026); ebenso
+    -- nicht, solange ab Reihe 2 Schwellen fehlen (Optimize.FromClient: unsure) – sonst bliebe die Reihen-Sperre offen
+    local tree = Optimize.FromClient(ctx)
+    if tree and not tree.unsure then trees[id] = tree end
+    return tree
 end
 
--- Bestes des Modells einer berechneten Verteilung mit points Punkten (gemerkt). → Ergebnis von Optimize.Best oder nil
-function Advice.Best(ctx, preset, points)
+-- Schon vergebene Punkte als Mindestränge für die Suche (Optimize.Best, opts.base): die gekauften Ränge samt
+-- gestaffelten, wie Plan.Progress sie zählt (Traits.Snapshot). → { ranks, entries, points } oder nil (nichts vergeben)
+function Advice.Base(ctx)
+    if type(ctx) ~= "table" or not ctx.configID then return nil end
+    local snap = Traits.Snapshot(ctx.configID, ctx.treeID, false)
+    local points = Traits.Points(snap)
+    if points <= 0 then return nil end
+    return { ranks = snap.nodes, entries = snap.choices, points = points }
+end
+
+-- Vergebene Punkte für die Suche „auf denselben Punkten“ (Advice.BestPlan mit keep, Advice.Rate): base (Advice.Base) und
+-- die Ränge an Knoten, die die Suche nicht kennt (unsichtbar, ohne Lage) – sie bleiben im Plan, zählen aber nicht für
+-- die Suche. → base oder nil, outside = { [Knoten] = Rang }, outsidePoints
+local function KeepBase(ctx, tree)
+    local base = tree and Advice.Base(ctx) or nil
+    local outside, outsidePoints = {}, 0
+    if base then
+        local known = {}
+        for _, n in ipairs(tree.nodes) do known[n.id] = true end
+        for id, rank in pairs(base.ranks) do
+            if not known[id] then outside[id], outsidePoints = rank, outsidePoints + (tonumber(rank) or 0) end
+        end
+    end
+    return base, outside, outsidePoints
+end
+
+-- Enthält der Plan alle vergebenen Ränge samt Wahl?
+local function HasBase(plan, base)
+    local nodes, choices = plan.tpl.nodes or {}, plan.tpl.choices or {}
+    for id, rank in pairs(base.ranks) do
+        if (tonumber(nodes[id] or nodes[tostring(id)]) or 0) < rank then return false end
+        local entry = base.entries and base.entries[id]
+        local chosen = tonumber(choices[id] or choices[tostring(id)])
+        if entry and chosen and chosen ~= entry then return false end
+    end
+    return true
+end
+
+-- Schlüssel der Mindestränge fürs Merken der Suche ("" ohne).
+local function BaseKey(base)
+    if not base then return "" end
+    local parts = {}
+    for id, rank in pairs(base.ranks or {}) do
+        parts[#parts + 1] = tostring(id) .. "=" .. tostring(rank) .. "/" .. tostring(base.entries and base.entries[id] or "")
+    end
+    table.sort(parts)
+    return table.concat(parts, ",")
+end
+
+-- Bestes des Modells einer berechneten Verteilung mit points Punkten (gemerkt). base (freiwillig, Advice.Base): die
+-- vergebenen Punkte bleiben, gesucht wird nur der Rest (Optimize.BestOn). → Ergebnis von Optimize.Best oder nil
+function Advice.Best(ctx, preset, points, base)
     local c = type(preset) == "table" and type(preset.computed) == "table" and preset.computed
     if not (c and type(c.weights) == "table") then return nil end
     local tree = Advice.Tree(ctx)
     if not tree then return nil end
     local id = ctx.configID .. ":" .. tostring(ctx.treeID) .. ":" .. tostring(preset.key) .. ":" .. tostring(points)
+        .. ":" .. BaseKey(base)
     if bests[id] == nil then
-        bests[id] = Optimize.Best(tree, c.weights, Optimize.RulesFor(points, tonumber(preset.tree))) or false
+        bests[id] = Optimize.BestOn(tree, c.weights, points, tonumber(preset.tree), base) or false
     end
     return bests[id] or nil
 end
@@ -450,17 +506,28 @@ function Advice.OwnPoints(ctx)
 end
 
 -- Vorschau „Bestes mit n Punkten“ einer berechneten Verteilung: ein neuer Plan (kind "new", wie „Anpassen“ ohne Vorlage).
+-- keep = true („Auf meine Punkte rechnen“, Spieltest 23.11.2026): baut auf den schon vergebenen Punkten auf
+-- (Advice.Base) – „Übernehmen“ setzt dann nur die freien Punkte, keine Zahl im Baum wird rot; der Plan merkt das als
+-- plan.keep (Advice.Rate bewertet ihn gegen das Beste auf denselben Punkten). Ohne vergebene Punkte das Beste von Grund
+-- auf. Beides hält die Reihen-Sperre des Clients (Traits.Thresholds).
 -- → Plan oder nil, Grund ("points": keine Punkte, "flat": mit so wenigen Punkten bringt nichts etwas – das Beste wäre
 -- leer, "none": keine Werte oder keine Suche möglich)
-function Advice.BestPlan(ctx, preset, points)
+function Advice.BestPlan(ctx, preset, points, keep)
     if not points or points <= 0 then return nil, "points" end
-    local result = Advice.Best(ctx, preset, points)
+    local tree = Advice.Tree(ctx)
+    local base, outside, outsidePoints = nil, {}, 0
+    if keep then base, outside, outsidePoints = KeepBase(ctx, tree) end
+    local result = Advice.Best(ctx, preset, points - outsidePoints, base)
     if not result then return nil, "none" end
-    if result.points == 0 then return nil, "flat" end
-    local tpl = Optimize.Template(result, Advice.Tree(ctx))
+    if result.points + outsidePoints == 0 then return nil, "flat" end
+    local tpl = Optimize.Template(result, tree)
+    for id, rank in pairs(outside) do
+        tpl.nodes[id] = rank
+        if base.entries[id] then tpl.choices[id] = base.entries[id] end
+    end
     tpl.tree, tpl.primary = ctx.treeID, tonumber(preset.tree)
     -- from: Herkunft – die Zeile dieser Verteilung bleibt in „Vorlagen“ und „Empfehlung“ markiert (UI.PresetLoaded)
-    return { kind = "new", scope = ctx.scope, tpl = tpl, from = preset.key,
+    return { kind = "new", scope = ctx.scope, tpl = tpl, from = preset.key, keep = base ~= nil or nil,
         name = L.ADVICE_BEST_NAME:format(points, Templates.PresetName(preset)) }
 end
 
@@ -475,8 +542,19 @@ function Advice.Rate(ctx, plan, prefer, limit, all)
     if not Advice.Tree(ctx) then return nil, "tree" end
     local source = plan or { tpl = Traits.Snapshot(ctx.configID, ctx.treeID, false) }
     local ranks, split = Plan.SpellRanks(source, ctx)
+    -- ein Plan, der auf den vergebenen Punkten aufbaut (Advice.BestPlan mit keep), zählt gegen das Beste auf denselben
+    -- Punkten – sonst hieße „Bestes mit n Punkten“ in der Bewertung weniger als 100 %; der Baum selbst und jeder andere
+    -- Plan gegen das Beste von Grund auf (Spieltest 23.11.2026). Stehen inzwischen andere Punkte im Baum, als der Plan
+    -- enthält, zählt auch er von Grund auf (sonst ginge die Bewertung über 100 %; code-reviewer 23.11.2026).
+    local base, outsidePoints = nil, 0
+    if type(plan) == "table" and plan.keep then
+        local b, _, op = KeepBase(ctx, Advice.Tree(ctx))
+        if b and HasBase(plan, b) then base, outsidePoints = b, op end
+    end
     local opts = { all = all or nil, keep = function(preset) return prefer ~= nil and preset.key == prefer end,
-        best = function(preset, points) return Advice.Best(ctx, preset, points) end }
+        best = function(preset, points)
+            return (base and Advice.Best(ctx, preset, points - outsidePoints, base)) or Advice.Best(ctx, preset, points)
+        end }
     local results, why = Templates.Rate(ranks, split, Core.PlayerClass(), 99, opts)
     if not results and why == "none" and not all then
         opts.all = true
@@ -516,6 +594,10 @@ function Advice.Tone(pct)
 end
 
 -- Neue Welt bzw. andere Spezialisierung: Baum, Suchen und Eigenschaften neu lesen (Review 20.11.2026: sonst blieben
--- sie bis /reload). Die Regeln eines Baums und die Werte je Talent ändern sich dazwischen nicht.
+-- sie bis /reload). Knoten, Pfeile und die Werte je Talent ändern sich dazwischen nicht (die Schwellen: unten).
 ns.On("PLAYER_ENTERING_WORLD", function() Advice.Forget() end)
 ns.On("TRAIT_TREE_CHANGED", function() Advice.Forget() end)
+-- Punkte geändert (gesetzt, vorgemerkt, übernommen, zurückgesetzt): die festen Schwellen hängen am Rest, den der Client
+-- jetzt nennt, die Mindestränge an den vergebenen Punkten – Baum und Suchen neu (Advice.Tree; code-reviewer 23.11.2026)
+ns.On("TRAIT_NODE_CHANGED", function() Advice.ForgetBest() end)
+ns.On("TRAIT_CONFIG_UPDATED", function() Advice.ForgetBest() end)

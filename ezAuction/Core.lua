@@ -31,7 +31,7 @@ ns.DEFAULTS = {
     marketCompare = true,       -- „−23 %“ gegenüber dem Marktwert in der Ergebnisliste (Preis-Wissen von ezCore)
     bargainPercent = 20,        -- ab so viel Prozent unter Marktwert (ab fünf Tagen: unter dem Median) ein Schnäppchen
     upgradeArrow = true,        -- Pfeil „besser“ aus ezGear an Blizzards Ergebniszeilen (Upgrade.lua; nur mit ezGear)
-    upgradeOnly = false,        -- Filter „Nur Verbesserungen“: übrige Ergebniszeilen abblenden (nur Anzeige)
+    upgradeOnly = false,        -- Filter „Nur Verbesserungen“: übrige Ergebniszeilen ausblenden
     -- Welle 12 (AH-08 bis AH-12; bis Welle 13 in Options.lua ergänzt)
     recentSearches = true,      -- Pfeil-Knopf rechts neben dem Suchfeld mit den letzten 20 Suchen (Search.lua)
     rowSearch = true,           -- Knopf „Suchen“ an jeder Zeile im Editor einer Liste
@@ -68,7 +68,7 @@ ns.DEFAULTS = {
     sellListSide = "auto",      -- auto | left | right
     priceRule = "undercut",     -- blizzard | undercut | percent
     undercutPercent = 5,        -- für priceRule = "percent" (1 bis ns.UNDERCUT_PERCENT_MAX)
-    neverBelowVendor = true,    -- nach Abzug der Gebühr nie unter dem Händlerpreis
+    neverBelowVendor = true,    -- nach Abzug der (gemessenen) Gebühr nie unter dem Händlerpreis
     floorTrend = false,         -- nie unter dem Tief der erfassten Tage (AUC-13, Frage 2: entschieden 13.11.2026, ab Werk aus)
     rememberPost = true,        -- letzten Preis, Dauer und Menge je Gegenstand merken und vorbelegen
     -- Welle 13 (AH-18 bis AH-20, AH-38; Tor T1 für den Verkaufsbereich seit dem 21.11.2026 „geht“: ns.T1)
@@ -139,12 +139,16 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.SlashCmd, Core.HelpLines, Core.TipTitle, Core.Tooltip.Gap
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",
-    needs = { "History.PERIODS", "History.PeriodLabel", "History.TypeLabel", "CompartmentHandlers", "Style.ColorText",
+    needs = { "AskModule", "GearStatus", "History.PERIODS", "History.PeriodLabel", "History.TypeLabel", "CompartmentHandlers", "Style.ColorText",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Qualitätsname aus ezCore (T16-6)
         "QualityName",
         "Style.BUTTON", "Style.ICON",
         -- Welle 17: Helfer und Texte, die ezCore ohne neue Versionsnummer bekam (tools/texte.lua, Regel 4)
         "More", "L.ALL_CHARS",
+        -- Durchsicht 24.11.2026 (ohne neue Versionsnummer): wohin ein Link aus Umschalt+Klick ginge
+        "LinkInput",
+        -- 24.11.2026 (ohne neue Versionsnummer): gemessene Auktionsgebühr, ohne Messung brutto
+        "Prices.Fee", "Prices.Proceeds", "Prices.FeeNote",
         -- Welle 23 (Zweige kern/reste-23a und -23b, ohne neue Nummer): gemeinsame Helfer statt eigener Kopien
         "Median", "Hours", "ParseMoney", "MaxStack", "AuctionHouseOpen", "Prices.Weekday", "Prices.BagItems",
         "TOUR_FEATURES.single",
@@ -198,7 +202,6 @@ Core.NewModule(ADDON, ns, {
 ns.API = {}
 
 ns.BLIZZARD_ADDON = "Blizzard_AuctionHouseUI"
-ns.AH_CUT = 0.05            -- Anteil, den das Auktionshaus vom Verkaufspreis einbehält
 
 ---------------------------------------------------------------------------
 -- Datenbank (angelegt vom Gerüst, siehe oben)
@@ -316,10 +319,12 @@ end
 function ns.RoundDown(price, step) return math.floor(price / step) * step end
 function ns.RoundUp(price, step) return math.ceil(price / step) * step end
 
--- Mindestpreis, damit nach Abzug der Gebühr nicht weniger bleibt als beim Händler.
+-- Mindestpreis, damit nach Abzug der Gebühr nicht weniger bleibt als beim Händler. Die Gebühr kommt gemessen aus ezCore
+-- (Prices.Fee); ohne Messung gilt der Händlerpreis selbst – keine angenommene Zahl (Entscheidung des Nutzers vom
+-- 24.11.2026, „Brutto mit Hinweis (Recommended)“; vorher fest 5 %).
 function ns.VendorFloor(vendorPrice, step)
     if not vendorPrice or vendorPrice <= 0 then return 0 end
-    return ns.RoundUp(vendorPrice / (1 - ns.AH_CUT), step or 100)
+    return ns.RoundUp(vendorPrice / (1 - (Core.Prices.Fee() or 0)), step or 100)
 end
 
 --[[
@@ -649,6 +654,8 @@ function ns.T1Blocked(addon, action)
     if not mine then return false end
     -- auch das Abwählen von Blizzards Kategorie (Ausnahme von Leitlinie 5, BuyTab.lua) ruht dann bis /reload
     if ns.Buy then ns.Buy.noCategoryReset = true end
+    -- und „Nur Verbesserungen“ blendet dann wieder nur ab (Ausnahme von Leitlinie 5, Upgrade.lua)
+    if ns.Upgrade then ns.Upgrade.Block() end
     if ns.T1.sell ~= "geht" then return false end
     ns.T1.sell = "blockiert"
     ns.Print(L.T1_BLOCKED_SWITCH:format(tostring(action or "?")))
@@ -1043,12 +1050,17 @@ end
 -- über der Liste bleibt, die 1 Pixel über der Unterkante der Reiter beginnt
 Layout.TAB_GAP = 3
 Layout.TAB_GEAR = { x = 10, y = -6 }
--- Marken in der Preisspalte: Symbol (Pfeil aus ezGear, Warnzeichen) links, Text mit festem Abstand daneben.
--- sign: Platz für ezGears Zeichen neben dem Pfeil („+“ in NumberFontNormal, Schalter „Zeichen am Leuchten“), solange
--- der Pfeil noch lädt und nicht gemessen werden kann. right: rückt ein Symbol den Text nach rechts, endet er spätestens
--- hier und kürzt mit „…“ – ein Silberpreis beginnt im Bildschirmfoto des Spielbefunds 83 vom linken Rand der Zeile
--- (Gegenprüfung vom 17.11.2026); ohne Symbol bleibt der Text, wie er immer war.
-Layout.MARK = { x = 2, gap = 4, text = 6, sign = 8, right = 80 }
+-- Marken in der Preisspalte: Warnzeichen links, Text mit festem Abstand daneben. right: rückt das Zeichen den Text nach
+-- rechts, endet er spätestens hier und kürzt mit „…“ – ein Silberpreis beginnt im Bildschirmfoto des Spielbefunds 83 vom
+-- linken Rand der Zeile (Gegenprüfung vom 17.11.2026); ohne Zeichen bleibt der Text, wie er immer war.
+Layout.MARK = { x = 2, gap = 4, text = 6, right = 80 }
+-- Spalte für ezGears Zeichen in der Ergebnisliste: zwischen Preis und Name (Nutzer am 24.11.2026 mit rotem Rechteck an
+-- dieser Stelle: „ezgear pfeile position wie rechteck“; vorher links in der Preisspalte). Maße aus Blizzards
+-- Tabellenaufbau (Blizzard_AuctionHouseTableBuilder.lua, GetBrowseListLayout, Zweig forever): Preisspalte 146, mit
+-- Kupferpreisen 168, darin rechts 14 frei (Preis und Blizzards Häkchen „eigene Auktion“ enden davor, cellRight); die
+-- Namenszelle beginnt 10 dahinter mit dem Gegenstandssymbol: 24 frei. gap = Abstand zum Symbol, sign = Platz rechts neben
+-- dem Pfeil für ezGears Zeichen der Farbenblind-Hilfe (der Abstand entfällt dann: 16 + 8 = 24).
+Layout.GEAR = { price = 146, priceCopper = 168, cellRight = 14, pad = 10, gap = 4, sign = 8 }
 
 local function Rect(l, t, w, h) return { l = l, t = t, r = l + w, b = t - h } end
 Layout.Rect = Rect
@@ -1142,21 +1154,30 @@ function Layout.MarkTextOffset(width)
     return math.max(M.text, M.x + width + M.gap)
 end
 
--- Breite der gezeigten Symbole auf einem Halter (ezGears Pfeil samt Zeichen für Farbenblinde): breitestes Bild plus
--- gezeigte Schrift daneben. Nur gelesen; die Bilder legt ezGear selbst auf ezAuctions Halter.
-function Layout.MarkWidth(holder)
-    if type(holder) ~= "table" or type(holder.GetRegions) ~= "function" then return 0 end
-    local image, text = 0, 0
-    for _, region in ipairs({ holder:GetRegions() }) do
-        if type(region) == "table" and region.IsShown and region:IsShown() then
-            if region.GetStringWidth then
-                text = text + (Core.Num(region:GetStringWidth()) or 0)
-            else
-                image = math.max(image, Core.Num(region:GetWidth()) or 0)
+-- Linke Kante der Namenszelle (Gegenstandssymbol) einer Ergebniszeile, von der linken Kante der Zeile: gemessen an
+-- Blizzards Zelle (die mit IconBorder; nur gelesen), solange sie steht – sonst aus Blizzards Maßen (Layout.GEAR).
+function Layout.NameLeft(row)
+    local rowLeft = type(row) == "table" and row.GetLeft and Core.Num(row:GetLeft())
+    local cells = type(row) == "table" and Core.Peek(row, "cells")
+    if rowLeft and type(cells) == "table" then
+        for _, cell in ipairs(cells) do
+            if Core.Peek(cell, "IconBorder") and cell.GetLeft then
+                local left = Core.Num(cell:GetLeft())
+                if left and left > rowLeft then return left - rowLeft end
             end
         end
     end
-    return image + text
+    local G = Layout.GEAR
+    local copper = C_AuctionHouse and Core.Call(C_AuctionHouse.SupportsCopperValues)
+    return (Core.Plain(copper) == true and G.priceCopper or G.price) + G.pad
+end
+
+-- Linke Kante des Halters für ezGears Zeichen: vor dem Gegenstandssymbol; mit der Farbenblind-Hilfe einen Schritt weiter
+-- links, damit ihr Zeichen daneben Platz hat – nie in Blizzards Preiszelle.
+function Layout.GearOffset(row)
+    local G = Layout.GEAR
+    local marks = type(Core.MarksOn) == "function" and Core.MarksOn() == true
+    return Layout.NameLeft(row) - (marks and G.sign or G.gap) - Core.Style.ICON.line
 end
 
 ---------------------------------------------------------------------------
@@ -1175,10 +1196,18 @@ function ns.RowOverlay(row)
     if overlay.EnableMouse then overlay:EnableMouse(false) end
     overlay.label = overlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     overlay.label:SetPoint("LEFT", overlay, "LEFT", Layout.MARK.text, 0)
-    -- Halter für ezGears Pfeil (Upgrade.lua): links in der Zeile, senkrecht mittig; der Text rückt rechts daneben
+    -- Halter für ezGears Pfeil (Upgrade.lua): feste Spalte zwischen Preis und Name, senkrecht mittig
     overlay.marks = CreateFrame("Frame", nil, overlay)
     overlay.marks:SetSize(Core.Style.ICON.line, Core.Style.ICON.line)
-    overlay.marks:SetPoint("LEFT", overlay, "LEFT", Layout.MARK.x, 0)
+    function overlay:PlaceMarks()
+        local x = Layout.GearOffset(row)
+        if x == self.marksX then return x end
+        self.marksX = x
+        self.marks:ClearAllPoints()
+        self.marks:SetPoint("LEFT", self, "LEFT", x, 0)
+        return x
+    end
+    overlay:PlaceMarks()
     overlay.tint = overlay:CreateTexture(nil, "BACKGROUND")
     overlay.tint:SetAllPoints(overlay)
     overlay.tint:SetColorTexture(1, 0.1, 0.1, 0.12)
@@ -1188,18 +1217,11 @@ function ns.RowOverlay(row)
     overlay.icon:SetPoint("BOTTOMLEFT", overlay, "BOTTOMLEFT", 2, 1)
     overlay.icon:SetTexture("Interface\\Buttons\\UI-MicroStream-Red")
     overlay.icon:Hide()
-    -- Text rechts neben den gezeigten Symbolen (Spielbefund 16.11.2026: „−5 %“ und „Händler“ lagen unter dem Pfeil).
-    -- markSlot: Platz für ezGears Pfeil freihalten, solange er noch lädt (Upgrade.Mark setzt ihn nur dann; steht der
-    -- Pfeil, wird er gemessen, und ohne Pfeil bleibt der Text am Rand – Gegenprüfung vom 17.11.2026).
+    -- Text rechts neben dem Warnzeichen (Spielbefund 16.11.2026: „−5 %“ und „Händler“ lagen unter dem Pfeil; ezGears
+    -- Pfeil hat seit dem 24.11.2026 seine eigene Spalte).
     function overlay:PlaceLabel()
         local M = Layout.MARK
-        local width = Layout.MarkWidth(self.marks)
-        if self.markSlot then
-            local sign = type(Core.MarksOn) == "function" and Core.MarksOn() == true and M.sign or 0
-            width = math.max(width, Core.Style.ICON.line + sign)
-        end
-        if self.icon:IsShown() then width = math.max(width, Core.Style.ICON.line) end
-        self.labelX = Layout.MarkTextOffset(width)
+        self.labelX = Layout.MarkTextOffset(self.icon:IsShown() and Core.Style.ICON.line or 0)
         self.label:ClearAllPoints()
         self.label:SetPoint("LEFT", self, "LEFT", self.labelX, 0)
         -- nach rechts gerückt: Breite begrenzen, damit der Text nicht in Blizzards Preisanzeige läuft
@@ -1228,8 +1250,8 @@ function ns.RowOverlay(row)
         self.icon:SetShown(shown == true)
         self:PlaceLabel()
     end
-    -- Abgeblendet (Filter „Nur Verbesserungen“, Upgrade.lua): ein dunkler Schleier über der Zeile – Blizzards Zeile
-    -- und ihre Daten bleiben, wie sie sind.
+    -- Abgeblendet (Filter „Nur Verbesserungen“, solange er nicht ausblenden darf, Upgrade.lua): ein dunkler Schleier über
+    -- der Zeile – Blizzards Zeile und ihre Daten bleiben, wie sie sind.
     function overlay:SetDim(shown)
         if shown and not self.dim then
             self.dim = self:CreateTexture(nil, "ARTWORK")

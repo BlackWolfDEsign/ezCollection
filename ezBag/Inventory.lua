@@ -4,7 +4,7 @@ local L = ns.L
 --[[
     Zeigt an, was ezCore pro Charakter über Taschen, Bank, Post, angelegt und Gildenbank weiß:
     - die Offline-Ansicht im ezBag-Fenster (Window.lua)
-    - die Anzeige „belegt/gesamt (frei)“ am Rucksack-Symbol
+    - die Anzeige der freien Plätze am Rucksack-Symbol
 ]]
 
 local Core = ezCore
@@ -21,12 +21,14 @@ function Inventory.FindChar(name)
 end
 
 ---------------------------------------------------------------------------
--- Anzeige am Rucksack-Symbol: belegt/gesamt (frei)
+-- Anzeige am Rucksack-Symbol: freie Plätze
 ---------------------------------------------------------------------------
 
 local bagText
 
--- Farbe für „belegt/gesamt (frei)“: weiß, gold wenn es knapp wird, rot wenn alles voll ist (ezCores Rollen
+-- Den Text der freien Plätze liefert ezCore (Core.FreeSpaceText – eine Fassung für Rucksack-Symbol, Suchzeile der
+-- Bank, Menü der Werkzeugleisten und ezPanels Taschen-Block; Auftrag des Nutzers vom 23.11.2026).
+-- Farbe für die freien Plätze: weiß, gold wenn es knapp wird, rot wenn alles voll ist (ezCores Rollen
 -- highlight, normal, bad – Blizzards Farbobjekte; Welle 23, A3).
 function ns.SpaceColor(free, total)
     if free == 0 then return ns.TipRGB("bad") end
@@ -57,7 +59,7 @@ function Inventory.UpdateBagButton()
         if blizzCount then blizzCount:SetAlpha(1) end
         return
     end
-    bagText:SetText(("%d/%d (%d)"):format(total - free, total, free))
+    bagText:SetText(Core.FreeSpaceText(free, true))
     bagText:SetTextColor(ns.SpaceColor(free, total))
     bagText:Show()
     if blizzCount then blizzCount:SetAlpha(0) end

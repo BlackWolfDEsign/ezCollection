@@ -525,7 +525,7 @@ function History.Context()
 end
 
 local function OnMoney()
-    local money = GetMoney and Num(GetMoney())
+    local money = Core.Characters.EventMoney()
     if not money then return end
     local before = lastMoney
     lastMoney = money
@@ -1255,8 +1255,17 @@ Core.Session = Session
 Session.GAP = 60
 local session, continued, sessionMoney
 
+-- Ausgangsstand für Gold-Differenzen: nie eine 0, die der Client früh beim Laden liefert (Characters.lua,
+-- Chars.MoneyBaseline; Gegenprüfung des Pakets „Taint, Realm und Gold“ vom 22.11.2026 – sonst zählte die erste
+-- Gold-Änderung das ganze Gold als Einnahme)
+local function Baseline()
+    local chars = Core.Characters
+    if chars and chars.MoneyBaseline then return chars.MoneyBaseline() end
+    return GetMoney and Num(GetMoney()) or nil
+end
+
 local function NewSession(me)
-    session = { start = Now(), money = GetMoney and Num(GetMoney()) or 0, earned = 0, spent = 0, data = {} }
+    session = { start = Now(), money = Baseline() or 0, earned = 0, spent = 0, data = {} }
     me.coreSession = session
     continued = false
     return session
@@ -1308,13 +1317,13 @@ function Session.Begin()
     else
         NewSession(me)
     end
-    sessionMoney = GetMoney and Num(GetMoney()) or nil
+    sessionMoney = Baseline()
     return session
 end
 
 local function SessionMoney()
     if not session then return end
-    local money = GetMoney and Num(GetMoney())
+    local money = Core.Characters.EventMoney()
     if not money then return end
     local before = sessionMoney
     sessionMoney = money
@@ -1329,7 +1338,7 @@ end
 ns.On("PLAYER_MONEY", SessionMoney)
 
 Core.Listen("CHARS_READY", function()
-    lastMoney = GetMoney and Num(GetMoney()) or nil
+    lastMoney = Baseline()
     HookMail()
     HookPosting()
     Session.Begin()

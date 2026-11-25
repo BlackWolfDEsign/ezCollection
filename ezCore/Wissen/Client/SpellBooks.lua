@@ -1,0 +1,53 @@
+-- Lehrbücher: Gegenstände, die eine Fähigkeit der eigenen Klasse lehren – laut wago.tools, Produkt wowf, Build 1.60.1.71037 (Client-Tabellen Item, ItemSparse, ItemXItemEffect, ItemEffect, SpellEffect, SkillLineAbility, SkillLine, SpellName, Spell).
+-- Erzeugt am 2026-11-24 aus tools/daten/wago/ mit: luajit tools/wago.lua --ausliefern (mit Rohordner: luajit
+-- tools/wago.lua <Rohordner> --aus=tools/daten/wago). Nicht von Hand ändern – die wago-Prüfung in sh tools/test.sh
+-- meldet rot, wenn diese Datei nicht zu tools/daten/wago/ passt. Herkunft und Regeln: docs/wago-tools.md, Abschnitt 7.
+-- Leser: ezCore.ClientData (Wissen/ClientData.lua). Felder: [Gegenstand] = { Zauber, Klassen-Maske (Bit = Klassen-ID minus 1), nötige Stufe, Rang oder 0 } – ohne veraltete Gegenstände, Runen und Fähigkeiten der Begleiter
+local _, ns = ...
+ns.ClientTables = ns.ClientTables or {}
+ns.ClientTables.spellBooks = {build="1.60.1.71037",data={
+[4142]={28272,128,60,0},
+[4144]={28270,128,60,0},
+[4213]={18540,256,60,0},
+[9214]={1122,256,50,0},
+[16665]={19801,4,60,0},
+[17413]={21562,16,48,1},
+[17414]={21564,16,60,2},
+[17682]={21849,1024,50,1},
+[17683]={21850,1024,60,2},
+[18600]={23028,128,56,0},
+[21214]={25304,128,60,11},
+[21279]={25306,128,60,12},
+[21280]={25345,128,60,8},
+[21281]={25307,256,60,10},
+[21282]={25309,256,60,8},
+[21283]={25311,256,60,7},
+[21284]={25314,16,60,5},
+[21285]={25315,16,60,10},
+[21287]={25316,16,60,5},
+[21288]={25290,2,60,6},
+[21289]={25291,2,60,7},
+[21290]={25292,2,60,9},
+[21291]={25357,64,60,10},
+[21292]={25361,64,60,5},
+[21293]={25359,64,60,3},
+[21294]={25297,1024,60,11},
+[21295]={25298,1024,60,7},
+[21296]={25299,1024,60,11},
+[21297]={25286,1,60,9},
+[21298]={25289,1,60,7},
+[21299]={25288,1,60,6},
+[21300]={25300,8,60,9},
+[21303]={25302,8,60,5},
+[21306]={25295,4,60,9},
+[21307]={25296,4,60,7},
+[22393]={27683,16,60,0},
+[22739]={28271,128,60,0},
+[22890]={28609,128,60,5},
+[22891]={28610,256,60,4},
+[22897]={28612,128,60,7},
+[23320]={29228,64,60,6},
+[24101]={31018,1024,60,6},
+[24102]={31016,8,60,9},
+[237041]={1221404,4,60,0},
+},date="2026-11-24"}

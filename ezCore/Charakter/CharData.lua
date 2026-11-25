@@ -10,7 +10,8 @@ local Core = ezCore
     Gegenstandsstufe (me.ilvl = angelegt, me.ilvlAll = mit Taschen, me.gear = je Platz):
       Core.ItemLevel()               → angelegt (sonst gesamt), gesamt – jetzt, vom Client; nil, wenn unbekannt
       Core.ItemLevelOf(charKey)      → gemerkte Gegenstandsstufe eines Twinks, gesamt, Zeitpunkt
-      Core.GearOf(charKey)           → { [platz] = { l = Itemlevel, q = Qualität, i = itemID } } (nur lesen) oder nil
+      Core.GearOf(charKey)           → { [platz] = { l = Itemlevel, q = Qualität, i = itemID, s = Kennung } } (nur lesen) oder
+                                       nil; s (Core.ItemString) nur, wenn sie mehr sagt als die itemID (Verzauberung, Zusatz)
       Core.SaveGear()                → liest neu; Nachricht GEAR_CHANGED (charKey), wenn sich etwas geändert hat
     Währungen (me.currencies = { [currencyID] = Anzahl }):
       Core.Currencies.Info(id)       → Blizzards CurrencyInfo oder nil (gesperrte Menge gilt als unbekannt)
@@ -67,14 +68,19 @@ function Core.GearOf(charKey)
     return c and type(c.gear) == "table" and c.gear or nil
 end
 
-local function ReadGear()
+local function ReadGear(before)
     local gear = {}
     local ST, ES = Core.SlotText, Core.EquipSlots
     if not (ST and ST.EquippedLevel and ES) then return gear end
     for _, e in ipairs(ES.LIST) do
         if not e.cosmetic then
             local level, quality, link = ST.EquippedLevel("player", e.slot)
-            if level then gear[e.slot] = { l = level, q = quality, i = Core.ItemID(link) } end
+            if not level then link = Core.Plain(Core.Call(rawget(_G, "GetInventoryItemLink"), "player", e.slot)) end
+            local id, text = Core.ItemID(link), Core.ItemString(link)
+            local entry = (level or id) and { l = level, q = quality, i = id, s = id and text ~= "item:" .. id and text or nil }
+            -- angelegt, aber die Stufe lädt noch: der gemerkte Eintrag bleibt, sonst wenigstens die Kennung (kein leerer Platz)
+            local old = not level and entry and type(before) == "table" and before[e.slot]
+            gear[e.slot] = type(old) == "table" and old.i == id and old or entry or nil
         end
     end
     return gear
@@ -84,7 +90,9 @@ local function SameGear(a, b)
     if type(a) ~= "table" or type(b) ~= "table" then return false end
     for slot, e in pairs(a) do
         local o = b[slot]
-        if type(e) ~= "table" or type(o) ~= "table" or e.l ~= o.l or e.q ~= o.q or e.i ~= o.i then return false end
+        if type(e) ~= "table" or type(o) ~= "table" or e.l ~= o.l or e.q ~= o.q or e.i ~= o.i or e.s ~= o.s then
+            return false
+        end
     end
     for slot in pairs(b) do
         if a[slot] == nil then return false end
@@ -96,7 +104,7 @@ function Core.SaveGear()
     local me = Core.me
     if not me then return false end
     local equipped, overall = Core.ItemLevel()
-    local gear = ReadGear()
+    local gear = ReadGear(me.gear)
     local changed = false
     if equipped and me.ilvl ~= equipped then me.ilvl, changed = equipped, true end
     if overall and me.ilvlAll ~= overall then me.ilvlAll, changed = overall, true end

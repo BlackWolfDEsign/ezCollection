@@ -32,15 +32,13 @@ function Junk.Rule(info)
     return true, marked, false
 end
 
--- Eine Stelle für „würde ezBag das als Plunder verkaufen?“ (Schnittstelle IsJunk, „Platz schaffen“): ezBags Regel,
--- dazu dieselben Grenzen wie in ezCore (Core.Junk.Check): Seltenes und Besseres nie, nur mit Händlerwert.
--- → verkaufen, markiert, geschützt (ein als Plunder markierter seltener Gegenstand)
+-- Eine Stelle für „würde ezBag das als Plunder verkaufen?“ (Schnittstelle IsJunk): ezBags Regel, dazu dieselben Grenzen
+-- wie beim Verkauf (Core.Junk.Limits: Seltenes und Besseres nie, nur mit Händlerwert, nichts, was laut ezGear besser ist).
+-- → verkaufen, markiert, geschützt (ein als Plunder markierter seltener Gegenstand), besser
 local function Sellable(info)
     local sell, marked = Junk.Rule(info)
-    if not sell then return false, marked, false end
-    if (ns.PlainID(info.quality) or 0) >= 3 then return false, marked, true end
-    local price = Core.VendorPrice(info.hyperlink or info.itemID)
-    return (price or 0) > 0, marked, false
+    if not sell then return false, marked, false, false end
+    return Core.Junk.Limits(info, marked)
 end
 Junk.Sellable = Sellable
 
@@ -106,7 +104,8 @@ ns.API = ns.API or {}
 
 -- IsJunk(bag, slot) → verkauft, markiert, geschützt: würde ezBag diesen Platz beim Händler verkaufen? (markiert =
 -- von Hand als Plunder markiert, geschützt = markiert, aber selten oder besser). Leerer Platz, geheime Werte,
--- Seltenes und Besseres, ohne Händlerwert, Material für ezCrafts Einkaufsliste → false.
+-- Seltenes und Besseres, ohne Händlerwert, Material für ezCrafts Einkaufsliste, laut ezGear besser als das Angelegte
+-- (vierter Wert true) → false.
 function ns.API.IsJunk(bag, slot)
     if type(bag) ~= "number" or type(slot) ~= "number" then return false, false, false end
     return Sellable(C_Container.GetContainerItemInfo(bag, slot))

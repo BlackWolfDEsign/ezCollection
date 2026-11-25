@@ -206,23 +206,13 @@ local function TrainerPlace(t)
     return type(name) == "string" and name or ("#" .. tostring(t.map))
 end
 
--- Kennt das Spiel gerade die eigene Position samt Kontinent? Ohne sie (Instanz, gesperrter Wert) findet ezMap keinen
--- Lehrer – das heißt dann nicht, dass keiner gemerkt ist.
-local function PositionKnown()
-    local mapID, x, y = ezCore.PlayerPosition()
-    if not mapID then return false end
-    local map = ezCore.Map
-    if type(map) ~= "table" or type(map.WorldPos) ~= "function" then return true end
-    return map.WorldPos(mapID, x, y) ~= nil
-end
-
 -- Blizzards Kartenmarkierung auf den nächsten Lehrer setzen und im Chat sagen, wohin (oder warum nicht).
 local function GoToTrainer()
     local api = MapAPI()
     if not api then return false end
     local t = NearestTrainer()
     if not t then
-        ns.Print(PositionKnown() and L.XP_TRAINER_WAY_NONE or L.XP_TRAINER_WAY_NOPOS)
+        ns.Print(ezCore.TrainerSpots.PositionKnown() and L.XP_TRAINER_WAY_NONE or L.XP_TRAINER_WAY_NOPOS)
         return false
     end
     local name = TrainerName(t)

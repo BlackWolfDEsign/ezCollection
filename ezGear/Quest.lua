@@ -55,7 +55,7 @@ function Quest.Update(tries, gen)
     local choices, counts, choiceButtons, n = {}, {}, {}, 0
     local waiting, missing = false, false
     for _, button in ipairs(buttons) do
-        ns.Marks.ClearArrows(button)
+        ns.Marks.SetUpgrade(button, nil)      -- leert auch, was am wiederverwendeten Knopf noch auf Daten wartet
         ns.Marks.SetValue(button, false)
         local shown = button.IsShown and button:IsShown()
         if shown and button.objectType == "item" and (button.type == "choice" or button.type == "reward") then

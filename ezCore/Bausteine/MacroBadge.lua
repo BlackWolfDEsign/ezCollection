@@ -26,7 +26,7 @@ local L = Core.L
                                           body = "/click …", match = fn(name, text) » bool }; eine neue Anmeldung desselben
                                           owner ersetzt die alte. → true
       MacroBadge.Match(name, text)        » art, owner | nil
-      MacroBadge.ForSlot(platz)           » art, owner | nil (nur Makros: GetActionInfo, GetActionText, GetMacroInfo);
+      MacroBadge.ForSlot(platz)           » art, owner | nil (nur Makros: GetActionInfo, ActionSlots.Text, GetMacroInfo);
                                           eigene Makros des Spielers mit Mausziel: "mouseover", MacroBadge.OWNER_PLAYER
       MacroBadge.OwnKind(text)            » "mouseover", wenn ein Makro-Text auf die Einheit unter der Maus zielt
                                           (@mouseover bzw. target=mouseover), sonst nil
@@ -150,8 +150,8 @@ function MB.ForSlot(slot)
     if not slot then return nil end
     local kind = Core.Call(rawget(_G, "GetActionInfo"), slot)
     if Core.IsSecret(kind) or kind ~= "macro" then return nil end
-    local name = Core.Plain((Core.Call(rawget(_G, "GetActionText"), slot)))
-    if type(name) ~= "string" or name == "" then return nil end
+    local name = Core.ActionSlots.Text(slot)
+    if not name then return nil end
     local macroName, _, body = Core.Call(rawget(_G, "GetMacroInfo"), name)
     macroName, body = Core.Plain(macroName), Core.Plain(body)
     local kind, owner = MB.Match(type(macroName) == "string" and macroName or name, body)

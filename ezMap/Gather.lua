@@ -28,7 +28,12 @@ local Core = ezCore
               vor …“, üblicher Ertrag, Rang (G.SkillText; seit Welle 27, F4 b, auch an Kisten – Schlossknacken, nur
               wenn bekannt – und an Schwärmen, Wortlaut samt Quelle aus ezCore), Wert je Ernte (seit Welle 24 aus ezCores
               Core.Drops.Worth/WorthLines, V2: erst ab Drops.WORTH_MIN Ernten, mit Grundlage und Preisquelle;
-              seit dem 19.11.2026 immer, Nr. 44), Quelle („bei dir“ bzw. „aus deiner Sicherung“ für src = "backup", SAM-19)
+              seit dem 19.11.2026 immer, Nr. 44), Quelle („bei dir“ bzw. „aus deiner Sicherung“ für src = "backup", SAM-19;
+              „aus Beiträgen (n Spieler), Stand Build x“ für src = "ship")
+      ezData  Fundorte aus Beiträgen anderer Spieler (22.11.2026): Haken gatherShip unter „Sammeln“ (ab Werk an,
+              Nachschlage-Wissen; im Baum nur, solange ezData geladen ist). Gather.WithShip ergänzt je Art die Punkte
+              aus Core.Gathering.ShipNodes, ohne Doppelpunkte neben eigenen Stellen (SHIP_TWIN_YARDS); ihr Menü hat
+              kein „Vergessen“ (es sind keine eigenen Stellen).
       SAM-14  Klick auf den Griff setzt Blizzards Markierung (ns.Way.Set); Rechtsklick: „Nächster Fundort von …“,
               ausblenden, vergessen (Rückfrage, Core.Gathering.Forget); Schnittstelle ezCore.API("ezMap").ShowGather
       SAM-15  eben geerntete Stellen (Sitzungsliste aus ezCore, Core.Gathering.JustGathered) für gatherDim Minuten
@@ -413,7 +418,9 @@ function Gather.Shown(mapID, surface)
     local colors = {}     -- Farbe je Vorkommen (Art und ID), einmal je Aufbau gerechnet
     for _, kind in ipairs(Gather.KINDS) do
         if Gather.KindState(kind, surface) then
-            for _, node in ipairs(G.Nodes(mapID, FilterFor(kind))) do
+            local nodes = G.Nodes(mapID, FilterFor(kind))
+            if Gather.ShipWanted() then nodes = Gather.WithShip(nodes, mapID, kind) end
+            for _, node in ipairs(nodes) do
                 local key = Gather.HiddenKey(node)
                 if not hidden[key] then
                     -- Farbe je Fundort (Teilwelle 15b): für den Filter „Nach Farbe“ und die Tönung roter Punkte
@@ -584,6 +591,65 @@ local function Close(mapID, ax, ay, bx, by, yards)
     if w and h then return math.sqrt(((ax - bx) * w) ^ 2 + ((ay - by) * h) ^ 2) <= yards end
     return math.abs(ax - bx) < 0.01 and math.abs(ay - by) < 0.01
 end
+Gather.Close = Close        -- auch für QuestieSpawns.lua (Punkte laut Questie neben eigenen Funden, Paket „Fundorte“)
+
+-- Fundorte aus Beiträgen anderer Spieler (ezData, 22.11.2026): Haken gatherShip, nur solange ezData geladen ist
+Gather.SHIP_TWIN_YARDS = 15   -- so nah an einer eigenen Stelle desselben Vorkommens gilt ein Punkt als dieselbe (wie
+                              -- QS.TWIN_YARDS: dein Punkt bleibt, der Tooltip nennt deine Quelle)
+
+function Gather.ShipReady()
+    local DB = Core.DB
+    if not (DB and type(DB.ShipStats) == "function") then return false end
+    return DB.ShipStats().state == "loaded"
+end
+
+function Gather.ShipWanted() return ns.Enabled("gatherShip") and Gather.ShipReady() end
+
+-- eigene Knoten einer Art und dazu die aus Beiträgen (Core.Gathering.ShipNodes, gleicher Filter), ohne Doppelpunkte:
+-- ein Punkt aus Beiträgen im Umkreis SHIP_TWIN_YARDS einer eigenen Stelle desselben Vorkommens fällt weg → Liste
+function Gather.WithShip(own, mapID, kind)
+    local G = GatherAPI()
+    if not (G and type(G.ShipNodes) == "function") then return own end
+    -- eigene Stellen je Vorkommen in Zellen von SHIP_TWIN_YARDS (ohne Kartengröße 1 % der Karte, wie Close); x, y
+    -- liegen bei beiden schon auf mapID – geprüft werden nur die 3×3 Nachbarzellen
+    local w, h = Yards(mapID)
+    local cx, cy = 0.01, 0.01
+    if w and h and w > 0 and h > 0 then cx, cy = Gather.SHIP_TWIN_YARDS / w, Gather.SHIP_TWIN_YARDS / h end
+    local out, cells = {}, {}
+    local function Key(id, i, j) return tostring(id) .. "|" .. i .. "|" .. j end
+    for n, node in ipairs(own) do
+        out[n] = node
+        local x, y = ns.Num(node.x), ns.Num(node.y)
+        if x and y then
+            local key = Key(node.id, math.floor(x / cx), math.floor(y / cy))
+            cells[key] = cells[key] or {}
+            table.insert(cells[key], node)
+        end
+    end
+    local function Twin(node)
+        local x, y = ns.Num(node.x), ns.Num(node.y)
+        if not (x and y) then return false end
+        local i, j = math.floor(x / cx), math.floor(y / cy)
+        for di = -1, 1 do
+            for dj = -1, 1 do
+                for _, mine in ipairs(cells[Key(node.id, i + di, j + dj)] or {}) do
+                    local near
+                    if w and h and w > 0 and h > 0 then
+                        near = math.sqrt(((x - mine.x) * w) ^ 2 + ((y - mine.y) * h) ^ 2) <= Gather.SHIP_TWIN_YARDS
+                    else
+                        near = math.abs(x - mine.x) < 0.01 and math.abs(y - mine.y) < 0.01
+                    end
+                    if near then return true end
+                end
+            end
+        end
+        return false
+    end
+    for _, node in ipairs(G.ShipNodes(mapID, FilterFor(kind))) do
+        if not Twin(node) then out[#out + 1] = node end
+    end
+    return out
+end
 
 -- Lage eines Knotens auf seiner Speicherkarte: Core.Gathering.Nodes liefert sx, sy (Welle 23c); liegt der Knoten
 -- auf der gezeigten Karte, sind x, y dieselben. → x, y oder nil
@@ -637,7 +703,11 @@ function Gather.Points(mapID, surface)
     local alpha = math.max(0.1, math.min(1, (ns.Num(mini and ns.S.gatherMiniAlpha or ns.S.gatherAlpha) or 100) / 100))
     local recent = Recent(mapID)
     local out = {}
-    for _, node in ipairs(Gather.Shown(mapID, surface)) do
+    local shown = Gather.Shown(mapID, surface)
+    -- Weltkarte: die gezeigten Knoten merken – QuestieSpawns.lua gleicht im selben Neuaufbau damit ab, statt sie noch
+    -- einmal zu rechnen (Paket „Fundorte“, Fund des code-reviewers vom 22.11.2026)
+    if not mini then Gather.lastShown = { map = mapID, nodes = shown } end
+    for _, node in ipairs(shown) do
         local f = Gather.Facts(node)
         local point = { x = node.x, y = node.y, texture = f.icon, size = size, a = alpha, node = node }
         if node.color == "red" then
@@ -811,14 +881,22 @@ function Gather.Tooltip(tip, point, mapID)
     Core.TipTitle(tip, f.name)
     Core.TipLine(tip, KindLabel(node.kind), "hint")
     local cnt = ns.Num(node.cnt) or 0
-    if ns.Num(node.t) then
+    if node.src == "ship" then
+        -- aus Beiträgen anderer Spieler (ezData): ihre Ernten an dieser Stelle, ohne „zuletzt“ (Tage der Beiträge)
+        Core.TipLine(tip, L.GMAP_HARVESTS_SHIP:format(cnt), "highlight")
+    elseif ns.Num(node.t) then
         -- node.t ist ein Stempel der Datenbank (Serveruhr, Core.DB.Stamp): gegen die Serveruhr rechnen (T16-NZ1)
         Core.TipLine(tip, L.GMAP_HARVESTS:format(cnt, Core.Ago(node.t, "server")), "highlight")
     else
         Core.TipLine(tip, L.GMAP_HARVESTS_NOTIME:format(cnt), "highlight")
     end
     local yield = Gather.YieldText(f.total)
-    Core.TipLine(tip, yield and L.GMAP_YIELD:format(yield) or L.GMAP_YIELD_NONE, "highlight", true)
+    if node.src == "ship" then
+        -- Punkt aus Beiträgen: der Ertrag kommt aus deiner Beute – nur, wenn es ihn gibt, und mit „bei dir“
+        if yield then Core.TipLine(tip, L.GMAP_YIELD_OWN:format(yield), "highlight", true) end
+    else
+        Core.TipLine(tip, yield and L.GMAP_YIELD:format(yield) or L.GMAP_YIELD_NONE, "highlight", true)
+    end
     if node.stored ~= "fishing" then
         local G = GatherAPI()
         local skill = G and type(G.SkillText) == "function" and G.SkillText(node.id) or nil
@@ -845,8 +923,19 @@ function Gather.Tooltip(tip, point, mapID)
     -- Herkunft der Stelle: „bei dir“ aus ezCore, „aus deiner Sicherung“ für Stellen, die ezCore aus einem Text von
     -- „Als Text sichern“ eingelesen hat (Core.Gathering.Nodes reicht src = "backup" weiter, ezCore 23d, SAM-19; eine
     -- eigene Ernte dort macht wieder src = "own"). Filter und Haken behandeln solche Stellen wie eigene.
-    local label = node.src == "backup" and L.GMAP_SOURCE_BACKUP or Core.L["DB_OWN"]
+    -- Punkte aus Beiträgen anderer Spieler (ezData, Gather.WithShip) nennen „aus Beiträgen (n Spieler), Stand Build x“
+    local label = (node.src == "ship" and node.label) or (node.src == "backup" and L.GMAP_SOURCE_BACKUP)
+        or Core.L["DB_OWN"]
     Core.TipLine(tip, L.GMAP_SOURCE:format(label), "hint")
+    -- Paket „Fundorte“ (22.11.2026): Questie kennt hier ein Vorkommen derselben Art – dessen Punkt zeichnet ezMap nicht
+    -- doppelt (QuestieSpawns.lua, QS.TwinOf); die Quelle steht dann hier
+    local QS = ns.QuestieSpawns
+    if QS and type(QS.TwinOf) == "function" and QS.TwinOf(node, mapID) then
+        local S = Core.Sources
+        local questie = S and S.Label and S.Label({ source = "Questie", sourceKey = "QuestieDB" })
+            or Core.L.SOURCES_ACCORDING:format("Questie")
+        Core.TipLine(tip, L.GMAP_ALSO_QUESTIE:format(questie), "hint", true)
+    end
     if node.fallback then Core.TipLine(tip, L.GMAP_FALLBACK, "hint", true) end
     if Gather.focus then Core.TipLine(tip, L.GMAP_FOCUS_TIP_LINE, "blue", true) end
     Core.TipClick(tip, L.GMAP_HINT)
@@ -975,6 +1064,8 @@ function Gather.Menu(point, root, mapID)
     end
     local hide = L.GMAP_PT_HIDE:format(name)
     Tip(Menu.Button(root, hide, function() Gather.SetHidden(node, true) end), hide, L.GMAP_PT_HIDE_TIP)
+    -- Vergessen löscht eigene Stellen – ein Punkt aus Beiträgen (ezData) ist keine; ausblenden geht wie oben
+    if node.src == "ship" then return end
     Menu.Divider(root)
     if StoredXY(node, mapID) then
         local spot = L.GMAP_PT_FORGET_SPOT
@@ -1077,7 +1168,12 @@ end
 function Gather.EmptyText(mapID)
     if not mapID then return nil end
     if not Gather.MapAllowed(mapID) then return L.GMAP_NOZONE, L.GMAP_NOZONE_TIP end
-    local shown = #Gather.Shown(mapID)
+    -- Punkte aus Beiträgen (ezData) zählen getrennt: „deine Fundorte“ sind nur die eigenen (Leitlinie 11)
+    local shown, ship = 0, 0
+    for _, node in ipairs(Gather.Shown(mapID)) do
+        if node.src == "ship" then ship = ship + 1 else shown = shown + 1 end
+    end
+    if ship > 0 then return L.GMAP_SHOWN_SHIP:format(shown + ship, shown, ship), L.GMAP_SHOWN_SHIP_TIP end
     if shown > 0 then return L.GMAP_SHOWN:format(shown), L.GMAP_SHOWN_TIP end
     local total = Gather.Total(mapID)
     if total == 0 then return L.GMAP_EMPTY, L.GMAP_EMPTY_TIP end
@@ -1779,6 +1875,7 @@ ns.OnReady(function() ns.Try("Gather", Gather.Init) end)
 
 local SETTINGS = { gatherMiniHerb = true, gatherMiniOre = true, gatherMiniFish = true, gatherMiniChest = true,
     gatherMiniSize = true, gatherMiniAlpha = true, gatherHerb = true, gatherOre = true, gatherFish = true, gatherChest = true,
+    gatherShip = true,
     gatherColorRed = true, gatherSize = true, gatherAlpha = true, gatherDim = true, gatherOverride = true,
     gatherColorOrange = true, gatherColorYellow = true, gatherColorGreen = true, gatherColorGray = true,
     gatherColorUnknown = true }

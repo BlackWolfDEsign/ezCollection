@@ -143,13 +143,33 @@ end
 -- gesperrt), gilt sie weiter – sonst spränge „Nach Talentbaum“ hin und her und setzte jedes Mal den Zustand zurück.
 local lastDefault = {}
 
--- Ohne eigene Wahl: die erste Rotation des Talentbaums (kennt das Spiel ihn nicht: der Klasse), deren pick passt;
+-- Talentbaum des Charakters (1–3, der mit den meisten bestätigten Punkten) → Nummer | nil, bekannt (nil und true: noch
+-- keine Punkte). Bis zum 24.11.2026 fragte „Nach Talentbaum“ GetSpecialization: Die Globale gibt es auf Forever nicht, und
+-- je Klasse gibt es nur eine Spezialisierung – es nahm immer die erste Rotation der Klasse (Paladin 0/7/0 » „Heilig“).
+function Rotation.Tree() return Core.Talents.MainTree() end
+
+-- Name des Talentbaums n der eigenen Klasse aus dem Client, sonst „Talentbaum n“; nil ohne Nummer.
+function Rotation.TreeName(n)
+    if type(n) ~= "number" then return nil end
+    return Core.Talents.TreeName(n) or L.ROTATION_BOOK_TREE:format(n)
+end
+
+-- Woran „Nach Talentbaum“ sich hält: „Dein Talentbaum: Schutz (0 / 7 / 0)“ bzw. warum es die erste Rotation nimmt.
+function Rotation.AutoWhy()
+    local tree, known = Rotation.Tree()
+    if not known then return L.ROTATION_AUTO_UNKNOWN end
+    if not tree then return L.ROTATION_AUTO_NO_POINTS end
+    local stand = Core.Talents.Current()
+    return L.ROTATION_AUTO_TREE:format(Rotation.TreeName(tree), stand and table.concat(stand.spent, " / ") or "?")
+end
+
+-- Ohne eigene Wahl: die erste Rotation des Talentbaums (ohne Punkte oder unbekannt: der Klasse), deren pick passt;
 -- ist ein pick davor unbekannt, die letzte Wahl (wenn sie noch zum Talentbaum gehört); passt keine, die erste.
 -- Berechnete Rotationen stehen vorn und kommen nur mit Erkennung in Frage (Rotation.AutoEligible).
 function Rotation.Default(class)
     class = class or ns.playerClass
     local list = Rotation.ForClass(class)
-    local spec = ns.Num(Core.Call(rawget(_G, "GetSpecialization")))
+    local tree = class == ns.playerClass and Rotation.Tree() or nil      -- von einer anderen Klasse ist nichts bekannt
     local all = true
     for _, rotation in ipairs(list) do all = all and Rotation.AutoEligible(rotation) end
     if not all then
@@ -160,10 +180,10 @@ function Rotation.Default(class)
         if #eligible > 0 then list = eligible end
     end
     local candidates = list
-    if spec then
+    if tree then
         local ofTree = {}
         for _, rotation in ipairs(list) do
-            if rotation.tree == spec then ofTree[#ofTree + 1] = rotation end
+            if rotation.tree == tree then ofTree[#ofTree + 1] = rotation end
         end
         if #ofTree > 0 then candidates = ofTree end
     end
@@ -275,6 +295,61 @@ end
 function Rotation.Name(rotation)
     if not rotation then return "" end
     return Localized(rotation.name) or rotation.key
+end
+
+-- Name ohne den Zusatz „(vorläufig berechnet)“ bzw. „(berechnet)“ – für Stellen, die das daneben nennen (Rotationen und
+-- Talentvorlagen im Zauberbuch: stand bis zum 24.11.2026 doppelt, Bild des Nutzers).
+function Rotation.WithoutComputed(name)
+    if type(name) ~= "string" then return name end
+    for _, word in ipairs({ L.ROTATION_BOOK_PROVISIONAL, L.ROTATION_BOOK_COMPUTED }) do
+        local tail = " (" .. word .. ")"
+        if #name > #tail and name:sub(-#tail) == tail then return name:sub(1, -#tail - 1) end
+    end
+    return name
+end
+
+-- Kurzer Name einer Rotation (nur bei berechneten gekürzt).
+function Rotation.ShortName(rotation)
+    local name = Rotation.Name(rotation)
+    return Rotation.IsComputed(rotation) and Rotation.WithoutComputed(name) or name
+end
+
+-- Talentvorlagen (ezTalent) zu einer Rotation, n:m: Die Schlüssel kommen aus ezCores Zuordnung (Core.RotationBuilds, die
+-- eine Stelle), Namen und Aufteilung aus ezTalent. Eine eigene Rotation gehört zu den Vorlagen ihrer Vorlage.
+-- → { { key, name, split, tree, computed, provisional, purpose } … } (erste = Vorgabe), Grund (Text, wenn die Liste leer ist)
+function Rotation.Builds(rotation)
+    local own = Rotation.IsOwn(rotation)
+    local key
+    if own then key = rotation.own.from elseif rotation then key = rotation.key end
+    local class = Rotation.ClassOf(rotation) or ns.playerClass
+    local keys = key and Core.RotationBuilds.Builds(class, key) or {}
+    if #keys == 0 then
+        return {}, key and Core.RotationBuilds.Why(class, key) or (own and L.ROTATION_BUILDS_OWN) or L.ROTATION_BUILDS_NONE
+    end
+    local talent = Core.API("ezTalent")
+    if not (type(talent) == "table" and type(talent.Builds) == "function") then return {}, L.ROTATION_BUILDS_MODULE end
+    local ok, list = pcall(talent.Builds, keys, class)
+    if not ok then
+        ns.Error(list, "ezTalent.Builds")
+        list = nil
+    end
+    if type(list) ~= "table" or #list == 0 then return {}, L.ROTATION_BUILDS_UNREAD end
+    return list
+end
+
+-- Eine Talentvorlage in ezTalent zeigen (Talentfenster, Vorschau – gesetzt wird nichts). → true, wenn sie zu sehen ist
+function Rotation.ShowBuild(key)
+    local talent = Core.API("ezTalent")
+    if not (type(talent) == "table" and type(talent.ShowBuild) == "function") then
+        ns.Print(L.ROTATION_BUILDS_MODULE)
+        return false
+    end
+    local ok, shown = pcall(talent.ShowBuild, key)
+    if not ok then
+        ns.Error(shown, "ezTalent.ShowBuild")
+        return false
+    end
+    return shown == true
 end
 
 -- Hinweis einer Rotation (Widersprüche der Quellen, Leveln) in der Sprache des Spiels, sonst nil.
@@ -524,6 +599,8 @@ local function Bounds(name, ctx)
 end
 
 -- Bereich { min, max } (absolut) für die Kraftart name über die Spanne; scale: Faktor für Prozent (Mana).
+Rotation.Bounds = Bounds      -- auch für Werte abwägen (RotationValue.lua): eine Spanne je Bewertung
+
 local function BoundsRange(name, range, ctx, scale)
     if type(range) ~= "table" or not (range.min or range.max) then return nil end
     local read = Bounds(name, ctx)
@@ -742,18 +819,93 @@ local function FindAura(list, what)
 end
 Rotation.FindAura = FindAura
 
--- Sich ausschließende Auren (group): liegt eine andere der Gruppe? Zuerst die Wahlgruppe aus ezCores Buff-Wissen
--- (kind), dann die Familie (Spells.FAMILIES, nur die der eigenen Klasse), sonst wie bisher die Schritte derselben
+local function Enabled(step, ctx)
+    if not Rotation.StepEnabled then return step.optional ~= true end
+    return Rotation.StepEnabled(ctx.rotation, step)
+end
+
+-- Was sich ausschließt, ohne dass der Schritt es sagt (24.11.2026; Nutzer, wörtlich: „ezrotation muss auch
+-- beachten/berücksichtigen dass manche fäihgkeiten sich auschließena“) – aus ezCores Familien (Spells.FAMILIES, geprüft
+-- gegen die Beschreibungen des Clients) bzw. Wahlgruppen:
+--   dot   auf dem Ziel (Flüche, Omen, Stiche): immer. Liegt schon ein anderer eigener der Gruppe, ist der Schritt nicht dran –
+--         vorher überschrieben sich Omen der Pein und Omen der Verdammnis in den berechneten Rotationen im Wechsel.
+--   buff  auf dir (Siegel, Aspekte, Rüstungen …): nur zwischen selbst hinzugefügten Schritten (added) derselben Liste; die
+--         Vorlagen lösen es mit group und need, und ein einzelner Schritt soll weiter an „fehlt“ erinnern.
+-- Schritte mit eigener group gehen vor. → Gruppe | nil, true = nur die Schritte der Liste zählen
+local autoGroups = setmetatable({}, { __mode = "k" })
+local function AutoGroup(step)
+    local id = type(step.aura) == "number" and step.aura or step.id
+    if type(id) ~= "number" or step.race then return nil end
+    local dot = step.when == "dot" and step.mine ~= false and step.unit == nil
+    local buff = step.when == "buff" and step.added == true and step.buff == nil and step.unit == nil
+    if not (dot or buff) then return nil end
+    local memo = autoGroups[step]
+    if memo and memo.id == id and memo.class == ns.playerClass and memo.dot == dot then return memo.group or nil, buff end
+    local group
+    local family = Spells.FamilyOf(id)
+    local class, unit = Spells.FamilyInfo(family)
+    if class and class == ns.playerClass and (dot and unit == "target" or buff and unit ~= "target") then
+        group = family
+    elseif buff and not family then
+        local key = Spells.BuffKey(id)
+        local choice = key and Spells.BuffGroup(key, ns.playerClass)
+        group = choice and choice.kind and choice.id or nil
+    end
+    -- Nennt der Client den Namen noch nicht, zählt das Ergebnis nicht (ein höherer Rang steht nur über den Namen fest)
+    if group or Spells.Name(id) then autoGroups[step] = { id = id, class = ns.playerClass, dot = dot, group = group or false } end
+    return group, buff
+end
+
+-- → Gruppe | nil, nur die Schritte der Liste, aus dem Client-Wissen (nicht im Schritt genannt)
+function Rotation.GroupOf(step)
+    if step.group ~= nil then return step.group or nil, false, false end
+    local group, listOnly = AutoGroup(step)
+    return group, listOnly, group ~= nil
+end
+local GroupOf = Rotation.GroupOf
+
+-- Namen dessen, was sich mit diesem Schritt ausschließt (gelernt, ohne ihn selbst): die Familie bzw. Wahlgruppe aus ezCore,
+-- sonst die Schritte derselben Rotation mit derselben Gruppe. → Liste (leer: nichts)
+function Rotation.GroupNames(step, rotation)
+    local names, seen = {}, {}
+    local group, listOnly = GroupOf(step)
+    if not group then return names end
+    local _, own = Rotation.StepSpell(step)
+    if own then seen[own] = true end
+    local function Add(id)
+        local name = type(id) == "number" and ns.SpellName(id) or nil
+        if name and not seen[name] and (Spells.Known(id) or Spells.IsKnown(id) == true) then
+            seen[name] = true
+            names[#names + 1] = name
+        end
+    end
+    if not listOnly then
+        local ids, family = Spells.Family(group)
+        local choice = Spells.BuffGroup(group, ns.playerClass)
+        if choice then
+            for _, key in ipairs(choice.keys) do Add((Spells.BuffField(key, "spells") or {})[1]) end
+        elseif ids and family.class == ns.playerClass then
+            for _, id in ipairs(ids) do Add(id) end
+        end
+    end
+    for _, other in ipairs(type(rotation) == "table" and rotation.steps or {}) do
+        if other ~= step and GroupOf(other) == group then Add(other.id) end
+    end
+    return names
+end
+
+-- Sich ausschließende Auren (group bzw. GroupOf): liegt eine andere der Gruppe? Zuerst die Wahlgruppe aus ezCores
+-- Buff-Wissen (kind), dann die Familie (Spells.FAMILIES, nur die der eigenen Klasse), sonst wie bisher die Schritte derselben
 -- Liste. Rückgabe: Aura oder nil; zweiter Wert true, wenn es unbekannt ist (Gestaltleiste gesperrt).
 local function GroupAura(step, list, ctx)
-    local group = step.group
+    local group, listOnly = GroupOf(step)
     if not group then return nil end
-    if Spells.BuffGroup(group, ns.playerClass) then return FindAura(list, group) end
-    local ids, family = Spells.Family(group)
-    if family and family.class == ns.playerClass then
-        if not family.form then return FindAura(list, group) end
+    if not listOnly and Spells.BuffGroup(group, ns.playerClass) then return FindAura(list, group) end
+    local class, _, form = Spells.FamilyInfo(group)
+    if not listOnly and class and class == ns.playerClass then
+        if not form then return FindAura(list, group) end
         local unknown = false
-        for _, id in ipairs(ids) do
+        for _, id in ipairs((Spells.Family(group))) do
             local active = Spells.FormActive(id)
             if active == true then return { form = true } end
             if active == nil then unknown = true end
@@ -761,9 +913,10 @@ local function GroupAura(step, list, ctx)
         return nil, unknown
     end
     for _, other in ipairs(ctx.steps or {}) do
-        if other ~= step and other.group == group then
+        if other ~= step and GroupOf(other) == group then
             local aura = FindAura(list, other.aura or other.id)
             if aura then return aura end
+            if listOnly and form and Spells.FormActive(other.id) == true then return { form = true } end
         end
     end
     return nil
@@ -779,39 +932,172 @@ local function Remaining(aura, name, auraID, unit, ctx)
     end
     if not State.Estimating() then return nil end
     local at = State.CastAt(name, unit)
-    local seconds = Spells.AuraSeconds(auraID)
+    -- Dauer vom Client gelernt, sonst aus der Zauberbeschreibung (wie Tracked; Spieltest 23.11.2026: ohne gelernte Dauer
+    -- blieb die Restzeit unbekannt und der Vorlauf aus)
+    local seconds = Spells.AuraSeconds(auraID) or (type(auraID) == "number" and State.DescriptionSeconds(auraID)) or nil
     if not (at and seconds) then return nil end
     ctx.counted = true
     return seconds - (ctx.now - at), seconds
 end
 Rotation.Remaining = Remaining
 
--- Muss eine liegende Aura erneuert werden? refresh: "missing" (nie, erst wenn sie fehlt), "cast" (Rest höchstens
--- die Zauberzeit), Zahl (Rest höchstens so viele Sekunden), sonst die bisherige Regel (warn). Ist der Rest
--- unbekannt: mit refresh wie "missing", ohne (Altschritt) unbekannt.
+-- Vorlauf einer Erneuerung (Spieltest 23.11.2026, Wunsch des Nutzers, wörtlich: „ezcombat: sollte fähigkeiten wie dots
+-- immer etwas eher ansagen --> also wirkungszeit und cool down berücksichtigen --> dot/hot läuft in 3s aus -->
+-- fähigkeit cooldown in 0.5s vor, fähigkeit braucht 1,7s castzeit --> anhand dessen berechnen wann fähigkeit gezeigt
+-- wird im mittigen symbol --> derzeit erst mit ablauf des hots/dots was theoretisch zu spät ist“): Sekunden vor dem
+-- Ablauf, ab denen der Schritt dran ist, damit die neue Wirkung genau beim Ablauf liegt =
+--   Zauberzeit (mit Tempo, Blizzards GetSpellInfo; gesperrt: die letzte offene Lesung), mindestens eine globale
+--     Abklingzeit (Spells.GCD_MAX, Rotation.LeadCast – auch ein Sofortzauber kommt so sichtbar früher)
+--   + was davor noch läuft, das Längste aus: der Abklingzeit des Zaubers (offen gelesen oder mitgezählt wie bei der
+--     Vorwarnung), dem Rest der globalen Abklingzeit (offen gelesen; im Kampf gesperrt – mit „Mitzählen“ dann der
+--     eigene letzte Zauber plus Spells.GCD_MAX, wie ns.SharedOnCooldown; der Vorschlag trägt „gezählt“) und dem Rest
+--     des Zaubers, den du gerade wirkst (UnitCastingInfo bzw. UnitChannelInfo, offen gelesen)
+--   + Reserve für die Verzögerung zum Server (Rotation.Reserve: Latenz aus GetNetStats, sonst REFRESH_RESERVE)
+--   + ein Takt der Bewertung (CHECK_EVERY: ohne Ereignis wird nur so oft neu bewertet, sonst rutschte ein kurzes
+--     Fenster durch).
+-- Höchstens Blizzards Pandemie-Fenster (ezCores Core.AuraRows.PANDEMIC × Dauer, wenn die Dauer bekannt ist): so früh neu
+-- gesetzt geht nichts verloren. Steht die Abklingzeit noch, ist der Schritt „bis auf die Abklingzeit dran“ – die
+-- Vorwarnung zeigt ihn dann mit „bereit in …“ (wie bei jedem Schritt mit Abklingzeit). Reserve und Wartezeit liest
+-- eine Bewertung nur einmal (ctx.leadBase).
+Rotation.REFRESH_RESERVE = 0.2      -- Sekunden, wenn die Latenz nicht offen zu lesen ist
+Rotation.RESERVE_LIMITS = { 0.05, 0.5 }
+Rotation.CHECK_EVERY = CHECK_EVERY
+
+-- Pandemie-Anteil: eine Quelle in ezCore (Core.AuraRows.PANDEMIC, wie ezCombats Auras.WarnAt)
+function Rotation.Pandemic()
+    return ns.Num(Core.AuraRows and Core.AuraRows.PANDEMIC) or 0.3
+end
+
+function Rotation.Reserve()
+    local fn = rawget(_G, "GetNetStats")
+    if type(fn) == "function" then
+        local ok, _, _, home, world = pcall(fn)
+        local ms = ok and (ns.Num(world) or ns.Num(home)) or nil
+        if ms and ms > 0 then
+            local limits = Rotation.RESERVE_LIMITS
+            return math.max(limits[1], math.min(limits[2], ms / 1000))
+        end
+    end
+    return Rotation.REFRESH_RESERVE
+end
+
+-- Rest des Zaubers, den du gerade wirkst oder kanalisierst (offen gelesen) → Sekunden oder 0
+local function CastingLeft(now)
+    for _, name in ipairs({ "UnitCastingInfo", "UnitChannelInfo" }) do
+        local fn = rawget(_G, name)
+        if type(fn) == "function" then
+            local ok, _, _, _, _, endMs = pcall(fn, "player")
+            endMs = ok and ns.Num(endMs) or nil
+            if endMs and endMs / 1000 > now then return endMs / 1000 - now end
+        end
+    end
+    return 0
+end
+
+-- Wartezeit ohne die Abklingzeit des Zaubers (globale Abklingzeit, laufender Zauber) und Reserve; einmal je Bewertung
+local function LeadBase(now, ctx)
+    if ctx and ctx.leadBase then return ctx.leadBase end
+    local gcd, counted = Rotation.GcdLeft(now), nil
+    if not gcd and ns.CooldownTimes(Spells.GCD_SPELL) == nil and State.Estimating() then
+        -- globale Abklingzeit gesperrt: mit „Mitzählen“ aus dem eigenen letzten Zauber erschlossen
+        local at = State.LastCastAt()
+        if type(at) == "number" and now >= at and now - at < Spells.GCD_MAX then
+            gcd, counted = Spells.GCD_MAX - (now - at), true
+        end
+    end
+    local base = { wait = math.max(gcd or 0, CastingLeft(now)), counted = counted,
+        reserve = Rotation.Reserve() + CHECK_EVERY }
+    if ctx then ctx.leadBase = base end
+    return base
+end
+
+-- Zauberzeit in Sekunden; gesperrt gilt die letzte offene Lesung (Core.Spells.CastTime; Spieltest 23.11.2026:
+-- Feuerbrand kam mit „Mitzählen“ nicht sichtbar früher)
+local primedAt = -math.huge     -- letztes Vorablesen ohne Ziel (Rotation.Evaluate)
+function Rotation.CastSeconds(name) return (ns.CastTime(name)) end
+
+-- Vor dem Kampf vorab lesen, was im Kampf gesperrt ist (Spieltest 23.11.2026, nach dem Neustart „12-14, nein“):
+-- Zauberzeiten der Schritte mit Erneuern (Vorlauf) und die Werte der Füller und des Zauberstabs (Werte abwägen –
+-- sonst rechnete ezCombat erst, wenn vor dem Kampf schon ein Füller vorn stand, und blieb im Kampf ohne Werte still).
+Rotation.PRIME_EVERY = 2
+function Rotation.Prime(steps)
+    for _, step in ipairs(steps or {}) do
+        if step.refresh ~= nil and (step.when == "dot" or step.when == "buff") then
+            local _, name = Rotation.StepSpell(step)
+            if name then Rotation.CastSeconds(name) end
+        end
+    end
+    if ns.RotationValue and ns.RotationValue.Prime then ns.RotationValue.Prime(steps) end
+end
+
+-- Sofortzauber belegen mindestens eine globale Abklingzeit (Spieltest 23.11.2026, Nutzer zum Vorlauf: „ja aber nur bei
+-- diesem (sichtbar)“ – nur Feuerbrand mit Zauberzeit kam sichtbar früher; Verderbnis und Omen der Pein, beide sofort,
+-- erst 0,45 s vor dem Ablauf): Der Vorlauf rechnet mit der Zauberzeit, mindestens aber Spells.GCD_MAX. Sonst begänne
+-- davor noch ein anderer Zauber, der den DoT um eine globale Abklingzeit hinter den Ablauf schiebt.
+function Rotation.LeadCast(cast)
+    return math.max(ns.Num(cast) or 0, ns.Num(Spells.GCD_MAX) or 1.5)
+end
+
+-- → Vorlauf in Sekunden, Zauberzeit (wie gelesen, ohne Untergrenze), Wartezeit (das Längste aus Abklingzeit, globaler
+-- Abklingzeit und laufendem Zauber), Reserve (Latenz plus ein Takt), gezählt (true, wenn die globale Abklingzeit
+-- mitgezählt ist)
+function Rotation.RefreshLead(step, name, total, ctx)
+    local cast = Rotation.CastSeconds(name)
+    local now = ctx and ctx.now or GetTime()
+    local base = LeadBase(now, ctx)
+    local wait = base.wait
+    local spell = Rotation.StepSpell(step)
+    if spell then
+        local reason, coolLeft = Rotation.CooldownReason(spell, name, ctx)
+        if (reason == "cooldown" or reason == "cooldown:shared") and ns.Num(coolLeft) and coolLeft > wait then
+            wait = coolLeft
+        end
+    end
+    local lead = Rotation.LeadCast(cast) + wait + base.reserve
+    total = ns.Num(total)
+    if total and total > 0 and total ~= math.huge then lead = math.min(lead, total * Rotation.Pandemic()) end
+    return lead, cast, wait, base.reserve, base.counted
+end
+
+-- Muss eine liegende Aura erneuert werden? refresh: "missing" (erst zum Ablauf: Rest höchstens der Vorlauf),
+-- "cast" (Rest höchstens die Zauberzeit bzw. der Vorlauf), Zahl (Rest höchstens so viele Sekunden bzw. der
+-- Vorlauf), sonst die bisherige Regel (warn: Warnzeit plus Zauberzeit, Pandemie). Ist der Rest unbekannt: mit refresh
+-- nicht dran (wie bisher), ohne (Altschritt) unbekannt.
 -- Dieselbe Regel mit einer schon bekannten Restzeit (left nil = unbekannt), auch für nachgeführte Auren.
-local function DueAt(step, aura, name, left, seconds, warn)
+local function DueAt(step, aura, name, left, seconds, warn, ctx)
     local refresh = step.refresh
-    if refresh == "missing" then return false end
     if left == nil then
         if refresh ~= nil then return false end
         return nil
     end
     if left == math.huge then return false end
+    if refresh == nil then return warn(aura, left, seconds) end
+    if left <= 0 then return true end
+    local lead, cast, _, _, counted = Rotation.RefreshLead(step, name, seconds or (aura and aura.duration), ctx)
+    local threshold = lead          -- "missing" (und Unbekanntes wie "missing")
     if refresh == "cast" then
-        local cast = ns.CastTime(name)
-        if cast <= 0 then return false end
-        return left <= cast
+        threshold = math.max(cast, lead)
     elseif type(refresh) == "number" then
-        return left <= refresh
+        threshold = math.max(refresh, lead)
     end
-    return warn(aura, left, seconds)
+    local due = left <= threshold
+    if due and counted and ctx then ctx.counted = true end     -- dran dank der mitgezählten globalen Abklingzeit
+    -- Liegt die Wirkung noch und ist schon dran: auslaufend (die Mitte zeigt es, Rotation.Evaluate → expiring)
+    if due and ctx then ctx.refreshLeft, ctx.refreshTotal = left, ns.Num(seconds or (aura and aura.duration)) end
+    return due
 end
 
+-- Zauber-ID für die Dauer einer eigenen Aura: step.aura, sonst der höchste gelernte Rang (Rotation.StepSpell). Rang 1
+-- hat oft eine kürzere Dauer – sonst kam die gezählte Restzeit zu früh (Zweitmeinung zum Spieltest vom 23.11.2026).
+local function DurationID(step)
+    if step.aura then return step.aura end
+    return (Rotation.StepSpell(step)) or step.id
+end
+Rotation.DurationID = DurationID
+
 local function RefreshDue(step, aura, name, unit, ctx, warn)
-    if step.refresh == "missing" then return false end
-    local left, seconds = Remaining(aura, name, step.aura or step.id, unit, ctx)
-    return DueAt(step, aura, name, left, seconds, warn)
+    local left, seconds = Remaining(aura, name, DurationID(step), unit, ctx)
+    return DueAt(step, aura, name, left, seconds, warn, ctx)
 end
 
 -- Nachführung, wenn das Spiel die Auren sperrt (Spieltest 15.11.2026, Befund 1; State.OwnAura): Namen, unter denen
@@ -872,13 +1158,15 @@ function Rotation.Trackable(what, ctx)
 end
 
 -- Läuft (nachgeführt) eine andere Aura derselben Gruppe? Wahlgruppe bzw. Familie über ihren Schlüssel, sonst die
--- Schritte derselben Liste mit derselben group.
+-- Schritte derselben Liste mit derselben group. → läuft (nil: unbekannt); true, wenn der jüngste andere die eigene Wirkung
+-- ersetzt hat (sie zählt dann nicht mehr); Zeitpunkt des jüngsten anderen
 local function GroupTracked(step, unit, ctx)
-    local group = step.group
+    local group, listOnly, auto = GroupOf(step)
     if not group then return false end
-    local names, seen = TrackNames(group)
+    local names, seen = {}, {}
+    if not listOnly then names, seen = TrackNames(group) end
     for _, other in ipairs(ctx.steps or {}) do
-        if other ~= step and other.group == group then
+        if other ~= step and GroupOf(other) == group then
             TrackNames(other.aura or other.id, (select(2, Rotation.StepSpell(other))), names, seen)
         end
     end
@@ -892,9 +1180,22 @@ local function GroupTracked(step, unit, ctx)
     end
     if not others[1] then return false end
     -- nil: ohne „Mitzählen“ ist unbekannt, ob ein anderer der Gruppe liegt (nie gewirkt bzw. Restzeit nur gezählt)
-    local state, _, _, _, source = State.OwnAura(unit, others, nil, ctx.now)
-    if source == "uncounted" then return nil end
-    return state == "running"
+    local state, _, _, _, source, when = State.OwnAura(unit, others, nil, ctx.now)
+    -- Wer zuletzt kam, hat den anderen ersetzt (Review 24.11.2026: Verdammnis, dann von Hand Pein – die gezählte Verdammnis
+    -- sperrte Pein bis zu ihrem Ende)
+    local _, _, _, _, _, ownWhen = State.OwnAura(unit, own, nil, ctx.now)
+    if when and ownWhen and ownWhen > when then return false end
+    -- (eine Gruppe nur aus dem Client-Wissen sperrt erst, wenn es feststeht)
+    if source == "uncounted" then
+        if auto then return false end
+        return nil
+    end
+    if state == "running" then return true, false, when end
+    if when and ownWhen and when > ownWhen then
+        if source == "cast" then ctx.counted = true end
+        return false, true
+    end
+    return false
 end
 
 ---------------------------------------------------------------------------
@@ -910,6 +1211,56 @@ function CONDITIONS.reactive(_, _, _, usable) return usable end
 -- Eigener DoT/Debuff auf dem Ziel (unit = "pettarget": auf dem Ziel des Begleiters – hat er keins, nicht fällig;
 -- mine = false: von jedem): fehlt oder läuft aus. Ohne refresh die Warnzeit der DoT-Reihe (mit 30-%-Regel).
 -- group: liegt ein anderer der Gruppe (ein Omen je Ziel), ist der Schritt nicht dran.
+-- Wirkung eines dot-Schritts, die liegt (aura) bzw. nachgeführt wird (aura nil): ist sie zu erneuern? nil: unbekannt.
+local function DotDue(step, aura, name, unit, ctx)
+    if aura then
+        return RefreshDue(step, aura, name, unit, ctx, function(found, left, seconds)
+            if not found.secret then return ns.Auras.IsExpiring(found, ctx.now) end
+            return left > 0 and left <= ns.Auras.WarnAt({ name = name, duration = seconds })
+        end)
+    end
+    local state, left, seconds = Tracked("target", step.aura or step.id, name, DurationID(step), ctx, step.mine == false)
+    if state == nil then return nil end
+    if state == "missing" then return true end
+    if step.stacks then return nil end      -- liegt, Stapel unbekannt
+    return DueAt(step, nil, name, left, seconds, function(_, rest, total)
+        return rest > 0 and rest <= ns.Auras.WarnAt({ name = name, duration = total })
+    end, ctx)
+end
+
+-- Vortritt in einer Gruppe (Review 24.11.2026): Liegt ein anderes Mitglied und läuft gerade aus, das ein späterer Schritt der
+-- Liste jetzt erneuern würde, ist dieser höhere Schritt dran. Ohne das kam Omen der Verdammnis gegen einen Boss nie mehr,
+-- wenn Pein zuerst lag – Pein erneuert sich immer vor ihrem Ablauf. aura: die liegende Aura; nil: nachgeführt (when: ihr
+-- Zeitpunkt, State.OwnAura).
+local function GroupYields(step, aura, list, unit, ctx, when)
+    local group, after = GroupOf(step), false
+    for _, later in ipairs(ctx.steps or {}) do
+        if later == step then
+            after = true
+        elseif after and later.when == "dot" and later.unit == step.unit and later.mine ~= false and not later.stacks
+            and GroupOf(later) == group and Enabled(later, ctx) and Rotation.NeedDue(later.need, later, ctx) == true then
+            local _, name, known = Rotation.StepSpell(later)
+            if name and known then
+                local mine
+                if aura then
+                    mine = FindAura(list, later.aura or later.id) == aura
+                else
+                    local _, _, _, _, _, own = State.OwnAura("target", (TrackNames(later.aura or later.id, name)), nil, ctx.now)
+                    mine = when ~= nil and own == when
+                end
+                if mine then
+                    -- „läuft aus“ gehört zur anderen Wirkung, nicht zu diesem Schritt
+                    local refreshLeft, refreshTotal = ctx.refreshLeft, ctx.refreshTotal
+                    local due = DotDue(later, aura, name, unit, ctx) == true
+                    ctx.refreshLeft, ctx.refreshTotal = refreshLeft, refreshTotal
+                    return due
+                end
+            end
+        end
+    end
+    return false
+end
+
 function CONDITIONS.dot(step, name, ctx)
     local unit = step.unit == "pettarget" and "pettarget" or "target"
     if unit == "pettarget" then
@@ -918,9 +1269,10 @@ function CONDITIONS.dot(step, name, ctx)
     end
     local list, unknown = Rotation.UnitAuras(ctx, unit, "HARMFUL", step.mine ~= false)
     local aura = FindAura(list, step.aura or step.id)
-    if not aura and step.group then
+    local group = GroupOf(step)
+    if not aura and group then
         local other, groupUnknown = GroupAura(step, list, ctx)
-        if other then return false end
+        if other then return unit == "target" and GroupYields(step, other, list, unit, ctx) end
         if groupUnknown then return nil end
     end
     if not aura then
@@ -929,27 +1281,18 @@ function CONDITIONS.dot(step, name, ctx)
         -- „fehlt“, sonst zählt die Restzeit aus Zauber und Dauer (State.OwnAura); ohne bleibt es unbekannt (nil).
         -- Ziel des Begleiters: nur nachführen, wenn es das Ziel des Spielers ist (sonst unbekannt)
         if unit == "pettarget" and not State.PetOnTarget() then return nil end
-        local groupRunning = false
-        if step.group then groupRunning = GroupTracked(step, "target", ctx) end
+        local groupRunning, replaced, when = false, false, nil
+        if group then groupRunning, replaced, when = GroupTracked(step, "target", ctx) end
         if groupRunning == nil then return nil end
-        if groupRunning then return false end
-        local state, left, seconds = Tracked("target", step.aura or step.id, name, step.aura or step.id, ctx,
-            step.mine == false)
-        if state == nil then return nil end
-        if state == "missing" then return true end
-        if step.stacks then return nil end      -- liegt, Stapel unbekannt
-        return DueAt(step, nil, name, left, seconds, function(_, rest, total)
-            return rest > 0 and rest <= ns.Auras.WarnAt({ name = name, duration = total })
-        end)
+        if groupRunning then return unit == "target" and GroupYields(step, nil, list, unit, ctx, when) end
+        if replaced then return true end
+        return DotDue(step, nil, name, unit, ctx)
     end
     if step.stacks then
         if aura.secret then return nil end      -- da, Stapel gesperrt
         if (aura.count or 0) < step.stacks then return true end
     end
-    return RefreshDue(step, aura, name, unit, ctx, function(found, left, seconds)
-        if not found.secret then return ns.Auras.IsExpiring(found, ctx.now) end
-        return left > 0 and left <= ns.Auras.WarnAt({ name = name, duration = seconds })
-    end)
+    return DotDue(step, aura, name, unit, ctx)
 end
 
 -- Eigener Buff: fehlt oder läuft aus (ohne refresh: Warnzeit wie „Eigene Buffs“). buff: der Schritt steht für
@@ -958,7 +1301,8 @@ end
 function CONDITIONS.buff(step, name, ctx)
     local list, unknown = Rotation.UnitAuras(ctx, "player", "HELPFUL", false)
     local aura = FindAura(list, BuffOf(step) or step.aura or step.id)
-    if not aura and step.group then
+    local group = GroupOf(step)
+    if not aura and group then
         local other, groupUnknown = GroupAura(step, list, ctx)
         if groupUnknown then return nil end
         aura = other
@@ -968,16 +1312,16 @@ function CONDITIONS.buff(step, name, ctx)
         -- Gesperrt: nachführen wie bei den DoTs (zuletzt offen gelesen; eigener Zauber mit Dauer und „nie gewirkt“
         -- nur mit „Mitzählen“, sonst unbekannt).
         local groupRunning = false
-        if step.group then groupRunning = GroupTracked(step, "player", ctx) end
+        if group then groupRunning = GroupTracked(step, "player", ctx) end
         if groupRunning == nil then return nil end
         if groupRunning then return false end
         local state, left, seconds = Tracked("player", BuffOf(step) or step.aura or step.id, name,
-            step.aura or step.id, ctx)
+            DurationID(step), ctx)
         if state == nil then return nil end
         if state == "missing" then return true end
         return DueAt(step, nil, name, left, seconds, function(_, rest, total)
             return rest <= ns.Buffs.WarnAt({ name = name, duration = total })
-        end)
+        end, ctx)
     end
     if aura.form then return false end
     return RefreshDue(step, aura, name, "player", ctx, function(found, left, seconds)
@@ -1079,11 +1423,6 @@ local function Context(ctx)
     ctx.now = ctx.now or GetTime()
     if ctx.combat == nil then ctx.combat = ns.InCombat() end
     return ctx
-end
-
-local function Enabled(step, ctx)
-    if not Rotation.StepEnabled then return step.optional ~= true end
-    return Rotation.StepEnabled(ctx.rotation, step)
 end
 
 -- Abklingzeit eines Schritts: die eigene (ns.CooldownState – die Antwort des Spiels, und wo es schweigt, mitgezählt;
@@ -1287,6 +1626,7 @@ local function GcdLeft(now)
     if left <= 0 then return nil end
     return left
 end
+Rotation.GcdLeft = GcdLeft     -- auch für den Vorlauf einer Erneuerung (Rotation.RefreshLead, weiter oben)
 
 -- Der erste Schritt, der jetzt dran ist: Schritt, Name, übersprungene Namen (gesperrte Werte), side (fällige
 -- Schritte, die nebenher laufen), Grund ohne Schritt ("unable", "notarget", "precombat", "hold"), gezählt (der
@@ -1299,10 +1639,22 @@ function Rotation.Evaluate(rotation)
     local skipped, side = {}, {}
     rotation = rotation or Rotation.Selected()
     if rotation and PlayerUnable() then return nil, nil, skipped, side, "unable" end
-    if not rotation or not TargetAttackable() then return nil, nil, skipped, side, "notarget" end
     local combat = ns.InCombat()
+    local steps = rotation and Rotation.Steps(rotation)
+    -- Vorab lesen auch ohne Ziel (Zweitmeinung zum Spieltest vom 23.11.2026: zog dich ein Gegner in den Kampf, bevor du
+    -- etwas anvisiert hattest, lief es nie – im Kampf fehlten dann Zauberzeiten und Werte)
+    -- Ohne Ziel höchstens alle Rotation.PRIME_EVERY Sekunden (Review 23.11.2026: sonst bei jeder Bewertung, mit
+    -- Energie oder Wut bis zu zehnmal je Sekunde)
+    local attackable = TargetAttackable()
+    if steps and not combat then
+        local now = GetTime()
+        if attackable or now - primedAt >= Rotation.PRIME_EVERY then
+            primedAt = now
+            Rotation.Prime(steps)
+        end
+    end
+    if not rotation or not attackable then return nil, nil, skipped, side, "notarget" end
     if not combat and ns.S and ns.S.rotationOpener == false then return nil, nil, skipped, side, "precombat" end
-    local steps = Rotation.Steps(rotation)
     State.Use(rotation, steps)
     local _, holding = State.Casting(steps)
     if holding and holding.hold then return nil, nil, skipped, side, "hold" end
@@ -1320,10 +1672,11 @@ function Rotation.Evaluate(rotation)
         end
     end
     local found, foundName, counted, soon
+    local expiring      -- der Vorschlag erneuert eine noch liegende Wirkung: { step, left, total, at }
     local warn = Rotation.WarnSeconds()
     local refill        -- erster Mana-Rückholer, der allein am gesperrten Mana hängt: { step, name, counted, index, pos }
     local openerAlive = false
-    local currentNames = {}
+    local currentNames, repeating = {}, {}     -- repeating: Dauerfeuer (Stab, Automatischer Schuss) – fast immer „aktuell“
     for pos, step in ipairs(steps) do
         local kind = Rotation.KindOf(step)
         -- Nach dem Fund zählen nur noch Schritte nebenher (side) und Eröffnungsschritte (schließt die Eröffnung?);
@@ -1333,10 +1686,13 @@ function Rotation.Evaluate(rotation)
         local name
         if gated then
             name = select(2, Rotation.StepSpell(step))
-            if name and Spells.IsCurrent(name) then currentNames[#currentNames + 1] = name end
+            if name and Spells.IsCurrent(name) then
+                currentNames[#currentNames + 1] = name
+                if step.when == "autorepeat" then repeating[name] = true end
+            end
         end
         if gated and (not found or step.side or (kind == "opener" and step.kind)) then
-            ctx.counted = nil
+            ctx.counted, ctx.refreshLeft, ctx.refreshTotal = nil, nil, nil
             local due, why = Rotation.StepDue(step, ctx)
             if kind == "opener" and step.kind and due ~= false then openerAlive = true end
             if step.side then
@@ -1344,6 +1700,9 @@ function Rotation.Evaluate(rotation)
             elseif not found then
                 if due == true then
                     found, foundName, counted = step, name, ctx.counted == true
+                    if ctx.refreshLeft then
+                        expiring = { step = step, left = ctx.refreshLeft, total = ctx.refreshTotal, at = ctx.now }
+                    end
                 elseif due == false and not soon and warn > 0 and name
                     and (why == "cooldown" or why == "cooldown:shared") then
                     local left, coolCounted = ctx.coolLeft, ctx.coolCounted == true
@@ -1354,6 +1713,11 @@ function Rotation.Evaluate(rotation)
                         if again == true then
                             soon = { step = step, name = name, left = left, counted = coolCounted or ctx.counted == true,
                                 pos = pos }
+                            -- erneuert eine noch liegende Wirkung: auch über die Vorwarnung „läuft aus“ (Review 23.11.2026)
+                            if ctx.refreshLeft then
+                                soon.expiring = { step = step, left = ctx.refreshLeft, total = ctx.refreshTotal,
+                                    at = ctx.now }
+                            end
                         end
                     end
                 elseif due == nil and name then
@@ -1375,18 +1739,34 @@ function Rotation.Evaluate(rotation)
         -- Ein abklingender Schritt unter dem Rückholer ist nicht höher eingestuft als der Vorschlag: keine Vorwarnung.
         if soon and soon.pos > refill.pos then soon = nil end
     end
+    -- Werte abwägen (RotationValue.lua, Auftrag vom 23.11.2026): ist der Vorschlag ein Füller (oder leer), entscheidet
+    -- der Vergleich Zauber gegen Zauberstab; step = false heißt „der Stab schießt schon – nichts Neues“.
+    local weighed = ns.RotationValue and ns.RotationValue.Weigh(found, ctx, steps)
+    local value
+    if weighed then
+        value = weighed.note
+        if weighed.step ~= found then
+            found, foundName = weighed.step or nil, weighed.step and weighed.name or nil
+            counted = weighed.counted == true
+        elseif weighed.counted then
+            counted = true
+        end
+    end
     -- Vorwarnung: vorn, wenn der höhere Schritt so bald bereit wird, dass der andere ihn nur verzögern würde.
     if soon then
         local lead = math.min(warn, math.max(Rotation.SOON_LEAD, GcdLeft(ctx.now) or 0))
         if not found or soon.left <= lead then
             soon.lead = true
             found, foundName, counted = soon.step, soon.name, soon.counted
+            expiring = soon.expiring
+            value = nil     -- die Abwägung galt dem Füller: keine Zeile und keine Marke „Stab reicht“ am anderen Zauber
         end
     end
-    State.NoteCurrent(currentNames)
+    State.NoteCurrent(currentNames, repeating)
     -- Die Eröffnung schließt, sobald im Kampf kein Eröffnungsschritt mehr fällig oder unbekannt ist.
     if combat and State.Opening() and not openerAlive then State.CloseOpening() end
-    return found, foundName, skipped, side, nil, counted, soon
+    if expiring and expiring.step ~= found then expiring = nil end   -- Rückholer, Abwägung oder Vorwarnung kamen vor
+    return found, foundName, skipped, side, nil, counted, soon, value, expiring
 end
 
 ---------------------------------------------------------------------------
@@ -1666,24 +2046,52 @@ function Rotation.SoonText(soon)
     return L.ROTATION_SOON:format(soon.name or "?", seconds)
 end
 
-local function ShowNext(name, icon, counted, always, spell, soon)
+-- Auslaufende Wirkung in der Mitte (Antwort des Nutzers vom 23.11.2026: „es muss ersichtlich sein das etwas ausläuft
+-- was erneuert werden muss“): Restzeit als Spirale wie links, Farbe der Art „läuft aus“ und die Zeile „läuft aus –
+-- erneuern“ in jeder Auswahl von „Text unter dem Symbol“. → timer, Art, Zeile oder nil
+function Rotation.ExpiringLook(expiring)
+    if type(expiring) ~= "table" then return nil end
+    local left, total, at = ns.Num(expiring.left), ns.Num(expiring.total), ns.Num(expiring.at)
+    local timer
+    if left and total and at and total > 0 and left > 0 and left <= total then
+        local start = math.floor((at + left - total) * 100 + 0.5) / 100     -- gerundet: jede Bewertung gleich
+        timer = { start = start, duration = total }
+    end
+    return timer, "dot", L.SYMBOL_EXPIRING_NOTE
+end
+
+local function ShowNext(name, icon, counted, always, spell, soon, value, expiring)
     local Symbol = ns.Symbol
     local offBar = name ~= nil and ns.ShowAny("next") and not Rotation.OnBar(name)
     if name and (always or offBar or ns.ShowAt("next", "center")) then
         local text = (offBar and L.SYMBOL_NEXT_OFFBAR or L.SYMBOL_NEXT):format(name)
         local extra = Rotation.SoonText(soon)
         if extra then text = text .. (soon.lead and " – " or "\n") .. extra end
+        -- Werte abwägen: warum Zauber oder Stab (kurz; /ezk status nennt die Zahlen und die Quelle) – als eigene Zeile
+        -- (texts.note), unabhängig von „Text unter dem Symbol“; Schalter „Schadensvergleich unter dem Symbol“ (rotationValuesText, ab Werk aus)
+        local why = ns.RotationValue and ns.Enabled("rotationValuesText") and ns.RotationValue.Text(value) or nil
+        local timer, kind, expiringNote = Rotation.ExpiringLook(expiring)
         -- Text unter dem Symbol (S-1811-Symboltext): ausführlich wie bisher, sonst nur der Name bzw. gar keiner. Nicht
         -- auf der Leiste steht in jeder Auswahl eine kurze Zeile – auf einem Knopf, den es nicht gibt, leuchtet
         -- nichts, und das zeigt kein Symbol.
         local texts = { name = name, always = offBar and L.SYMBOL_OFFBAR_SHORT:format(name) or nil,
-            left = soon and soon.lead and soon.left or nil, glow = always or nil }
-        Symbol.Set("next", icon, text, Rotation.Kind(), nil, spell, texts)
+            left = soon and soon.lead and soon.left or nil, glow = always or nil, note = why or expiringNote }
+        Symbol.Set("next", icon, text, kind or Rotation.Kind(), timer, spell, texts)
+        symbolShown.next = true
+    elseif name == nil and type(value) == "table" and value.shooting and ns.ShowAt("next", "center") then
+        -- Der Stab schießt schon (Werte abwägen): nichts Neues zu drücken – er bleibt mit der Zeile der Abwägung in der
+        -- Mitte, ohne Leuchten am Knopf (Antwort des Nutzers vom 23.11.2026: „Stab in der Mitte (Empfohlen)“)
+        local wand = value.shooting
+        local why = ns.RotationValue and ns.Enabled("rotationValuesText") and ns.RotationValue.Text(value) or nil
+        Symbol.Set("next", wand.spell and Spells.Icon(wand.spell), L.SYMBOL_WAND_SHOOTING:format(wand.name or "?"),
+            Rotation.Kind(), nil, nil, { name = wand.name, note = why, glow = false })
         symbolShown.next = true
     elseif symbolShown.next then
         symbolShown.next = nil
         Symbol.Clear("next")
     end
+    -- Werte abwägen, Ziel fast tot: Marke „Stab reicht“ unten rechts an der Mitte, nur solange der Füller dort steht
+    if ns.RotationValue then ns.RotationValue.ShowFinish(symbolShown.next and value or nil) end
     Rotation.nextOffBar = offBar or nil
     -- Der Knopf leuchtet nur, wenn der Zauber bereit oder fast bereit ist (Spieltest 20.11.2026, Readiness.Ready – mit
     -- der gezählten Restzeit der Vorwarnung vorn, falls die Abklingzeit gesperrt ist); die Vorschau leuchtet immer. Das
@@ -1772,9 +2180,10 @@ local function Assess(state)
             -- (entschieden vom Nutzer am 17.11.2026)
             state.source, state.reason = "rotation", "blizzardonly"
         else
-            local step, name, skipped, side, reason, counted, soon = Rotation.Evaluate(selected)
+            local step, name, skipped, side, reason, counted, soon, value, expiring = Rotation.Evaluate(selected)
             state.source, state.step, state.name, state.skipped = "rotation", step, name, skipped
             state.side, state.reason, state.counted, state.soon = side, reason, counted or nil, soon
+            state.value, state.expiring = value, expiring
             state.id = step and step.id
             if step then
                 state.spell, state.key, state.kind = Rotation.StepSpell(step), Rotation.StepKey(step), Rotation.KindOf(step)
@@ -1800,7 +2209,8 @@ function Rotation.Update()
     end
     local before = Rotation.state and Rotation.state.id
     Rotation.state = state
-    ShowNext(state.name, state.spell and Spells.Icon(state.spell), state.counted, nil, state.spell, state.soon)
+    ShowNext(state.name, state.spell and Spells.Icon(state.spell), state.counted, nil, state.spell, state.soon, state.value,
+        state.expiring)
     ShowSide(state.side)
     ShowPrep(state.prep)
     if before ~= state.id then
@@ -1845,6 +2255,12 @@ ns.On("PLAYER_REGEN_DISABLED", function()
     ns.Symbol.Clear("prep")
     Core.Glow.Clear(OWNER, "prep")
 end)
+-- Talentpunkte umverteilt oder Spezialisierungsgruppe gewechselt: „Nach Talentbaum“ neu bestimmen (Assess setzt den
+-- Zustand zurück, wenn dabei eine andere Rotation herauskommt), die Seite nennt den Baum neu.
+Core.Listen("TALENTS_CHANGED", function()
+    updateSoon()
+    for _, fn in ipairs(Rotation.listeners) do pcall(fn) end
+end, OWNER)
 -- ezBuff hat neu geprüft (seine Liste ist die eine Stelle für „Dauer-Buff fehlt“, wenn es zuständig ist).
 Core.Listen("EZBUFF_TASKS", function() updateSoon() end, OWNER)
 ns.OnSettingChanged(function(key)
@@ -1993,8 +2409,9 @@ ns.AddStatusLine(function()
     if #Rotation.ForClass() == 0 then return L.STATUS_ROTATION_NONE end
     if ns.S.rotationBlizzard and Rotation.BlizzardAvailable() then return L.STATUS_ROTATION_BLIZZARD end
     local rotation = Rotation.Selected()
-    local how = Rotation.Choice() == "auto" and L.ROTATION_AUTO_SHORT or L.ROTATION_CHOSEN
-    return L.STATUS_ROTATION_OWN:format(Rotation.Name(rotation), how)
+    local auto = Rotation.Choice() == "auto"
+    local line = L.STATUS_ROTATION_OWN:format(Rotation.Name(rotation), auto and L.ROTATION_AUTO_SHORT or L.ROTATION_CHOSEN)
+    return auto and (line .. " · " .. Rotation.AutoWhy()) or line
 end)
 -- Welcher Schritt gerade gezeigt wird und von welcher Art er ist – oder warum keiner.
 ns.AddStatusLine(function()
@@ -2012,6 +2429,58 @@ ns.AddStatusLine(function()
         return line
     end
     return L.STATUS_ROTATION_NOSTEP:format(L["ROTATION_REASON_" .. (state.reason or "none")])
+end)
+-- Werte abwägen: Zahlen, Mana und Quelle des letzten Vergleichs (Leitlinie 11).
+ns.AddStatusLine(function()
+    local state = Rotation.state
+    if not (ns.Enabled("rotation") and state and state.source == "rotation" and ns.RotationValue) then return nil end
+    local line = ns.RotationValue.StatusText(state.value)
+    if line then return line end
+    -- nicht abgewogen: sagen, warum (Spieltest 23.11.2026)
+    local skip = ns.RotationValue.skip
+    if skip and skip ~= "off" then return L.STATUS_VALUE_SKIP:format(L["STATUS_VALUE_SKIP_" .. skip] or skip) end
+    return nil
+end)
+-- Vorlauf vor dem Ablauf (Spieltest 23.11.2026): im Kampf nur mit „Mitzählen“ – wer es aus hat, erfährt hier, warum
+-- DoTs und HoTs dort erst nach dem Ablauf kommen (Wunsch des Nutzers über die Orchestrierung: „So lassen“, Mitzählen
+-- bleibt ab Werk aus). Nur, wenn die gewählte Rotation einen Schritt mit Erneuern hat.
+ns.AddStatusLine(function()
+    if not ns.Enabled("rotation") or State.Estimating() then return nil end
+    local rotation = Rotation.Selected()
+    for _, step in ipairs(rotation and rotation.steps or {}) do
+        if (step.when == "dot" or step.when == "buff") and step.refresh ~= nil then
+            return L.STATUS_ROTATION_LEAD_OFF:format(ns.PathText("SETTINGS_ADVANCED", "OPT_rotationEstimate"))
+        end
+    end
+    return nil
+end)
+-- Neue Dateien eines Pakets lädt WoW erst nach einem Neustart des Spiels – /reload liest die TOC nicht neu (Spieltest
+-- 23.11.2026 nach PR 715: keine Zeile, keine Marke, kein Stab). Fehlen sie, sagt ezCombat das sichtbar, statt still
+-- nichts zu tun: einmal im Chat beim Laden und in /ezk status.
+Rotation.FILES = {
+    { "ezCombat/RotationValue.lua", function() return ns.RotationValue ~= nil end },
+    { "ezCore/Wissen/SpellValue.lua", function() return Core.SpellValue ~= nil end },
+    { "ezCore/Wissen/Client/Direct.lua", function()
+        local CD = Core.ClientData
+        return CD ~= nil and type(CD.Table) == "function" and type(CD.Table("direct")) == "table"
+    end },
+}
+function Rotation.MissingFiles()
+    local missing = {}
+    for _, file in ipairs(Rotation.FILES) do
+        local ok, loaded = pcall(file[2])
+        if not (ok and loaded) then missing[#missing + 1] = file[1] end
+    end
+    return missing
+end
+ns.AddStatusLine(function()
+    local missing = Rotation.MissingFiles()
+    if #missing == 0 then return nil end
+    return L.STATUS_FILES_MISSING:format(table.concat(missing, ", "))
+end)
+ns.OnReady(function()
+    local missing = Rotation.MissingFiles()
+    if #missing > 0 then ns.Print(L.STATUS_FILES_MISSING:format(table.concat(missing, ", "))) end
 end)
 -- Was zuletzt übersprungen wurde (gesperrte Werte).
 ns.AddStatusLine(function()
@@ -2102,26 +2571,37 @@ end)
 -- desselben Talentbaums nennen. Gibt nur Kopien heraus, nie ezCombats eigene Tabellen.
 ---------------------------------------------------------------------------
 
+-- Angabe aus pick als Liste (Kopie): known = 1 oder { 1, 2 } → { … } | nil
+local function List(value)
+    if value == nil then return nil end
+    local out = {}
+    for i, id in ipairs(type(value) == "table" and value or { value }) do out[i] = id end
+    return out
+end
+
 local function Summary(rotation)
     if not rotation then return nil end
+    local pick = type(rotation.pick) == "table" and rotation.pick or {}
     return { key = rotation.key, tree = rotation.tree, name = Rotation.Name(rotation), source = rotation.source,
         steps = #(rotation.steps or {}), how = Rotation.How(rotation),
         edited = Rotation.IsEdited ~= nil and Rotation.IsEdited(rotation) or false,
-        computed = Rotation.IsComputed(rotation) }
+        computed = Rotation.IsComputed(rotation), own = Rotation.IsOwn(rotation),
+        known = List(pick.known), unknown = List(pick.unknown), leveling = pick.leveling }
 end
 
 ns.API = ns.API or {}
 
 -- Rotationen einer Klasse (ohne Angabe: die des Spielers): { { key, tree, name, source, steps = Anzahl, how, edited,
--- computed } } – computed: berechnet (Welle 21, RotationComputed.lua)
+-- computed, own, known, unknown, leveling } } – computed: berechnet (Welle 21, RotationComputed.lua); own: eigene; known,
+-- unknown (Zauber-IDs), leveling: woran „Nach Talentbaum“ sie erkennt
 function ns.API.Rotations(class)
     local list = {}
     for _, rotation in ipairs(Rotation.ForClass(class)) do list[#list + 1] = Summary(rotation) end
     return list
 end
 
--- Die (erste) Rotation für Talentbaum 1–3 einer Klasse, sonst nil – eine Vorlage aus den Quellen (berechnete gehören
--- zu einer bestimmten Talentverteilung: ns.API.RotationForBuild).
+-- Die (erste) Rotation für Talentbaum 1–3 einer Klasse, sonst nil – eine Vorlage aus den Quellen. Zu einer bestimmten
+-- Talentvorlage: ns.API.RotationForBuild.
 function ns.API.RotationFor(class, tree)
     for _, rotation in ipairs(Rotation.ForClass(class)) do
         if rotation.tree == tree and not Rotation.IsComputed(rotation) then return Summary(rotation) end
@@ -2129,12 +2609,12 @@ function ns.API.RotationFor(class, tree)
     return nil
 end
 
--- Die berechnete Rotation zu einer berechneten Talentverteilung (Schlüssel aus ezTalent/Computed.lua, z. B. „sim-arms“;
--- Welle 21), sonst nil. Beide entstehen im selben Lauf von tools/rotation_sim.lua.
+-- Die Vorgabe zu einer Talentvorlage (Schlüssel aus ezTalent, recherchiert oder berechnet), sonst nil – aus ezCores
+-- Zuordnung (Core.RotationBuilds, die eine Stelle; bis zum 24.11.2026 nur berechnete über computed.distribution).
 function ns.API.RotationForBuild(key, class)
-    for _, rotation in ipairs(Rotation.ForClass(class)) do
-        local c = Rotation.IsComputed(rotation) and rotation.computed
-        if c and type(c.distribution) == "table" and c.distribution.key == key then return Summary(rotation) end
+    for _, rkey in ipairs(Core.RotationBuilds.Rotations(class or ns.playerClass, key)) do
+        local rotation = Rotation.Find(rkey, class)
+        if rotation then return Summary(rotation) end
     end
     return nil
 end

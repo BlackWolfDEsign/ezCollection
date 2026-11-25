@@ -829,7 +829,8 @@ function Templates.ClientTalentName(t, class)
 end
 
 -- Wirkungsänderungen durch Hotfixes, die gewählte Talente dieser Vorauswahl betreffen (Baum bleibt, Vermerk sichtbar).
--- → { { name, date } … } – name mit dem Namen des Clients (Templates.ClientTalentName)
+-- → { { name, date, build } … } – name mit dem Namen des Clients (Templates.ClientTalentName); build nur, wenn die neuen
+-- Werte auch in den Client-Tabellen dieses Builds stehen (Kopf von ns.PRESET_HOTFIXES, Leitlinie 12)
 function Templates.PresetHotfixes(class, preset)
     local out = {}
     local fixes = ns.PRESET_HOTFIXES and ns.PRESET_HOTFIXES[class or Core.PlayerClass() or ""]
@@ -837,7 +838,7 @@ function Templates.PresetHotfixes(class, preset)
     for _, fix in ipairs(fixes) do
         for _, t in ipairs(preset.talents or {}) do
             if t[3] == fix[1] then
-                out[#out + 1] = { name = Templates.ClientTalentName(t, class), date = fix[2] }
+                out[#out + 1] = { name = Templates.ClientTalentName(t, class), date = fix[2], build = fix.build }
                 break
             end
         end
@@ -1046,37 +1047,126 @@ function Templates.ReportRemap(out)
 end
 
 ---------------------------------------------------------------------------
--- Passende Rotation (Punkt 3): ezCombat kennt sie, ezTalent nennt sie nur
+-- Passende Rotationen (Punkt 3; n:m seit dem 24.11.2026, Nutzer: „für jeden talenbaum eine rotation … und für jede
+-- rotation mindestens ein talentbaum“, „bzw. beides n:m“): Welche zu welcher Vorauswahl gehört, steht in ezCore
+-- (Core.RotationBuilds), die Rotationen selbst kennt ezCombat (API Rotations). ezTalent nennt sie nur.
 ---------------------------------------------------------------------------
 
--- Zusammenfassung der Rotation für den Hauptbaum der Vorlage ({ key, name, … } von ezCombat) oder nil.
-function Templates.RotationFor(tpl, class)
-    if type(tpl) ~= "table" or not tpl.primary then return nil end
+-- Alle Rotationen der Klasse aus ezCombat ({ { key, tree, name, computed, own, known, unknown, leveling … } }) | nil
+-- (ezCombat nicht geladen oder ein Fehler dort).
+function Templates.AllRotations(class)
     local combat = Core.API("ezCombat")
-    if not (combat and type(combat.RotationFor) == "function") then return nil end
-    local ok, rotation = pcall(combat.RotationFor, class or Core.PlayerClass(), tpl.primary)
-    return ok and type(rotation) == "table" and rotation or nil
+    if not (type(combat) == "table" and type(combat.Rotations) == "function") then return nil end
+    local ok, list = pcall(combat.Rotations, class or Core.PlayerClass())
+    return ok and type(list) == "table" and list or nil
 end
 
--- Berechnete Rotation zu einer berechneten Verteilung (Schlüssel aus Computed.lua, z. B. „sim-arms“; beide entstehen im
--- selben Lauf von tools/rotation_sim.lua – ezCombat API RotationForBuild, Welle 21/23 A4) oder nil.
-function Templates.RotationForBuild(key, class)
-    if type(key) ~= "string" then return nil end
-    local combat = Core.API("ezCombat")
-    if not (combat and type(combat.RotationForBuild) == "function") then return nil end
-    local ok, rotation = pcall(combat.RotationForBuild, key, class or Core.PlayerClass())
-    return ok and type(rotation) == "table" and rotation or nil
+-- Eigene Rotation des Spielers? ezCombat nennt own; bis dahin verrät es der Schlüssel („own-<n>“, RotationOwn.lua).
+local function IsOwn(rotation)
+    return rotation.own == true or (type(rotation.key) == "string" and rotation.key:find("^own%-%d+$") ~= nil)
 end
+Templates.IsOwnRotation = IsOwn
 
--- Passende Rotation zu einem geladenen Plan: bei einer berechneten Verteilung die berechnete Rotation desselben Laufs,
--- sonst die Vorlage für den Hauptbaum. → Rotation oder nil, berechnet (true, wenn über RotationForBuild)
-function Templates.RotationForPlan(plan, class)
-    if type(plan) ~= "table" then return nil, false end
-    if plan.kind == "preset" and Templates.IsComputed(plan.preset) then
-        local rotation = Templates.RotationForBuild(plan.key, class)
-        if rotation then return rotation, true end
+-- Rotationen zu einer Vorauswahl (Schlüssel aus Presets.lua bzw. Computed.lua) → { Rotation … }: die zugeordneten, die
+-- erste ist die Vorgabe, zuletzt eigene Rotationen desselben Talentbaums; leer ohne Zuordnung | nil ohne ezCombat.
+-- all: die Liste aus AllRotations, wenn der Aufrufer sie schon hat (je Zeichnen einmal holen)
+function Templates.RotationsForBuild(key, class, all)
+    class = class or Core.PlayerClass()
+    all = all or Templates.AllRotations(class)
+    if not all then return nil end
+    local byKey, out = {}, {}
+    for _, rotation in ipairs(all) do
+        if type(rotation) == "table" and rotation.key ~= nil then byKey[rotation.key] = rotation end
     end
-    return Templates.RotationFor(plan.tpl, class), false
+    for _, rkey in ipairs(Core.RotationBuilds.Rotations(class, key)) do out[#out + 1] = byKey[rkey] end
+    local preset = #out > 0 and Templates.PresetByKey(key, class) or nil
+    for _, rotation in ipairs(all) do
+        if preset and type(rotation) == "table" and IsOwn(rotation) and rotation.tree == preset.tree then out[#out + 1] = rotation end
+    end
+    return out
+end
+
+-- Schlüssel der Vorgabe zu einer Vorauswahl | nil (kennt ezCombat sie nicht, heißt keine andere „Vorgabe“)
+function Templates.DefaultRotation(key, class)
+    return Core.RotationBuilds.Rotations(class or Core.PlayerClass(), key)[1]
+end
+
+-- Rotationen für einen Talentbaum ohne Vorauswahl (eigene Vorlage, aktuelle Verteilung): derselbe Baum, und die Erkennung
+-- der Rotation (known, unknown) passt zu den Talenten. Zuerst, was zur Stufe passt (Leveln oder Höchststufe), dann die
+-- übrigen, zuletzt eigene Rotationen; berechnete gehören zu ihrer Verteilung und fehlen hier.
+-- spells: { [Zauber-ID] = Rang } (Plan.SpellRanks); ohne sie (nil oder leer: nicht lesbar) zählt nur der Baum.
+-- → Liste | nil ohne ezCombat
+function Templates.RotationsForTree(tree, spells, class)
+    local all = Templates.AllRotations(class)
+    if not all then return nil end
+    if type(spells) == "table" and next(spells) == nil then spells = nil end
+    local out, order = {}, {}
+    local level, top = Core.PlayerLevel(), Core.MaxLevel()
+    local leveling = level ~= nil and top ~= nil and level < top
+    local function IDs(value)        -- eine Zauber-ID oder eine Liste
+        if type(value) == "table" then return value end
+        return value ~= nil and { value } or {}
+    end
+    local function Fits(rotation)
+        if type(spells) ~= "table" then return true end
+        for _, id in ipairs(IDs(rotation.known)) do
+            if not spells[id] then return false end
+        end
+        for _, id in ipairs(IDs(rotation.unknown)) do
+            if spells[id] then return false end
+        end
+        return true
+    end
+    for index, rotation in ipairs(all) do
+        if type(rotation) == "table" and tree ~= nil and rotation.tree == tree and not rotation.computed and Fits(rotation) then
+            out[#out + 1] = rotation
+            local rank = (rotation.leveling ~= nil and rotation.leveling ~= leveling) and 1 or 0
+            order[rotation] = (IsOwn(rotation) and 2000 or rank * 1000) + index
+        end
+    end
+    table.sort(out, function(a, b) return order[a] < order[b] end)
+    return out
+end
+
+-- Passende Rotationen zu dem, was im Fenster liegt: der geladene Plan (Vorauswahl oder „Bestes mit n Punkten“ daraus: die
+-- Zuordnung; eigene Vorlage oder von Hand Angepasstes: Hauptbaum und Talente) bzw. ohne Plan die Verteilung der
+-- betrachteten Spezialisierungsgruppe (der aktiven: nur Bestätigtes, Core.Talents).
+-- → Liste, Schlüssel der Vorauswahl (dann ist die erste die Vorgabe) | nil; nil ohne ezCombat oder ohne Punkte
+function Templates.RotationsForPlan(plan, ctx, class)
+    if type(plan) == "table" and not plan.edited then
+        local key = (plan.kind == "preset" and plan.key) or (plan.kind == "new" and plan.from) or nil
+        if key then return Templates.RotationsForBuild(key, class), key end
+    end
+    local tree, spells
+    if type(plan) == "table" then
+        local split
+        spells, split = ns.Plan.SpellRanks(plan, ctx)
+        local groups = {}
+        for i, n in ipairs(type(split) == "table" and split or {}) do groups[i] = { spent = tonumber(n) or 0 } end
+        tree = Core.Talents.Primary(groups) or (type(plan.tpl) == "table" and plan.tpl.primary) or nil
+    else
+        local configID = type(ctx) == "table" and ctx.configID or nil
+        if configID and configID ~= Core.Talents.ConfigID() then
+            local groups, readable = Core.Talents.Groups(configID, ctx.treeID)
+            tree = readable and Core.Talents.Primary(groups) or nil
+        else
+            tree = Core.Talents.MainTree()
+        end
+        if tree and configID then
+            spells = ns.Plan.SpellRanks({ tpl = Traits.Snapshot(configID, ctx.treeID, true) }, ctx)
+        end
+    end
+    if not tree then return nil end
+    return Templates.RotationsForTree(tree, spells, class)
+end
+
+-- Welche Rotation ist in ezCombat gerade gewählt? → Schlüssel | nil, „Nach Talentbaum“ (true)
+function Templates.SelectedRotation()
+    local combat = Core.API("ezCombat")
+    if not (type(combat) == "table" and type(combat.SelectedRotation) == "function") then return nil, false end
+    local ok, rotation, choice = pcall(combat.SelectedRotation)
+    if not ok or type(rotation) ~= "table" then return nil, false end
+    return rotation.key, choice == "auto"
 end
 
 -- Diese Rotation in ezCombat wählen. → true, wenn ezCombat sie angenommen hat.
@@ -1227,3 +1317,22 @@ end
 -- Schnittstelle für andere Module
 ns.API.TemplateNames = function(class) return Templates.Names(Templates.ClassScope(class)) end
 ns.API.LegacyTemplateNames = function(treeID) return Templates.Names(Templates.LegacyScope(treeID)) end
+-- Vorauswahlen zu Schlüsseln (Core.RotationBuilds), in deren Reihenfolge – für ezCombats Seite „Deine Rotation“ (n:m,
+-- 24.11.2026): { { key, name, split, tree, computed, provisional, purpose = { … } } }; Unbekanntes fehlt, nur Kopien
+ns.API.Builds = function(keys, class)
+    local out = {}
+    for _, key in ipairs(type(keys) == "table" and keys or {}) do
+        local preset = Templates.PresetByKey(key, class)
+        if preset then
+            local purpose = {}
+            for i, p in ipairs(type(preset.purpose) == "table" and preset.purpose or {}) do purpose[i] = L["PRESET_PURPOSE_" .. p] or p end
+            out[#out + 1] = { key = preset.key, name = Templates.PresetName(preset), split = preset.split, tree = preset.tree,
+                computed = Templates.IsComputed(preset), purpose = purpose,
+                provisional = type(preset.computed) == "table" and preset.computed.provisional == true or nil }
+        end
+    end
+    return out
+end
+-- Vorauswahl im Talentfenster zeigen (Vorschau) → true (zu sehen oder vorgemerkt, bis der Spieler Blizzards Talente
+-- öffnet) | false (der Grund steht im Chat)
+ns.API.ShowBuild = function(key) return ns.UI.ShowBuild(key) end

@@ -160,7 +160,7 @@ end
 -- „Alles zuklappen“ für alle Ansichten (Befehl /eb zuklappen, V-050). Gruppen der gespeicherten Reihenfolge
 -- sofort; Untergruppen („Unterteilen nach“, Schlüssel „Gruppe|Merkmal“) kennt erst die Anordnung – darum merkt
 -- sich jede Ansicht den Wunsch und klappt beim nächsten Anordnen alles zu, was sie dann zeigt (Render.Flow).
-local VIEW_KEYS = { "bag", "bank", "guild", "window" }
+local VIEW_KEYS = { "bag", "reagent", "bank", "guild", "window" }   -- reagent: Abschnitt Reagenzientasche (Reagent.lua)
 Groups.VIEW_KEYS = VIEW_KEYS
 local pendingCollapse = {}
 

@@ -17,7 +17,7 @@ local Spells = Core.Spells
       Lehrer       lernt bei jedem Besuch (Name, Rang, Stufe, Kosten), je Sprache und Klasse in ezCoreDB.spells:
                    Spells.Trainer(art) → Liste   Spells.Available(stufe, art) → Liste, Kosten
                    Spells.Upcoming(abStufe, bisStufe, art) → Liste, Kosten   Spells.TrainerSeen(art) → Zeit oder nil
-                   Spells.Waiting(stufe, art) → Anzahl, Kosten (nil ohne Lehrerbesuch), "trainer"/"book"/"none", Liste
+                   Spells.Waiting(stufe, art) → Anzahl, Kosten (nil ohne Lehrerbesuch), "trainer"/"book"/"tables"/"none", Liste
                    (ohne Lehrerbesuch zählt Spells.BookEntries: Zauberbuch „kommt später“ samt Stufen laut Client und,
                    seit Welle 26, den Klassenzaubern laut Client-Tabellen)
       Begleiter    Spells.PetKind(klasse) → "HUNTER:PET" … (Art für Trainer/Available/Upcoming/Waiting), Spells.PetBook()
@@ -63,7 +63,8 @@ local Spells = Core.Spells
                    einschaltet (ab Werk aus).
       Klassen-Wissen (unten, „Klassen-Wissen“; Daten in SpellData.lua, Beschreibung in docs/ezcore.md):
                    Spells.Exists(id), Spells.LevelLearned(id) → Stufe, Quelle, Spells.InRange(id, einheit) → true/false/nil,
-                   Spells.IsCurrent(id), Spells.Family(name) → IDs, Daten, Spells.FamilyOf(id) → Name,
+                   Spells.IsCurrent(id), Spells.Family(name) → IDs, Daten, Spells.FamilyInfo(name) → Klasse, Einheit, Gestalt
+                   (ohne Kopie), Spells.FamilyOf(id) → Name,
                    Spells.BuffGroup(schlüsselOderKind, klasse), Spells.ChooseBuff(schlüsselOderKind, opts) → Schlüssel, Zauber-ID,
                    Spells.AuraIDs(idSchlüsselOderFamilie) → Menge, Spells.FindAura(liste, idSchlüsselOderFamilie) → Aura,
                    Spells.BuffState(schlüsselOderKind, auren, opts) → "ok" | "missing" | "expiring", Aura, Schlüssel, Zauber-ID,
@@ -71,15 +72,18 @@ local Spells = Core.Spells
                    Spells.IsLongBuff(idOderSchlüssel), Spells.FormActive(id) → true/false/nil, Spells.ActiveForm() → ID, 0, nil
                    Heilen, Bannen, Wiederbeleben (Welle 8): Spells.HealSpells(klasse, rolle) → Liste, Spells.DispelSpells(klasse,
                    art), Spells.DispelTypes(klasse) → { magic = true … }, Spells.ResurrectSpells(klasse),
+                   Spells.DispelsBySpell(klasse) → je gelerntem Zauber seine Arten, Spells.RescueSpells(klasse) → Rettung,
                    Spells.BestKnown(liste) → höchster gelernter Rang der ersten gelernten ID, Spells.GroupReagent(id) →
                    Gegenstand, Spells.ItemAura(gegenstand) → Zauber-ID der Aura (Fläschchen, Elixier, Rolle),
                    Spells.MacroLogic(klasse) → Makro-Logik (MacroLogic.lua), Spells.MacroCondition(bedingung) → Text,
                    Spells.MacroCast(eintrag, opts) → Zauber-Teil der /cast-Zeile (Welle 23a)
       Client-Tabellen (Welle 26, Paket kern/wago-wissen; ezCore.ClientData, Quelle „laut Client-Tabellen“):
                    Spells.ClientComing(abStufe, bisStufe, klasse, volk) → { id, name, rank, level, base, icon, known,
-                   pet, triggered, source = "tables" } (F3, für „Was kommt wann“ ohne Lehrerbesuch; Spells.Coming
+                   pet, triggered, variant, source = "tables" } (F3, für „Was kommt wann“ ohne Lehrerbesuch; Spells.Coming
                    bleibt unverändert; seit Welle 26 nur Zauber deines Volks; pet = true seit Welle 27: Lernzauber des
-                   Begleiters, triggered = true: ausgelöste Zauber – beide zählen nicht als Rang des Spielers),
+                   Begleiters, triggered = true: ausgelöste Zauber – beide zählen nicht als Rang des Spielers; variant =
+                   true: Abwandlung, heißt nur wie ein Zauber mit Rängen),
+                   Spells.IsVariant(zauber) → ist er so eine Abwandlung (Verwandlung: Schildkröte, Schwein; 24.11.2026)?
                    Spells.ClassOf(zauber) → Klasse, Quelle (Klasse eines Zaubers, Welle 26),
                    Spells.Reagents(zauber) → { { item, count } … } (F9), Spells.Tools(zauber) (F9),
                    Spells.ReagentNeeds/MissingReagents(zauber, rückfall), Spells.ReagentList/ReagentText(fehlt),
@@ -355,7 +359,9 @@ end
 -- Was beim Lehrer wartet – eine Rechnung für ezMerchant und ezPanel: Anzahl, Kosten, Quelle, Liste.
 --   Lehrer schon besucht: aus seinen Daten (Kosten bekannt, Quelle "trainer").
 --   Sonst aus dem Zauberbuch („kommt später“ bis zur Stufe; Kosten nil, Quelle "book").
--- Bei einer Begleiter-Art ohne Lehrerbesuch: 0, nil, "none" (das Zauberbuch des Spielers zählt dort nicht).
+-- Bei einer Begleiter-Art ohne Lehrerbesuch: für die eigenen Dämonen die Grimoires laut Client-Tabellen
+-- (Core.PetSpells, mit Händlerpreis, Quelle "tables"; 24.11.2026), sonst 0, nil, "none" (das Zauberbuch des Spielers
+-- zählt dort nicht).
 function Spells.Waiting(level, kind)
     level = Core.Num(level) or Core.Num(UnitLevel and UnitLevel("player")) or 1
     if Spells.TrainerSeen(kind) then
@@ -363,10 +369,17 @@ function Spells.Waiting(level, kind)
         list = type(list) == "table" and list or {}
         return #list, cost or 0, "trainer", list
     end
-    if Spells.IsPetKind(kind) then return 0, nil, "none", {} end
+    if Spells.IsPetKind(kind) then
+        local P = Core.PetSpells
+        if P and kind == Spells.PetKind() then
+            local ok, count, cost, list, source = pcall(P.Waiting, level)
+            if ok and source == "book" then return count, cost, "tables", list end
+        end
+        return 0, nil, "none", {}
+    end
     local count = 0
     for _, entry in ipairs((Spells.BookEntries())) do
-        if (Core.Num(entry.level) or 0) <= level then count = count + 1 end
+        if Spells.WaitsAtTrainer(entry, level) then count = count + 1 end
     end
     return count, nil, "book"
 end
@@ -375,17 +388,8 @@ end
 function Spells.IsKnown(id)
     id = tonumber(id)
     if not id then return false end
-    local function Try(fn, ...)
-        if type(fn) ~= "function" then return false end
-        local ok, result = pcall(fn, ...)
-        return ok and result == true
-    end
-    if Try(IsPlayerSpell, id) then return true end
-    if Try(IsSpellKnown, id) or Try(IsSpellKnown, id, true) then return true end
-    if C_SpellBook and C_SpellBook.IsSpellKnown then
-        if Try(C_SpellBook.IsSpellKnown, id) then return true end
-        local pet = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet
-        if pet and Try(C_SpellBook.IsSpellKnown, id, pet) then return true end
+    if Core.KnowsSpell(id) or Core.SpellInBook(id) or Core.SpellInBook(id, true) or Core.KnowsSpell(id, true) then
+        return true
     end
     -- Höhere Ränge haben andere IDs: dann über den Namen.
     if Spells.Known(id) then return true end
@@ -646,6 +650,22 @@ function Spells.Coming(fromLevel, toLevel)
     return list
 end
 
+-- Rang aus einem Buch (Durchsicht 24.11.2026, R1 und R2): Den lehrt laut Client-Tabellen ein Gegenstand, kein Lehrer, und
+-- lernbar ist er erst ab der höheren der beiden Stufen (Zauber, Buch). → Gegenstand oder nil, Stufe (level ohne Buch)
+function Spells.Book(id, level)
+    local Src = Core.SpellSources
+    local item, bookLevel
+    if Src and type(Src.BookOf) == "function" then item, bookLevel = Src.BookOf(id) end
+    if item and bookLevel and bookLevel > (Core.Num(level) or 0) then level = bookLevel end
+    return item, level
+end
+
+-- Wartet ein Eintrag aus Spells.BookEntries jetzt beim Lehrer? Stufe erreicht (oder unbekannt) und nicht aus einem Buch.
+-- Eine Regel für Spells.Waiting und ezMerchant (Ansicht, Zahl am Reiter, Meldung beim Stufenaufstieg).
+function Spells.WaitsAtTrainer(entry, level)
+    return type(entry) == "table" and not entry.bookItem and (Core.Num(entry.level) or 0) <= level
+end
+
 -- Welle 26 (F3, Paket kern/wago-wissen): was zwischen zwei Stufen dazukommt, laut Client-Tabellen (SkillLineAbility und
 -- SpellLevels, ezCore.ClientData.ClassSpells) – auch ohne Lehrerbesuch und wenn C_SpellBook.GetCurrentLevelSpells
 -- nichts liefert (Probe 14.11.2026: leer). Lehrer-Kosten führt der Client nicht (bleiben Erhebung beim Lehrer).
@@ -665,17 +685,19 @@ function Spells.ClientComing(fromLevel, toLevel, class, race)
     class = class or PlayerClass()
     if race == nil and CD.PlayerRace then race = CD.PlayerRace() end
     if race == false then race = nil end
-    local entries = CD.ClassSpells(class, fromLevel, toLevel, race)
-    if #entries == 0 then
-        if #CD.ClassSpells(class) == 0 then return nil end
-        return {}
-    end
+    -- ab Stufe 0 gefragt: die Stufe des Lehrbuchs kann über der des Zaubers liegen (Arkane Geschosse Rang 8: 60 statt 56)
+    local entries = CD.ClassSpells(class, 0, toLevel, race)
+    if #entries == 0 and #CD.ClassSpells(class) == 0 then return nil end
     local list = {}
     for _, e in ipairs(entries) do
-        local name = Spells.Name(e.id)
-        list[#list + 1] = { id = e.id, name = name or ("#" .. e.id), rank = e.rank, level = e.level, base = e.base,
-            icon = Spells.Icon(e.id), known = Spells.IsKnown(e.id), pet = e.pet, triggered = e.triggered,
-            source = "tables" }
+        local item, level = Spells.Book(e.id, e.level)
+        if level > fromLevel and level <= toLevel then
+            local name = Spells.Name(e.id)
+            list[#list + 1] = { id = e.id, name = name or ("#" .. e.id), rank = e.rank, level = level, base = e.base,
+                icon = Spells.Icon(e.id), known = Spells.IsKnown(e.id), pet = e.pet, triggered = e.triggered,
+                variant = e.variant, bookItem = item,
+                source = "tables" }
+        end
     end
     table.sort(list, function(a, b)
         if a.level ~= b.level then return a.level < b.level end
@@ -735,11 +757,7 @@ local function ClientKnowsEntry(c)
     return c.known == true
 end
 local function TableKnowsEntry(c)
-    local exact, id = rawget(_G, "IsPlayerSpell"), Core.Num(c.id)
-    if id and type(exact) == "function" then
-        local ok, known = pcall(exact, id)
-        if ok and known == true then return true end
-    end
+    if Core.KnowsSpell(c.id) then return true end
     return ClientKnowsEntry(c)
 end
 -- Höherer Rang eines Talents, dessen Rang 1 (aus dem Talentbaum) du nicht kannst: die Grund-ID steht nicht in der
@@ -780,10 +798,13 @@ end
 -- zählt zusätzlich nicht, was Namen, Stufe UND Rang mit einem gelernten Eintrag teilt: denselben Rang tragen nur
 -- Einträge, von denen du den einen oder den anderen hast (Siegel der Rechtschaffenheit 21084 ersetzt den automatisch
 -- gelernten 20154). Echte zweite Ränge derselben Stufe tragen eine eigene Nummer und bleiben offen (Feuerball 25306
--- neben 10151, Arkane Geschosse 25345 neben 10212, Verwandlung 28271/28272 neben 12826, Wasser herbeizaubern 468766
--- neben 10140, Gebet der Heilung 25316 neben 10961, Meucheln 25300 neben 11281, Feuerbrand 25309 neben 11668,
--- Schattenblitz 25307 neben 11661). Ohne Liste: {}.
-local function SameRankKey(c) return c.name .. "@" .. Core.Num(c.level) .. "#" .. (Core.Num(c.rank) or 0) end
+-- neben 10151, Arkane Geschosse 25345 neben 10212, Wasser herbeizaubern 468766 neben 10140, Gebet der Heilung 25316 neben
+-- 10961, Meucheln 25300 neben 11281, Feuerbrand 25309 neben 11668, Schattenblitz 25307 neben 11661). Abwandlungen mit
+-- gleichem Namen (Verwandlung in Schildkröte 28271 und Schwein 28272) sind eigene Zauber ohne Rang mit eigener Grund-ID
+-- (seit 24.11.2026, tools/wago_ausliefern.lua) – darum zählt die Grund-ID, nicht der Name. Ohne Liste: {}.
+local function SameRankKey(c)
+    return tostring(Core.Num(c.base) or c.name) .. "@" .. Core.Num(c.level) .. "#" .. (Core.Num(c.rank) or 0)
+end
 function Spells.OpenTableEntries(rows)
     local list, learnedAt, states = {}, {}, {}
     if type(rows) ~= "table" then return list end
@@ -811,7 +832,7 @@ function Spells.ForgetBookEntries() bookGeneration = bookGeneration + 1 end
 local function BookKey()
     local CD = Core.ClientData
     return { bookGeneration, PlayerLevel(), Core.MaxLevel(), Spells.Future, Spells.Future(), Spells.Coming,
-        Spells.ClientComing, Spells.KnowsRank, Spells.IsKnown, rawget(_G, "IsPlayerSpell"), CD and CD.ClassSpell or false,
+        Spells.ClientComing, Spells.KnowsRank, Spells.IsKnown, Core.KnowsSpellApi() or false, CD and CD.ClassSpell or false,
         PlayerClass() or false, CD and CD.PlayerRace and CD.PlayerRace() or false, Spells.Name }
 end
 
@@ -825,6 +846,16 @@ end
 
 -- flache Kopie: Core.CopyList (Gesamtreview 18.11.2026, T16-7; vorher zweimal in dieser Datei)
 local CopyList = Core.CopyList
+
+-- Abwandlung laut Client-Tabellen (ClientData variant): heißt wie ein Zauber mit Rängen, ist aber keiner davon. Darum nie
+-- über Namen und Rang oder Stufe mit anderen Einträgen zusammenlegen (Verwandlung Rang 4, Schildkröte und Schwein stehen
+-- alle auf Stufe 60; Review vom 24.11.2026).
+function Spells.IsVariant(id)
+    local CD = Core.ClientData
+    id = Core.Num(id)
+    local e = id and CD and CD.ClassSpell and CD.ClassSpell(id)
+    return type(e) == "table" and e.variant == true
+end
 
 local BuildBookEntries
 function Spells.BookEntries()
@@ -846,7 +877,14 @@ BuildBookEntries = function()
     local function Add(entry)
         list[#list + 1] = entry
         local id = Core.Num(entry.id)
-        if id then byID[id] = entry end
+        if id then
+            byID[id] = entry
+            entry.bookItem, entry.level = Spells.Book(id, entry.level)
+        end
+        if Spells.IsVariant(id) then
+            entry.variant = true
+            return
+        end
         byKey[EntryKey(entry.name, entry.rank)] = entry
         local level = Core.Num(entry.level)
         if level then byLevel[tostring(entry.name) .. "@" .. level] = entry end
@@ -860,9 +898,9 @@ BuildBookEntries = function()
         local name = type(c) == "table" and c.name
         if type(name) == "string" and name:sub(1, 1) == "#" then partial = true end
         if type(name) == "string" and name ~= "" and name:sub(1, 1) ~= "#" and not ClientKnowsEntry(c) then
-            local hit = byID[Core.Num(c.id) or -1] or byKey[EntryKey(name, c.rank)]
+            local hit = byID[Core.Num(c.id) or -1] or (not Spells.IsVariant(c.id) and byKey[EntryKey(name, c.rank)])
             if hit then
-                if not Core.Num(hit.level) then hit.level = Core.Num(c.level) end
+                if not Core.Num(hit.level) then hit.level = select(2, Spells.Book(hit.id, Core.Num(c.level))) end
             else
                 Add({ id = c.id, name = name, rank = c.rank, level = Core.Num(c.level), icon = c.icon, client = true })
             end
@@ -875,14 +913,27 @@ BuildBookEntries = function()
         for _, c in ipairs(tables and rows or {}) do
             if type(c) == "table" and type(c.name) == "string" and c.name:sub(1, 1) == "#" then partial = true end
         end
-        for _, c in ipairs(tables and Spells.OpenTableEntries(rows) or {}) do
+        local open = tables and Spells.OpenTableEntries(rows) or {}
+        -- zuerst die Ränge aus Büchern: ein Eintrag ohne (oder mit anderer) ID, über Name und Rang gefunden, ist danach
+        -- als Buch-Rang erkennbar
+        for _, c in ipairs(open) do
+            local hit = c.bookItem and c.variant ~= true and byKey[EntryKey(c.name, c.rank)]
+            if hit and not hit.bookItem then
+                hit.bookItem = c.bookItem
+                hit.level = math.max(Core.Num(hit.level) or 0, Core.Num(c.level) or 0)
+            end
+        end
+        for _, c in ipairs(open) do
             local name, level = c.name, Core.Num(c.level)
             -- gleicher Name und gleiche Stufe nur, wenn der Eintrag keinen höheren Rang trägt (Feuerball 25306, Rang 12,
             -- gehört nicht zu Rang 11 aus dem Zauberbuch; Gegenprüfung des Reviews zu PR 454)
             local same = byLevel[name .. "@" .. level]
             local sameRank = same and Core.Num(same.rank) or 0
             if same and sameRank > 0 and (Core.Num(c.rank) or 0) > sameRank then same = nil end
-            local hit = byID[Core.Num(c.id) or -1] or byKey[EntryKey(name, c.rank)] or same
+            -- ein Rang aus einem Buch und einer vom Lehrer sind nie derselbe (Feuerball 25306 im Zauberbuch verschluckte
+            -- sonst den offenen Lehrer-Rang 10151 derselben Stufe)
+            if same and (same.bookItem ~= nil) ~= (c.bookItem ~= nil) then same = nil end
+            local hit = byID[Core.Num(c.id) or -1] or (c.variant ~= true and (byKey[EntryKey(name, c.rank)] or same))
             if hit then
                 if not Core.Num(hit.level) then hit.level = level end
             else
@@ -923,15 +974,39 @@ end
 -- Abfragen (vorher ezCombat): nie mit geheimen Werten rechnen
 ---------------------------------------------------------------------------
 
--- Zauberzeit in Sekunden, 0 wenn unbekannt oder sofort.
+-- Zauberzeit in Sekunden (Kennung oder Name); 0 = sofort oder unbekannt. Im Kampf sperrt Forever sie oft: dann gilt die
+-- letzte offene Lesung desselben Zaubers (Spieltest 23.11.2026; seit der Durchsicht vom 24.11.2026 hier für alle –
+-- vorher dreimal mit verschiedenen Antworten, ezCombats Vorlauf, „Unter Beschuss“ und die Warnzeiten).
+-- → Sekunden, Stand: nil (offen gelesen bzw. keine Auskunft) | "last" (gesperrt, letzte offene Lesung) | "secret"
+-- (gesperrt und nie offen gelesen: 0 heißt dann „unbekannt“, nicht „sofort“)
+-- Je Kennung und je Name getrennt (Ränge haben verschiedene Zauberzeiten); eine gesperrte Kennung ohne eigene Lesung
+-- nimmt die des Namens. Eine Lesung gilt bis zur nächsten offenen: Wer mit einem Proc „sofort“ in den Kampf geht, hat bis
+-- dahin 0 – genauer geht es ohne offene Werte nicht.
+local castSeen = {}        -- [Kennung oder Name] = letzte offen gelesene Zauberzeit in Sekunden
 function Spells.CastTime(spell)
-    if C_Spell and C_Spell.GetSpellInfo then
-        local ok, info = pcall(C_Spell.GetSpellInfo, spell)
-        local castTime = ok and type(info) == "table" and Core.Num(info.castTime)
-        if castTime then return castTime / 1000 end
+    local fn = C_Spell and C_Spell.GetSpellInfo
+    if type(fn) ~= "function" or Core.IsSecret(spell) or spell == nil then return 0 end
+    local ok, info = pcall(fn, spell)
+    local raw
+    if ok then
+        if Core.IsSecret(info) then raw = info elseif type(info) == "table" then raw = info.castTime end
+        if not Core.IsSecret(raw) then
+            local castTime = Core.Num(raw)
+            if castTime then
+                castSeen[spell] = castTime / 1000
+                return castTime / 1000
+            end
+        end
     end
-    return 0
+    local last = castSeen[spell]
+    if not last and type(spell) == "number" then
+        local name = Spells.Name(spell)
+        last = name and castSeen[name]
+    end
+    if last then return last, "last" end
+    return 0, Core.IsSecret(raw) and "secret" or nil
 end
+function Spells.ForgetCastTimes() castSeen = {} end        -- nur für Prüfungen
 
 -- Nutzbar? Zweiter Wert: nur die Kraft (Wut, Energie, Mana) fehlt. Dritter Wert: true, wenn die Antwort unbekannt
 -- ist – das Spiel hat sie gesperrt oder die Abfrage selbst ist gescheitert (Fehler im pcall, Welle 23, A2); dann sind
@@ -1267,12 +1342,6 @@ ns.On("TRAINER_UPDATE", scanTrainer)
 
 local buffByID, buffByName
 
-local function PlayerSpell(id)
-    if type(IsPlayerSpell) ~= "function" then return false end
-    local ok, known = pcall(IsPlayerSpell, id)
-    return ok and known == true
-end
-
 local function BuffIndex()
     if buffByID then return end
     buffByID, buffByName = {}, {}
@@ -1386,7 +1455,7 @@ function Spells.BestImbueRank(key)
             if entry.key == key then
                 local best
                 for _, id in ipairs(entry.spells) do
-                    if PlayerSpell(id) or Spells.IsKnownRank(id) then best = id end
+                    if Core.KnowsSpell(id) or Spells.IsKnownRank(id) then best = id end
                 end
                 return best
             end
@@ -1471,7 +1540,7 @@ function Spells.BestBuffRank(key, level)
     local best
     for i, id in ipairs(d.spells) do
         local need = d.levels and d.levels[i] or 1
-        if (not level or level >= need - 10) and (PlayerSpell(id) or Spells.IsKnownRank(id)) then
+        if (not level or level >= need - 10) and (Core.KnowsSpell(id) or Spells.IsKnownRank(id)) then
             best = id
         end
     end
@@ -1631,6 +1700,14 @@ function Spells.Family(name)
     return ids, d
 end
 
+-- Klasse, Einheit ("player" | "target" | nil) und Gestalt (true | nil) einer Familie – ohne die ID-Liste zu kopieren, für
+-- Abfragen in jedem Takt (24.11.2026); nil, wenn es sie nicht gibt.
+function Spells.FamilyInfo(name)
+    local d = type(name) == "string" and Spells.FAMILIES[name] or nil
+    if not d then return nil end
+    return d.class, d.unit, d.form
+end
+
 -- Familie eines Zaubers: über die ID, sonst über den Namen (höhere Ränge tragen andere IDs). → Name oder nil
 function Spells.FamilyOf(id)
     id = tonumber(id)
@@ -1761,6 +1838,50 @@ function Spells.DispelTypes(class, known)
     local out = {}
     for kind, list in pairs(Spells.DISPELS[class or PlayerClass() or ""] or {}) do
         if not known or Spells.BestKnown(list) then out[kind] = true end
+    end
+    return out
+end
+
+-- Gelernte Bann-Zauber einer Klasse je Zauber statt je Art → { { id, base, kinds = { "Disease", … } } … }, nach Grund-ID.
+-- Ein Zauber, der mehrere Arten nimmt (Läutern: Gift und Krankheit), steht einmal da. id: höchster gelernter Rang; kinds
+-- wie Blizzards dispelName („Magic“, „Curse“, „Poison“, „Disease“; sortiert) – so nimmt sie Blizzards Auren-Container
+-- (candidateFilters.includeDispelTypes; ezCombat/Dispel.lua, 24.11.2026).
+function Spells.DispelsBySpell(class)
+    local out, byBase = {}, {}
+    for kind, list in pairs(Spells.DISPELS[class or PlayerClass() or ""] or {}) do
+        for _, base in ipairs(list) do
+            if Spells.IsKnown(base) then
+                local entry = byBase[base]
+                if not entry then
+                    entry = { id = Spells.Highest(base) or base, base = base, kinds = {} }
+                    byBase[base] = entry
+                    out[#out + 1] = entry
+                end
+                entry.kinds[#entry.kinds + 1] = kind:sub(1, 1):upper() .. kind:sub(2)
+                break   -- der erste gelernte gilt (wie Spells.BestKnown)
+            end
+        end
+    end
+    for _, entry in ipairs(out) do table.sort(entry.kinds) end
+    table.sort(out, function(a, b) return a.base < b.base end)
+    return out
+end
+
+-- Gelernte Rettungszauber einer Klasse (Spells.RESCUES) in der Reihenfolge ihres Vorrangs → { { id, base, target, heal } … };
+-- id: höchster gelernter Rang, heal: die schnelle Heilung der Klasse, auf sich selbst gewirkt (zuletzt).
+function Spells.RescueSpells(class)
+    class = class or PlayerClass() or ""
+    local data = Spells.RESCUES[class]
+    local out = {}
+    for _, entry in ipairs(data or {}) do
+        local id = Spells.BestKnown({ entry.id })
+        if id then out[#out + 1] = { id = id, base = entry.id, target = entry.target == true, heal = false } end
+    end
+    for _, base in ipairs(data and data.heal and Spells.HealSpells(class, "fast") or {}) do
+        if Spells.IsKnown(base) then
+            out[#out + 1] = { id = Spells.Highest(base) or base, base = base, target = false, heal = true }
+            break
+        end
     end
     return out
 end

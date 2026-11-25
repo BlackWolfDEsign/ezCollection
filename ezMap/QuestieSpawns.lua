@@ -25,6 +25,21 @@ local Core = ezCore
     wird über ezCores Punkteschicht (Core.MapPins, ein Vorrat an Texturen). Höchstens QS.PIN_MAX Punkte je Karte.
     Tooltip am Punkt: Name, Art, Stufe und Rang, Zahl der Fundorte, „Quelle: laut Questie“; Klick setzt Blizzards
     Markierung.
+
+    Paket „Fundorte“ (22.11.2026, Prüfung der Fundorte vom selben Tag):
+      - Kräuter (questieHerbs) und Erze (questieOre) sind eigene Haken der Gruppe: Nachschlage-Wissen (Leitlinie 11),
+        darum NICHT in Tree.EXPLICIT – der Haken der Gruppe schaltet sie mit. Ab Werk aus wie die ganze Gruppe
+        (Entscheidung F5 b, Welle 27); ob sie ab Werk an sein sollen, ist eine offene Frage (docs/roadmap/ezMap.md).
+        Welche Objekte Kräuter bzw. Erze sind, bestimmt ezCore (Core.Sources.Questie.Spawns mit kinds.herb/ore: eigene
+        Beobachtung, Inhalt laut Questie mit der Gegenstandsart laut Client, gleicher Name); „Objekte“ zeigt den Rest
+        (Kisten, Quest-Objekte, Unbekanntes) und bleibt ein Haken auf ausdrücklichen Wunsch. Symbol: das Kraut bzw. Erz
+        laut Questie (Core.ItemIcon), sonst das Symbol der Art aus Gather.lua, etwas blasser als eigene Funde.
+      - Keine Doppelpunkte: Ein Punkt laut Questie, der im Umkreis QS.TWIN_YARDS eines eigenen Funds DERSELBEN Art liegt,
+        den ezMap gerade zeichnet (Gather.Shown), wird nicht gezeichnet; der Tooltip des eigenen Punkts nennt dann
+        „auch laut Questie“ (QS.TwinOf). Gilt für alle Arten, die beide kennen (Kräuter, Erze, Kisten, Fischschwärme).
+      - Nach dem code-reviewer: Wer „Objekte“ an hatte, behält Kräuter und Erze (ns.MigrateFundorte in Core.lua); eine
+        Suche (Name, Quest, Gegenstand) mit „Objekte“ schließt Kräuter und Erze ein; zeichnet ein Sammel-Addon
+        (gatherPins, Gather.Yields), weichen auch Kräuter und Erze laut Questie (Leitlinie 9).
 ]]
 local QS = {}
 ns.QuestieSpawns = QS
@@ -33,7 +48,8 @@ QS.PROVIDER = "ezMap.questie"
 QS.PIN_SIZE = 10
 QS.PIN_MAX = 1500          -- Deckel je Karte (ezCores Punkteschicht hat MAX für alle Anbieter zusammen)
 QS.MIN_MAP_TYPE = 3        -- Zone und darunter; Welt und Kontinent zeigen keine Fundorte (zu viele Punkte)
-QS.KEYS = { npc = "questieNpcs", object = "questieObjects" }
+QS.KEYS = { npc = "questieNpcs", object = "questieObjects", herb = "questieHerbs", ore = "questieOre" }
+QS.GATHER = { herb = true, ore = true }   -- Arten, die ezCore aus den Objekten heraustrennt (Paket „Fundorte“)
 QS.RANK_KEYS = { normal = "questieRankNormal", elite = "questieRankElite" }   -- seltene: QS.Options (immer durch)
 QS.TEXTURE = {
     normal = "Interface\\Common\\Indicator-Yellow",
@@ -41,6 +57,10 @@ QS.TEXTURE = {
     object = "Interface\\Common\\Indicator-Green",
     rare = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_8",   -- Rückfall, wenn Blizzards Atlas fehlt
 }
+QS.GATHER_SIZE = 12        -- Kräuter und Erze laut Questie: Symbol des Rohstoffs, etwas kleiner …
+QS.GATHER_ALPHA = 0.8      -- … und blasser als eigene Funde (Gather.lua), die Quelle nennt der Tooltip
+QS.TWIN_YARDS = 15         -- so nah an einem eigenen Fund derselben Art gilt ein Punkt laut Questie als derselbe (wie
+                           -- ezCores Umkreis „eben geerntet“ und der Standard beim Zusammenlegen naher Dubletten)
 QS.RARE_ATLAS = "VignetteKill"
 QS.RANK_TEXT = { [1] = "QSPAWN_RANK_ELITE", [2] = "QSPAWN_RANK_RAREELITE", [3] = "QSPAWN_RANK_BOSS", [4] = "QSPAWN_RANK_RARE" }
 
@@ -70,7 +90,15 @@ function QS.Hidden() return not QS.Available() end
 function QS.KindWanted(kind) return ns.Enabled(QS.KEYS[kind] or "") end
 -- „Seltene Gegner“ allein zeigt nur die seltenen (der Haken soll nicht wirkungslos bleiben)
 function QS.RaresOnly() return ns.Enabled("questieRares") and not QS.KindWanted("npc") end
-function QS.Wanted() return QS.KindWanted("npc") or QS.KindWanted("object") or ns.Enabled("questieRares") end
+function QS.GatherWanted() return QS.KindWanted("herb") or QS.KindWanted("ore") end
+-- Weicht ezMap bei Sammel-Fundorten einem anderen Addon? (Gather.Yields) → Name oder nil
+function QS.GatherYields()
+    local G = ns.Gather
+    return G and type(G.Yields) == "function" and G.Yields() or nil
+end
+function QS.Wanted()
+    return QS.KindWanted("npc") or QS.KindWanted("object") or QS.GatherWanted() or ns.Enabled("questieRares")
+end
 
 -- ezCores Schalter „Entdecker-Wissen zeigen“ (zeigt seltene Gegner ebenso; gehört zum Schlüssel der gemerkten Punkte)
 function QS.Explorer()
@@ -96,7 +124,8 @@ end
 function QS.Options()
     local f = QS.filter
     local opts = {
-        kinds = { npc = QS.KindWanted("npc"), object = QS.KindWanted("object") },
+        kinds = { npc = QS.KindWanted("npc"), object = QS.KindWanted("object"), herb = QS.KindWanted("herb"),
+            ore = QS.KindWanted("ore") },
         explorer = ns.Enabled("questieRares"),
         ranks = {},
         name = f.name,
@@ -109,6 +138,13 @@ function QS.Options()
         opts.kinds.npc = true
         opts.ranks = { normal = false, elite = false, rare = true }
     end
+    -- Paket „Fundorte“: Sucht der Spieler ausdrücklich (Name, Quest, Gegenstand) und ist „Objekte“ an, gehören Kräuter
+    -- und Erze dazu – sonst fände „Nur für einen Gegenstand: Kupfererz“ mit „Objekte“ allein die Adern nicht mehr
+    if opts.kinds.object and QS.Filtered() then opts.kinds.herb, opts.kinds.ore = true, true end
+    -- Rücksicht (Leitlinie 9): Zeichnet ein Sammel-Addon die Fundorte (GatherMate2, Gatherer Reforged – derselbe
+    -- Schlüssel gatherPins wie ezMaps eigene Funde, „Trotzdem zeigen“ gatherOverride hebt beides auf), hält sich ezMap
+    -- auch mit Kräutern und Erzen laut Questie zurück; die Zeile der Gruppe nennt das Addon
+    if QS.GatherYields() then opts.kinds.herb, opts.kinds.ore = false, false end
     local targets = (f.quest and f.quest.targets) or (f.item and f.item.targets)
     if targets then
         opts.ids = { npc = targets.npc or {}, object = targets.object or {} }
@@ -130,6 +166,7 @@ end
 function QS.Changed()
     QS.version = QS.version + 1
     QS.cache = nil
+    QS.twins = {}
     local P = Core.MapPins
     if type(P) == "table" and type(P.Refresh) == "function" then P.Refresh() end
 end
@@ -143,7 +180,19 @@ function QS.Ask(zone)
     return r, why, done, total
 end
 
+-- Kraut oder Erz laut ezCore? → "herb" | "ore" | nil
+local function GatherKind(e)
+    return e.kind == "object" and QS.GATHER[e.gather] and e.gather or nil
+end
+QS.GatherKind = GatherKind
+
 local function Texture(e)
+    local gather = GatherKind(e)
+    if gather then
+        local icon = e.gatherItem and Core.ItemIcon(e.gatherItem)
+        local G = ns.Gather
+        return { texture = icon or (G and G.KIND_ICON and G.KIND_ICON[gather]) or QS.TEXTURE.object, gather = true }
+    end
     if e.kind == "object" then return { texture = QS.TEXTURE.object } end
     if e.rare then
         if Core.AtlasExists(QS.RARE_ATLAS) then return { atlas = QS.RARE_ATLAS } end
@@ -172,8 +221,116 @@ function QS.Quota(count)
     return { npc = npc, object = math.min(count.object, max - npc) }
 end
 
--- Punkte der gezeigten Karte für ezCores Punkteschicht
+---------------------------------------------------------------------------
+-- Keine Doppelpunkte mit eigenen Funden (Paket „Fundorte“, 22.11.2026)
+---------------------------------------------------------------------------
+
+QS.twins = {}              -- [QS.TwinKey(eigener Fundort)] = Eintrag laut Questie (zuletzt gezeichnete Karte)
+
+-- Schlüssel eines eigenen Fundorts: Art, Speicherkarte, Objekt und Lage auf der Speicherkarte (Core.Gathering.Nodes
+-- liefert je Aufruf Kopien – die Tabelle selbst taugt nicht als Schlüssel)
+function QS.TwinKey(node)
+    if type(node) ~= "table" then return nil end
+    local sx, sy = ns.Num(node.sx), ns.Num(node.sy)
+    if not (sx and sy) then sx, sy = ns.Num(node.x), ns.Num(node.y) end
+    if not (sx and sy) then return nil end
+    return ("%s:%s:%s:%.4f:%.4f"):format(tostring(node.kind), tostring(node.map), tostring(node.id), sx, sy)
+end
+
+-- Steht an diesem eigenen Fundort auch ein Punkt laut Questie, den ezMap deshalb nicht zeichnet? mapID: die Karte des
+-- Tooltips – nur für die zuletzt gezeichnete Weltkarte (bzw. dieselbe Karte auf der Minikarte) → Eintrag oder nil
+function QS.TwinOf(node, mapID)
+    local key = QS.TwinKey(node)
+    local e = key and QS.twins[key]
+    if not e then return nil end
+    if mapID ~= nil and QS.twinsMap ~= nil and ns.Num(mapID) ~= QS.twinsMap then return nil end
+    -- nur, solange ezMap seine Art laut Questie fragt (Haken bzw. Suche; sonst fragt ezCores Punkteschicht QS.Points
+    -- nicht mehr und die Zeile wäre veraltet)
+    if not QS.Available() then return nil end
+    local opts = QS.Options()
+    if opts.kinds[GatherKind(e) or "object"] ~= true then return nil end
+    return e
+end
+
+-- Eigene Funde, die ezMap gerade auf der Weltkarte mapID zeichnet (aus Gather.Points im selben Neuaufbau, sonst
+-- Gather.Shown; seit ezData auch die Punkte aus Beiträgen anderer Spieler – kein Doppelpunkt neben ihnen, ihr Tooltip
+-- nennt dann „auch laut Questie“), umgerechnet auf die Zone der Punkte laut Questie, in Zellen von QS.TWIN_YARDS (ohne Kartengröße 1 %
+-- der Karte, wie Gather.Close) → Raster oder nil
+local function OwnGrid(mapID, zone)
+    local G = ns.Gather
+    if not (G and type(G.Active) == "function" and type(G.Shown) == "function" and G.Active(mapID)) then return nil end
+    local last = G.lastShown
+    local nodes = (type(last) == "table" and last.map == mapID and type(last.nodes) == "table") and last.nodes
+        or G.Shown(mapID)
+    if #nodes == 0 then return nil end
+    local D = Core.Discovery
+    local w, h
+    if D and type(D.MapYards) == "function" then w, h = D.MapYards(zone) end
+    local cx, cy = 0.01, 0.01
+    if w and h and w > 0 and h > 0 then cx, cy = QS.TWIN_YARDS / w, QS.TWIN_YARDS / h end
+    local grid = { cx = cx, cy = cy, cells = {} }
+    for _, node in ipairs(nodes) do
+        local x, y = ns.Num(node.x), ns.Num(node.y)
+        -- Teilkarte gezeigt: die (wenigen) eigenen Funde auf die Zone umrechnen statt jeden Punkt laut Questie
+        if x and y and zone ~= mapID then x, y = Core.Map.PosOn(zone, mapID, x, y) end
+        if x and y then
+            local key = math.floor(x / cx) .. ":" .. math.floor(y / cy)
+            local cell = grid.cells[key] or {}
+            grid.cells[key] = cell
+            cell[#cell + 1] = { node = node, x = x, y = y }
+        end
+    end
+    return grid
+end
+
+-- Eigener Fund derselben Art im Umkreis (alles auf der Zone)? → Knoten oder nil
+local function NearOwn(grid, zone, kind, x, y)
+    local gx, gy = math.floor(x / grid.cx), math.floor(y / grid.cy)
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            for _, own in ipairs(grid.cells[(gx + dx) .. ":" .. (gy + dy)] or {}) do
+                if own.node.kind == kind and ns.Gather.Close(zone, x, y, own.x, own.y, QS.TWIN_YARDS) then
+                    return own.node
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- Punkte ohne die Zwillinge eigener Funde → Liste, Zahl der ausgelassenen. Merkt die Zwillinge für den Tooltip.
+function QS.WithoutTwins(points, mapID, zone)
+    QS.twins, QS.twinsMap = {}, mapID
+    local G = ns.Gather
+    if not (G and type(G.Close) == "function") then return points, 0 end
+    local own = {}
+    for _, kind in ipairs(G.KINDS or {}) do own[kind] = true end
+    local out, grid, n = {}, nil, 0
+    for _, p in ipairs(points) do
+        local e = p.questie
+        local kind = type(e) == "table" and e.kind == "object" and e.gather or nil
+        local twin
+        if kind and own[kind] then
+            if grid == nil then grid = OwnGrid(mapID, zone) or false end
+            if grid then twin = NearOwn(grid, zone, kind, p.x, p.y) end
+        end
+        if twin then
+            local key = QS.TwinKey(twin)
+            if key then QS.twins[key] = e end
+            n = n + 1
+        else
+            out[#out + 1] = p
+        end
+    end
+    if n == 0 then return points, 0 end        -- nichts ausgelassen: die gemerkte Liste selbst (kein neuer Aufbau)
+    return out, n
+end
+
+-- Punkte der gezeigten Karte für ezCores Punkteschicht. Gemerkt (QS.cache) werden die Punkte laut Questie; die
+-- Zwillinge eigener Funde rechnet jeder Aufruf neu (eigene Funde, Filter und Haken von „Sammeln“ ändern sich ohne
+-- Nachricht an diese Datei – Gather.Refresh zeichnet beide Anbieter neu).
 function QS.Points(mapID)
+    QS.twins = {}
     if not QS.Wanted() then return {} end
     local zone, noZone = QS.Zone(mapID)
     if not zone then
@@ -181,30 +338,36 @@ function QS.Points(mapID)
         return {}
     end
     local c, explorer = QS.cache, QS.Explorer()
-    if c and c.map == zone and c.version == QS.version and c.explorer == explorer then return c.points end
-    local r, why, done, total = QS.Ask(zone)
-    if not r then
-        QS.last = { map = zone, why = why, done = done, total = total }
-        return {}
-    end
-    local count = QS.PointCount(r.list)
-    local all = count.npc + count.object
-    local quota = QS.Quota(count)
-    local points, used = {}, { npc = 0, object = 0 }
-    for _, e in ipairs(r.list) do
-        local kind = e.kind == "object" and "object" or "npc"
-        local look = Texture(e)
-        for _, p in ipairs(e.points) do
-            if used[kind] < quota[kind] then
-                used[kind] = used[kind] + 1
-                points[#points + 1] = { x = p.x, y = p.y, map = zone, size = e.rare and QS.PIN_SIZE + 4 or QS.PIN_SIZE,
-                    texture = look.texture, atlas = look.atlas, questie = e }
+    local yields = QS.GatherYields() and true or false      -- Sammel-Addon zeichnet: Kräuter und Erze weichen
+    if not (c and c.map == zone and c.version == QS.version and c.explorer == explorer and c.yields == yields) then
+        local r, why, done, total = QS.Ask(zone)
+        if not r then
+            QS.last = { map = zone, why = why, done = done, total = total }
+            return {}
+        end
+        local count = QS.PointCount(r.list)
+        local quota = QS.Quota(count)
+        local points, used = {}, { npc = 0, object = 0 }
+        for _, e in ipairs(r.list) do
+            local kind = e.kind == "object" and "object" or "npc"
+            local look = Texture(e)
+            local size = e.rare and QS.PIN_SIZE + 4 or look.gather and QS.GATHER_SIZE or QS.PIN_SIZE
+            for _, p in ipairs(e.points) do
+                if used[kind] < quota[kind] then
+                    used[kind] = used[kind] + 1
+                    points[#points + 1] = { x = p.x, y = p.y, map = zone, size = size, texture = look.texture,
+                        atlas = look.atlas, a = look.gather and QS.GATHER_ALPHA or nil, questie = e }
+                end
             end
         end
+        c = { map = zone, version = QS.version, explorer = explorer, yields = yields, points = points, result = r,
+            all = count.npc + count.object }
+        QS.cache = c
     end
-    QS.last = { map = zone, result = r, shown = #points, all = all }
-    QS.cache = { map = zone, version = QS.version, explorer = explorer, points = points, result = r }
-    return points
+    local shown, twins = QS.WithoutTwins(c.points, ns.Num(mapID) or zone, zone)
+    -- shown: nach dem Deckel (für „Gezeigt: n von m“), twins: wegen eines eigenen Funds nicht gezeichnet
+    QS.last = { map = zone, result = c.result, shown = #c.points, all = c.all, twins = twins }
+    return shown
 end
 
 local function LevelText(e)
@@ -225,7 +388,17 @@ function QS.PinTooltip(tip, point)
         if rank then parts[#parts + 1] = L[rank] end
         Core.TipLine(tip, table.concat(parts, ", "), "hint")
     else
-        Core.TipLine(tip, L.QSPAWN_PIN_OBJECT, "hint")
+        -- Art laut ezCore (Paket „Fundorte“): Kräuter- bzw. Erzvorkommen, Kiste, Quest-Objekt …; ohne Art „Objekt“
+        local art = e.gather and L["QSPAWN_PIN_KIND_" .. e.gather]
+        Core.TipLine(tip, type(art) == "string" and art ~= "QSPAWN_PIN_KIND_" .. e.gather and art or L.QSPAWN_PIN_OBJECT, "hint")
+        if e.gatherItem then
+            local item = Core.ItemNameByID(e.gatherItem) or ("#" .. tostring(e.gatherItem))
+            Core.TipLine(tip, L.QSPAWN_PIN_YIELD:format(item), "highlight", true)
+        end
+        if e.gather and e.gatherHow then
+            local how = L["QSPAWN_PIN_HOW_" .. e.gatherHow]
+            if type(how) == "string" and how ~= "QSPAWN_PIN_HOW_" .. e.gatherHow then Core.TipLine(tip, how, "hint", true) end
+        end
     end
     -- mehr als ezCore je Eintrag liest (Q.SPAWN_PER_ID): „mindestens n“ statt einer zu kleinen Zahl
     local spots = e.capped and L.QSPAWN_PIN_SPOTS_MORE or L.QSPAWN_PIN_SPOTS
@@ -391,12 +564,20 @@ function QS.StateText(mapID)
         return QS.ReasonText(why), L.QSPAWN_MISSING_TIP
     end
     local text = L.QSPAWN_COUNT:format(r.n.npc, r.n.object)
+    -- Kräuter und Erze (Paket „Fundorte“): eigene Zahlen, nur wenn einer der beiden Haken an ist
+    if QS.GatherWanted() then text = text .. ", " .. L.QSPAWN_COUNT_GATHER:format(r.n.herb or 0, r.n.ore or 0) end
     local tip = L.QSPAWN_COUNT_TIP
     if r.hidden and r.hidden.rare > 0 then tip = tip .. "\n\n" .. L.QSPAWN_HIDDEN_RARE:format(r.hidden.rare) end
     local c = QS.cache
     if c and c.map == zone and QS.last and QS.last.all and QS.last.all > QS.last.shown then
         tip = tip .. "\n\n" .. L.QSPAWN_CAPPED:format(QS.last.shown, QS.last.all)
     end
+    if c and c.map == zone and QS.last and (QS.last.twins or 0) > 0 then
+        tip = tip .. "\n\n" .. L.QSPAWN_TWINS:format(QS.last.twins)
+    end
+    if r.sorting and QS.GatherWanted() then tip = tip .. "\n\n" .. L.QSPAWN_SORTING end
+    local other = QS.GatherWanted() and QS.GatherYields()
+    if other then tip = tip .. "\n\n" .. L.QSPAWN_GATHER_OTHER:format(other) end
     if r.capped then tip = tip .. "\n\n" .. L.QSPAWN_READ_CAPPED end
     return text, tip
 end
@@ -469,7 +650,8 @@ end
 
 -- Seit Welle 27 unter „Entdecken“ (neben Entdecker-Wissen), vorher eigene Gruppe oben
 ns.Tree.Add("discover", { id = "questie", hidden = QS.Hidden, children = {
-    { key = "questieNpcs" }, { key = "questieObjects" }, { key = "questieRares" },
+    { key = "questieNpcs" }, { key = "questieHerbs" }, { key = "questieOre" }, { key = "questieObjects" },
+    { key = "questieRares" },
     { id = "questieRank", filter = true, children = { { key = "questieRankNormal" }, { key = "questieRankElite" } } },
 } })
 ns.Tree.EXPLICIT.questie = true          -- „Alles“ schaltet die Gruppe nicht mit ein (Leistung, fremdes Wissen)
@@ -480,13 +662,15 @@ ns.Tree.EXPLICIT_OWN.questie = true
 ns.Tree.EXPLICIT.questieRares = true     -- seltene Gegner nur auf ausdrücklichen Wunsch (Leitlinie 11)
 -- Objekte wie seltene Gegner nur mit eigenem Haken: Questie trennt Schätze nicht von anderen Objekten, sie wären
 -- Entdecker-Wissen (Antwort des Nutzers vom 17.11.2026, wörtlich „Eigener Haken nötig (Empfohlen)“, Leitlinie 11);
--- „Alle auswählen“ lässt sie aus, der Tooltip nennt es
+-- „Alle auswählen“ lässt sie aus, der Tooltip nennt es. Seit dem Paket „Fundorte“ (22.11.2026) stehen Kräuter und
+-- Erze getrennt (questieHerbs, questieOre – Nachschlage-Wissen, nicht hier); unter „Objekte“ bleiben Kisten,
+-- Quest-Objekte und alles, was ezCore keiner Art zuordnet – darum bleibt der eigene Haken.
 ns.Tree.EXPLICIT.questieObjects = true
 ns.Tree.GROUP_MENU.questie = QS.AddMenu
 ns.Tree.ALL_MENU[#ns.Tree.ALL_MENU + 1] = QS.AddHiddenHint
 
 local WATCH = { questieNpcs = true, questieObjects = true, questieRares = true, questieRankNormal = true,
-    questieRankElite = true }
+    questieRankElite = true, questieHerbs = true, questieOre = true }
 
 ns.OnReady(function() ns.Try("QuestiePins", QS.InitPins) end)
 ns.OnSettingChanged(function(key)
@@ -512,13 +696,35 @@ if type(Core.Listen) == "function" then
     Core.Listen("QUESTIE_SPAWNS", function(map, state) ns.Try("QuestieSpawns", QS.OnSpawns, map, state) end, "ezMap")
 end
 
+-- Art der Objekte (Paket „Fundorte“): eigene Funde bzw. der fertige Inhalt laut Questie ändern, was ezCore erkennt –
+-- die gemerkten Punkte verwerfen. Nach eigenen Funden zeichnet Gather.Refresh beide Anbieter neu, nach dem Inhalt
+-- laut Questie diese Datei (nur bei offener Weltkarte).
+local function ForgetPoints() QS.cache = nil end
+function QS.OnContents(_, state)
+    -- auch ohne „Kräuter“/„Erze“: erkannte Kräuter und Erze stehen dann nicht mehr unter „Objekte“
+    if state ~= "index" or not QS.Wanted() then return end
+    ForgetPoints()
+    local P = Core.MapPins
+    if WorldMapShown() and type(P) == "table" and type(P.Refresh) == "function" then P.Refresh() end
+end
+if type(Core.Listen) == "function" then
+    Core.Listen("GATHERING_CHANGED", function() ns.Try("QuestieSpawns", ForgetPoints) end, "ezMap.QuestieSpawns")
+    Core.Listen("QUESTIE_CONTENTS", function(map, state) ns.Try("QuestieSpawns", QS.OnContents, map, state) end,
+        "ezMap.QuestieSpawns")
+end
+
 ns.AddStatusLine(function()
     if not QS.Wanted() then return L.STATUS_QSPAWN_OFF end
     local ok, why = QS.Available()
     if not ok then return L.STATUS_QSPAWN_MISSING:format(QS.ReasonText(why)) end
     local last = QS.last
     if last and last.result then
-        local line = L.STATUS_QSPAWN_ON:format(ns.MapName(last.map), last.result.n.npc, last.result.n.object, last.shown)
+        local drawn = last.shown - (last.twins or 0)
+        local line = L.STATUS_QSPAWN_ON:format(ns.MapName(last.map), last.result.n.npc, last.result.n.object, drawn)
+        if QS.GatherWanted() then
+            line = line .. " " .. L.STATUS_QSPAWN_GATHER:format(last.result.n.herb or 0, last.result.n.ore or 0)
+        end
+        if (last.twins or 0) > 0 then line = line .. " " .. L.STATUS_QSPAWN_TWINS:format(last.twins) end
         if last.result.capped or (last.all and last.all > last.shown) then line = line .. " " .. L.STATUS_QSPAWN_CAPPED end
         return line
     end

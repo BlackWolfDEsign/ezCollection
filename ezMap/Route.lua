@@ -472,15 +472,7 @@ end
 -- Weltkarte: Linien
 ---------------------------------------------------------------------------
 
-local function Canvas()
-    local map = rawget(_G, "WorldMapFrame")
-    if type(map) ~= "table" then return nil end
-    if type(map.GetCanvas) == "function" then
-        local ok, canvas = pcall(map.GetCanvas, map)
-        if ok and type(canvas) == "table" then return canvas end
-    end
-    return map.ScrollContainer and map.ScrollContainer.Child or nil
-end
+local function Canvas() return Core.MapPins.Canvas() end
 
 -- Stand der letzten Zeichnung bei offener Karte (für /ezmap status): je Art { n, reason, map, extra }; reason nil =
 -- gezeichnet, sonst "never" | "none" | "off" | "canvas" | "size" | "line" | "offmap"; dazu die Rahmenstufe der Linien

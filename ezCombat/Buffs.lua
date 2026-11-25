@@ -12,10 +12,11 @@ local Core = ezCore
 -- so meldet sich kein Proc (Freizauber, Schattentrance …). Liegt der Zauber noch in der Abklingzeit (Schildwall,
 -- Sprint …), schweigt ezCombat: neu wirken geht dann nicht. Gerechnet wird nur mit offenen Werten aus
 -- ezCore.Auras.Scan. Sind deine Auren gesperrt (im Kampf üblich), gilt für einen vorher offen gelesenen Buff die
--- zuletzt gelesene Ablaufzeit weiter, solange seine Instanz-ID noch auf dir liegt (die Instanz-IDs sperrt das Spiel
--- nie) – so warnt ezCombat auch im Kampf vor dem Ende der Dämonenhaut von vor dem Kampf. Fehlt die Instanz, ist der
--- Buff weg (kurz vor seinem Ende: ausgelaufen). Was im Kampf neu gewirkt wird, kennt ezCombat nicht (weder Name noch
--- Ablaufzeit): Dafür kommt keine Warnung, und /ezk status sagt es.
+-- zuletzt gelesene Ablaufzeit weiter, solange das Spiel seine Instanz-ID nennt – so warnt ezCombat auch im Kampf vor
+-- dem Ende der Dämonenhaut von vor dem Kampf. Fehlt die Instanz, ist der Buff weg (kurz vor seinem Ende: ausgelaufen).
+-- Gibt das Spiel die Auren gar nicht heraus (die Abfrage wirft: ezCore.Auras, „ohne Zugriff“; Proben 14.11. und
+-- 23.11.2026: im Kampf), kommt keine Warnung. Ebenso für das, was im Kampf neu gewirkt wird (weder Name noch
+-- Ablaufzeit bekannt). Beides sagt /ezk status.
 -- ezBuff meldet fehlende Buffs außerhalb des Kampfes an Blizzards Buff-Leiste; ezCombat warnt am Aktionsknopf,
 -- auch im Kampf, in den letzten Sekunden. Ist ezBuff für einen Buff zuständig (Watches) und meldet ihn gerade selbst
 -- (außerhalb des Kampfes), leuchtet dort ezBuffs „fehlt“ – ezCombat meldet denselben Knopf dann nicht zusätzlich an (CB-40, Vollprüfung V-105; Entscheidung 13.11.2026 „ezBuff ist die eine Stelle“). Im Kampf schweigt
@@ -73,16 +74,19 @@ end
 -- Eigene Buffs neu lesen. Rückgabe: Anzahl gesperrter Auren.
 function Buffs.Scan()
     local now = GetTime()
-    -- Ganz gesperrte Auren zählt ezCore über die nie gesperrten Instanz-IDs mit (seit ezCore 1.8.0).
+    -- Ganz gesperrte Auren zählt ezCore über ihre Instanz-IDs mit (seit ezCore 1.8.0), soweit das Spiel sie herausgibt.
     local auras, secret, ids, unread = Core.Auras.Scan("player", "HELPFUL|PLAYER")
     if secret > 0 then ns.NoteSecret("buffs") end
-    -- Unlesbar (Instanz-ID da, keine Daten) zählt wie gesperrt: „nicht in der Liste“ heißt dann nicht „liegt nicht“.
-    local locked = secret > 0 or (ns.Num(unread) or 0) > 0
+    -- Unlesbar (Instanz-ID da, keine Daten; oder gar kein Zugriff) zählt wie gesperrt: „nicht in der Liste“ heißt dann
+    -- nicht „liegt nicht“.
+    unread = ns.Num(unread) or 0
+    local locked = secret > 0 or unread > 0
     local present           -- [Instanz-ID] = true; nil, wenn das Spiel keine Instanz-IDs nennt
     if type(ids) == "table" and #ids > 0 then
         present = {}
         for _, id in ipairs(ids) do present[id] = true end
     end
+    if unread > 0 and not present then ns.NoteSecret("buffsUnread") end
     local seen = {}
     for _, aura in ipairs(auras) do
         if aura.name and aura.expires and aura.duration and aura.duration >= MIN_DURATION then
@@ -280,6 +284,10 @@ end)
 -- /ezk status: gesperrte Auren und die letzte Warnung.
 ns.AddStatusLine(function()
     if ns.secretSeen.buffs then return L.STATUS_BUFFS_SECRET end
+end)
+-- … und wenn das Spiel sie gar nicht herausgab: Dann fehlt die Warnung, und der Status sagt es (wie bei den DoTs).
+ns.AddStatusLine(function()
+    if ns.Enabled("buffs") and ns.secretSeen.buffsUnread then return L.STATUS_BUFFS_UNREAD end
 end)
 ns.AddStatusLine(function()
     if not ns.Enabled("buffs") then return L.STATUS_BUFFS_OFF:format(ns.PathText("OPT_HEADER_BUFFS", "OPT_buffs")) end

@@ -108,12 +108,14 @@ end
       Abgleich (ezCore, Punkt 30) erledigt ist.
       { n = so oft zerlegt, label = „bei dir“ (ezCores Wortlaut), items = { [itemID] = { f = so oft dabei, s = Summe,
         lo, hi } } }
+    Sal.Shared(itemID, spell) → dasselbe aus Beiträgen anderer Spieler (Core.Drops.SalvageShipped, seit 25.11.2026) oder
+      nil; dazu shared = true, label = „aus Beiträgen (n Spieler), Stand Build x“, short = „aus Beiträgen“. Gezeigt wird es
+      nur, solange du den Gegenstand selbst noch nie zerlegt hast; in den erwarteten Wert geht es nie ein.
 ]]
-function Sal.Own(itemID, spell)
-    local D = Core.Drops
+local function Counted(fn, itemID, spell)
     itemID = Num(itemID)
-    if not (type(D) == "table" and type(D.Salvage) == "function" and itemID) then return nil end
-    local row, from = Call(D.Salvage, itemID, Num(spell))
+    if type(fn) ~= "function" or not itemID then return nil end
+    local row, from = Call(fn, itemID, Num(spell))
     row, from = Plain(row), Plain(from)
     if type(row) ~= "table" then return nil end
     local n = (Num(row.cnt) or 0) + (Num(row.party) or 0)
@@ -125,8 +127,24 @@ function Sal.Own(itemID, spell)
         if id and f and f > 0 then items[id] = { f = f, s = Num(it.s) or 0, lo = Num(it.lo), hi = Num(it.hi) } end
     end
     local label = type(from) == "table" and Plain(from.label) or nil
-    if type(label) ~= "string" or label == "" then label = Core.L.DB_OWN end
+    if type(label) ~= "string" or label == "" then label = nil end
     return { n = n, label = label, items = items }
+end
+
+function Sal.Own(itemID, spell)
+    local D = Core.Drops
+    local own = Counted(type(D) == "table" and D.Salvage or nil, itemID, spell)
+    if own then own.label = own.label or Core.L.DB_OWN end
+    return own
+end
+
+function Sal.Shared(itemID, spell)
+    local D = Core.Drops
+    local shared = Counted(type(D) == "table" and D.SalvageShipped or nil, itemID, spell)
+    if not shared then return nil end
+    shared.shared, shared.short = true, Core.L.SOURCES_SHIP
+    shared.label = shared.label or shared.short
+    return shared
 end
 
 -- Menge, wie sie bei dir herauskam: „1–3“ bzw. „2“
@@ -217,12 +235,13 @@ function Sal.Lines(item, opts)
         Line(head, L.SALVAGE_NO_PRICE, "highlight", "hint")
     end
     -- Eigene Beobachtung neben der Tabelle (EC-52): je Material „· bei dir 3×“, was nur bei dir herauskam, eigens
-    local own = Sal.Own(info.itemID, info.spell)
+    local own = Sal.Own(info.itemID, info.spell) or Sal.Shared(info.itemID, info.spell)
+    local who = own and (own.short or own.label)
     local inTable = {}
     for _, m in ipairs(info.materials) do
         inTable[m.id] = true
         local seen = own and own.items[m.id]
-        local text = Sal.MaterialText(m) .. (seen and Core.Grey(" · " .. L.SALVAGE_OWN_PART:format(own.label, seen.f)) or "")
+        local text = Sal.MaterialText(m) .. (seen and Core.Grey(" · " .. L.SALVAGE_OWN_PART:format(who, seen.f)) or "")
         Line("  " .. text, m.value and Core.Money(m.value) or L.SALVAGE_PRICE_UNKNOWN, "highlight", m.value and "highlight" or "hint")
     end
     if own then
@@ -232,7 +251,7 @@ function Sal.Lines(item, opts)
         for _, id in ipairs(extra) do
             local it = own.items[id]
             Line("  " .. L.SALVAGE_OWN_ONLY:format(OwnAmount(it), Core.ItemIconText(id, Data.ItemName(id)))
-                .. Core.Grey(" · " .. L.SALVAGE_OWN_PART:format(own.label, it.f)), nil, "highlight")
+                .. Core.Grey(" · " .. L.SALVAGE_OWN_PART:format(who, it.f)), nil, "highlight")
         end
     end
     if inTooltip then
@@ -257,7 +276,9 @@ function Sal.Lines(item, opts)
         if info.auction then compare[#compare + 1] = L.SALVAGE_AUCTION:format(Core.Money(info.auction)) end
         if #compare > 0 then Line("  " .. table.concat(compare, " · "), nil, "highlight") end
     end
-    if own then Line("  " .. L.SALVAGE_OWN_COUNT:format(own.label, own.n), nil, "hint") end
+    if own then
+        Line("  " .. (own.shared and L.SALVAGE_SHIP_COUNT or L.SALVAGE_OWN_COUNT):format(own.label, own.n), nil, "hint")
+    end
     if info.unverified then Line("  " .. Core.L.SALVAGE_UNVERIFIED, nil, "hint") end   -- ezCores Text, Pflicht bis zum Abgleich
     return out, info
 end
@@ -309,12 +330,12 @@ function Sal.ClearIgnored()
     return n
 end
 
--- Bewertet ezGear das Teil als besser als das Angelegte? Dann wird es nie vorgeschlagen.
+-- Bewertet ezGear das Teil als besser als das Angelegte – jetzt (grüner Pfeil) oder sobald der Charakter die Waffen- bzw.
+-- Rüstungsfertigkeit gelernt hat bzw. die Stufe reicht (gelber Pfeil, Paket ezgear/lernbar-tragbar)? Dann wird es nie
+-- vorgeschlagen – man soll nicht zerlegen, was nach dem Waffenmeister oder ein paar Stufen später besser ist. Die Regel
+-- gehört ezGear (Core.GearProtects); lädt es noch, gilt das Teil vorsichtshalber als besser (GEAR_SCORES_CHANGED holt es nach).
 local function IsUpgrade(link)
-    local api = Core.API("ezGear")
-    local fn = api and api.IsUpgrade
-    if type(fn) ~= "function" or type(link) ~= "string" then return false end
-    return Call(fn, link) == true
+    return type(link) == "string" and Core.GearProtects(ns, link, link)
 end
 Sal.IsUpgrade = IsUpgrade   -- auch für den Item-Tooltip (Sal.Lines steht weiter oben)
 
@@ -328,7 +349,7 @@ function Sal.IsLocked(bag, slot)
     return Call(fn, bag, slot) == true
 end
 
--- Nie vorschlagen: ignoriert, mit ezBags Schloss oder laut ezGear besser als das Angelegte.
+-- Nie vorschlagen: ignoriert, mit ezBags Schloss oder laut ezGear besser als das Angelegte (auch erst nach dem Lernen).
 local function Excluded(itemID, link, bag, slot)
     return Sal.IsIgnored(itemID) or Sal.IsLocked(bag, slot) or IsUpgrade(link)
 end
@@ -422,7 +443,8 @@ ns.OnReady(function() Sal.RegisterMark() end)
 ns.Listen("SALVAGE_CHANGED", RefreshMarks)
 Core.Listen("PRICES_CHANGED", RefreshMarks, ADDON)
 Core.Listen("PRICES_SCAN_DONE", RefreshMarks, ADDON)
-Core.Listen("GEAR_SCORES_CHANGED", RefreshMarks, ADDON)   -- ezGear bewertet neu (besser als das Angelegte)
+-- ezGear bewertet neu (besser als das Angelegte): Marken und die offene Liste
+Core.Listen("GEAR_SCORES_CHANGED", function() ns.Fire("SALVAGE_CHANGED") end, ADDON)
 ns.On("SPELLS_CHANGED", RefreshMarks)                     -- Entzaubern gelernt
 ns.OnSettingChanged(function(key)
     if key == "salvageMark" or key == nil then RefreshMarks() end

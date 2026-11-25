@@ -563,6 +563,49 @@ for id, pair in pairs({
     Spells.FALLBACK[id] = Spells.FALLBACK[id] or pair
 end
 
+-- Rettung je Klasse: was den eigenen Charakter rettet, wenn er fast stirbt (ezCombat/Rescue.lua; Frage des Nutzers vom
+-- 24.11.2026, wörtlich: „werden mir auch fähigkeiten angezeigt einzusetzen wenn ich fast tot bin mich zu retten …“).
+-- Reihenfolge = Vorrang: der erste gelernte, nutzbare und bereite Eintrag (Empfehlung: was das meiste Leben sofort
+-- bringt bzw. den Kampf beendet, zuerst; umkehrbar – nur diese Liste).
+--   id       Rang 1; gewirkt wird der höchste gelernte Rang (Spells.RescueSpells)
+--   target   true: braucht ein angreifbares Ziel (heilt über den Treffer)
+--   heal     true (an der Liste): danach die schnelle Heilung der Klasse (HEALS[Klasse].fast, auf sich selbst)
+-- Quelle: die situativen Schritte der Rotationen, die den Notfall nennen (ezCombat/RotationData, dort je Rotation mit
+-- Quelle: 12975, 871, 402927, 633, 5384, 1856, 5277, 13908, 16188, 122, 6789, 689, 22842, 22812; Prüfung in
+-- ezCombat/Tests/rettung.lua), ergänzt aus den Client-Tabellen, wo die Rotationen eine Rettung der Klasse nicht führen:
+-- 642 Gottesschild, 498 Göttlicher Schutz, 1311015 Bollwerk des Templers (Talent), 19263 Abschreckung (Talent),
+-- 11426 Eisbarriere, 11958 Eisblock (Talente), 17116 Schnelligkeit der Natur (Druide, Talent). Alle Kennungen stehen im
+-- Build 1.60.1.71037 (SpellName, SkillLineAbility; Wirkung laut SpellEffect und Spell, nachgesehen am 24.11.2026).
+-- Bewusst nicht dabei, weil im Kampf nicht lesbar ist, ob es gerade geht (Leitlinie 6): Machtwort: Schild 17 (Geschwächte
+-- Seele), Segen des Schutzes 1022 (Vorahnung am Ziel), Rasche Heilung 18562 (eigene HoT nötig). Vorahnung bei 642, 498 und
+-- 1311015 prüft der Client selbst (SpellAuraRestrictions.ExcludeCasterAuraSpell 25771).
+Spells.RESCUES = {
+    WARRIOR = { { id = 12975 }, { id = 871 }, { id = 402927, target = true } },
+    PALADIN = { { id = 633 }, { id = 1311015 }, { id = 642 }, { id = 498 }, heal = true },
+    HUNTER = { { id = 5384 }, { id = 19263 } },
+    ROGUE = { { id = 1856 }, { id = 5277 } },
+    PRIEST = { { id = 13908 }, heal = true },
+    SHAMAN = { { id = 16188 }, heal = true },
+    MAGE = { { id = 11426 }, { id = 11958 }, { id = 122 } },
+    WARLOCK = { { id = 6789, target = true }, { id = 689, target = true } },
+    DRUID = { { id = 22842 }, { id = 22812 }, { id = 17116 }, heal = true },
+}
+-- Ersatznamen der Rettungszauber ohne eigene Zeile oben (Client-Tabelle SpellName, enUS und deDE, Build 1.60.1.71037)
+for id, pair in pairs({
+    [402927] = { "Siegesrausch", "Victory Rush" },
+    [498] = { "Göttlicher Schutz", "Divine Protection" },
+    [1311015] = { "Bollwerk des Templers", "Templar's Bulwark" },
+    [19263] = { "Abschreckung", "Deterrence" },
+    [5277] = { "Entrinnen", "Evasion" },
+    [11426] = { "Eisbarriere", "Ice Barrier" },
+    [122] = { "Frostnova", "Frost Nova" },
+    [17116] = { "Schnelligkeit der Natur", "Nature's Swiftness" },
+    [22842] = { "Rasende Regeneration", "Frenzied Regeneration" },
+    [22812] = { "Baumrinde", "Barkskin" },
+}) do
+    Spells.FALLBACK[id] = Spells.FALLBACK[id] or pair
+end
+
 -- Reihenfolge je Klasse (wie im Zauberbuch: erst der Gruppen-Buff, dann die Selbst-Buffs).
 Spells.BUFF_ORDER = { "int", "frostArmor", "iceArmor", "mageArmor", "fort", "spirit", "shadowProt", "innerFire", "motw", "thorns",
     "might", "wisdom", "kings", "salvation", "light", "sanctuary", "battleShout", "demonSkin", "demonArmor", "lightningShield", "waterShield" }
@@ -574,16 +617,20 @@ Spells.BUFF_ORDER = { "int", "frostArmor", "iceArmor", "mageArmor", "fort", "spi
 --   form     true: kein Aura-Vergleich, sondern Zustand der Gestaltleiste (Spells.FormActive); für die Paladin-Auren
 --            vermutet [V] – stehen sie im Spiel nicht auf der Leiste, wird die Familie auf unit = "player" umgestellt
 --   spells   Zauber-IDs (Rang 1 bzw. die Forever-ID), nur was die Klassen-Guides für Forever nennen (Quellen oben bei BUFFS)
+-- Gegenprobe seit dem 24.11.2026: Der Client nennt die Gruppen selbst in den Beschreibungen („Only one Bane per Warlock can
+-- be active on any one target.“) – tools/daten/wago/ausschluesse.lua, geprüft in Tests/ausschluss_test.lua. Daraus
+-- nachgetragen: Siegel der Gerechtigkeit 20164, Aspekt der Wildnis 20043, Aspect of the Falcon 469145 und of the Viper 415423,
+-- Fluch der Erschöpfung 18223 (Talent in „Gebrechen“).
 Spells.FAMILIES = {
-    seal = { class = "PALADIN", unit = "player", spells = { 20154, 21082, 20375, 20166, 20165, 1311649 } },
+    seal = { class = "PALADIN", unit = "player", spells = { 20154, 21082, 20375, 20166, 20165, 1311649, 20164 } },
     -- Andacht, Vergeltung, Konzentration, die drei Widerstands-Auren und die Aura der Heiligkeit (CB-34; die vier neuen
     -- IDs [V] wie FALLBACK oben)
     aura = { class = "PALADIN", form = true, spells = { 465, 7294, 19746, 19876, 19888, 19891, 20218 } },
-    aspect = { class = "HUNTER", unit = "player", spells = { 13165, 13163, 5118, 13161, 13159 } },
+    aspect = { class = "HUNTER", unit = "player", spells = { 13165, 13163, 5118, 13161, 13159, 20043, 469145, 415423 } },
     stance = { class = "WARRIOR", form = true, spells = { 2457, 71, 2458 } },
     form = { class = "DRUID", form = true, spells = { 5487, 9634, 768, 24858 } },
     bane = { class = "WARLOCK", unit = "target", spells = { 980, 603, 1225228 } },
-    curse = { class = "WARLOCK", unit = "target", spells = { 440892, 704, 1714, 702 } },   -- 440892 [V]
+    curse = { class = "WARLOCK", unit = "target", spells = { 440892, 704, 1714, 702, 18223 } },   -- 440892 [V]
     sting = { class = "HUNTER", unit = "target", spells = { 1978, 3043, 3034 } },
 }
 

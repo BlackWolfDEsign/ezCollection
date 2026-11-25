@@ -90,8 +90,14 @@ function Shopping.Invalidate()
     if Lists() then Lists().Invalidate() end
 end
 
--- Jede Änderung einer Liste (ezCores LISTS_CHANGED): eigene Nachricht und die alte für ezBag und ezCore.Junk.
-local function Changed()
+-- Jede Änderung einer Liste (ezCores LISTS_CHANGED): eigene Nachricht und die alte (Alerts.lua).
+local function Changed(list, oldName)
+    -- Umbenannt (ezAuction, Durchsicht 24.11.2026): Die gemerkte Liste bleibt gewählt.
+    local window = ns.db and ns.db.window
+    if type(oldName) == "string" and type(list) == "table" and type(window) == "table" and type(window.list) == "string"
+        and window.list:lower() == oldName:lower() then
+        window.list = list.name
+    end
     needCache = nil
     ns.Fire("SHOPPING_CHANGED")
     Core.Fire("EZCRAFT_SHOPPING_CHANGED")

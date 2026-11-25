@@ -58,7 +58,8 @@ function Core.ErrorListText()
         for _, line in ipairs(test) do lines[#lines + 1] = Core.StripColors(line) end
     end
     -- Kopierfeld (EditBox) löst „|4Einzahl:Mehrzahl;“ nicht auf: hier vorher (Core.ResolveGrammar, Welle 17)
-    return Core.ResolveGrammar(table.concat(lines, "\n"))
+    -- eigene Namen, Realms und Gilde ersetzt: der Text geht an andere (24.11.2026, „Natürlich anonymer Export“)
+    return Core.Anonymous(Core.ResolveGrammar(table.concat(lines, "\n")))
 end
 
 -- V-024: EINE Rückfrage für jedes „Fehler leeren“ (Knopf der Übersicht, Fenster, Unterseite). → Dialog

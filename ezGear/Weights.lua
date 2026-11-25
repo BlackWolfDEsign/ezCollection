@@ -6,7 +6,9 @@ local Core = ezCore
     Gewichtung: wie viel ein Punkt jedes Werts für den Charakter wert ist.
 
     Standard je Klasse und Rolle (Schaden, Nahkampf, Zauberschaden, Tank, Heilung). „Automatisch“ wählt die Rolle
-    aus der Spezialisierung (GetSpecializationInfo: Rolle und Hauptwert), sonst die Leveling-Rolle der Klasse.
+    aus dem Talentbaum mit den meisten bestätigten Punkten (Core.Talents, Weights.TreeProfile), ohne Punkte die
+    Leveling-Rolle der Klasse. Bis zum 24.11.2026 fragte es die Spezialisierung des Clients über eine Globale, die es auf
+    Forever nicht gibt – es galt immer die Leveling-Rolle.
     Werte für Treffer und kritische Treffer gelten je Prozentpunkt („+1 % Trefferchance“ wie auf Forever-Gegenständen).
     Eigene Werte: Pawn-Skalen als Text einfügen, z. B.
       ( Pawn: v1: "Verstärkung": Class=Shaman, Strength=1, Agility=0.6, Stamina=0.3, MeleeDps=4 )
@@ -31,7 +33,7 @@ ns.Weights = Weights
 local EMPTY = {}
 
 ---------------------------------------------------------------------------
--- Standardwerte (Klasse → Profile; das erste ist die Leveling-Wahl ohne Spezialisierung)
+-- Standardwerte (Klasse → Profile; das erste ist die Leveling-Wahl ohne Talentpunkte)
 ---------------------------------------------------------------------------
 
 local W = {}
@@ -73,7 +75,7 @@ W.DRUID_CASTER = { SPELL = 1, INTELLECT = 0.9, SPELLCRIT = 8, SPELLHIT = 8, SPIR
 W.DRUID_HEAL = { INTELLECT = 1, HEAL = 0.6, SPELL = 0.6, SPIRIT = 0.6, MP5 = 1.5, SPELLCRIT = 6, STAMINA = 0.3 }
 Weights.DEFAULTS = W
 
--- Klasse → Profile (Rolle); das erste gilt beim Leveln ohne Spezialisierung.
+-- Klasse → Profile (Rolle); das erste gilt, solange keine Talentpunkte vergeben sind.
 Weights.CLASS_PROFILES = {
     WARRIOR = { "DPS", "TANK" },
     PALADIN = { "DPS", "HEAL", "TANK" },
@@ -86,7 +88,20 @@ Weights.CLASS_PROFILES = {
     DRUID = { "MELEE", "CASTER", "TANK", "HEAL" },
 }
 
-local INTELLECT_STAT = (LE_UNIT_STAT_INTELLECT or 4)
+-- Profil eines Talentbaums | nil: Rolle und Reichweite aus ezCore (Core.Talents.Role, die eine Zuordnung mit Quelle). Schaden
+-- heißt DPS; wo die Klasse Nahkampf und Zauberschaden kennt, entscheidet die Reichweite. Druide „Wilder Kampf“ ist dort Katze
+-- (wie ohne Talentpunkte), den Bären wählt der Spieler im Menü „Gewichtung“.
+local ROLE_PROFILE = { TANK = "TANK", HEALER = "HEAL" }
+function Weights.TreeProfile(class, n)
+    local profiles = Weights.CLASS_PROFILES[class or ""]
+    local role, range = Core.Talents.Role(class, n)
+    if not (profiles and role) then return nil end
+    local want = ROLE_PROFILE[role] or (range == "caster" and "CASTER" or "MELEE")
+    for _, profile in ipairs(profiles) do
+        if profile == want or (role == "DAMAGER" and profile == "DPS") then return profile end
+    end
+    return nil
+end
 
 ---------------------------------------------------------------------------
 -- „Gut für“ im Item-Wissen von ezCore (Knowledge.SetStatGoodFor): ein Wert ist gut für die Klassen, in deren
@@ -159,33 +174,18 @@ end
 -- Gewählte Gewichtung des Charakters
 ---------------------------------------------------------------------------
 
-local function HasProfile(class, role)
-    for _, r in ipairs(Weights.CLASS_PROFILES[class] or {}) do
-        if r == role then return true end
-    end
-    return false
+-- Talentbaum → Rolle des Profils, Name des Baums | nil (keine Punkte oder unbekannt: dann gilt die Leveling-Rolle)
+function Weights.SpecRole(class)
+    local tree = Core.Talents.MainTree()
+    local role = tree and Weights.TreeProfile(class, tree)
+    if not role then return nil end
+    return role, Core.Talents.TreeName(tree)
 end
 
--- Spezialisierung → Rolle des Profils (nil ohne Spezialisierung)
-function Weights.SpecRole(class)
-    local index = ns.Plain(ns.Call(GetSpecialization))
-    if type(index) ~= "number" or index < 1 then return nil end
-    local _, specName, _, _, role, primaryStat = ns.Call(GetSpecializationInfo, index)
-    role, primaryStat, specName = ns.Plain(role), ns.Plain(primaryStat), ns.Plain(specName)
-    local wanted
-    if role == "TANK" then
-        wanted = "TANK"
-    elseif role == "HEALER" then
-        wanted = "HEAL"
-    elseif role == "DAMAGER" then
-        if primaryStat == INTELLECT_STAT then
-            wanted = HasProfile(class, "CASTER") and "CASTER" or "DPS"
-        else
-            wanted = HasProfile(class, "MELEE") and "MELEE" or "DPS"
-        end
-    end
-    if wanted and HasProfile(class, wanted) then return wanted, specName end
-    return nil, specName
+-- Liefert der Client die Talente (noch) nicht? Dann ist die Leveling-Rolle unter „Automatisch“ nur ein Platzhalter.
+function Weights.RoleUnknown()
+    local _, known = Core.Talents.MainTree()
+    return known == false
 end
 
 local function ClassOf()
@@ -233,6 +233,65 @@ function Weights.ForgetTalent()
     talentCache = nil
 end
 
+--[[
+    Waffenschaden je Sekunde zählt an jedem Waffenplatz (Nutzer am 24.11.2026 zum Schurken mit dem besseren Bogen: „stimmt
+    die ezgear aussage (schurke mit bogen)?“). ezTalents Rechenmodell gibt nur der Waffe der Spielweise ein Gewicht
+    (Nahkämpfer: kein Distanzschaden, Zauberer: auch kein Zauberstab) – der Bogen hatte dann „keine Werte, die zählen“.
+    Fehlt MELEEDPS oder RANGEDDPS, gilt der Wert der Standardtabelle deiner Klasse und Rolle, umgerechnet auf den Maßstab
+    der Gewichtung (Verhältnis des stärksten Grundwerts der Tabelle); hat auch die Tabelle keinen (Zauberer im Nahkampf),
+    gilt WEAPON_FLOOR – so entscheidet der Schaden zwischen sonst gleichen Teilen. Ein eigenes Gewicht, auch 0, bleibt; Pawn-Skalen
+    bleiben, wie der Spieler sie eingefügt hat.
+]]
+Weights.WEAPON_KEYS = { "MELEEDPS", "RANGEDDPS" }
+Weights.WEAPON_FLOOR = 0.05
+local PRIMARY = { "STRENGTH", "AGILITY", "INTELLECT", "STAMINA" }
+
+-- Verhältnis der Maßstäbe: Gewicht des stärksten Grundwerts der Standardtabelle in weights geteilt durch das dortige
+local function ScaleOf(weights, base)
+    local best
+    for _, key in ipairs(PRIMARY) do
+        if (base[key] or 0) > (best and base[best] or 0) then best = key end
+    end
+    local value = best and weights[best]
+    if type(value) ~= "number" or value <= 0 then return 1 end
+    return value / base[best]
+end
+
+local filled = setmetatable({}, { __mode = "k" })     -- [weights] = { [Schlüssel der Standardtabelle] = Tabelle }
+
+-- Weights.WithWeapons(weights, key) → Gewichte mit beiden Waffen-Schlüsseln (dieselbe Tabelle, wenn nichts fehlt), ergänzt?
+-- key: Schlüssel der Standardtabelle („ROGUE_DPS“). Dieselbe Ergebnis-Tabelle je Eingabe (Score.Of vergleicht sie).
+function Weights.WithWeapons(weights, key)
+    if type(weights) ~= "table" then return weights, false end
+    if weights.MELEEDPS ~= nil and weights.RANGEDDPS ~= nil then return weights, false end
+    local per = filled[weights]
+    if not per then
+        per = {}
+        filled[weights] = per
+    end
+    local out = per[key or "?"]
+    if not out then
+        local base = W[key or ""] or EMPTY
+        local scale = ScaleOf(weights, base)
+        out = {}
+        for k, v in pairs(weights) do out[k] = v end
+        for _, k in ipairs(Weights.WEAPON_KEYS) do
+            if out[k] == nil then
+                out[k] = base[k] and math.max(Core.Round(base[k] * scale, 2), 0.01) or Weights.WEAPON_FLOOR
+            end
+        end
+        per[key or "?"] = out
+    end
+    return out, true
+end
+
+-- Schlüssel der Standardtabelle für den Charakter (Rolle des Talentbaums, sonst die Leveling-Rolle) oder nil
+local function DefaultKey(class)
+    local profiles = Weights.CLASS_PROFILES[class or ""]
+    if not profiles then return nil end
+    return class .. "_" .. (Weights.SpecRole(class) or profiles[1])
+end
+
 -- Gewichtung einer Wahl auflösen → weights, label, key ("DEF:<Klasse>_<Rolle>", "PAWN:<Name>" oder "TALENT" für
 -- ezTalents Werte unter „Automatisch“; "TALENT" ist keine eigene Wahl und wird nie zurückgeschrieben)
 function Weights.Resolve(choice)
@@ -243,19 +302,20 @@ function Weights.Resolve(choice)
     end
     if choice:sub(1, 4) == "DEF:" then
         local key = choice:sub(5)
-        return W[key], Weights.ProfileLabel(key), choice
+        return (Weights.WithWeapons(W[key], key)), Weights.ProfileLabel(key), choice
     end
     -- automatisch: zuerst ezTalents Rechenmodell für deine Spielweise, sonst die Standardwerte je Rolle
     local talent = Weights.Talent()
     if talent then
-        return talent.weights, type(talent.name) == "string" and talent.name or L.WEIGHTS_TALENT_NAME, "TALENT"
+        return (Weights.WithWeapons(talent.weights, DefaultKey(class))),
+            type(talent.name) == "string" and talent.name or L.WEIGHTS_TALENT_NAME, "TALENT"
     end
     local profiles = Weights.CLASS_PROFILES[class or ""]
     if not profiles then return EMPTY, L.WEIGHTS_NONE, "auto" end
     local specRole, specName = Weights.SpecRole(class)
     local key = class .. "_" .. (specRole or profiles[1])
     local label = (specRole and specName and specName ~= "") and specName or Weights.ProfileLabel(key)
-    return W[key] or EMPTY, label, "DEF:" .. key
+    return W[key] and (Weights.WithWeapons(W[key], key)) or EMPTY, label, "DEF:" .. key
 end
 
 -- Gewählte Gewichtung des Charakters → weights, label, key
@@ -287,7 +347,9 @@ function Weights.Source()
         if talent then
             local why = L.WEIGHTS_WHY_TALENTS:format(Core.Percent(math.floor((tonumber(talent.pct) or 0) + 0.5)))
             if talent.reason == "advice" then why = L.WEIGHTS_WHY_ADVICE end
-            return "talent", L.WEIGHTS_SOURCE_TALENT:format(tostring(talent.name or L.WEIGHTS_TALENT_NAME), why)
+            local text = L.WEIGHTS_SOURCE_TALENT:format(tostring(talent.name or L.WEIGHTS_TALENT_NAME), why)
+            local _, added = Weights.WithWeapons(talent.weights, DefaultKey(ClassOf()))
+            return "talent", added and text .. ". " .. L.WEIGHTS_SOURCE_WEAPON or text
         end
     end
     return "default", L.WEIGHTS_SOURCE_DEFAULT

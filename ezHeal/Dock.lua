@@ -201,7 +201,9 @@ end
 local function Paired()
     local CB = Core.ClickBindings
     if type(CB) == "table" and type(CB.Reloading) == "function" and CB.Reloading() then return false end
-    return ns.Enabled("pairSpellbook")
+    -- bei ezCores Sperre (selfOnly) nie: Spielbefund vom 23.11.2026 – Speichern in Klick-Zauber schloss das Zauberbuch
+    -- mit, Reopen öffnete es aus Addon-Code wieder (Core.OpenPanel), und im Kampf verschwanden die Aktionsleisten
+    return ns.Enabled("pairSpellbook") and ns.PairSpellbookShown()
 end
 
 -- Ungespeicherte Änderungen in Blizzards Fenster (ezCore liest sie, Core.ClickBindings.Unsaved)
@@ -359,6 +361,14 @@ function D.AfterClickHidden(second)
     return Reopen(second == true and "spät" or "gleich")
 end
 
+-- Schalter „Zauberbuch und Klick-Zauber zusammen schließen“ nur zeigen, solange ezCore Klick-Zauber aus Addon-Code
+-- öffnen und schließen darf (ezCores selfOnly). Entscheidung des Nutzers vom 23.11.2026 „Ausblenden (Empfohlen)“: der
+-- Schalter verschwindet aus den Einstellungen, der gespeicherte Wert und die Funktion bleiben (Leitlinie 8).
+function ns.PairSpellbookShown()
+    local P = Core.Panels
+    return not (P and P.SelfOnly and P.SelfOnly("clickbindings"))
+end
+
 -- Ein Bild nach dem Schließen des Zauberbuchs: die Klick-Belegung mit schließen, wenn sie noch offen und zu sehen ist
 -- und Blizzard nicht nur zu den Makros gewechselt hat. Ein anderes gewähltes Fenster, das zu sehen ist: nicht
 -- schließen; keines oder ein verwaistes: schließen.
@@ -370,6 +380,11 @@ function D.CloseWithBook()
     if (focused ~= nil and focused ~= book and Shown(focused)) or macros then
         Note("Zauberbuch zu, Klick-Zauber bleibt (gewählt: " .. FrameName(focused) .. ", Makros offen: "
             .. tostring(macros) .. ")")
+        return false
+    end
+    -- Klick-Zauber schließt seit dem 23.11.2026 nur der Spieler (ezCores selfOnly, Zauberbuch-Taint): keine Rückfrage
+    if Core.Panels and Core.Panels.SelfOnly and Core.Panels.SelfOnly("clickbindings") then
+        Note("Zauberbuch zu, Klick-Zauber bleibt (nur der Spieler schließt es)")
         return false
     end
     closingWithBook = true

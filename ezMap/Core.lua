@@ -45,7 +45,9 @@ ns.DEFAULTS = {
     recipeTrainerPins = true,   -- Berufslehrer mit Rezepten als Punkte
     -- Gegner und Objekte laut Questie (QuestieSpawns.lua, Welle 27, F5 b): ab Werk aus, nur auf Wunsch
     questieNpcs = false,        -- Gegner der gezeigten Zone laut QuestieDB
-    questieObjects = false,     -- Objekte der gezeigten Zone laut QuestieDB
+    questieObjects = false,     -- Objekte der gezeigten Zone laut QuestieDB (ohne Kräuter und Erze, Paket „Fundorte“)
+    questieHerbs = false,       -- Kräutervorkommen laut QuestieDB (Nachschlage-Wissen; ab Werk aus wie die Gruppe, F5 b)
+    questieOre = false,         -- Erzvorkommen laut QuestieDB (ebenso)
     questieRares = false,       -- seltene Gegner laut QuestieDB (Entdecker-Wissen)
     questieRankNormal = true,   -- Filtergruppe „Nach Rang“: normale Gegner
     questieRankElite = true,    -- Elite und Bosse
@@ -57,6 +59,7 @@ ns.DEFAULTS = {
     gatherOre = true,       -- Erze
     gatherFish = true,      -- Angelplätze
     gatherChest = false,    -- Kisten (Entdecker-Wissen: ab Werk aus)
+    gatherShip = true,      -- dazu Fundorte aus Beiträgen anderer Spieler (ezData; Nachschlage-Wissen, Leitlinie 11)
     -- (Wert je Ernte im Tooltip, gatherWorth, ist seit Nr. 44 der Einstellungs-Prüfung vom 19.11.2026 immer an)
     -- Nach Farbe (Teilwelle 15b, Wunsch des Nutzers vom 15.11.2026): Fundorte nach der Chance auf einen
     -- Fertigkeitspunkt sieben (Core.Gathering.SkillUp, berechnet); gilt für Weltkarte, Minikarte und Routen
@@ -145,10 +148,20 @@ ns.AGREE = {
     minimapCompact = "on", minimapMailCorner = "on", pinsRound = "choice", routeNumbers = "choice", rareAlert = "on", minimapSquare = "choice",
     mapFilterSection = { "choice", text = "mapPlace" }, bookTargets = "choice", bookPins = "choice", rarePins = "choice",
     questieNpcs = "choice", questieObjects = "choice", questieRares = "choice", gatherChest = "choice",
+    questieHerbs = "choice", questieOre = "choice",
     gatherMiniChest = "choice", gatherOverride = "choice", rareOverride = "choice",
     -- „Nur, was ich abbauen kann“: Rot im Kartenfilter abgewählt heißt zugestimmt (vorher Intro.ALSO in ezCore)
     gatherColorRed = { "on", on = false, label = "INTRO_LABEL_gatherOnly", what = "INTRO_ON_gatherOnly" },
+    -- Kein Schalter, sondern der Stand von Blizzards Menü „Aufspüren“ (Intro.Get/Set: get, set; Spieltest 24.11.2026,
+    -- wörtlich „"alle annehmen" muss auch komplette aufspüren suche aktivierenw“): TrackingMemory.lua
+    trackingAll = { "on", get = function() return ns.TrackingMemory.AllState() end,
+        set = function(on) return ns.TrackingMemory.SetAllState(on) end },
 }
+
+-- Neu seit v1.0.0-beta3 und ab Werk an; Einträge bleiben stehen (ezCore, Werkzeuge/ConsentNews.lua: Intro.NewsOnRows;
+-- Nutzer am 24.11.2026): Die Blase „Neu seit dem Update“ nennt sie einmal mit gesetztem Häkchen. tools/Tests/agree_test.lua
+-- ist rot, wenn ein neuer Schalter mit true hier fehlt.
+ns.NEWS = { { "gatherShip", available = function() return ns.Gather ~= nil and ns.Gather.ShipReady() end } }
 
 local Core = ezCore
 
@@ -175,6 +188,20 @@ function ns.MigrateSettings1911(db)
         end
         if s.questieRankRare == false then s.questieRares = false end
         for _, key in ipairs(ns.RETIRED_1911) do s[key] = nil end
+        return true
+    end)
+end
+
+-- Paket „Fundorte“ (22.11.2026; Fund des code-reviewers): Bis dahin zeigte „Objekte“ laut Questie auch Kräuter und
+-- Erzadern; seitdem stehen sie unter eigenen Haken (questieHerbs, questieOre, ab Werk aus). Wer „Objekte“ an hatte,
+-- behält, was er sah: beide Haken einmal an (Merker db.fundorte2211, Core.MigrateOnce; danach gilt seine Wahl). Neue
+-- Spieler betrifft es nicht (questieObjects ab Werk aus). ezCore füllt die Standardwerte vor onLoad ein – darum am
+-- gespeicherten „Objekte“ gemessen, nicht an fehlenden neuen Schlüsseln.
+function ns.MigrateFundorte(db)
+    if type(db) ~= "table" or type(db.settings) ~= "table" then return nil end
+    return Core.MigrateOnce(db, "fundorte2211", function()
+        local s = db.settings
+        if s.questieObjects == true then s.questieHerbs, s.questieOre = true, true end
         return true
     end)
 end
@@ -226,6 +253,7 @@ end
 --   tracking     [charKey] = { on, order, n, last, at } – Auswahl im Menü „Aufspüren“ je Charakter (TrackingMemory.lua)
 --   trackingBlock { at, func, lifted } – Blizzard hat das Einschalten eines Such-Zaubers blockiert (für alle
 --                Charaktere, Welle 28; lifted: der Spieler hat „Such-Zauber selbst einschalten“ danach wieder angehakt)
+--   fundorte2211 – Merker der Übernahme „Objekte“ » Kräuter und Erze laut Questie (ns.MigrateFundorte, 22.11.2026)
 --   settings1911 – Merker der Einstellungs-Prüfung vom 19.11.2026 (ns.MigrateSettings1911);
 --                minimapAutoZoomLast = letzte Zeit des Herauszoomens (Haken „Aufspüren“)
 --   wayTrackOff29, trackSpellOff29 – Merker der einmaligen Umstellung von Welle 29 (ns.MigrateOptIn29);
@@ -282,13 +310,21 @@ Core.NewModule(ADDON, ns, {
     -- (Welle 9/10, MAP-07): Books.Where, Books.From, Collections.Books.
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.NewTimerBar, Core.OptInOnce, Core.MigrateOnce, Core.TipClick
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
-    core = "1.15.0", needs = { "AfterCombat", "Npcs", "OpenChatWith", "scaffoldHelpers", "Map.XY", "Map.Parent",
+    core = "1.15.0", needs = { "TrainerSpots.PositionKnown", "MapPins.Canvas", "AfterCombat", "Npcs", "OpenChatWith", "scaffoldHelpers", "Map.XY", "Map.Parent",
         -- Lehrer und Händler laut Questie, Zonen des Kontinents (22.11.2026, ohne neue Versionsnummer)
         "Map.Zones", "Npcs.SourceLabel",
+        -- Tierausbilder-Regel aus ezCore (24.11.2026, „Wo kommt was“ Schritt b, ohne neue Versionsnummer)
+        "Npcs.IsPetTrainer",
+        -- Weltlage » Zone (24.11.2026, vorher in FlightNodes.lua, ohne neue Versionsnummer)
+        "Map.FromWorld",
+        -- heutige Zauber-Abfrage statt IsPlayerSpell (24.11.2026, kern/abgeloeste-namen, ohne neue Versionsnummer)
+        "KnowsSpell",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Ton-Helfer aus ezCore (T16-NM4)
         "PlaySound",
         "Map.WorldPos", "Map.PosOn", "Map.Info", "InInstance", "Uptime", "UnitRank", "Npcs.IsPetTrainerTitle",
         "Menu.Tip", "DB.AsOwn", "DB.Keys.Taxi", "Flights.Note", "Flights.Time", "Zones.Levels",
+        -- geschätzte Flugzeit (24.11.2026, ohne neue Versionsnummer)
+        "Flights.Estimate", "Flights.Speed", "Flights.Length",
         "Books.Where", "Books.From", "Collections.Books",
         -- Welle 15 (SAM-11, SAM-21 bis SAM-23): Punkteschicht samt Minikarte, Routen-Rechner, Fortschritt, Sichtungen
         "MapPins.AddProvider", "MapPins.MinimapState", "Route.Build", "Gathering.ProgressLines", "Rares.OnMap",
@@ -324,6 +360,7 @@ Core.NewModule(ADDON, ns, {
         if type(db.way.history) ~= "table" then db.way.history = {} end
         ns.MigrateOptIn29(db)
         ns.MigrateSettings1911(db)      -- Einstellungs-Prüfung vom 19.11.2026
+        ns.MigrateFundorte(db)          -- Paket „Fundorte“ vom 22.11.2026
     end,
     login = true,
     -- eine Hilfe-Funktion gibt selbst aus (Framework: slash.help)
@@ -455,9 +492,14 @@ ns.API = {
     -- ClearMiniArrow nimmt es weg (ns.MiniArrow, MiniArrow.lua). Den Schalter führt das Modul der Route.
     ShowMiniArrow = function(owner, point, opts) return ns.MiniArrow.Show(owner, point, opts) end,
     ClearMiniArrow = function(owner) return ns.MiniArrow.Clear(owner) end,
+    MiniArrowText = function(owner, text) return ns.MiniArrow.Text(owner, text) end,
     -- Lehrer (Kopien; besuchte und – mit Questie – die deines Kontinents laut Questie, source = "questie"):
-    -- kind = "class" (eigene Klasse) | "profession" | "pet" (Tierausbilder) | "other" | "weapon" | nil (alle)
+    -- kind = "class" (eigene Klasse) | "profession" | "pet" (Tierausbilder) | "other" | "weapon" | "riding"
+    -- (Reitlehrer, 24.11.2026) | "demon" (Dämonenausbilder, 24.11.2026) | nil (alle)
     Trainers = function(kind) return ns.Trainers.List(kind) end,
+    -- Dieselben nach Entfernung (24.11.2026, für ezMerchants Reiter „Wo kommt was“): die deines Kontinents zuerst, der
+    -- nächste vorn, mit .distance in Metern; danach die übrigen ohne .distance. Rückgabe: Liste, wartet (Questie liest)
+    TrainersNear = function(kind) return ns.Trainers.Near(kind) end,
     -- Nächster Lehrer auf demselben Kontinent (besucht oder laut Questie) oder nil
     NearestTrainer = function(kind) return ns.Trainers.Nearest(kind) end,
     -- Markierung auf den nächsten gemerkten Lehrer setzen, still, auch im Kampf (Welle 23; ezPanel und ezMerchant

@@ -47,6 +47,16 @@ function Glow.SpellOf(button)
     return (Core.Call(Glow.SlotSpellName, button.action))
 end
 
+-- Namen aller Zauber auf sichtbaren Aktionsknöpfen: { [Name] = true } – ein Durchgang statt einer Suche je Name
+function Glow.VisibleNames()
+    local names = {}
+    for _, button in ipairs(Glow.Buttons()) do
+        local name = button:IsVisible() and Glow.SpellOf(button)
+        if name then names[name] = true end
+    end
+    return names
+end
+
 -- Sichtbare Aktionsknöpfe mit einem dieser Zauber: { button, … }
 function Glow.ButtonsFor(names)
     local result = {}

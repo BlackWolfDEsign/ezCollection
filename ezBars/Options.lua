@@ -6,7 +6,7 @@ local L = ns.L
 -- → Profile (Auswahl, für die Klasse, je Spezialisierung, Neu, Exportieren, Importieren, Löschen; Profiles.lua)
 -- → Erweitert (Status, Plätze, Plätze neu wählen, Position zurücksetzen, Erklärung erneut zeigen, Einstellungen
 -- zurücksetzen, ergänzende Addons).
--- Unterseite je Leiste: Anordnung, Anzeige, Aktionsplätze, Leisten-Profil (wenn ezMacro es anbietet).
+-- Unterseite je Leiste: Anordnung, Anzeige, Aktionsplätze, Leisten-Profil (ezCores Dienst, auch ohne ezMacro).
 -- Unterseite je Leiste eines anderen Moduls (ns.RegisterBar): Anordnung (Spalten, Reihen, Knopfgröße, Abstand),
 -- Anzeige (Sichtbar), Lage (Verschieben, Standardplatz). Sie entsteht mit der Anmeldung – auch nach dem Einloggen;
 -- der Knopf „Leisten anderer Module“ der Hauptseite führt hin, links in Blizzards Liste steht sie unter ezBars.
@@ -76,8 +76,8 @@ local function BarPage(n)
     sub:Button(L.OPT_SLOTS, L.OPT_SLOTS_BUTTON, ns.PrintFreeSlots, L.OPT_SLOTS_TIP)
     sub:Button(L.OPT_KEYBIND, L.OPT_KEYBIND_BUTTON, ns.OpenKeybindings, L.OPT_KEYBIND_TIP)
 
-    -- Leisten-Profil: nur, wenn ezMacro die Profile anbietet (keine Knöpfe ohne Funktion)
-    if ns.MacroProfiles() then
+    -- Leisten-Profil: ezCores Dienst (Core.BarProfiles) – seit dem Architektur-Review 22.11.2026 auch ohne ezMacro
+    do
         local name = ns.ProfileName(n)
         sub:Header(L.OPT_HEADER_PROFILE)
         sub:Button(L.OPT_PROFILE_SAVE, L.OPT_PROFILE_SAVE_BUTTON, function() ns.SaveBarProfile(n) end,
@@ -279,13 +279,12 @@ function ns.AskReallocate()
     return ezCore.Confirm(L.REALLOCATE_ASK, ns.Reallocate)
 end
 
--- Verschieben (/ezbars verschieben, wie der Knopf „Verschieben“ der Seite): ein Modus über ezCore.Mover.Open – mit
--- ezCores Testschalter „comfort.editModeOpen“ (Seite ezCollection, Erweitert, bis zum Taint-Test im Spiel; wirkt und
--- erscheint nur mit ezCores Entwicklerschalter „Entwicklerwerkzeuge“, /ez debug entwickler – Gesamtreview 18.11.2026,
--- T2-7) Blizzards Bearbeitungsmodus,
--- sonst ezCores eigene Auswahl mit Leiste „Fertig“. Beide zeigen jede eingeschaltete Leiste mit Blizzards Rahmen
--- (auch versteckte und die Leisten anderer Module). Alte Basis ohne Mover.Open: Mover.Unlock.
--- → "editmode" | "unlock", oder false ohne ezCore.Mover.
+-- Verschieben (/ezbars verschieben, wie der Knopf „Verschieben“ der Seite): ein Modus über ezCore.Mover.Open – ezCores
+-- eigene Auswahl mit Leiste „Fertig“; Blizzards Bearbeitungsmodus (Esc » Bearbeitungsmodus) zeigt dieselben Rahmen. Beide
+-- zeigen jede eingeschaltete Leiste mit Blizzards Rahmen (auch versteckte und die Leisten anderer Module). Den Testschalter
+-- „comfort.editModeOpen“, mit dem Mover.Open Blizzards Bearbeitungsmodus öffnete, hat der Nutzer am 22.11.2026
+-- gestrichen. Alte Basis ohne Mover.Open: Mover.Unlock.
+-- → "unlock" (eine ältere ezCore-Fassung kann noch "editmode" liefern), oder false ohne ezCore.Mover.
 function ns.OpenMover()
     local mover = ezCore.Mover
     local open = mover and (mover.Open or mover.Unlock)

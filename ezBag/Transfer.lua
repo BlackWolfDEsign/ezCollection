@@ -93,6 +93,39 @@ function Transfer.BagIDs()
     return ezCore.BagList("sell")
 end
 
+-- Reagenzientasche zuerst (Auftrag des Nutzers vom 23.11.2026: „reagenzientasche sollte immer zuerst befüllt werden“):
+-- Handwerksmaterial kommt zuerst auf ihre angebrochenen Stapel, dann auf ihre freien Plätze, erst danach in die
+-- normalen Taschen. Anderes plant ezBag nie dorthin (sie nimmt nur Handwerksmaterial, Reagent.IsReagentItem).
+local function IsReagent(itemID)
+    local R = ns.Reagent
+    return R ~= nil and R.IsReagentItem(itemID)
+end
+
+-- Passendste Tasche (Nutzer am 23.11.2026, wörtlich: „ezbag sollte es der passendste tasche zuordnen und ich habe eine
+-- bergbautasche im reagienzentaschenslot“): Was nimmt eine Tasche? Seit der Durchsicht vom 24.11.2026 in ezCore
+-- (Core.BagKind) – dort fragen es auch die Zählung der freien Plätze und die Post.
+Transfer.BagKind, Transfer.IsProfessionBag = ezCore.BagKind, ezCore.IsProfessionBag
+local IsContainerItem = ezCore.IsBagItem
+
+local BAG_RANK = { family = 1, profession = 1, reagent = 2 }   -- Berufstasche vor Reagenzientasche vor normalen Taschen
+
+-- Plätze, die im laufenden Durchgang ein Ablegen abgelehnt haben (Platzschlüssel bag * 1000 + slot): nicht wieder planen
+-- (vorher plante jeder Schritt denselben Platz neu – Blizzards Fehlermeldung in Schleife). Leer bei jedem neuen Durchgang.
+local badSlots = {}
+local badBagItem = {}   -- [bag .. ":" .. itemID]: diese Tasche hat den Gegenstand abgelehnt – im Durchgang nicht mehr
+local function LocKey(loc)
+    if loc and loc.bag and loc.slot then return loc.bag * 1000 + loc.slot end
+end
+local function MarkRefused(loc, itemID)
+    local key = LocKey(loc)
+    if key then badSlots[key] = true end
+    if loc and loc.bag and itemID then badBagItem[loc.bag .. ":" .. itemID] = true end
+end
+local function ClearRefused()
+    wipe(badSlots)
+    wipe(badBagItem)
+end
+
 local function BankIDs()
     return ns.Bank and ns.Bank.ContainerIDs and ns.Bank.ContainerIDs() or {}
 end
@@ -124,7 +157,17 @@ local function Snapshot(kind)
     local ids = kind == "bank" and BankIDs() or Transfer.BagIDs()
     for _, bag in ipairs(ids) do
         local n = C_Container.GetContainerNumSlots(bag) or 0
-        local family = n > 0 and select(2, C_Container.GetContainerNumFreeSlots(bag)) or 0
+        local bagKind, family = nil, 0
+        if n > 0 and kind == "bag" then
+            bagKind, family = Transfer.BagKind(bag)
+        elseif n > 0 then
+            -- Bank-Fächer und -Taschen: nur die Familie, die der Client nennt (Blizzard prüft Berufstaschen dort nicht)
+            family = ezCore.Num(select(2, C_Container.GetContainerNumFreeSlots(bag))) or 0
+            if family ~= 0 then bagKind = "family" end
+        end
+        local special = bagKind ~= nil or nil
+        local rank = BAG_RANK[bagKind] or 3
+        local holds = bagKind == "profession" and {} or nil   -- was in der Berufstasche schon liegt (nur das darf dazu)
         for slot = 1, n do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             local loc = { bag = bag, slot = slot }
@@ -133,19 +176,86 @@ local function Snapshot(kind)
             if itemID then
                 snap.items[#snap.items + 1] = { loc = loc, key = key, itemID = itemID,
                     count = info.stackCount or 1, max = MaxStack(itemID),
-                    locked = info.isLocked and true or false, bound = info.isBound and true or false }
-            elseif not info then
-                snap.free[#snap.free + 1] = { loc = loc, key = key, family = family or 0 }
+                    locked = info.isLocked and true or false, bound = info.isBound and true or false,
+                    special = special, rank = rank }
+                if holds then holds[itemID] = true end
+            elseif not info and not badSlots[key] then
+                snap.free[#snap.free + 1] = { loc = loc, key = key, family = family or 0, special = special,
+                    bagKind = bagKind, holds = holds, rank = rank, order = #snap.free + 1 }
             end
         end
     end
+    -- passendste Tasche zuerst: Berufstaschen, dann die Reagenzientasche, dann normale Taschen (sonst Taschenfolge)
+    table.sort(snap.free, function(a, b)
+        if a.rank ~= b.rank then return a.rank < b.rank end
+        return a.order < b.order
+    end)
     return snap
 end
 
--- Darf dieser Gegenstand in den freien Platz? (Spezialtaschen nur passende Arten)
+-- Darf dieser Gegenstand in den freien Platz? (Spezialtaschen nur passende Arten, die Reagenzientasche nur
+-- Handwerksmaterial)
 local function FitsFree(free, itemID)
+    if free.loc and free.loc.bag and badBagItem[free.loc.bag .. ":" .. tostring(itemID)] then return false end
+    local bagKind = free.bagKind
+    if bagKind == "reagent" then return IsReagent(itemID) end
+    if bagKind == "profession" then return free.holds ~= nil and free.holds[itemID] == true end
     if not free.family or free.family == 0 then return true end
+    if IsContainerItem(itemID) then return false end
     return bit.band(ItemFamily(itemID), free.family) ~= 0
+end
+
+-- Nimmt diese Tasche den Gegenstand? (Abschnitt Reagenzientasche: Überschrift und Grau) → ja?, Art
+function Transfer.BagAccepts(bag, itemID)
+    local bagKind, family = Transfer.BagKind(bag)
+    local holds
+    if bagKind == "profession" then
+        holds = {}
+        for slot = 1, (C_Container.GetContainerNumSlots(bag) or 0) do
+            local id = ns.ItemIDOf(C_Container.GetContainerItemInfo(bag, slot))
+            if id then holds[id] = true end
+        end
+    end
+    return FitsFree({ bagKind = bagKind, family = family, holds = holds }, itemID), bagKind
+end
+
+-- Angebrochener Stapel im Ziel (für Plan und Entnehmen; Stapel der Reagenzientasche tragen denselben Merker).
+local function AddRoom(room, it)
+    if badSlots[LocKey(it.loc) or 0] then return end   -- dieser Stapel lehnte im Durchgang ab
+    room[it.itemID] = room[it.itemID] or {}
+    local list = room[it.itemID]
+    local entry = { loc = it.loc, space = it.max - it.count, special = it.special, rank = it.rank or 3, bound = it.bound }
+    -- Stapel der passendsten Tasche zuerst (Berufstasche, Reagenzientasche, normale Taschen)
+    local at = #list + 1
+    for i, r in ipairs(list) do
+        if (r.rank or 3) > entry.rank then at = i break end
+    end
+    table.insert(list, at, entry)
+end
+
+-- Ein Stapel mit Platz für n (needAll: für alle n); onlySpecial: nur in der Reagenzientasche. → Platz, Menge
+-- bound: Bindung des Quellstapels – ungleich gebundene Stapel tauscht das Spiel, statt sie zu vereinen (nil: egal)
+local function TakeStack(stacks, n, needAll, onlySpecial, bound)
+    for _, r in ipairs(stacks or {}) do
+        if r.space > 0 and (not needAll or r.space >= n) and (not onlySpecial or r.special)
+            and (bound == nil or r.bound == nil or r.bound == bound) then
+            local fit = math.min(r.space, n)
+            r.space = r.space - fit
+            return r.loc, fit
+        end
+    end
+end
+
+-- Ein freier Platz für n Stück (der neue Stapel kann weitere Reste aufnehmen). → Platz, n
+local function TakeFree(free, room, itemID, n, max, onlySpecial)
+    for i, f in ipairs(free) do
+        if (not onlySpecial or f.special) and FitsFree(f, itemID) then
+            table.remove(free, i)
+            room[itemID] = room[itemID] or {}
+            table.insert(room[itemID], { loc = f.loc, space = max - n, special = f.special, rank = f.rank })
+            return f.loc, n
+        end
+    end
 end
 
 local function GuildRights(tab)
@@ -158,9 +268,10 @@ end
 ---------------------------------------------------------------------------
 
 --[[
-    Plan(source) → moves, status
-    move   = { from = loc, to = loc, n = Anzahl, whole = ganzer Stapel? }
-    status = [Platzschlüssel der Quelle] = "all" | "part"
+    Plan(source) → moves, status, waiting
+    move    = { from = loc, to = loc, n = Anzahl, whole = ganzer Stapel? }
+    status  = [Platzschlüssel der Quelle] = "all" | "part"
+    waiting = ein passender Platz der Quelle ist gerade gesperrt (der Server hat einen Schritt noch nicht bestätigt)
 ]]
 function Transfer.Plan(source)
     local target = Transfer.Target(source)
@@ -183,10 +294,7 @@ function Transfer.Plan(source)
     local present, room = {}, {}
     for _, it in ipairs(dst.items) do
         present[it.itemID] = true
-        if not it.locked and it.count < it.max then
-            room[it.itemID] = room[it.itemID] or {}
-            table.insert(room[it.itemID], { loc = it.loc, space = it.max - it.count })
-        end
+        if not it.locked and it.count < it.max then AddRoom(room, it) end
     end
     local freeList = {}
     if not ns.S.transferStacksOnly then
@@ -195,32 +303,34 @@ function Transfer.Plan(source)
 
     local moves, status = {}, {}
     local withdrawals = 0
+    local waiting = false   -- ein passender Platz der Quelle ist gerade gesperrt (der Server antwortet noch)
     for _, it in ipairs(src.items) do
         local allowed = present[it.itemID] and not it.locked and not (target == "guild" and it.bound)
+        if present[it.itemID] and it.locked and not (target == "guild" and it.bound) then waiting = true end
         if allowed then
             local left = it.count
-            for _, r in ipairs(room[it.itemID] or {}) do
-                if left <= 0 then break end
-                if r.space > 0 then
-                    local n = math.min(r.space, left)
-                    moves[#moves + 1] = { from = it.loc, to = r.loc, n = n, whole = (n == it.count) }
-                    r.space = r.space - n
+            local function Fill(onlySpecial)
+                while left > 0 do
+                    local loc, n = TakeStack(room[it.itemID], left, false, onlySpecial, it.bound)
+                    if not loc then return end
+                    moves[#moves + 1] = { from = it.loc, to = loc, n = n, whole = (n == it.count), itemID = it.itemID }
                     left = left - n
                 end
             end
-            if left > 0 then
-                for i, f in ipairs(freeList) do
-                    if FitsFree(f, it.itemID) then
-                        table.remove(freeList, i)
-                        moves[#moves + 1] = { from = it.loc, to = f.loc, n = left, whole = (left == it.count) }
-                        -- Der neue Stapel kann weitere Reste aufnehmen.
-                        room[it.itemID] = room[it.itemID] or {}
-                        table.insert(room[it.itemID], { loc = f.loc, space = it.max - left })
-                        left = 0
-                        break
-                    end
+            local function Free(onlySpecial)
+                if left <= 0 then return end
+                local loc = TakeFree(freeList, room, it.itemID, left, it.max, onlySpecial)
+                if loc then
+                    moves[#moves + 1] = { from = it.loc, to = loc, n = left, whole = (left == it.count), itemID = it.itemID }
+                    left = 0
                 end
             end
+            if target == "bag" then
+                Fill(true)
+                Free(true)
+            end
+            Fill(false)
+            Free(false)
             if left < it.count then
                 status[it.key] = (left == 0) and "all" or "part"
                 if source == "guild" then withdrawals = withdrawals + 1 end
@@ -240,7 +350,76 @@ function Transfer.Plan(source)
         end
         moves = keep
     end
-    return moves, status
+    return moves, status, waiting
+end
+
+-- Automatisches Nachrücken (Entscheidung des Nutzers vom 23.11.2026: „ja zu automatisches Nachrücken“): Passendes aus
+-- den normalen Taschen in die Spezialtaschen (Reagenzien- und Berufstaschen, Seelentasche, Köcher, Munitionsbeutel;
+-- Nutzer am 23.11.2026: „es fehlt das munition autom im munitionsbeutel landet, seelensplitter ebenso bestimmt“) – zuerst auf ihre angebrochenen Stapel gleicher Bindung (ungleich
+-- gebundene tauscht das Spiel, statt sie zu vereinen), dann auf ihre freien Plätze.
+--   refused[itemID] = "free" (die Reagenzientasche lehnt ab) | "stack" (nur ihre Stapel) – bis /reload
+--   manual[Platzschlüssel] = itemID: vom Spieler selbst in eine normale Tasche gelegt – bleibt dort, bis der Platz
+--   leer oder anders belegt ist
+local refused, manual = {}, {}
+
+function Transfer.PlanReagentFill()
+    local snap = Snapshot("bag")
+    local room, free = {}, {}
+    for _, it in ipairs(snap.items) do
+        if it.special and not it.locked and it.count < it.max then
+            local key = it.itemID .. (it.bound and ":b" or ":u")
+            room[key] = room[key] or {}
+            table.insert(room[key], { loc = it.loc, space = it.max - it.count, special = true, rank = it.rank })
+        end
+    end
+    for _, f in ipairs(snap.free) do
+        manual[f.key] = nil
+        if f.special then free[#free + 1] = f end
+    end
+    local moves, waiting = {}, false
+    for _, it in ipairs(snap.items) do
+        if manual[it.key] and manual[it.key] ~= it.itemID then manual[it.key] = nil end
+    end
+    if next(room) == nil and #free == 0 then return moves, false end
+    local function FreeFor(itemID)
+        if refused[itemID] == "free" then return nil end
+        for i, f in ipairs(free) do
+            if FitsFree(f, itemID) then return i end
+        end
+    end
+    for _, it in ipairs(snap.items) do
+        if not it.special and not manual[it.key] then
+            local stacks = refused[it.itemID] ~= "stack" and room[it.itemID .. (it.bound and ":b" or ":u")] or nil
+            if (stacks and #stacks > 0) or FreeFor(it.itemID) then
+                if it.locked then
+                    waiting = true
+                else
+                    local left = it.count
+                    while stacks and left > 0 do
+                        local loc, n = TakeStack(stacks, left, false, true)
+                        if not loc then break end
+                        moves[#moves + 1] = { from = it.loc, to = loc, n = n, whole = (n == it.count), itemID = it.itemID }
+                        left = left - n
+                    end
+                    local i = left > 0 and FreeFor(it.itemID)
+                    if i then
+                        local f = table.remove(free, i)
+                        moves[#moves + 1] = { from = it.loc, to = f.loc, n = left, whole = (left == it.count),
+                            itemID = it.itemID, toFree = true }
+                    end
+                end
+            end
+        end
+    end
+    return moves, waiting
+end
+
+-- Vom Spieler selbst angefasster Platz einer normalen Tasche (ITEM_LOCK_CHANGED außerhalb von ezBags Abläufen):
+-- Handwerksmaterial dort rückt nicht nach.
+function Transfer.MarkManual(bag, slot)
+    if not (bag and slot) or Transfer.BagKind(bag) ~= nil then return end
+    local itemID = ns.ItemIDOf(C_Container.GetContainerItemInfo(bag, slot))
+    if itemID then manual[bag * 1000 + slot] = itemID end
 end
 
 function Transfer.Count(source)
@@ -253,6 +432,18 @@ end
 ---------------------------------------------------------------------------
 -- Pfeile auf den Plätzen
 ---------------------------------------------------------------------------
+
+-- Pfeile dieser Einträge ausblenden (der Abschnitt Reagenzientasche wird aufgehoben: Blizzards Knöpfe behielten sie
+-- sonst, auch wenn Blizzard sie später für eine andere Tasche nimmt).
+function Transfer.ClearMarks(entries)
+    for _, entry in ipairs(entries or {}) do
+        local tex = entry.button and marks[entry.button]
+        if tex then tex:Hide() end
+    end
+end
+
+-- Für Prüfungen: die Pfeil-Marke eines Knopfs (oder nil)
+function Transfer.MarkOf(button) return marks[button] end
 
 local function Arrow(button)
     local tex = marks[button]
@@ -270,6 +461,8 @@ local function EntryKey(kind, entry)
     if entry.bag and entry.slot then return entry.bag * 1000 + entry.slot end
 end
 
+Transfer.Arrow = function(button) return Arrow(button) end
+
 local function MarkView(kind)
     local reg = views[kind]
     local view = reg and reg.view
@@ -280,7 +473,7 @@ local function MarkView(kind)
         _, status = Transfer.Plan(kind)
         side = Transfer.ArrowSide(kind)
     end
-    for _, entry in ipairs(view.entries) do
+    for _, entry in ipairs(ns.Render.Entries(view)) do   -- auch der Abschnitt Reagenzientasche (view.linked)
         local button = entry.button
         if button then
             local s = status and status[EntryKey(kind, entry)]
@@ -334,11 +527,50 @@ local function Drop(loc)
     else C_Container.PickupContainerItem(loc.bag, loc.slot) end
 end
 
+-- Platz gesperrt (der Server hat einen Schritt dorthin bzw. von dort noch nicht bestätigt)? Leer → nil
+local function SlotState(loc)
+    if loc.guild then
+        local texture, _, locked = GetGuildBankItemInfo(loc.tab, loc.slot)
+        if not texture then return nil end
+        return locked and true or false
+    end
+    local info = C_Container.GetContainerItemInfo(loc.bag, loc.slot)
+    if not info then return nil end
+    return info.isLocked == true
+end
+
+-- Wartet der vorige Schritt noch auf den Server? Quelle oder Ziel gesperrt, oder das Ziel war frei und zeigt den
+-- Stapel noch nicht (der Client zeigt den Platz bis zur Antwort als frei – ein zweiter Schritt dorthin würde tauschen
+-- statt ablegen). Höchstens Transfer.CONFIRM_WAIT Sekunden, dann plant der nächste Durchlauf neu.
+Transfer.CONFIRM_WAIT = 1.5
+local function Unconfirmed(pending)
+    if not pending or GetTime() - pending.since > Transfer.CONFIRM_WAIT then return false end
+    local from, to = SlotState(pending.from), SlotState(pending.to)
+    if from == true or to == true then return true end
+    return pending.toWasFree and to == nil
+end
+
+local fillBlocked = false                    -- Nachrücken hing (MAX_STEPS oder STALL_LIMIT): bis /reload aus
+local fillSaid = { n = 0, t = -math.huge }   -- Meldung des Nachrückens höchstens einmal je Transfer.FILL_SAY_EVERY
+Transfer.FILL_SAY_EVERY = 60
+
 local function Finish(reason)
     if not run then return end
-    local moved = run.moved
+    local moved, fill = run.moved, run.fill
     run = nil
     runner:Hide()
+    ClearRefused()
+    if fill then
+        -- Nachrücken läuft ohne Klick: Was am Mauszeiger hängt, gehört dem Spieler (jeder Schritt legt sofort ab) – nie
+        -- abräumen. Nur melden, was es gelegt hat, gesammelt höchstens einmal je Minute (Herstellen in Serie).
+        fillSaid.n = fillSaid.n + moved
+        if fillSaid.n > 0 and GetTime() - fillSaid.t >= Transfer.FILL_SAY_EVERY then
+            ns.Print(L.REAGENT_FILLED:format(ns.CountWord("STACK", fillSaid.n)))
+            fillSaid.n, fillSaid.t = 0, GetTime()
+        end
+        Transfer.Refresh()
+        return
+    end
     if CursorHasItem() then ClearCursor() end
     if reason then ns.Print(reason)
     elseif moved > 0 then ns.Print(L.TRANSFER_DONE:format(ns.CountWord("STACK", moved))) end
@@ -355,41 +587,77 @@ runner:SetScript("OnUpdate", function(self, elapsed)
         run.wait = STEP_CONTAINER
         return WithdrawTick()
     end
-    local guild = run.source == "guild" or Transfer.Target(run.source) == "guild"
+    local guild = not run.fill and (run.source == "guild" or Transfer.Target(run.source) == "guild")
     run.wait = guild and STEP_GUILD or STEP_CONTAINER
 
     if ns.InCombat() then return Finish(ezCore.CombatText(L.TRANSFER_WHAT)) end
-    if not Transfer.Target(run.source) then return Finish() end
+    if not run.fill and not Transfer.Target(run.source) then return Finish() end
+    if run.fill and GetCursorInfo() ~= nil then return Finish() end   -- der Spieler hält etwas: Nachrücken weicht
     if CursorHasItem() then
         -- Der Spieler hält gerade etwas – nicht dazwischenfunken.
         if GetTime() - run.lastProgress > STALL_LIMIT then return Finish(L.TRANSFER_STOPPED) end
         return
     end
 
-    local moves = Transfer.Plan(run.source)
-    if #moves == 0 then return Finish() end
-    if run.steps >= MAX_STEPS or GetTime() - run.lastProgress > STALL_LIMIT then
+    if Unconfirmed(run.pending) then return end
+    local sent = run.pending
+    run.pending = nil
+    -- (Quelle wieder entsperrt: der Server hat geantwortet; noch gesperrt heißt nur, er ist langsam)
+    if sent and sent.toWasFree and SlotState(sent.to) == nil and SlotState(sent.from) == false then
+        -- Abgeschickt, aber nie angekommen (der Server lehnte ab): nicht zählen, Platz und Tasche meiden
+        run.moved = math.max(0, run.moved - 1)
+        MarkRefused(sent.to, sent.itemID)
+        if run.fill and sent.itemID then refused[sent.itemID] = "free" end
+    end
+
+    local moves, waiting
+    if run.fill then moves, waiting = Transfer.PlanReagentFill()
+    else moves, _, waiting = Transfer.Plan(run.source) end
+    local stalled = GetTime() - run.lastProgress > STALL_LIMIT
+    if #moves == 0 then
+        -- Passendes liegt noch auf gesperrten Plätzen: abwarten, dann geht es weiter (statt nach einem Teil aufzuhören)
+        if waiting and not stalled then return end
+        return Finish()
+    end
+    if run.steps >= MAX_STEPS or stalled then
+        if run.fill then fillBlocked = true end   -- Nachrücken hing: bis /reload nicht wieder anstoßen
         return Finish(L.TRANSFER_STOPPED)
     end
 
     local m = moves[1]
     run.steps = run.steps + 1
+    local toWasFree = SlotState(m.to) == nil
     Pick(m.from, m.n, m.whole)
     if CursorHasItem() then
         Drop(m.to)
-        if CursorHasItem() then ClearCursor() end
+        if CursorHasItem() then
+            -- Ablegen abgelehnt (der Platz nimmt den Gegenstand nicht): zurücklegen, nicht zählen – bleibt es dabei,
+            -- hört das Umlagern nach STALL_LIMIT auf. Beim Nachrücken bleibt dieser Gegenstand danach liegen.
+            ClearCursor()
+            MarkRefused(m.to, m.itemID)
+            if run.fill and m.itemID then refused[m.itemID] = m.toFree and "free" or "stack" end
+            return
+        end
         run.moved = run.moved + 1
         run.lastProgress = GetTime()
+        run.pending = { from = m.from, to = m.to, toWasFree = toWasFree, since = GetTime(), itemID = m.itemID }
     end
 end)
 
+-- Ein Klick (Umlagern, Entnehmen) hat Vorrang: laufendes Nachrücken beenden (meldet, was es schon gelegt hat).
+local function YieldFill()
+    if run and run.fill then Finish() end
+end
+
 function Transfer.Run(source)
+    YieldFill()
     if run and run.withdraw then return FinishWithdraw("stopped") end
     if run then return Finish(L.TRANSFER_STOPPED) end
     if not Transfer.Target(source) then return end
     if ns.InCombat() then return ezCore.CombatNotice(ns, L.TRANSFER_WHAT) end
     local moves = Transfer.Plan(source)
     if #moves == 0 then return ns.Print(L.TRANSFER_NOTHING) end
+    wipe(badSlots)
     run = { source = source, steps = 0, moved = 0, lastProgress = GetTime(), wait = 0 }
     runner:Show()
 end
@@ -479,10 +747,7 @@ local function BagRoom()
     local snap = Snapshot("bag")
     local room, free = {}, {}
     for _, it in ipairs(snap.items) do
-        if not it.locked and it.count < it.max then
-            room[it.itemID] = room[it.itemID] or {}
-            table.insert(room[it.itemID], { loc = it.loc, space = it.max - it.count })
-        end
+        if not it.locked and it.count < it.max then AddRoom(room, it) end
     end
     for _, f in ipairs(snap.free) do free[#free + 1] = f end
     return room, free
@@ -491,35 +756,17 @@ end
 -- Wohin mit n Stück? → Platz, Menge, die dorthin geht (nil: kein Platz mehr). wholeFirst (Gildenbank, jede
 -- Entnahme zählt): erst ein Stapel, in den alles passt, dann ein freier Platz, dann Stapel mit Restplatz.
 -- Sonst (Bank): erst angebrochene Stapel auffüllen, dann ein freier Platz.
-local function Spot(room, free, itemID, n, max, wholeFirst)
-    local stacks = room[itemID] or {}
-    local function Stack(needAll)
-        for _, r in ipairs(stacks) do
-            if r.space > 0 and (not needAll or r.space >= n) then
-                local fit = math.min(r.space, n)
-                r.space = r.space - fit
-                return r.loc, fit
-            end
-        end
-    end
-    local function Free()
-        for i, f in ipairs(free) do
-            if FitsFree(f, itemID) then
-                table.remove(free, i)
-                -- Der neue Stapel kann weitere Reste aufnehmen.
-                room[itemID] = room[itemID] or {}
-                table.insert(room[itemID], { loc = f.loc, space = max - n })
-                return f.loc, n
-            end
-        end
-    end
+-- Handwerksmaterial zuerst in die Reagenzientasche (ihre Stapel, dann ihre freien Plätze), danach wie beschrieben.
+local function Spot(room, free, itemID, n, max, wholeFirst, bound)
     local loc, fit
-    if wholeFirst then
-        loc, fit = Stack(true)
-        if not loc then loc, fit = Free() end
+    loc, fit = TakeStack(room[itemID], n, wholeFirst, true, bound)
+    if not loc then loc, fit = TakeFree(free, room, itemID, n, max, true) end
+    if not loc and wholeFirst then
+        loc, fit = TakeStack(room[itemID], n, true, nil, bound)
+        if not loc then loc, fit = TakeFree(free, room, itemID, n, max) end
     end
-    if not loc then loc, fit = Stack(false) end
-    if not loc then loc, fit = Free() end
+    if not loc then loc, fit = TakeStack(room[itemID], n, false, nil, bound) end
+    if not loc then loc, fit = TakeFree(free, room, itemID, n, max) end
     return loc, fit
 end
 
@@ -532,7 +779,7 @@ local function PlanTake(ctx, it, take, kind, ref)
             ctx.info.limit = true
             break
         end
-        local loc, fit = Spot(ctx.room, ctx.free, it.itemID, take, it.max, kind == "guild")
+        local loc, fit = Spot(ctx.room, ctx.free, it.itemID, take, it.max, kind == "guild", it.bound)
         if not loc then
             ctx.info.full = true
             break
@@ -677,6 +924,7 @@ local function NewJob(job)
 end
 
 local function StartJob(job)
+    wipe(badSlots)
     run = { withdraw = job, steps = 0, moved = 0, lastProgress = GetTime(), wait = 0 }
     runner:Show()
 end
@@ -686,6 +934,7 @@ function FinishWithdraw(reason)
     local job = run.withdraw
     run = nil
     runner:Hide()
+    ClearRefused()
     if CursorHasItem() then ClearCursor() end
     -- Ein noch unbestätigter Schritt zählt mit dem, was bis jetzt in der Tasche ankam.
     if job.pending then Book(job, Arrived(job.pending)) end
@@ -759,7 +1008,8 @@ function WithdrawTick()
     if not CursorHasItem() then return end   -- nichts aufgenommen: der nächste Durchlauf plant neu
     Drop(m.to)
     if CursorHasItem() then
-        -- Kam nicht an (Ziel inzwischen belegt): zurücklegen, nichts abziehen, neu planen.
+        -- Kam nicht an (Ziel inzwischen belegt): zurücklegen, nichts abziehen, neu planen. Kein Sperren wie beim Umlagern:
+        -- ein gerade belegtes Ziel ist oft gleich wieder frei; Berufstaschen meidet schon die Planung (FitsFree).
         ClearCursor()
         return
     end
@@ -803,6 +1053,7 @@ function Transfer.Withdraw(itemMap, onDone)
         end
     end
     if not any then return false, {}, "input" end
+    YieldFill()
     if run then return false, want, "busy" end
     if ns.InCombat() then return false, want, "combat" end
     local sources = {}
@@ -830,6 +1081,7 @@ function Transfer.WithdrawSlots(slots, onDone)
         end
     end
     if #list == 0 then return false, "input" end
+    YieldFill()
     if run then return false, "busy" end
     if ns.InCombat() then return false, "combat" end
     if not GuildOpen() then return false, "closed" end
@@ -865,3 +1117,76 @@ end
 ns.OnSettingChanged(function(key)
     if key == "transferArrows" or key == "transferStacksOnly" then Transfer.Refresh() end
 end)
+
+---------------------------------------------------------------------------
+-- Automatisches Nachrücken in Spezialtaschen (Schalter „In Spezialtaschen nachrücken“, reagentAutoFill)
+---------------------------------------------------------------------------
+
+local sortPauseUntil = 0   -- Blizzards „Tasche aufräumen“ läuft: Nachrücken und Merken eigener Plätze ruhen
+
+-- Läuft gerade etwas, in das Nachrücken nicht hineingreifen darf? Kampf, ein anderer Ablauf, etwas am Mauszeiger,
+-- Sortieren, ezBags Stapel-Bau oder Anzahl-Feld, Verkaufen/Umlegen (Select.UseAll), ezCores Anhang-Schlange und
+-- offene Fenster von Handel, Händler, Post, Auktionshaus oder Blizzards Teil-Fenster.
+function Transfer.FillBusy()
+    if not (ns.S and ns.S.reagentAutoFill) or fillBlocked or run or ns.InCombat() then return true end
+    if GetCursorInfo() ~= nil or GetTime() < sortPauseUntil then return true end
+    local St = ns.Stacks
+    if St and St.Building and St.Building() then return true end
+    local field = St and St.Field and St.Field()
+    if field and field.IsShown and field:IsShown() then return true end
+    if ns.Select and ns.Select.Busy and ns.Select.Busy() then return true end
+    local queue = ezCore.MailQueue
+    if queue and ((queue.IsAttaching and queue.IsAttaching()) or (queue.IsBusy and queue.IsBusy())) then return true end
+    for _, name in ipairs({ "TradeFrame", "MerchantFrame", "MailFrame", "AuctionHouseFrame", "StackSplitFrame" }) do
+        local frame = rawget(_G, name)
+        if type(frame) == "table" and frame.IsShown and frame:IsShown() then return true end
+    end
+    return false
+end
+
+-- Jetzt nachrücken? → begonnen?
+function Transfer.MaybeFillReagents()
+    if Transfer.FillBusy() then return false end
+    if #Transfer.PlanReagentFill() == 0 then return false end
+    wipe(badSlots)
+    run = { fill = true, steps = 0, moved = 0, lastProgress = GetTime(), wait = 0 }
+    runner:Show()
+    return true
+end
+
+-- Nach jeder Taschenänderung, nach dem Kampf, wenn der Mauszeiger frei wird und wenn Händler, Post, Auktionshaus oder
+-- Handel schließen: eine halbe Sekunde nach dem letzten Ereignis prüfen (jedes neue Ereignis schiebt die Prüfung).
+local fillToken = 0
+local function QueueFill()
+    fillToken = fillToken + 1
+    local mine = fillToken
+    C_Timer.After(0.5, function()
+        if mine == fillToken then Transfer.MaybeFillReagents() end
+    end)
+end
+Transfer.QueueFill = QueueFill
+for _, event in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_REGEN_ENABLED", "CURSOR_CHANGED", "MERCHANT_CLOSED", "MAIL_CLOSED",
+    "AUCTION_HOUSE_CLOSED", "TRADE_CLOSED" }) do
+    ns.On(event, QueueFill)
+end
+
+-- Vom Spieler selbst angefasste Plätze merken (nicht während ezBags Abläufen oder Blizzards Sortieren)
+ns.On("ITEM_LOCK_CHANGED", function(_, bag, slot)
+    if run or GetTime() < sortPauseUntil then return end
+    if ns.Select and ns.Select.Busy and ns.Select.Busy() then return end
+    if ns.Stacks and ns.Stacks.Building and ns.Stacks.Building() then return end
+    Transfer.MarkManual(bag, slot)
+end)
+
+-- Blizzards „Tasche aufräumen“: ein paar Sekunden ruhen, danach prüfen
+Transfer.SORT_PAUSE = 5
+function Transfer.OnSortBags()
+    sortPauseUntil = GetTime() + Transfer.SORT_PAUSE
+    C_Timer.After(Transfer.SORT_PAUSE + 0.5, QueueFill)
+end
+if type(hooksecurefunc) == "function" and type(C_Container) == "table" and type(C_Container.SortBags) == "function" then
+    hooksecurefunc(C_Container, "SortBags", Transfer.OnSortBags)
+end
+
+-- Für Prüfungen: abgelehnte Gegenstände vergessen
+function Transfer.ResetRefused() wipe(refused); wipe(manual); fillBlocked = false; sortPauseUntil = 0 end

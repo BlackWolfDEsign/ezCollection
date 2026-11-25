@@ -140,6 +140,8 @@ DB.FIELDS = {
     from = "Quelle als Verweis", dur = "gemessene Dauer", cast = "Zauberzeit", use = "Verwendungsart",
     stancePages = "Leistenseite je Haltung", sfx = "Zufallssuffix", bon = "Bonus-IDs", linkLvl = "Link-Stufe",
     stats = "Werte",
+    -- Auslieferung (DBShip.lua, ezData; schreibt nur tools/merge.lua, aus Beiträgen fällt es weg)
+    orig = "Zahl der Herkünfte (Spieler), die den Satz bzw. Eintrag stützen",
     -- Preis-Schicht (DBMarket.lua, Träger ezMarket)
     mv = "Marktwert", auc = "Zahl der Auktionen", scan = "Art der Erfassung als Bit-Summe (1 Komplett-Scan, 2 Suche, 4 Übersicht, 8 Kategorie, 16 Sammelabfrage)",
     fk = "Art der letzten vollständigen Erfassung als Bit (1 Komplett-Scan, 2 Suche)",
@@ -180,7 +182,7 @@ local function BOr(a, b)
     return r
 end
 DB.BOr = BOr
-local function BHas(a, bitValue) return math.floor((Num(a) or 0) / bitValue) % 2 == 1 end
+local function BHas(a, bitValue) return Core.HasBit(Num(a) or 0, bitValue) end
 DB.BHas = BHas
 
 -- Stempel der Serveruhr: eine Abfrage für ganz ezCore (Core.Time.Now("server"), Kern/Util.lua – ohne GetServerTime die
@@ -1031,6 +1033,9 @@ function DB.Stats()
     out.id, out.builds = m.id, Copy(m.builds)
     return out
 end
+
+-- Die ganze Ablage (nur ezCore-intern und nur lesend: Anon.Export für „Beitrag vorbereiten“), nil vor DB_READY
+function DB.Root() return ready and root or nil end
 
 -- Kopf der Datenbank (nur ezCore-intern: Übernahme, Merker)
 function DB.Meta() return ready and root.meta or nil end

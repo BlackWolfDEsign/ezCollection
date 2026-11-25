@@ -26,22 +26,31 @@ ns.Templates = T
 
 -- Tasten der Vorlagen ab Werk (eine Stelle, der „Vorschlag“): Platz → { Maustaste, Umschalttasten }.
 -- Linksklick und Rechtsklick ohne Umschalttaste bleiben Blizzards „Ziel“ und „Menü“.
+-- Ohne Alt (Fehler des Nutzers vom 23.11.2026): Alt ist ab Werk Blizzards Selbstwirk-Taste (Forever-Quelle
+-- Bindings_Camelot.xml, ModifiedClick SELFCAST = ALT; Kommentar bei Core.ClickBindings.SelfCastKey) – ein Klick mit
+-- Alt wirkte auf dich statt auf den Rahmen. Bis dahin lagen Wiederbeleben, zweites Bannen, extra3 und Buff 4–6 auf
+-- Alt bzw. Umschalt+Alt. Ohne Alt bleiben Umschalt, Strg und Umschalt+Strg: an Links, Rechts und Mitte für die
+-- übrigen neun Plätze, an Maustaste 4 der Rest der Vorlage „Heilen“ (vorher die Reihe Alt), an Maustaste 5 Buff 4–6
+-- (vorher die Reihe Umschalt+Alt). Jede Taste behält eine Umschalttaste – blanke Klicks bleiben für Blizzards „Ziel“
+-- und „Menü“ und für eigene Belegungen frei. Wer keine Maustasten 4 und 5 hat, wählt die Taste unter „Tasten wählen“.
+-- Liegt ein Platz auf der Selbstwirk-Taste (eigene Wahl oder eine andere Selbstwirk-Taste), sperrt T.Conflicts das
+-- Übernehmen.
 T.SLOTS = {
     fast = { "left", "SHIFT" },
     big = { "right", "SHIFT" },
     hot = { "left", "CTRL" },
     dispel = { "right", "CTRL" },
-    res = { "left", "ALT" },
-    dispel2 = { "right", "ALT" },
+    res = { "button4", "SHIFT" },
+    dispel2 = { "button4", "CTRL" },
     extra = { "middle", "SHIFT" },
     extra2 = { "middle", "CTRL" },
-    extra3 = { "middle", "ALT" },
+    extra3 = { "button4", "SHIFT-CTRL" },
     buff1 = { "left", "SHIFT-CTRL" },
     buff2 = { "right", "SHIFT-CTRL" },
     buff3 = { "middle", "SHIFT-CTRL" },
-    buff4 = { "left", "SHIFT-ALT" },
-    buff5 = { "right", "SHIFT-ALT" },
-    buff6 = { "middle", "SHIFT-ALT" },
+    buff4 = { "button5", "SHIFT" },
+    buff5 = { "button5", "CTRL" },
+    buff6 = { "button5", "SHIFT-CTRL" },
 }
 T.SLOT_ORDER = { "fast", "big", "hot", "dispel", "res", "dispel2", "extra", "extra2", "extra3",
     "buff1", "buff2", "buff3", "buff4", "buff5", "buff6" }
@@ -376,12 +385,32 @@ function T.HasOwnKeys(kind, class)
     return false
 end
 
--- Doppelbelegungen über alle Plätze der Klasse (Heilen und Buffs sollen nebeneinander liegen können) und gegen
--- Blizzards „Ziel“ (Linksklick) und „Menü“ (Rechtsklick) ohne Umschalttaste.
--- → { [platz] = { slots = { andere Plätze auf derselben Taste }, reserved = "target" | "menu" | nil } }
+-- Blizzards Selbstwirk-Taste (Core.ClickBindings.SelfCastKey; ab Werk Alt) → "ALT" … | nil (keine)
+function T.SelfCastKey()
+    local cb = CB()
+    if not (cb and type(cb.SelfCastKey) == "function") then return nil end
+    return cb.SelfCastKey()
+end
+
+-- Liegen die Umschalttasten auf der Selbstwirk-Taste? (Umschalt+Alt trifft Alt; Core.ClickBindings.HitsSelfCast)
+-- selfKey: Selbstwirk-Taste (ohne Angabe T.SelfCastKey()). → selfKey | nil
+function T.HitsSelfCast(modifiers, selfKey)
+    local cb = CB()
+    if not (cb and type(cb.HitsSelfCast) == "function") then return nil end
+    if selfKey == nil then selfKey = T.SelfCastKey() end
+    if not selfKey then return nil end
+    return cb.HitsSelfCast(modifiers, selfKey)
+end
+
+-- Doppelbelegungen über alle Plätze der Klasse (Heilen und Buffs sollen nebeneinander liegen können), gegen
+-- Blizzards „Ziel“ (Linksklick) und „Menü“ (Rechtsklick) ohne Umschalttaste und gegen Blizzards Selbstwirk-Taste
+-- (ein Klick damit wirkt auf dich statt auf den Rahmen, Fehler des Nutzers vom 23.11.2026).
+-- → { [platz] = { slots = { andere Plätze auf derselben Taste }, reserved = "target" | "menu" | nil,
+--                 selfcast = Selbstwirk-Taste ("ALT" …) | nil } }
 function T.Conflicts(class)
     local slots = T.Slots("all", class)
     local byKey, out = {}, {}
+    local selfKey = T.SelfCastKey()
     for _, slot in ipairs(T.SLOT_ORDER) do
         if slots[slot] ~= nil then
             local button, mods = T.Key(slot, class)
@@ -389,6 +418,11 @@ function T.Conflicts(class)
             byKey[id] = byKey[id] or {}
             table.insert(byKey[id], slot)
             if T.RESERVED[id] then out[slot] = { slots = {}, reserved = T.RESERVED[id] } end
+            local hit = selfKey and T.HitsSelfCast(mods, selfKey)
+            if hit then
+                out[slot] = out[slot] or { slots = {} }
+                out[slot].selfcast = hit
+            end
         end
     end
     for _, list in pairs(byKey) do
@@ -425,10 +459,16 @@ local function ActionText(action)
 end
 T.ActionText = ActionText
 
+-- Selbstwirk-Taste als Text: „Alt“ (Core.ClickBindings.ModifierText)
+function T.SelfCastText(selfKey)
+    return T.ModifierText(selfKey)
+end
+
 -- Grund einer Doppelbelegung als Text (oder nil)
 function T.ConflictText(conflict, class)
     if type(conflict) ~= "table" then return nil end
     if conflict.reserved then return L.CONFLICT_RESERVED:format(ActionText(conflict.reserved)) end
+    if conflict.selfcast then return L.CONFLICT_SELFCAST:format(T.SelfCastText(conflict.selfcast)) end
     local names = {}
     for _, other in ipairs(conflict.slots or {}) do names[#names + 1] = T.SlotLabel(other, class) end
     if #names == 0 then return nil end
@@ -476,6 +516,7 @@ end
 --   opts.current  aktuelle Belegung (CB.List()); ohne sie wird nur gegen die Plätze der Vorlagen geprüft
 --   opts.spellID  Zauber des Platzes – liegt er (in irgendeinem Rang) schon auf der Taste, gilt sie als frei
 -- → art, name:  "reserved"  Blizzards „Ziel“ bzw. „Menü“ (T.RESERVED) – sperrt das Übernehmen
+--               "selfcast"  Blizzards Selbstwirk-Taste (name: „Alt“) – sperrt das Übernehmen (T.Conflicts)
 --               "slot"      ein anderer Platz der Klasse liegt dort – sperrt das Übernehmen (T.Conflicts)
 --               "bound"     in Blizzards Klick-Belegung liegt dort etwas anderes – würde beim Übernehmen ersetzt
 --               nil         frei
@@ -485,6 +526,8 @@ function T.KeyUse(slot, button, modifiers, opts)
     if not (Listed(T.BUTTONS, button) and mods) then return nil end
     local reserved = T.RESERVED[button .. ":" .. mods]
     if reserved then return "reserved", ActionText(reserved) end
+    local selfKey = T.HitsSelfCast(mods)
+    if selfKey then return "selfcast", T.SelfCastText(selfKey) end
     local slots = T.Slots("all", opts.class)
     for _, other in ipairs(T.SLOT_ORDER) do
         if other ~= slot and slots[other] ~= nil then
@@ -502,6 +545,7 @@ end
 
 -- Zusatz hinter einer Taste der Auswahlfelder: „belegt: Großes Heilen“ bzw. „ersetzt: Makro …“ (oder nil)
 function T.KeyUseText(use, name)
+    if use == "selfcast" then return L.KEY_SELFCAST:format(tostring(name)) end
     if use == "reserved" or use == "slot" then return L.KEY_TAKEN:format(tostring(name)) end
     if use == "bound" then return L.REPLACES:format(tostring(name)) end
     return nil
@@ -645,6 +689,9 @@ function T.PreviewLines(kind, class)
     if skipped > 0 then lines[#lines + 1] = L.PREVIEW_SKIP:format(skipped) end
     if T.FirstConflict(rows) then lines[#lines + 1] = L.ERR_conflict end
     lines[#lines + 1] = L.PREVIEW_KEEP
+    -- Blizzards „Selbstwirken: Automatisch“: außer Reichweite wirkt das Spiel auf dein Ziel bzw. dich (Core.lua)
+    local selfHint = ns.AutoSelfCastHint and ns.AutoSelfCastHint()
+    if selfHint then lines[#lines + 1] = selfHint end
     for _, hint in ipairs(ns.OtherHints()) do lines[#lines + 1] = hint end
     return lines, rows, removals
 end
@@ -733,48 +780,10 @@ function T.Apply(kind, opts)
     return true, count
 end
 
--- Ein Makro auf eine Taste legen (Paket ezmacro/klickzauber-besitzer): ezHeal ist der eine Besitzer der Klick-Belegung
--- (Entscheidung des Nutzers vom 13.11.2026: „ezHeal bleibt die Klick-Schicht“); ezMacros Knopf „Klick-Zauber“ ruft
--- das über ezCore.API("ezHeal").AssignMacro, statt selbst zu schreiben. Wie T.Apply: nur außerhalb des Kampfes, ezCore
--- sichert die alte Belegung, und die Merkliste geht mit – lag auf der Taste eine Heilung, die ezHeal geschrieben hat,
--- gehört die Taste jetzt dem Makro (sie fällt aus der Merkliste), und „Zurück“ tauscht die Merkliste wie nach einem
--- Übernehmen. Einen fremden Eintrag auf der Taste ersetzt das Makro, wie Blizzard es tut (der Aufrufer fragt vorher).
--- opts.via: Name des rufenden Moduls – die Rückfrage zu „Zurück“ nennt danach Makro, Taste und Modul
--- (store.lastMacro, gelöscht von T.Apply, T.Restore und T.ProfileLoaded). Umschalttasten nur als SHIFT/CTRL/ALT
--- (wie die Plätze der Vorlagen), sonst "invalid". → true | true, "same" | false, grund
-function T.AssignMacro(name, button, modifiers, opts)
-    opts = type(opts) == "table" and opts or {}
-    local cb = CB()
-    if not (cb and cb.Writable()) then return false, "missing" end
-    if Core.InCombat() then return false, "combat" end
-    if Core.IsSecret(name) or Core.IsSecret(button) or Core.IsSecret(modifiers) then return false, "invalid" end
-    local wanted = T.NormalizeModifiers(modifiers)
-    if wanted == nil then return false, "invalid" end
-    local entry, why = cb.Macro(name, button, modifiers)
-    if not entry then return false, why or "invalid" end
-    local store = AppliedStore(false)
-    local before = store and type(store.slots) == "table" and store.slots or nil
-    local ok, reason = cb.Assign(entry, { owner = ADDON, quiet = opts.quiet })
-    if not ok then return false, reason end
-    -- Merkliste: die Taste gehört jetzt dem Makro (auch bei "same": lag das Makro schon da, ist ein alter Eintrag
-    -- veraltet; previous bleibt dann, weil ezCore keine neue Sicherung angelegt hat)
-    local slots, key = {}, cb.ButtonKey and cb.ButtonKey(button) or button
-    for slot, record in pairs(before or {}) do
-        local same = type(record) == "table" and ((cb.ButtonKey and cb.ButtonKey(record[1])) or record[1]) == key
-        if not (same and T.NormalizeModifiers(record[2]) == wanted) then slots[slot] = record end
-    end
-    if reason == "same" then
-        if store and before then store.slots = slots end
-        return true, "same"
-    end
-    store = store or AppliedStore(true)
-    if store then
-        store.previous, store.foreign, store.slots, store.lastRanks = before, nil, before and slots or nil, nil
-        store.lastMacro = { name = entry.name or name, key = T.KeyText(button, modifiers),
-            via = type(opts.via) == "string" and opts.via or nil }
-    end
-    return true, reason
-end
+-- T.AssignMacro (ein Makro auf eine Taste legen, für ezMacros Knopf „Klick-Zauber“) ist seit dem 23.11.2026 weg: Der
+-- Knopf öffnet Blizzards Fenster „Klick-Zauber“ und schreibt nicht mehr selbst (Entscheidung des Nutzers „menü weg wenn
+-- verhalten gleich bleibt“, docs/roadmap/ezMacro.md). store.lastMacro aus älteren Ständen räumen T.Apply, T.Restore,
+-- T.ReplaceSpells und T.ProfileLoaded weiter ab.
 
 -- Ränge tauschen (Paket ezmacro/rangtausch-ezheal; Folgepunkt aus PR 570): ezMacros „Ränge aktualisieren“ tauscht in
 -- Blizzards Klick-Belegung nur Zauber-IDs (alter Rang → höchster Rang). Auch das schreibt der eine Besitzer ezHeal
@@ -783,7 +792,7 @@ end
 -- (keepDefaults = false), alles andere bleibt. Getauscht wird nur, wo auf der Taste noch genau der alte Rang liegt.
 -- changes: { { button, modifiers, id = alte ID, newID } } (Taste und Umschalttasten wie in ezCores CB.List).
 -- Die Merkliste behält ihre Tasten und bekommt die neue ID; opts.via nennt das Modul für die Rückfrage zu „Zurück“
--- (store.lastRanks, gelöscht wie store.lastMacro). → true, anzahl | true, "same" | false, grund
+-- (store.lastRanks, gelöscht von T.Apply, T.Restore und T.ProfileLoaded). → true, anzahl | true, "same" | false, grund
 function T.ReplaceSpells(changes, opts)
     opts = type(opts) == "table" and opts or {}
     local cb = CB()
@@ -895,6 +904,17 @@ function T.ProfileLoaded()
     end
 end
 T.ReopenBlizzard = ReopenBlizzard
+T.Describe = Describe
+
+-- „Menü“ und „Ziel“ zurückgeholt (MenuClick.lua): ezHeals Tasten bleiben, die Sicherung „last“ stammt jetzt von ezHeal –
+-- „Zurück“ tauscht die Merkliste, darum steht davor dieselbe.
+function T.DefaultsRestored()
+    local store = AppliedStore(false)
+    if store then
+        store.previous = type(store.slots) == "table" and Core.CopyTable(store.slots) or nil
+        store.foreign, store.lastMacro, store.lastRanks = nil, nil, nil
+    end
+end
 
 ---------------------------------------------------------------------------
 -- Sichtbare Wege (Einstellungen, Knopf am Klick-Zauber-Fenster, Befehle)
@@ -911,6 +931,7 @@ local function Explain(reason)
     if reason == "combat" then return ns.CombatText(L.APPLY_COMBAT_WHAT) end   -- ezCores Wortlaut (T18-1)
     return Text("ERR_" .. tostring(reason)) or L.ERR_other:format(tostring(reason))
 end
+ns.Explain = Explain
 
 function ns.PrintPreview(kind)
     for _, line in ipairs((T.PreviewLines(Chosen(kind)))) do ns.Print(line) end
@@ -970,12 +991,7 @@ function T.RestorePrompt(which)
     local writer, name = T.LastWriter()
     if writer == "other" then return L.ASK_RESTORE .. "\n\n" .. L.RESTORE_OTHER:format(tostring(name)) end
     if writer == "unknown" then return L.ASK_RESTORE .. "\n\n" .. L.RESTORE_UNKNOWN end
-    -- zuletzt ein Makro auf eine Taste gelegt (T.AssignMacro, z. B. über ezMacros Knopf „Klick-Zauber“)
     local store = AppliedStore(false)
-    local last = store and store.lastMacro
-    if type(last) == "table" and type(last.name) == "string" then
-        return L.ASK_RESTORE .. "\n\n" .. L.RESTORE_MACRO:format(last.name, tostring(last.key or "?"), last.via or ADDON)
-    end
     -- zuletzt Ränge getauscht (T.ReplaceSpells, ezMacros „Ränge aktualisieren“)
     local ranks = store and store.lastRanks
     if type(ranks) == "table" and type(ranks.count) == "number" then
@@ -1026,9 +1042,6 @@ ns.API = {
     -- Anwenden ohne Rückfrage (der Aufrufer fragt selbst) → wie ezHeal: true, anzahl | true, "same" | false, grund
     -- (mit den eigenen Tasten; bei einer Doppelbelegung false, "conflict")
     Apply = function(kind, opts) return T.Apply(kind, opts) end,
-    -- Makro (Name) auf eine Taste legen, ohne Rückfrage (der Aufrufer fragt selbst; ezMacros Knopf „Klick-Zauber“) →
-    -- true | true, "same" | false, grund. ezHeal ist der eine Schreiber der Klick-Belegung (Paket ezmacro/klickzauber-besitzer).
-    AssignMacro = function(name, button, modifiers, opts) return T.AssignMacro(name, button, modifiers, opts) end,
     -- Ränge tauschen, ohne Rückfrage (ezMacros „Ränge aktualisieren“): { { button, modifiers, id, newID } } →
     -- true, anzahl | true, "same" | false, grund. Nur, wo noch der alte Rang liegt; die Merkliste geht mit.
     ReplaceSpells = function(changes, opts) return T.ReplaceSpells(changes, opts) end,

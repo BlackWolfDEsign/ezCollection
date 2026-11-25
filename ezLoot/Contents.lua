@@ -91,7 +91,7 @@ end
 -- Art der eigenen Zählung » Art in Core.Sources.ContentsOf
 C.SOURCE_KIND = { container = "item", object = "object" }
 
--- Liste laut einer Addon-Datenbank (heute QuestieDB über ezCore), ohne die Gegenstände, die schon in der eigenen
+-- Liste laut einer Addon-Datenbank (QuestieDB über ezCore) bzw. aus Beiträgen anderer Spieler, ohne die Gegenstände, die schon in der eigenen
 -- Zählung s stehen. → Liste | nil, wartet (true: die Quelle hat noch nicht nachgesehen – Questies Index läuft)
 function C.Listed(kind, id, s)
     local S = Core.Sources
@@ -116,7 +116,8 @@ function C.Listed(kind, id, s)
         local okLabel, text = pcall(S.Label, res)
         label = okLabel and not ns.IsSecret(text) and type(text) == "string" and text or nil
     end
-    return { label = label or L.CONTENTS_SOURCE_UNKNOWN, items = items }
+    local shared = not ns.IsSecret(res.sourceKey) and res.sourceKey == "ship" or nil   -- Beiträge anderer Spieler
+    return { label = label or L.CONTENTS_SOURCE_UNKNOWN, items = items, shared = shared }
 end
 
 local function Cached(kind, id)
@@ -170,8 +171,8 @@ local function LinesOf(s, q, long)
             shift = L.CONTENTS_SHIFT })
     end
     if q then
-        for _, line in ipairs(ns.Drops.PossibleLines(q, long, false, { head = L.CONTENTS_LISTED:format(q.label),
-            view = false })) do
+        local head = (q.shared and L.CONTENTS_LISTED_SHIP or L.CONTENTS_LISTED):format(q.label)
+        for _, line in ipairs(ns.Drops.PossibleLines(q, long, false, { head = head, view = false })) do
             lines[#lines + 1] = line
         end
     end
@@ -251,3 +252,8 @@ function C.OnQuestieContents(state)
     return pcall(tip.RefreshData, tip) == true
 end
 Core.Listen("QUESTIE_CONTENTS", function(_, state) C.OnQuestieContents(state) end, ADDON)
+-- Beiträge anderer Spieler (ezData) sind geladen: kein gemerktes „nichts“ von davor
+Core.Listen("DB_SHIP_READY", function()
+    C.ClearCache()
+    ns.Drops.ClearCache()
+end, ADDON)

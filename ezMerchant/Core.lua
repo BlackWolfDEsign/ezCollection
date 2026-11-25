@@ -45,7 +45,7 @@ ns.DEFAULTS = {
     -- vom 19.11.2026 gemeinsame Schalter in ezCore (ns.SHARED unten) – ihre Standardwerte stehen dort (ab Werk aus)
     -- Auktionswert (Junk.lua, AH-27; Rechnung, Schwelle und Goldmünze kommen aus ezCore, Core.Prices.WorthMark)
     auctionWorth = true,    -- Zeile „n Gegenstände im Auktionshaus mehr wert“ unter dem offenen Händlerfenster
-    keepAuctionWorth = true, -- Plunder-Verkauf lässt sie aus (skipAuctionWorth; Frage AH-13 (1): Empfehlung umgesetzt)
+    keepAuctionWorth = false, -- an: Plunder-Verkauf lässt sie aus (skipAuctionWorth); ab Werk aus (Nutzer 23.11.2026: „Behalten ab Werk aus“)
 
     -- Vorrat (Restock.lua)
     restock = true,         -- Knopf „Vorrat auffüllen (Kosten)“ und Sollmengen
@@ -54,6 +54,7 @@ ns.DEFAULTS = {
     -- Lehrer
     learnAll = true,        -- Knopf „Alles lernen (Kosten)“ im Lehrerfenster
     upcoming = true,        -- Seitenreiter „Was kommt wann“ am Zauberbuch
+    where = true,           -- Seitenreiter „Wo kommt was“ am Zauberbuch (Where.lua, 24.11.2026)
     levelHint = true,       -- beim Stufenaufstieg: neue Ränge beim Lehrer
     spellNames = true,      -- Meldungen „Neu beim Lehrer“ und „… gelernt“ nennen die Zauber (Wunsch vom 15.11.2026)
     levelDungeons = true,   -- beim Stufenaufstieg: Dungeons, die mit dieser Stufe in den Bereich kommen
@@ -69,8 +70,13 @@ ns.DEFAULTS = {
 -- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
 ns.AGREE = {
     filterUsable = "choice", filterKnown = "choice", filterAffordable = "choice", filterMissing = "choice",
-    filterUpgrade = "choice",
+    filterUpgrade = "choice", keepAuctionWorth = "choice",   -- auch bei „Allem zustimmen“ aus (Nutzer 23.11.2026)
 }
+
+-- Neu seit v1.0.0-beta3 und ab Werk an; Einträge bleiben stehen (ezCore, Werkzeuge/ConsentNews.lua: Intro.NewsOnRows;
+-- Nutzer am 24.11.2026): Die Blase „Neu seit dem Update“ nennt sie einmal mit gesetztem Häkchen. tools/Tests/agree_test.lua
+-- ist rot, wenn ein neuer Schalter mit true hier fehlt.
+ns.NEWS = { "where" }
 
 ns.LIMITS = { columns = { 2, 5 }, rows = { 5, 7 } }
 
@@ -103,8 +109,10 @@ end
 Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.AtlasTexCoord, Core.Durability.ReportText, Core.ItemIconText, Core.SlashCmd
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
-    title = "ezMerchant", core = "1.15.0", needs = { "scaffold", "scaffoldHelpers", "ItemCount", "SecureButton", "AddSelfTest", "UnitPresent",
+    title = "ezMerchant", core = "1.15.0", needs = { "AskModule", "scaffold", "scaffoldHelpers", "ItemCount", "SecureButton", "AddSelfTest", "UnitPresent",
         "Durability.RepairAll", "Junk.Sell", "Menu.Tip", "Plural", "Style.SetStrata",
+        -- 24.11.2026 (ohne neue Versionsnummer): Erlös im Auktionshaus, ohne gemessene Gebühr brutto
+        "Prices.Proceeds",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Reparatur-Meldung aus ezCore (T16-12)
         "Durability.ReportText",
         -- Welle 17: Helfer und Texte, die ezCore ohne neue Versionsnummer bekam (tools/texte.lua, Regel 4)
@@ -116,6 +124,8 @@ Core.NewModule(ADDON, ns, {
         "Spells.ClientComing", "ClientData.SourceText",
         -- Welle 27 (ezCore 1.13.0 ohne neue Versionsnummer): offene Einträge der Client-Tabellen aus einer Rechnung
         "Spells.OpenTableEntries",
+        -- Durchsicht 24.11.2026 (ohne neue Versionsnummer): Ränge aus Büchern warten nicht beim Lehrer
+        "Spells.WaitsAtTrainer", "CopyList",
         -- Oberflächen-Einheit (Gesamtreview 18.11.2026, P13 D2; ezCore ohne neue Versionsnummer): Addon-Fach und Befehl
         -- nach Entscheidung 5, Zurücksetzen mit Rückfrage, Menüeintrag „Einstellungen …“, Tooltip-Rollen, Weg zur
         -- Einstellung, Tooltip am gesperrten Knopf
@@ -124,6 +134,8 @@ Core.NewModule(ADDON, ns, {
         -- Gesamtreview 18.11.2026 (D3, kern/einheit-rest; ohne neue Nummer): Texthelfer statt Kopien im Modul,
         -- Kampfsatz über ezCore (Plunder im Kampf, Gegenprüfung D3), Zauberbuch-Zeilen { text, rolle } („Was kommt wann“)
         "Word", "CombatNotice", "spellbookTipRoles",
+        -- 24.11.2026: Lehrer-Orte für „Wo kommt was“ (vorher hier in Where.lua, ohne neue Nummer)
+        "TrainerSpots.Read", "TrainerSpots.Mark",
     -- Gesamtreview 18.11.2026 (P19a, kern/ssot-helfer; ohne neue Nummer): gemeinsame Helfer statt Kopien
     "PlaySound", "AtlasTexCoord",
     -- Einstellungs-Prüfung 19.11.2026 (ezCore ohne neue Versionsnummer): gemeinsame Schalter mehrerer Module

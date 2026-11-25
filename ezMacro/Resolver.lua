@@ -1,5 +1,6 @@
 local _, ns = ...
 local L = ns.L
+local Core = ezCore
 
 -- Übersetzt Makro-Vorlagen in die Client-Sprache:
 --   {s:2061}  -> Zaubername aus ezCores Zauber-Wissen (Client-Sprache, Ersatznamen in ezCore/SpellData.lua)
@@ -39,15 +40,11 @@ function ns.IsSpellKnown(id)
     return Spells.IsKnown(id)
 end
 
--- Zauber-ID, die auf einen Aktionsplatz kommt (Leisten-Profile): der höchste gelernte Rang aus dem
--- Zauberbuch, sonst die ID selbst, falls bekannt. nil = nicht gelernt.
+-- Zauber-ID, die auf einen Aktionsplatz kommt (Leisten-Profile, Ränge): der höchste gelernte Rang aus dem
+-- Zauberbuch, sonst die ID selbst, falls bekannt. nil = nicht gelernt. Eine Fassung in ezCore (Core.BarProfiles,
+-- Architektur-Review 22.11.2026), hier die Weiterleitung unter dem bisherigen Namen.
 function ns.BestKnownSpell(id)
-    id = tonumber(id)
-    if not id then return nil end
-    local best = Spells.Highest(id)
-    if best then return best end
-    if ns.IsSpellKnown(id) then return id end
-    return nil
+    return ezCore.BarProfiles.BestKnownSpell(id)
 end
 
 ---------------------------------------------------------------------------
@@ -219,20 +216,167 @@ function ns.ReplacedSpells(entry)
     return spells
 end
 
+---------------------------------------------------------------------------
+-- Maus über wahlweise (Entscheidungen des Nutzers vom 23.11.2026: „Einer für alle, abweichbar (Empfohlen)“ und „Ja,
+-- eigener Schalter (Empfohlen)“; docs/roadmap/ezMacro.md, „Neue Recherche: alle sinnvollen Klassenmakros, Maus-über
+-- wahlweise“, Schritt 1 und 2). Blizzards „Mouseover-Zauber“ wirkt nur auf Zauber auf Leisten, nicht auf Makros
+-- (docs/klassenmakros-recherche.md, Erkenntnis 1). Die Einstellungen „Maus über Mitspieler“ (mouseoverFriend) und „Maus
+-- über Gegner“ (mouseoverHostile) gelten für alle Vorlagen mit Gliedern „Einheit unter der Maus“; das Kästchen „Maus
+-- über“ im ezMacro-Fenster weicht je Makro ab (ezMacroDB.mouseover[id] = { friend = …, hostile = … }, nur Abweichungen).
+-- Gestrichen wird an einer Stelle in ezCore (Spells.MacroMouseover); ohne Maus heißt die Vorlage ohne „(MO)“.
+-- Nie betroffen: eigene Vorlagen, Werkzeuge, ezHeals Heil-Makros, die Klick-Zauber (Gruppe „Heilen und Buffen per
+-- Klick“ behält die Kette immer) und schon übernommene WoW-Makros (die schreibt erst „Aktualisieren“ neu).
+---------------------------------------------------------------------------
+
+local MO_SETTING = { friend = "mouseoverFriend", hostile = "mouseoverHostile" }
+local moKinds = setmetatable({}, { __mode = "k" })   -- [Eintrag] = { body = Vorlage, kinds = … } (Zwischenspeicher)
+
+-- Welche Maus-Glieder hat die Vorlage? → { friend = true, hostile = true } (nur vorhandene) oder nil
+function ns.MouseoverKinds(entry)
+    if type(entry) ~= "table" or entry.custom or entry.tool or entry.heal or type(entry.body) ~= "string" then return nil end
+    if entry.category == "general" and entry.group == "clickheal" then return nil end
+    local fn = Core.Spells and Core.Spells.MacroMouseoverKinds
+    if type(fn) ~= "function" then return nil end
+    local cached = moKinds[entry]
+    if not (cached and cached.body == entry.body) then
+        cached = { body = entry.body, kinds = fn(entry.body) }
+        moKinds[entry] = cached
+    end
+    return cached.kinds
+end
+
+-- Standard aus den Einstellungen (ab Werk an)
+function ns.MouseoverDefault(kind)
+    local key = MO_SETTING[kind]
+    return not (key and ns.S and ns.S[key] == false)
+end
+
+-- Abweichung dieses Makros (Tabelle) oder nil. Nur für Vorlagen mit Maus-Gliedern: Die Hülle in der Gruppe „Heilen und
+-- Buffen per Klick“ trägt die Kennung ihres Klassenmakros, hat aber selbst keine Abweichung (Durchsicht 24.11.2026 –
+-- „Zurücksetzen“ dort löschte die des Klassenmakros).
+function ns.MouseoverOverride(entry)
+    if not ns.MouseoverKinds(entry) then return nil end
+    local all = ns.db and ns.db.mouseover
+    local own = type(all) == "table" and type(entry) == "table" and entry.id ~= nil and all[entry.id] or nil
+    return type(own) == "table" and own or nil
+end
+
+function ns.MouseoverOn(entry, kind)
+    local own = ns.MouseoverOverride(entry)
+    if own and type(own[kind]) == "boolean" then return own[kind] end
+    return ns.MouseoverDefault(kind)
+end
+
+-- Wirkt die Vorlage mit den Schaltern noch auf die Einheit unter der Maus? nil = Vorlage ohne Maus-Glieder
+function ns.MouseoverActive(entry)
+    local kinds = ns.MouseoverKinds(entry)
+    if not kinds then return nil end
+    for kind in pairs(kinds) do
+        if ns.MouseoverOn(entry, kind) then return true end
+    end
+    return false
+end
+
+-- Kästchen „Maus über“: setzt die Abweichung für alle Maus-Glieder der Vorlage; was dem Standard gleicht, fällt weg
+-- (so führt derselbe Klick zurück auf die Einstellung, Leitlinie 3). Ändert sich der Name, baut ns.NamesChanged neu.
+function ns.SetMouseover(entry, on)
+    local kinds = ns.MouseoverKinds(entry)
+    if not (kinds and ns.db and type(ns.db.mouseover) == "table") then return end
+    local before = ns.EntryName(entry)
+    local own = {}
+    on = on and true or false
+    for kind in pairs(kinds) do
+        if on ~= ns.MouseoverDefault(kind) then own[kind] = on end
+    end
+    ns.db.mouseover[entry.id] = next(own) and own or nil
+    if ns.EntryName(entry) ~= before then ns.NamesChanged() end
+end
+
+-- Vorlage mit den Schaltern (Platzhalter {s:…} bleiben)
+function ns.TemplateBody(entry)
+    local body = entry.body
+    if not ns.MouseoverKinds(entry) then return body end
+    return Core.Spells.MacroMouseover(body, {
+        friend = ns.MouseoverOn(entry, "friend"), hostile = ns.MouseoverOn(entry, "hostile") })
+end
+
+-- „Lichtblitz (MO)“ → „Lichtblitz“ (auch die Kurzform „Furchtschutz MO“)
+local function WithoutMouseSuffix(name)
+    name = name:gsub("%s*%(MO%)$", "")
+    name = name:gsub("%s+MO$", "")
+    return name
+end
+
+-- Makros aus deinen Fähigkeiten (SM.UniqueNames): name gilt für die Fassung namePlain, otherName für die andere.
+-- Steht der Schalter inzwischen anders (Kästchen geklickt, noch nicht neu gebaut), gelten sie vertauscht.
+-- → Name jetzt, Name der anderen Fassung
+local function GeneratedNames(entry)
+    if (ns.MouseoverActive(entry) == false) == entry.namePlain then return entry.name, entry.otherName end
+    return entry.otherName or entry.name, entry.name
+end
+
+-- Name ohne Maus: plainName der Vorlage, wenn das gestrichene Kürzel einen anderen Namen träfe (englisch „Wave“ ist
+-- das Emote-Makro „Winken“), sonst ohne „(MO)“
+local function PlainName(entry, full)
+    if entry.plainName then return ns.Text(entry.plainName) or full end
+    return WithoutMouseSuffix(full)
+end
+
+-- Name der Vorlage mit den Schaltern: ohne Maus fällt das Kürzel „(MO)“ weg
+function ns.TemplateName(entry)
+    if entry.generated and entry.namePlain ~= nil then
+        return ns.Truncate(ns.Text((GeneratedNames(entry))) or "", ns.MACRO_NAME_MAX)
+    end
+    local name = ns.Text(entry.name) or ""
+    if ns.MouseoverActive(entry) == false then name = PlainName(entry, name) end
+    return ns.Truncate(name, ns.MACRO_NAME_MAX)
+end
+
+-- Name der anderen Fassung (Schalter umgestellt: „Lichtblitz (MO)“ ↔ „Lichtblitz“), um ein schon übernommenes Makro
+-- wiederzufinden (Import.FindEntry). nil ohne Maus-Glieder, bei angepasstem Namen oder ohne Kürzel.
+function ns.MouseoverOtherName(entry)
+    local active = ns.MouseoverActive(entry)
+    if active == nil then return nil end
+    local edit = ns.db and ns.db.edits and ns.db.edits[entry.id]
+    if edit and type(edit.name) == "string" then return nil end
+    if entry.generated then   -- Makros aus deinen Fähigkeiten (SM.UniqueNames)
+        if entry.namePlain == nil then return nil end
+        return select(2, GeneratedNames(entry))
+    end
+    local full = ns.Text(entry.name) or ""
+    local plain = PlainName(entry, full)
+    if plain == full then return nil end
+    return ns.Truncate(active and plain or full, ns.MACRO_NAME_MAX)
+end
+
+-- Beschreibung für die Erklär-Seite: die Vorlagen sagen „unter der Maus, sonst Ziel“; ist die Maus für dieses Makro aus,
+-- sagt ein Satz dahinter, was jetzt gilt (statt jede Beschreibung doppelt zu führen)
+function ns.EntryDesc(entry)
+    local desc = ns.Text(entry.desc)
+    if ns.MouseoverActive(entry) ~= false then return desc end
+    if type(desc) ~= "string" or desc == "" then return L.DETAIL_MOUSEOVER_OFF end
+    return desc .. "\n" .. L.DETAIL_MOUSEOVER_OFF
+end
+
+-- Einstellung umgestellt: Namen und Texte der Liste ändern sich
+ns.OnSettingChanged(function(key)
+    if key == "mouseoverFriend" or key == "mouseoverHostile" then ns.NamesChanged() end
+end)
+
 function ns.EntryName(entry)
     if entry.custom or entry.tool then return ns.Truncate(entry.name or "", ns.MACRO_NAME_MAX) end
     local edit = ns.db.edits[entry.id]
     if edit and type(edit.name) == "string" then return edit.name end
-    return ns.Truncate(ns.Text(entry.name), ns.MACRO_NAME_MAX)
+    return ns.TemplateName(entry)
 end
 
--- Fertiger Makrotext (angepasst oder aus der Vorlage) und fehlende IDs.
+-- Fertiger Makrotext (angepasst oder aus der Vorlage, mit den Schaltern „Maus über“) und fehlende IDs.
 function ns.EntryBody(entry)
     if entry.custom then return entry.body or "", {} end
     if entry.tool then return "", {} end
     local edit = ns.db.edits[entry.id]
     if edit and type(edit.body) == "string" then return edit.body, {} end
-    return ns.Resolve(entry.body)
+    return ns.Resolve(ns.TemplateBody(entry))
 end
 
 function ns.IsEdited(entry)
@@ -255,8 +399,8 @@ function ns.SaveEdit(entry, name, body)
     if entry.custom then
         ns.Custom.Save(entry, name, body)
     else
-        local defaultName = ns.Truncate(ns.Text(entry.name), ns.MACRO_NAME_MAX)
-        local defaultBody = ns.Resolve(entry.body)
+        local defaultName = ns.TemplateName(entry)
+        local defaultBody = ns.Resolve(ns.TemplateBody(entry))
         if name == defaultName and body == defaultBody then
             ns.db.edits[entry.id] = nil
         else
@@ -270,6 +414,8 @@ function ns.ResetEdit(entry)
     if entry.custom or entry.tool then return end
     local before = ns.EntryName(entry)
     ns.db.edits[entry.id] = nil
+    -- „Zurücksetzen“ nimmt auch die Abweichung „Maus über“ zurück (Entscheidung des Nutzers vom 23.11.2026)
+    if type(ns.db.mouseover) == "table" and ns.MouseoverKinds(entry) then ns.db.mouseover[entry.id] = nil end
     if ns.EntryName(entry) ~= before then ns.NamesChanged() end
 end
 
@@ -281,7 +427,8 @@ end
 
 -- Worauf das Makro wirkt, wenn nicht aufs Ziel: "mouse" (Maus, Kürzel MO) oder "focus" (Fokus, Kürzel F).
 function ns.EntryTarget(entry)
-    local name, body = ns.Text(entry.name) or "", entry.body or ""
+    -- mit den Schaltern „Maus über“: ohne Maus kein Schlagwort „Maus“
+    local name, body = ns.TemplateName(entry), ns.TemplateBody(entry) or ""
     if name:find("%(F%)%s*$") then return "focus" end
     if name:find("%(MO%)%s*$") then return "mouse" end
     if body:find("@focus", 1, true) then return "focus" end

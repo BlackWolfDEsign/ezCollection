@@ -68,6 +68,7 @@ local function Register()
     -- „Übernimmt schon: …“ selbst an den Tooltip (page:Checkbox mit feature, Welle 23 A42; wie page:OwnCheckbox)
     page:Checkbox("learnAll", nil, { feature = "trainAll" })
     page:Checkbox("upcoming")
+    page:Checkbox("where")
     page:Checkbox("petHint")
     page:Checkbox("petTrain")
 

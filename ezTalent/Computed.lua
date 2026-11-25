@@ -22,7 +22,7 @@ local _, ns = ...
     SpellEffect; mit --roh=<Rohordner>) samt Hinweis text.de/text.en – die Verteilungen rechnen ohne Volk.
 ]]
 
-ns.COMPUTED_META = { date = "2026-11-20", build = "1.60.1.70938", model = "3", classes = 9 }
+ns.COMPUTED_META = { date = "2026-11-22", build = "1.60.1.71037", model = "3", classes = 9 }
 ns.COMPUTED = ns.COMPUTED or {}
 ns.COMPUTED_RACES = {
     Dwarf = {
@@ -52,7 +52,7 @@ ns.COMPUTED.DRUID = {
         split = "36/0/15",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -61,8 +61,8 @@ ns.COMPUTED.DRUID = {
             label = { de = "Grundverteilung", en = "base build" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 84.81,
@@ -71,11 +71,11 @@ ns.COMPUTED.DRUID = {
                 en = "Play style spell damage, main tree Balance with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
-                [1223081] = { 0.02, 0.04, 0.06, 0.08, 0.1 },
+                [1223081] = { 0.02, 0.05, 0.07, 0.09, 0.11 },
                 [1223082] = { 1, 2 },
                 [1223083] = { 0.08 },
                 [1223242] = { 0.06, 0.13 },
@@ -133,7 +133,7 @@ ns.COMPUTED.DRUID = {
                     [5570] = { 4 },
                 },
                 survival = {
-                    [1223081] = { 0.02, 0.04, 0.06, 0.08, 0.1 },
+                    [1223081] = { 0.02, 0.05, 0.07, 0.09, 0.11 },
                     [1223242] = { 0.06, 0.13 },
                     [16929] = { 0.03, 0.06, 0.09 },
                     [24858] = { 0.36 },
@@ -193,7 +193,7 @@ ns.COMPUTED.DRUID = {
         split = "36/0/15",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-balance",
         style = {
             key = "pvp",
@@ -206,8 +206,8 @@ ns.COMPUTED.DRUID = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 84.88,
@@ -216,11 +216,11 @@ ns.COMPUTED.DRUID = {
                 en = "Play style spell damage, main tree Balance with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
-                [1223081] = { 0.02, 0.04, 0.06, 0.08, 0.1 },
+                [1223081] = { 0.02, 0.05, 0.07, 0.09, 0.11 },
                 [1223082] = { 1, 2 },
                 [1223083] = { 0.38 },
                 [1223242] = { 0.06, 0.13 },
@@ -278,7 +278,7 @@ ns.COMPUTED.DRUID = {
                     [5570] = { 4 },
                 },
                 survival = {
-                    [1223081] = { 0.02, 0.04, 0.06, 0.08, 0.1 },
+                    [1223081] = { 0.02, 0.05, 0.07, 0.09, 0.11 },
                     [1223242] = { 0.06, 0.13 },
                     [16929] = { 0.03, 0.06, 0.09 },
                     [24858] = { 0.36 },
@@ -338,7 +338,7 @@ ns.COMPUTED.DRUID = {
         split = "7/34/10",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -347,23 +347,23 @@ ns.COMPUTED.DRUID = {
             label = { de = "Grundverteilung", en = "base build" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 78.71,
+            value = 78.77,
             assumptions = {
                 de = "Spielweise Nahkampf-Schaden, Hauptbaum Wilder Kampf mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style melee damage, main tree Feral Combat with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
-                [1223081] = { 0.03, 0.05, 0.08, 0.1, 0.13 },
+                [1223081] = { 0.03, 0.05, 0.08, 0.11, 0.14 },
                 [1223082] = { 2, 4 },
-                [1223242] = { 0.79, 1.58 },
+                [1223242] = { 0.81, 1.63 },
                 [1223246] = { 3, 6, 9, 12, 15 },
                 [1322605] = { 4 },
                 [1328613] = { 2 },
@@ -396,7 +396,7 @@ ns.COMPUTED.DRUID = {
             parts = {
                 damage = {
                     [1223082] = { 2, 4 },
-                    [1223242] = { 0.73, 1.45 },
+                    [1223242] = { 0.75, 1.5 },
                     [1223246] = { 3, 6, 9, 12, 15 },
                     [1322605] = { 4 },
                     [1328613] = { 2 },
@@ -420,7 +420,7 @@ ns.COMPUTED.DRUID = {
                     [417051] = { 0.4, 0.8, 1.2, 1.6, 2 },
                 },
                 survival = {
-                    [1223081] = { 0.03, 0.05, 0.08, 0.1, 0.13 },
+                    [1223081] = { 0.03, 0.05, 0.08, 0.11, 0.14 },
                     [1223242] = { 0.06, 0.13 },
                     [16929] = { 0.06, 0.12, 0.18 },
                     [17002] = { 0.3, 0.6 },
@@ -481,7 +481,7 @@ ns.COMPUTED.DRUID = {
         split = "0/38/13",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-cat",
         style = {
             key = "pvp",
@@ -494,23 +494,23 @@ ns.COMPUTED.DRUID = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 107.6,
+            value = 107.65,
             assumptions = {
                 de = "Spielweise Nahkampf-Schaden, Hauptbaum Wilder Kampf mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung PvP; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style melee damage, main tree Feral Combat with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
-                [1223081] = { 0.03, 0.05, 0.08, 0.1, 0.13 },
+                [1223081] = { 0.03, 0.05, 0.08, 0.11, 0.14 },
                 [1223082] = { 2, 4 },
-                [1223242] = { 0.79, 1.58 },
+                [1223242] = { 0.81, 1.63 },
                 [1223246] = { 3, 6, 9, 12, 15 },
                 [1322605] = { 4 },
                 [1328613] = { 2 },
@@ -543,7 +543,7 @@ ns.COMPUTED.DRUID = {
             parts = {
                 damage = {
                     [1223082] = { 2, 4 },
-                    [1223242] = { 0.73, 1.45 },
+                    [1223242] = { 0.75, 1.5 },
                     [1223246] = { 3, 6, 9, 12, 15 },
                     [1322605] = { 4 },
                     [1328613] = { 2 },
@@ -567,7 +567,7 @@ ns.COMPUTED.DRUID = {
                     [417051] = { 0.4, 0.8, 1.2, 1.6, 2 },
                 },
                 survival = {
-                    [1223081] = { 0.03, 0.05, 0.08, 0.1, 0.13 },
+                    [1223081] = { 0.03, 0.05, 0.08, 0.11, 0.14 },
                     [1223242] = { 0.06, 0.13 },
                     [16929] = { 0.06, 0.12, 0.18 },
                     [17002] = { 1.1, 2.2 },
@@ -627,7 +627,7 @@ ns.COMPUTED.DRUID = {
         split = "0/38/13",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-cat",
         style = {
             key = "survival",
@@ -640,23 +640,23 @@ ns.COMPUTED.DRUID = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 82.2,
+            value = 82.24,
             assumptions = {
                 de = "Spielweise Nahkampf-Schaden, Hauptbaum Wilder Kampf mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung Überleben; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style melee damage, main tree Feral Combat with at least 31 points, 51 points at level 60; variant survival; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
-                [1223081] = { 0.13, 0.25, 0.38, 0.5, 0.63 },
+                [1223081] = { 0.14, 0.27, 0.41, 0.55, 0.68 },
                 [1223082] = { 1.7, 3.4 },
-                [1223242] = { 0.92, 1.86 },
+                [1223242] = { 0.94, 1.9 },
                 [1223246] = { 2.55, 5.1, 7.65, 10.2, 12.75 },
                 [1322605] = { 4 },
                 [1328613] = { 2 },
@@ -689,7 +689,7 @@ ns.COMPUTED.DRUID = {
             parts = {
                 damage = {
                     [1223082] = { 1.7, 3.4 },
-                    [1223242] = { 0.62, 1.23 },
+                    [1223242] = { 0.64, 1.27 },
                     [1223246] = { 2.55, 5.1, 7.65, 10.2, 12.75 },
                     [1322605] = { 4 },
                     [1328613] = { 2 },
@@ -713,7 +713,7 @@ ns.COMPUTED.DRUID = {
                     [417051] = { 0.4, 0.8, 1.2, 1.6, 2 },
                 },
                 survival = {
-                    [1223081] = { 0.13, 0.25, 0.38, 0.5, 0.63 },
+                    [1223081] = { 0.14, 0.27, 0.41, 0.55, 0.68 },
                     [1223242] = { 0.3, 0.63 },
                     [16929] = { 0.36, 0.72, 1.08 },
                     [17002] = { 1.3, 2.6 },
@@ -774,7 +774,7 @@ ns.COMPUTED.DRUID = {
         split = "0/40/11",
         grade = "computed",
         purpose = { "tank" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "tank",
@@ -783,23 +783,23 @@ ns.COMPUTED.DRUID = {
             label = { de = "Grundverteilung", en = "base build" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 77.49,
+            value = 77.51,
             assumptions = {
                 de = "Spielweise Tanken, Hauptbaum Wilder Kampf mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style tanking, main tree Feral Combat with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
-                [1223081] = { 0.06, 0.12, 0.18, 0.24, 0.3 },
+                [1223081] = { 0.07, 0.15, 0.22, 0.29, 0.36 },
                 [1223082] = { 0.6, 1.2 },
-                [1223242] = { 0.33, 0.68 },
+                [1223242] = { 0.34, 0.71 },
                 [1223246] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
                 [1238122] = { 4 },
                 [1322605] = { 4 },
@@ -833,7 +833,7 @@ ns.COMPUTED.DRUID = {
             parts = {
                 damage = {
                     [1223082] = { 0.6, 1.2 },
-                    [1223242] = { 0.09, 0.18 },
+                    [1223242] = { 0.1, 0.21 },
                     [1223246] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
                     [1238122] = { 4 },
                     [1322605] = { 4 },
@@ -863,7 +863,7 @@ ns.COMPUTED.DRUID = {
                     [417051] = { 0.3, 0.6, 0.9, 1.2, 1.5 },
                 },
                 survival = {
-                    [1223081] = { 0.06, 0.12, 0.18, 0.24, 0.3 },
+                    [1223081] = { 0.07, 0.15, 0.22, 0.29, 0.36 },
                     [1223242] = { 0.24, 0.5 },
                     [16929] = { 1.8, 3.6, 5.4 },
                     [17003] = { 3.2, 6.4, 9.6, 12.8, 16 },
@@ -918,7 +918,7 @@ ns.COMPUTED.DRUID = {
         split = "10/0/41",
         grade = "computed",
         purpose = { "healer" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "healer",
@@ -927,21 +927,21 @@ ns.COMPUTED.DRUID = {
             label = { de = "Grundverteilung", en = "base build" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 74.54,
+            value = 74.82,
             assumptions = {
                 de = "Spielweise Heilung, Hauptbaum Wiederherstellung mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style healing, main tree Restoration with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
-                [1223081] = { 0.4, 0.8, 1.2, 1.6, 2 },
+                [1223081] = { 0.45, 0.91, 1.36, 1.82, 2.27 },
                 [1223082] = { 1, 2 },
                 [1223083] = { 0.2 },
                 [1223242] = { 1.2, 2.5 },
@@ -976,7 +976,7 @@ ns.COMPUTED.DRUID = {
             },
             parts = {
                 damage = {
-                    [1223081] = { 0.4, 0.8, 1.2, 1.6, 2 },
+                    [1223081] = { 0.45, 0.91, 1.36, 1.82, 2.27 },
                     [1223082] = { 1, 2 },
                     [1223242] = { 1.2, 2.5 },
                     [1309631] = { 2, 4, 6 },
@@ -1060,7 +1060,7 @@ ns.COMPUTED.DRUID = {
         split = "11/0/40",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-resto",
         style = {
             key = "pvp",
@@ -1073,21 +1073,21 @@ ns.COMPUTED.DRUID = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 77.43,
+            value = 77.7,
             assumptions = {
                 de = "Spielweise Heilung, Hauptbaum Wiederherstellung mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung PvP; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style healing, main tree Restoration with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
-                [1223081] = { 0.4, 0.8, 1.2, 1.6, 2 },
+                [1223081] = { 0.45, 0.91, 1.36, 1.82, 2.27 },
                 [1223082] = { 1, 2 },
                 [1223083] = { 0.74 },
                 [1223242] = { 1.2, 2.5 },
@@ -1122,7 +1122,7 @@ ns.COMPUTED.DRUID = {
             },
             parts = {
                 damage = {
-                    [1223081] = { 0.4, 0.8, 1.2, 1.6, 2 },
+                    [1223081] = { 0.45, 0.91, 1.36, 1.82, 2.27 },
                     [1223082] = { 1, 2 },
                     [1223242] = { 1.2, 2.5 },
                     [1309631] = { 2, 4, 6 },
@@ -1210,7 +1210,7 @@ ns.COMPUTED.HUNTER = {
         split = "31/20/0",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -1220,8 +1220,8 @@ ns.COMPUTED.HUNTER = {
             label = { de = "Grundverteilung", en = "base build" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 64.89,
@@ -1230,8 +1230,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style ranged damage, main tree Beast Mastery with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.45, 0.9 },
@@ -1383,7 +1383,7 @@ ns.COMPUTED.HUNTER = {
         split = "31/20/0",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-bm",
         style = {
             key = "solo",
@@ -1397,8 +1397,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 73.48,
@@ -1407,8 +1407,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style ranged damage, main tree Beast Mastery with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.45, 0.9 },
@@ -1564,7 +1564,7 @@ ns.COMPUTED.HUNTER = {
         split = "31/20/0",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-bm",
         style = {
             key = "survival",
@@ -1578,8 +1578,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 61.14,
@@ -1588,8 +1588,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style ranged damage, main tree Beast Mastery with at least 31 points, 51 points at level 60; variant survival; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.38, 0.77 },
@@ -1742,7 +1742,7 @@ ns.COMPUTED.HUNTER = {
         split = "0/34/17",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -1752,8 +1752,8 @@ ns.COMPUTED.HUNTER = {
             label = { de = "Grundverteilung, ohne Tier (Lone Wolf)", en = "base build, no pet (Lone Wolf)" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 82.42,
@@ -1762,8 +1762,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style ranged damage, main tree Marksmanship with at least 31 points, 51 points at level 60; pet: no pet (Lone Wolf); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223984] = { 2, 4, 6, 8, 10 },
@@ -1892,7 +1892,7 @@ ns.COMPUTED.HUNTER = {
         split = "0/34/17",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-mm",
         style = {
             key = "solo",
@@ -1906,8 +1906,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 86.62,
@@ -1916,8 +1916,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style ranged damage, main tree Marksmanship with at least 31 points, 51 points at level 60; variant leveling; pet: no pet (Lone Wolf); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223984] = { 2, 4, 6, 8, 10 },
@@ -2053,7 +2053,7 @@ ns.COMPUTED.HUNTER = {
         split = "0/34/17",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-mm",
         style = {
             key = "pvp",
@@ -2067,8 +2067,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 104.65,
@@ -2077,8 +2077,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style ranged damage, main tree Marksmanship with at least 31 points, 51 points at level 60; variant PvP; pet: no pet (Lone Wolf); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223984] = { 2, 4, 6, 8, 10 },
@@ -2213,7 +2213,7 @@ ns.COMPUTED.HUNTER = {
         split = "18/33/0",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-mm",
         style = {
             key = "pet",
@@ -2224,8 +2224,8 @@ ns.COMPUTED.HUNTER = {
             label = { de = "mit Tier statt ohne Tier (Lone Wolf)", en = "with pet instead of no pet (Lone Wolf)" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 65.73,
@@ -2234,8 +2234,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style ranged damage, main tree Marksmanship with at least 31 points, 51 points at level 60; pet: with pet; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.3, 0.6 },
@@ -2388,7 +2388,7 @@ ns.COMPUTED.HUNTER = {
         split = "0/16/35",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -2401,8 +2401,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 76.9,
@@ -2411,8 +2411,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style melee damage, main tree Survival with at least 31 points, 51 points at level 60; weapons: melee (Survival as a melee tree); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.2, 0.4 },
@@ -2573,7 +2573,7 @@ ns.COMPUTED.HUNTER = {
         split = "0/15/36",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-sv",
         style = {
             key = "solo",
@@ -2587,8 +2587,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 80.72,
@@ -2597,8 +2597,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style melee damage, main tree Survival with at least 31 points, 51 points at level 60; variant leveling; weapons: melee (Survival as a melee tree); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.2, 0.4 },
@@ -2761,7 +2761,7 @@ ns.COMPUTED.HUNTER = {
         split = "0/18/33",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-sv",
         style = {
             key = "pvp",
@@ -2775,8 +2775,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 98.81,
@@ -2785,8 +2785,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style melee damage, main tree Survival with at least 31 points, 51 points at level 60; variant PvP; weapons: melee (Survival as a melee tree); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.2, 0.4 },
@@ -2953,7 +2953,7 @@ ns.COMPUTED.HUNTER = {
         split = "0/15/36",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-sv",
         style = {
             key = "survival",
@@ -2967,8 +2967,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 75.47,
@@ -2977,8 +2977,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style melee damage, main tree Survival with at least 31 points, 51 points at level 60; variant survival; weapons: melee (Survival as a melee tree); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.17, 0.34 },
@@ -3138,7 +3138,7 @@ ns.COMPUTED.HUNTER = {
         split = "0/20/31",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-sv",
         style = {
             key = "ranged",
@@ -3152,8 +3152,8 @@ ns.COMPUTED.HUNTER = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 58.49,
@@ -3162,8 +3162,8 @@ ns.COMPUTED.HUNTER = {
                 en = "Play style ranged damage, main tree Survival with at least 31 points, 51 points at level 60; weapons: ranged (no melee abilities); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223755] = { 0.2, 0.4 },
@@ -3316,11 +3316,11 @@ ns.COMPUTED.MAGE = {
         split = "31/2/18",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = { key = "raid", role = "damage", range = "caster", label = { de = "Grundverteilung", en = "base build" } },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 79.87,
@@ -3329,8 +3329,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Arcane with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
@@ -3497,7 +3497,7 @@ ns.COMPUTED.MAGE = {
         split = "31/0/20",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-arcane",
         style = {
             key = "solo",
@@ -3509,8 +3509,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 107.6,
@@ -3519,8 +3519,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Arcane with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
@@ -3687,7 +3687,7 @@ ns.COMPUTED.MAGE = {
         split = "31/0/20",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-arcane",
         style = {
             key = "pvp",
@@ -3699,8 +3699,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 105.04,
@@ -3709,8 +3709,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Arcane with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
@@ -3877,7 +3877,7 @@ ns.COMPUTED.MAGE = {
         split = "31/2/18",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-arcane",
         style = {
             key = "survival",
@@ -3889,8 +3889,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 77.6,
@@ -3899,8 +3899,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Arcane with at least 31 points, 51 points at level 60; variant survival; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
@@ -4069,11 +4069,11 @@ ns.COMPUTED.MAGE = {
         split = "18/31/2",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = { key = "raid", role = "damage", range = "caster", label = { de = "Grundverteilung", en = "base build" } },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 78.65,
@@ -4082,8 +4082,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Fire with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 1.8, 3.6, 5.4, 7.2, 9 },
@@ -4250,7 +4250,7 @@ ns.COMPUTED.MAGE = {
         split = "7/31/13",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-fire",
         style = {
             key = "solo",
@@ -4262,8 +4262,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 96.71,
@@ -4272,8 +4272,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Fire with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 1.8, 3.6, 5.4, 7.2, 9 },
@@ -4440,7 +4440,7 @@ ns.COMPUTED.MAGE = {
         split = "7/31/13",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-fire",
         style = {
             key = "pvp",
@@ -4452,8 +4452,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 101.31,
@@ -4462,8 +4462,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Fire with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 1.8, 3.6, 5.4, 7.2, 9 },
@@ -4630,7 +4630,7 @@ ns.COMPUTED.MAGE = {
         split = "18/31/2",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-fire",
         style = {
             key = "survival",
@@ -4642,8 +4642,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 74.66,
@@ -4652,8 +4652,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Fire with at least 31 points, 51 points at level 60; variant survival; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 1.8, 3.6, 5.4, 7.2, 9 },
@@ -4820,11 +4820,11 @@ ns.COMPUTED.MAGE = {
         split = "19/0/32",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = { key = "raid", role = "damage", range = "caster", label = { de = "Grundverteilung", en = "base build" } },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 89.44,
@@ -4833,8 +4833,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Frost with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
@@ -5002,7 +5002,7 @@ ns.COMPUTED.MAGE = {
         split = "19/0/32",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-frost",
         style = {
             key = "solo",
@@ -5014,8 +5014,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 116.12,
@@ -5024,8 +5024,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Frost with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
@@ -5192,7 +5192,7 @@ ns.COMPUTED.MAGE = {
         split = "19/0/32",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-frost",
         style = {
             key = "pvp",
@@ -5204,8 +5204,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 113.32,
@@ -5214,8 +5214,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Frost with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
@@ -5382,7 +5382,7 @@ ns.COMPUTED.MAGE = {
         split = "19/0/32",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-frost",
         style = {
             key = "survival",
@@ -5394,8 +5394,8 @@ ns.COMPUTED.MAGE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 84.81,
@@ -5404,8 +5404,8 @@ ns.COMPUTED.MAGE = {
                 en = "Play style spell damage, main tree Frost with at least 31 points, 51 points at level 60; variant survival; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [11069] = { 0.9, 1.8, 2.7, 3.6, 4.5 },
@@ -5576,11 +5576,11 @@ ns.COMPUTED.PALADIN = {
         split = "31/7/13",
         grade = "computed",
         purpose = { "healer" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = { key = "raid", role = "healer", range = "caster", label = { de = "Grundverteilung", en = "base build" } },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 92.92,
@@ -5589,8 +5589,8 @@ ns.COMPUTED.PALADIN = {
                 en = "Play style healing, main tree Holy with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224697] = { 2.69, 5.99 },
@@ -5736,7 +5736,7 @@ ns.COMPUTED.PALADIN = {
         split = "31/7/13",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-holy",
         style = {
             key = "solo",
@@ -5748,8 +5748,8 @@ ns.COMPUTED.PALADIN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 120.81,
@@ -5758,8 +5758,8 @@ ns.COMPUTED.PALADIN = {
                 en = "Play style healing, main tree Holy with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224697] = { 2.69, 5.99 },
@@ -5907,7 +5907,7 @@ ns.COMPUTED.PALADIN = {
         split = "31/7/13",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-holy",
         style = {
             key = "pvp",
@@ -5919,8 +5919,8 @@ ns.COMPUTED.PALADIN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 114.53,
@@ -5929,8 +5929,8 @@ ns.COMPUTED.PALADIN = {
                 en = "Play style healing, main tree Holy with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224697] = { 4.54, 10 },
@@ -6083,7 +6083,7 @@ ns.COMPUTED.PALADIN = {
         split = "7/33/11",
         grade = "computed",
         purpose = { "tank" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "tank",
@@ -6092,8 +6092,8 @@ ns.COMPUTED.PALADIN = {
             label = { de = "Grundverteilung, Schild", en = "base build, shield" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 93.02,
@@ -6102,8 +6102,8 @@ ns.COMPUTED.PALADIN = {
                 en = "Play style tanking, main tree Protection with at least 31 points, 51 points at level 60; weapons: shield; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224697] = { 3.72, 8.32 },
@@ -6246,7 +6246,7 @@ ns.COMPUTED.PALADIN = {
         split = "7/31/13",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-prot",
         style = {
             key = "solo",
@@ -6259,8 +6259,8 @@ ns.COMPUTED.PALADIN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 102.48,
@@ -6269,8 +6269,8 @@ ns.COMPUTED.PALADIN = {
                 en = "Play style tanking, main tree Protection with at least 31 points, 51 points at level 60; variant leveling; weapons: shield; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224697] = { 3.72, 8.32 },
@@ -6421,7 +6421,7 @@ ns.COMPUTED.PALADIN = {
         split = "13/7/31",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -6430,8 +6430,8 @@ ns.COMPUTED.PALADIN = {
             label = { de = "Grundverteilung, Zweihänder", en = "base build, two-hander" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 65.7,
@@ -6440,8 +6440,8 @@ ns.COMPUTED.PALADIN = {
                 en = "Play style melee damage, main tree Retribution with at least 31 points, 51 points at level 60; weapons: two-hander; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224697] = { 2.53, 5.67 },
@@ -6586,7 +6586,7 @@ ns.COMPUTED.PALADIN = {
         split = "13/7/31",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-ret",
         style = {
             key = "solo",
@@ -6599,8 +6599,8 @@ ns.COMPUTED.PALADIN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 73.85,
@@ -6609,8 +6609,8 @@ ns.COMPUTED.PALADIN = {
                 en = "Play style melee damage, main tree Retribution with at least 31 points, 51 points at level 60; variant leveling; weapons: two-hander; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224697] = { 2.53, 5.67 },
@@ -6758,7 +6758,7 @@ ns.COMPUTED.PALADIN = {
         split = "13/7/31",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-ret",
         style = {
             key = "pvp",
@@ -6771,8 +6771,8 @@ ns.COMPUTED.PALADIN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 97.43,
@@ -6781,8 +6781,8 @@ ns.COMPUTED.PALADIN = {
                 en = "Play style melee damage, main tree Retribution with at least 31 points, 51 points at level 60; variant PvP; weapons: two-hander; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 45 von 51 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 45 of 51 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224697] = { 4.38, 9.69 },
@@ -6940,11 +6940,11 @@ ns.COMPUTED.PRIEST = {
         split = "31/18/2",
         grade = "computed",
         purpose = { "healer" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = { key = "raid", role = "healer", range = "caster", label = { de = "Grundverteilung", en = "base build" } },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 86.3,
@@ -6953,8 +6953,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style healing, main tree Discipline with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 4 },
@@ -7097,7 +7097,7 @@ ns.COMPUTED.PRIEST = {
         split = "31/20/0",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-disc",
         style = {
             key = "solo",
@@ -7109,8 +7109,8 @@ ns.COMPUTED.PRIEST = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 120.27,
@@ -7119,8 +7119,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style healing, main tree Discipline with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 4 },
@@ -7264,7 +7264,7 @@ ns.COMPUTED.PRIEST = {
         split = "31/20/0",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-disc",
         style = {
             key = "pvp",
@@ -7276,8 +7276,8 @@ ns.COMPUTED.PRIEST = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 123.13,
@@ -7286,8 +7286,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style healing, main tree Discipline with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 4 },
@@ -7431,11 +7431,11 @@ ns.COMPUTED.PRIEST = {
         split = "20/31/0",
         grade = "computed",
         purpose = { "healer" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = { key = "raid", role = "healer", range = "caster", label = { de = "Grundverteilung", en = "base build" } },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 88.72,
@@ -7444,8 +7444,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style healing, main tree Holy with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 1.6 },
@@ -7588,7 +7588,7 @@ ns.COMPUTED.PRIEST = {
         split = "20/31/0",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-holy",
         style = {
             key = "solo",
@@ -7600,8 +7600,8 @@ ns.COMPUTED.PRIEST = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 129.34,
@@ -7610,8 +7610,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style healing, main tree Holy with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 1.6 },
@@ -7756,7 +7756,7 @@ ns.COMPUTED.PRIEST = {
         split = "20/31/0",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-holy",
         style = {
             key = "pvp",
@@ -7768,8 +7768,8 @@ ns.COMPUTED.PRIEST = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 127.1,
@@ -7778,8 +7778,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style healing, main tree Holy with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 1.6 },
@@ -7924,7 +7924,7 @@ ns.COMPUTED.PRIEST = {
         split = "20/0/31",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -7933,8 +7933,8 @@ ns.COMPUTED.PRIEST = {
             label = { de = "Grundverteilung", en = "base build" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 79.48,
@@ -7943,8 +7943,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style spell damage, main tree Shadow with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 1.6 },
@@ -8084,7 +8084,7 @@ ns.COMPUTED.PRIEST = {
         split = "0/18/33",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-shadow",
         style = {
             key = "solo",
@@ -8097,8 +8097,8 @@ ns.COMPUTED.PRIEST = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 89.77,
@@ -8107,8 +8107,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style spell damage, main tree Shadow with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 1.6 },
@@ -8248,7 +8248,7 @@ ns.COMPUTED.PRIEST = {
         split = "0/13/38",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-shadow",
         style = {
             key = "pvp",
@@ -8261,8 +8261,8 @@ ns.COMPUTED.PRIEST = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 106.05,
@@ -8271,8 +8271,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style spell damage, main tree Shadow with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 1.6 },
@@ -8413,7 +8413,7 @@ ns.COMPUTED.PRIEST = {
         split = "0/18/33",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-shadow",
         style = {
             key = "survival",
@@ -8426,8 +8426,8 @@ ns.COMPUTED.PRIEST = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 93.03,
@@ -8436,8 +8436,8 @@ ns.COMPUTED.PRIEST = {
                 en = "Play style spell damage, main tree Shadow with at least 31 points, 51 points at level 60; variant survival; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [10060] = { 1.6 },
@@ -8579,7 +8579,7 @@ ns.COMPUTED.ROGUE = {
         split = "31/3/17",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -8588,8 +8588,8 @@ ns.COMPUTED.ROGUE = {
             label = { de = "Grundverteilung, Dolche", en = "base build, daggers" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 87.16,
@@ -8598,8 +8598,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Assassination with at least 31 points, 51 points at level 60; weapons: daggers; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224716] = { 2.7, 5.4, 8.1 },
@@ -8767,7 +8767,7 @@ ns.COMPUTED.ROGUE = {
         split = "31/2/18",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-assa",
         style = {
             key = "solo",
@@ -8780,8 +8780,8 @@ ns.COMPUTED.ROGUE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 100.28,
@@ -8790,8 +8790,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Assassination with at least 31 points, 51 points at level 60; variant leveling; weapons: daggers; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224716] = { 2.7, 5.4, 8.1 },
@@ -8959,7 +8959,7 @@ ns.COMPUTED.ROGUE = {
         split = "31/2/18",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-assa",
         style = {
             key = "pvp",
@@ -8972,8 +8972,8 @@ ns.COMPUTED.ROGUE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 102.36,
@@ -8982,8 +8982,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Assassination with at least 31 points, 51 points at level 60; variant PvP; weapons: daggers; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224716] = { 2.7, 5.4, 8.1 },
@@ -9152,7 +9152,7 @@ ns.COMPUTED.ROGUE = {
         split = "20/31/0",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -9164,8 +9164,8 @@ ns.COMPUTED.ROGUE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 70.14,
@@ -9174,8 +9174,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Combat with at least 31 points, 51 points at level 60; weapons: swords (no dagger abilities); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224782] = { 0.19, 0.38 },
@@ -9333,7 +9333,7 @@ ns.COMPUTED.ROGUE = {
         split = "2/31/18",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-combat",
         style = {
             key = "solo",
@@ -9346,8 +9346,8 @@ ns.COMPUTED.ROGUE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 81.88,
@@ -9356,8 +9356,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Combat with at least 31 points, 51 points at level 60; variant leveling; weapons: swords (no dagger abilities); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224782] = { 0.28, 0.56 },
@@ -9518,7 +9518,7 @@ ns.COMPUTED.ROGUE = {
         split = "2/31/18",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-combat",
         style = {
             key = "pvp",
@@ -9531,8 +9531,8 @@ ns.COMPUTED.ROGUE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 86.79,
@@ -9541,8 +9541,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Combat with at least 31 points, 51 points at level 60; variant PvP; weapons: swords (no dagger abilities); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224782] = { 0.19, 0.38 },
@@ -9701,7 +9701,7 @@ ns.COMPUTED.ROGUE = {
         split = "20/31/0",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-combat",
         style = {
             key = "survival",
@@ -9714,8 +9714,8 @@ ns.COMPUTED.ROGUE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 69.37,
@@ -9724,8 +9724,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Combat with at least 31 points, 51 points at level 60; variant survival; weapons: swords (no dagger abilities); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224782] = { 0.19, 0.38 },
@@ -9881,7 +9881,7 @@ ns.COMPUTED.ROGUE = {
         split = "2/18/31",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -9890,8 +9890,8 @@ ns.COMPUTED.ROGUE = {
             label = { de = "Grundverteilung, Dolche", en = "base build, daggers" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 86.91,
@@ -9900,8 +9900,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Subtlety with at least 31 points, 51 points at level 60; weapons: daggers; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224716] = { 2.7, 5.4, 8.1 },
@@ -10073,7 +10073,7 @@ ns.COMPUTED.ROGUE = {
         split = "2/18/31",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-sub",
         style = {
             key = "pvp",
@@ -10086,8 +10086,8 @@ ns.COMPUTED.ROGUE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 108.14,
@@ -10096,8 +10096,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Subtlety with at least 31 points, 51 points at level 60; variant PvP; weapons: daggers; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224716] = { 2.7, 5.4, 8.1 },
@@ -10270,7 +10270,7 @@ ns.COMPUTED.ROGUE = {
         split = "2/18/31",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-sub",
         style = {
             key = "survival",
@@ -10283,8 +10283,8 @@ ns.COMPUTED.ROGUE = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 83.66,
@@ -10293,8 +10293,8 @@ ns.COMPUTED.ROGUE = {
                 en = "Play style melee damage, main tree Subtlety with at least 31 points, 51 points at level 60; variant survival; weapons: daggers; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 54 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 54 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1224716] = { 2.36, 4.72, 7.09 },
@@ -10470,21 +10470,21 @@ ns.COMPUTED.SHAMAN = {
         split = "31/12/8",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = { key = "raid", role = "damage", range = "caster", label = { de = "Grundverteilung", en = "base build" } },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 101.17,
+            value = 97.17,
             assumptions = {
                 de = "Spielweise Zauberschaden, Hauptbaum Elementar mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style spell damage, main tree Elemental with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223030] = { 2.7 },
@@ -10521,9 +10521,9 @@ ns.COMPUTED.SHAMAN = {
                 [29187] = { 0.1, 0.2, 0.3 },
                 [30812] = { 1.5, 3 },
                 [408438] = { 3.25, 6.5, 9.75 },
-                [408498] = { 2, 4, 6, 8, 10 },
+                [408498] = { 14, 28, 42, 56, 70 },
                 [408510] = { 1.9 },
-                [415140] = { 4, 8, 12 },
+                [415140] = { 2.64, 5.28, 8 },
                 [425336] = { 1.6 },
             },
             parts = {
@@ -10553,9 +10553,9 @@ ns.COMPUTED.SHAMAN = {
                     [17485] = { 0.8, 1.6, 2.4, 3.2, 4 },
                     [30812] = { 1.5, 3 },
                     [408438] = { 3.25, 6.5, 9.75 },
-                    [408498] = { 2, 4, 6, 8, 10 },
+                    [408498] = { 14, 28, 42, 56, 70 },
                     [408510] = { 1.9 },
-                    [415140] = { 4, 8, 12 },
+                    [415140] = { 2.64, 5.28, 8 },
                     [425336] = { 1.6 },
                 },
                 survival = {
@@ -10622,7 +10622,7 @@ ns.COMPUTED.SHAMAN = {
         split = "31/12/8",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-ele",
         style = {
             key = "solo",
@@ -10634,18 +10634,18 @@ ns.COMPUTED.SHAMAN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 114.03,
+            value = 110.03,
             assumptions = {
                 de = "Spielweise Zauberschaden, Hauptbaum Elementar mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung Leveln; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style spell damage, main tree Elemental with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1222988] = { 0.1 },
@@ -10683,9 +10683,9 @@ ns.COMPUTED.SHAMAN = {
                 [29187] = { 0.1, 0.2, 0.3 },
                 [30812] = { 1.5, 3 },
                 [408438] = { 3.25, 6.5, 9.75 },
-                [408498] = { 2, 4, 6, 8, 10 },
+                [408498] = { 16, 32, 48, 64, 80 },
                 [408510] = { 1.99 },
-                [415140] = { 4, 8, 12 },
+                [415140] = { 2.64, 5.28, 8 },
                 [425336] = { 1.6 },
             },
             parts = {
@@ -10715,9 +10715,9 @@ ns.COMPUTED.SHAMAN = {
                     [17485] = { 0.8, 1.6, 2.4, 3.2, 4 },
                     [30812] = { 1.5, 3 },
                     [408438] = { 3.25, 6.5, 9.75 },
-                    [408498] = { 2, 4, 6, 8, 10 },
+                    [408498] = { 16, 32, 48, 64, 80 },
                     [408510] = { 1.99 },
-                    [415140] = { 4, 8, 12 },
+                    [415140] = { 2.64, 5.28, 8 },
                     [425336] = { 1.6 },
                 },
                 survival = {
@@ -10786,7 +10786,7 @@ ns.COMPUTED.SHAMAN = {
         split = "31/12/8",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-ele",
         style = {
             key = "pvp",
@@ -10798,18 +10798,18 @@ ns.COMPUTED.SHAMAN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 121.67,
+            value = 117.67,
             assumptions = {
                 de = "Spielweise Zauberschaden, Hauptbaum Elementar mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung PvP; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style spell damage, main tree Elemental with at least 31 points, 51 points at level 60; variant PvP; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1222988] = { 0.25 },
@@ -10847,9 +10847,9 @@ ns.COMPUTED.SHAMAN = {
                 [29187] = { 0.1, 0.2, 0.3 },
                 [30812] = { 1.5, 3 },
                 [408438] = { 3.25, 6.5, 9.75 },
-                [408498] = { 2, 4, 6, 8, 10 },
+                [408498] = { 14, 28, 42, 56, 70 },
                 [408510] = { 1.9 },
-                [415140] = { 4, 8, 12 },
+                [415140] = { 2.64, 5.28, 8 },
                 [425336] = { 1.6 },
             },
             parts = {
@@ -10879,9 +10879,9 @@ ns.COMPUTED.SHAMAN = {
                     [17485] = { 0.8, 1.6, 2.4, 3.2, 4 },
                     [30812] = { 1.5, 3 },
                     [408438] = { 3.25, 6.5, 9.75 },
-                    [408498] = { 2, 4, 6, 8, 10 },
+                    [408498] = { 14, 28, 42, 56, 70 },
                     [408510] = { 1.9 },
-                    [415140] = { 4, 8, 12 },
+                    [415140] = { 2.64, 5.28, 8 },
                     [425336] = { 1.6 },
                 },
                 survival = {
@@ -10949,7 +10949,7 @@ ns.COMPUTED.SHAMAN = {
         split = "31/12/8",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-ele",
         style = {
             key = "survival",
@@ -10961,18 +10961,18 @@ ns.COMPUTED.SHAMAN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 104.25,
+            value = 100.85,
             assumptions = {
                 de = "Spielweise Zauberschaden, Hauptbaum Elementar mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung Überleben; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style spell damage, main tree Elemental with at least 31 points, 51 points at level 60; variant survival; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223030] = { 2.7 },
@@ -11009,9 +11009,9 @@ ns.COMPUTED.SHAMAN = {
                 [29187] = { 0.1, 0.2, 0.3 },
                 [30812] = { 1.27, 2.55 },
                 [408438] = { 2.76, 5.53, 8.29 },
-                [408498] = { 2, 4, 6, 8, 10 },
+                [408498] = { 14, 28, 42, 56, 70 },
                 [408510] = { 1.9 },
-                [415140] = { 3.4, 6.8, 10.2 },
+                [415140] = { 2.24, 4.49, 6.8 },
                 [425336] = { 1.6 },
             },
             parts = {
@@ -11041,9 +11041,9 @@ ns.COMPUTED.SHAMAN = {
                     [17485] = { 0.8, 1.6, 2.4, 3.2, 4 },
                     [30812] = { 1.27, 2.55 },
                     [408438] = { 2.76, 5.53, 8.29 },
-                    [408498] = { 2, 4, 6, 8, 10 },
+                    [408498] = { 14, 28, 42, 56, 70 },
                     [408510] = { 1.9 },
-                    [415140] = { 3.4, 6.8, 10.2 },
+                    [415140] = { 2.24, 4.49, 6.8 },
                     [425336] = { 1.6 },
                 },
                 survival = {
@@ -11112,7 +11112,7 @@ ns.COMPUTED.SHAMAN = {
         split = "17/31/3",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -11121,18 +11121,18 @@ ns.COMPUTED.SHAMAN = {
             label = { de = "Grundverteilung, Zweihänder mit Windzorn", en = "base build, two-hander with Windfury" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 98.88,
+            value = 95.49,
             assumptions = {
                 de = "Spielweise Nahkampf-Schaden, Hauptbaum Verstärkung mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Waffen: Zweihänder mit Windzorn; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style melee damage, main tree Enhancement with at least 31 points, 51 points at level 60; weapons: two-hander with Windfury; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223030] = { 0.34 },
@@ -11169,9 +11169,9 @@ ns.COMPUTED.SHAMAN = {
                 [30160] = { 0.9, 1.8, 2.7 },
                 [30812] = { 1.5, 3 },
                 [408438] = { 0.75, 1.5, 2.25 },
-                [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                [408498] = { 0.75, 1.5, 2.25, 3, 3.75 },
                 [408510] = { 1.66 },
-                [415140] = { 5, 10, 15 },
+                [415140] = { 3.3, 6.6, 10 },
                 [425336] = { 7.33 },
             },
             parts = {
@@ -11203,9 +11203,9 @@ ns.COMPUTED.SHAMAN = {
                     [30160] = { 0.9, 1.8, 2.7 },
                     [30812] = { 1.5, 3 },
                     [408438] = { 0.75, 1.5, 2.25 },
-                    [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                    [408498] = { 0.75, 1.5, 2.25, 3, 3.75 },
                     [408510] = { 1.66 },
-                    [415140] = { 5, 10, 15 },
+                    [415140] = { 3.3, 6.6, 10 },
                     [425336] = { 7.33 },
                 },
                 survival = {
@@ -11247,18 +11247,16 @@ ns.COMPUTED.SHAMAN = {
             { 1, 5, "Reverberation", "Nachklingen", spell = 16040, row = 2, col = 2 },
             { 1, 2, "Call of Flame", "Ruf der Flamme", spell = 16038, row = 2, col = 4 },
             { 1, 2, "Trial by Fire", "Feuerprobe", spell = 16086, row = 4, col = 1 },
-            { 2, 2, "Earth's Grasp", "Griff der Erde", spell = 16043, row = 1, col = 1 },
             { 2, 5, "Thundering Strikes", "Donnernde Stöße", spell = 16255, row = 1, col = 2 },
             { 2, 2, "Guardian Totems", "Wächtertotems", spell = 16258, row = 2, col = 1 },
             { 2, 3, "Mental Dexterity", "Geistige Gewandtheit", spell = 415140, row = 2, col = 2 },
-            { 2, 3, "Improved Lightning Shield", "Verbesserter Blitzschlagschild", spell = 16261, row = 2, col = 3 },
+            { 2, 2, "Improved Lightning Shield", "Verbesserter Blitzschlagschild", spell = 16261, row = 2, col = 3 },
             { 2, 3, "Elemental Weapons", "Elementarwaffen", spell = 16266, row = 3, col = 1 },
-            { 2, 1, "Shamanistic Focus", "Schamanistischer Fokus", spell = 1223030, row = 3, col = 3 },
-            { 2, 1, "Anticipation", "Vorahnung", spell = 16254, row = 3, col = 4 },
             { 2, 5, "Flurry", "Schlaghagel", spell = 16256, row = 4, col = 2 },
             { 2, 1, "Stormstrike", "Sturmschlag", spell = 17364, row = 4, col = 3 },
             { 2, 2, "Mental Quickness", "Geistige Schnelligkeit", spell = 30812, row = 5, col = 2 },
             { 2, 2, "Improved Stormstrike", "Verbesserter Sturmschlag", spell = 1223031, row = 5, col = 3 },
+            { 2, 5, "Maelstrom Weapon", "Waffe des Mahlstroms", spell = 408498, row = 6, col = 3 },
             { 2, 1, "Rage of the Farseer", "Zorn des Scharfsehers", spell = 425336, row = 7, col = 2 },
             { 3, 3, "Tidal Focus", "Gezeitenfokus", spell = 16179, row = 1, col = 3 },
         },
@@ -11270,7 +11268,7 @@ ns.COMPUTED.SHAMAN = {
         split = "17/31/3",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-enh",
         style = {
             key = "solo",
@@ -11283,18 +11281,18 @@ ns.COMPUTED.SHAMAN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 107.12,
+            value = 102.99,
             assumptions = {
                 de = "Spielweise Nahkampf-Schaden, Hauptbaum Verstärkung mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung Leveln; Waffen: Zweihänder mit Windzorn; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style melee damage, main tree Enhancement with at least 31 points, 51 points at level 60; variant leveling; weapons: two-hander with Windfury; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1222988] = { 0.1 },
@@ -11332,9 +11330,9 @@ ns.COMPUTED.SHAMAN = {
                 [30160] = { 0.9, 1.8, 2.7 },
                 [30812] = { 1.5, 3 },
                 [408438] = { 0.75, 1.5, 2.25 },
-                [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                [408498] = { 0.83, 1.65, 2.48, 3.3, 4.13 },
                 [408510] = { 1.68 },
-                [415140] = { 5, 10, 15 },
+                [415140] = { 3.3, 6.6, 10 },
                 [425336] = { 7.33 },
             },
             parts = {
@@ -11366,9 +11364,9 @@ ns.COMPUTED.SHAMAN = {
                     [30160] = { 0.9, 1.8, 2.7 },
                     [30812] = { 1.5, 3 },
                     [408438] = { 0.75, 1.5, 2.25 },
-                    [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                    [408498] = { 0.83, 1.65, 2.48, 3.3, 4.13 },
                     [408510] = { 1.68 },
-                    [415140] = { 5, 10, 15 },
+                    [415140] = { 3.3, 6.6, 10 },
                     [425336] = { 7.33 },
                 },
                 survival = {
@@ -11403,7 +11401,7 @@ ns.COMPUTED.SHAMAN = {
                     PARRY = 1.26,
                     SPELL = 0.42,
                     SPELLCRIT = 1.68,
-                    STAMINA = 0.71,
+                    STAMINA = 0.7,
                     STRENGTH = 1,
                 },
                 source = "Modell 3",
@@ -11420,14 +11418,12 @@ ns.COMPUTED.SHAMAN = {
             { 2, 5, "Thundering Strikes", "Donnernde Stöße", spell = 16255, row = 1, col = 2 },
             { 2, 2, "Guardian Totems", "Wächtertotems", spell = 16258, row = 2, col = 1 },
             { 2, 3, "Mental Dexterity", "Geistige Gewandtheit", spell = 415140, row = 2, col = 2 },
-            { 2, 3, "Improved Lightning Shield", "Verbesserter Blitzschlagschild", spell = 16261, row = 2, col = 3 },
             { 2, 3, "Elemental Weapons", "Elementarwaffen", spell = 16266, row = 3, col = 1 },
-            { 2, 1, "Shamanistic Focus", "Schamanistischer Fokus", spell = 1223030, row = 3, col = 3 },
-            { 2, 1, "Toughness", "Zähigkeit", spell = 16252, row = 4, col = 1 },
             { 2, 5, "Flurry", "Schlaghagel", spell = 16256, row = 4, col = 2 },
             { 2, 1, "Stormstrike", "Sturmschlag", spell = 17364, row = 4, col = 3 },
             { 2, 2, "Mental Quickness", "Geistige Schnelligkeit", spell = 30812, row = 5, col = 2 },
             { 2, 2, "Improved Stormstrike", "Verbesserter Sturmschlag", spell = 1223031, row = 5, col = 3 },
+            { 2, 5, "Maelstrom Weapon", "Waffe des Mahlstroms", spell = 408498, row = 6, col = 3 },
             { 2, 1, "Rage of the Farseer", "Zorn des Scharfsehers", spell = 425336, row = 7, col = 2 },
             { 3, 3, "Tidal Focus", "Gezeitenfokus", spell = 16179, row = 1, col = 3 },
         },
@@ -11439,7 +11435,7 @@ ns.COMPUTED.SHAMAN = {
         split = "17/31/3",
         grade = "computed",
         purpose = { "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-enh",
         style = {
             key = "dungeon",
@@ -11452,18 +11448,18 @@ ns.COMPUTED.SHAMAN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 99.44,
+            value = 96.05,
             assumptions = {
                 de = "Spielweise Nahkampf-Schaden, Hauptbaum Verstärkung mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung Flächenschaden; Waffen: Zweihänder mit Windzorn; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style melee damage, main tree Enhancement with at least 31 points, 51 points at level 60; variant area damage; weapons: two-hander with Windfury; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223030] = { 0.34 },
@@ -11500,9 +11496,9 @@ ns.COMPUTED.SHAMAN = {
                 [30160] = { 0.9, 1.8, 2.7 },
                 [30812] = { 1.5, 3 },
                 [408438] = { 0.75, 1.5, 2.25 },
-                [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                [408498] = { 0.75, 1.5, 2.25, 3, 3.75 },
                 [408510] = { 1.66 },
-                [415140] = { 5, 10, 15 },
+                [415140] = { 3.3, 6.6, 10 },
                 [425336] = { 7.33 },
             },
             parts = {
@@ -11534,9 +11530,9 @@ ns.COMPUTED.SHAMAN = {
                     [30160] = { 0.9, 1.8, 2.7 },
                     [30812] = { 1.5, 3 },
                     [408438] = { 0.75, 1.5, 2.25 },
-                    [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                    [408498] = { 0.75, 1.5, 2.25, 3, 3.75 },
                     [408510] = { 1.66 },
-                    [415140] = { 5, 10, 15 },
+                    [415140] = { 3.3, 6.6, 10 },
                     [425336] = { 7.33 },
                 },
                 survival = {
@@ -11578,18 +11574,16 @@ ns.COMPUTED.SHAMAN = {
             { 1, 5, "Reverberation", "Nachklingen", spell = 16040, row = 2, col = 2 },
             { 1, 3, "Elemental Warding", "Schutz der Elemente", spell = 28996, row = 3, col = 2 },
             { 1, 2, "Trial by Fire", "Feuerprobe", spell = 16086, row = 4, col = 1 },
-            { 2, 2, "Earth's Grasp", "Griff der Erde", spell = 16043, row = 1, col = 1 },
             { 2, 5, "Thundering Strikes", "Donnernde Stöße", spell = 16255, row = 1, col = 2 },
             { 2, 2, "Guardian Totems", "Wächtertotems", spell = 16258, row = 2, col = 1 },
             { 2, 3, "Mental Dexterity", "Geistige Gewandtheit", spell = 415140, row = 2, col = 2 },
-            { 2, 3, "Improved Lightning Shield", "Verbesserter Blitzschlagschild", spell = 16261, row = 2, col = 3 },
+            { 2, 2, "Improved Lightning Shield", "Verbesserter Blitzschlagschild", spell = 16261, row = 2, col = 3 },
             { 2, 3, "Elemental Weapons", "Elementarwaffen", spell = 16266, row = 3, col = 1 },
-            { 2, 1, "Shamanistic Focus", "Schamanistischer Fokus", spell = 1223030, row = 3, col = 3 },
-            { 2, 1, "Anticipation", "Vorahnung", spell = 16254, row = 3, col = 4 },
             { 2, 5, "Flurry", "Schlaghagel", spell = 16256, row = 4, col = 2 },
             { 2, 1, "Stormstrike", "Sturmschlag", spell = 17364, row = 4, col = 3 },
             { 2, 2, "Mental Quickness", "Geistige Schnelligkeit", spell = 30812, row = 5, col = 2 },
             { 2, 2, "Improved Stormstrike", "Verbesserter Sturmschlag", spell = 1223031, row = 5, col = 3 },
+            { 2, 5, "Maelstrom Weapon", "Waffe des Mahlstroms", spell = 408498, row = 6, col = 3 },
             { 2, 1, "Rage of the Farseer", "Zorn des Scharfsehers", spell = 425336, row = 7, col = 2 },
             { 3, 3, "Tidal Focus", "Gezeitenfokus", spell = 16179, row = 1, col = 3 },
         },
@@ -11601,7 +11595,7 @@ ns.COMPUTED.SHAMAN = {
         split = "17/31/3",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-enh",
         style = {
             key = "pvp",
@@ -11614,18 +11608,18 @@ ns.COMPUTED.SHAMAN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 122.21,
+            value = 117.21,
             assumptions = {
                 de = "Spielweise Nahkampf-Schaden, Hauptbaum Verstärkung mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung PvP; Waffen: Zweihänder mit Windzorn; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style melee damage, main tree Enhancement with at least 31 points, 51 points at level 60; variant PvP; weapons: two-hander with Windfury; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1222988] = { 0.25 },
@@ -11663,9 +11657,9 @@ ns.COMPUTED.SHAMAN = {
                 [30160] = { 0.9, 1.8, 2.7 },
                 [30812] = { 1.5, 3 },
                 [408438] = { 0.75, 1.5, 2.25 },
-                [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                [408498] = { 0.75, 1.5, 2.25, 3, 3.75 },
                 [408510] = { 1.66 },
-                [415140] = { 5, 10, 15 },
+                [415140] = { 3.3, 6.6, 10 },
                 [425336] = { 7.33 },
             },
             parts = {
@@ -11697,9 +11691,9 @@ ns.COMPUTED.SHAMAN = {
                     [30160] = { 0.9, 1.8, 2.7 },
                     [30812] = { 1.5, 3 },
                     [408438] = { 0.75, 1.5, 2.25 },
-                    [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                    [408498] = { 0.75, 1.5, 2.25, 3, 3.75 },
                     [408510] = { 1.66 },
-                    [415140] = { 5, 10, 15 },
+                    [415140] = { 3.3, 6.6, 10 },
                     [425336] = { 7.33 },
                 },
                 survival = {
@@ -11768,7 +11762,7 @@ ns.COMPUTED.SHAMAN = {
         split = "17/31/3",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-enh",
         style = {
             key = "survival",
@@ -11781,18 +11775,18 @@ ns.COMPUTED.SHAMAN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
-            value = 105.15,
+            value = 101,
             assumptions = {
                 de = "Spielweise Nahkampf-Schaden, Hauptbaum Verstärkung mit mindestens 31 Punkten, 51 Punkte auf Stufe 60; Abweichung Überleben; Waffen: Zweihänder mit Windzorn; Wertgewichte geschätzt, eine einzelne Fähigkeit zählt 15 % der Leistung; Talente ohne erkannte Wirkung zählen nicht; vorläufig, Grundwerte geschätzt: aus den Client-Tabellen (wago.tools), noch ohne Messung im Spiel (%s werte, jede Stufe zählt); ohne Rang-Kurve gilt je Rang ein gleicher Teil",
                 en = "Play style melee damage, main tree Enhancement with at least 31 points, 51 points at level 60; variant survival; weapons: two-hander with Windfury; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223030] = { 0.34 },
@@ -11829,9 +11823,9 @@ ns.COMPUTED.SHAMAN = {
                 [30160] = { 0.76, 1.53, 2.3 },
                 [30812] = { 1.27, 2.55 },
                 [408438] = { 0.64, 1.27, 1.91 },
-                [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                [408498] = { 0.75, 1.5, 2.25, 3, 3.75 },
                 [408510] = { 1.66 },
-                [415140] = { 4.25, 8.5, 12.75 },
+                [415140] = { 2.81, 5.61, 8.5 },
                 [425336] = { 7.33 },
             },
             parts = {
@@ -11863,9 +11857,9 @@ ns.COMPUTED.SHAMAN = {
                     [30160] = { 0.76, 1.53, 2.3 },
                     [30812] = { 1.27, 2.55 },
                     [408438] = { 0.64, 1.27, 1.91 },
-                    [408498] = { 0.12, 0.24, 0.36, 0.48, 0.6 },
+                    [408498] = { 0.75, 1.5, 2.25, 3, 3.75 },
                     [408510] = { 1.66 },
-                    [415140] = { 4.25, 8.5, 12.75 },
+                    [415140] = { 2.81, 5.61, 8.5 },
                     [425336] = { 7.33 },
                 },
                 survival = {
@@ -11895,7 +11889,7 @@ ns.COMPUTED.SHAMAN = {
                     PARRY = 6.42,
                     SPELL = 0.42,
                     SPELLCRIT = 1.68,
-                    STAMINA = 1.2,
+                    STAMINA = 1.15,
                     STRENGTH = 1,
                 },
                 source = "Modell 3",
@@ -11914,11 +11908,11 @@ ns.COMPUTED.SHAMAN = {
             { 2, 3, "Mental Dexterity", "Geistige Gewandtheit", spell = 415140, row = 2, col = 2 },
             { 2, 3, "Elemental Weapons", "Elementarwaffen", spell = 16266, row = 3, col = 1 },
             { 2, 3, "Anticipation", "Vorahnung", spell = 16254, row = 3, col = 4 },
-            { 2, 2, "Toughness", "Zähigkeit", spell = 16252, row = 4, col = 1 },
             { 2, 5, "Flurry", "Schlaghagel", spell = 16256, row = 4, col = 2 },
             { 2, 1, "Stormstrike", "Sturmschlag", spell = 17364, row = 4, col = 3 },
             { 2, 2, "Mental Quickness", "Geistige Schnelligkeit", spell = 30812, row = 5, col = 2 },
             { 2, 2, "Improved Stormstrike", "Verbesserter Sturmschlag", spell = 1223031, row = 5, col = 3 },
+            { 2, 2, "Maelstrom Weapon", "Waffe des Mahlstroms", spell = 408498, row = 6, col = 3 },
             { 2, 1, "Rage of the Farseer", "Zorn des Scharfsehers", spell = 425336, row = 7, col = 2 },
             { 3, 3, "Tidal Focus", "Gezeitenfokus", spell = 16179, row = 1, col = 3 },
         },
@@ -11930,11 +11924,11 @@ ns.COMPUTED.SHAMAN = {
         split = "17/3/31",
         grade = "computed",
         purpose = { "healer" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = { key = "raid", role = "healer", range = "caster", label = { de = "Grundverteilung", en = "base build" } },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 90.49,
@@ -11943,8 +11937,8 @@ ns.COMPUTED.SHAMAN = {
                 en = "Play style healing, main tree Restoration with at least 31 points, 51 points at level 60; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1223033] = { 5.1, 9.9, 15 },
@@ -11979,7 +11973,7 @@ ns.COMPUTED.SHAMAN = {
                 [30812] = { 1.5, 3 },
                 [408510] = { 4.6 },
                 [408521] = { 7.75 },
-                [415140] = { 0.25, 0.5, 0.75 },
+                [415140] = { 0.17, 0.33, 0.5 },
                 [425336] = { 1.6 },
             },
             parts = {
@@ -12007,7 +12001,7 @@ ns.COMPUTED.SHAMAN = {
                     [30812] = { 1.5, 3 },
                     [408510] = { 4.6 },
                     [408521] = { 7.75 },
-                    [415140] = { 0.25, 0.5, 0.75 },
+                    [415140] = { 0.17, 0.33, 0.5 },
                     [425336] = { 1.6 },
                 },
                 survival = {
@@ -12074,7 +12068,7 @@ ns.COMPUTED.SHAMAN = {
         split = "17/3/31",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-resto",
         style = {
             key = "solo",
@@ -12086,8 +12080,8 @@ ns.COMPUTED.SHAMAN = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 115.78,
@@ -12096,8 +12090,8 @@ ns.COMPUTED.SHAMAN = {
                 en = "Play style healing, main tree Restoration with at least 31 points, 51 points at level 60; variant leveling; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 47 von 50 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 47 of 50 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1222988] = { 0.1 },
@@ -12133,7 +12127,7 @@ ns.COMPUTED.SHAMAN = {
                 [30812] = { 1.5, 3 },
                 [408510] = { 4.78 },
                 [408521] = { 7.75 },
-                [415140] = { 0.25, 0.5, 0.75 },
+                [415140] = { 0.17, 0.33, 0.5 },
                 [425336] = { 1.6 },
             },
             parts = {
@@ -12161,7 +12155,7 @@ ns.COMPUTED.SHAMAN = {
                     [30812] = { 1.5, 3 },
                     [408510] = { 4.78 },
                     [408521] = { 7.75 },
-                    [415140] = { 0.25, 0.5, 0.75 },
+                    [415140] = { 0.17, 0.33, 0.5 },
                     [425336] = { 1.6 },
                 },
                 survival = {
@@ -12233,7 +12227,7 @@ ns.COMPUTED.WARLOCK = {
         split = "31/17/3",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -12242,8 +12236,8 @@ ns.COMPUTED.WARLOCK = {
             label = { de = "Grundverteilung, Teufelsjäger", en = "base build, Felhunter" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 109.53,
@@ -12252,8 +12246,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Affliction with at least 31 points, 51 points at level 60; pet: Felhunter; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -12419,7 +12413,7 @@ ns.COMPUTED.WARLOCK = {
         split = "31/12/8",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-aff",
         style = {
             key = "solo",
@@ -12432,8 +12426,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 116.35,
@@ -12442,8 +12436,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Affliction with at least 31 points, 51 points at level 60; variant leveling; pet: Felhunter; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.46, 2.93 },
@@ -12604,7 +12598,7 @@ ns.COMPUTED.WARLOCK = {
         split = "31/7/13",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-aff",
         style = {
             key = "pvp",
@@ -12617,8 +12611,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 118.98,
@@ -12627,8 +12621,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Affliction with at least 31 points, 51 points at level 60; variant PvP; pet: Felhunter; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -12790,7 +12784,7 @@ ns.COMPUTED.WARLOCK = {
         split = "31/17/3",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-aff",
         style = {
             key = "survival",
@@ -12803,8 +12797,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 108.79,
@@ -12813,8 +12807,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Affliction with at least 31 points, 51 points at level 60; variant survival; pet: Felhunter; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -12981,7 +12975,7 @@ ns.COMPUTED.WARLOCK = {
         split = "31/17/3",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-aff",
         style = {
             key = "pet",
@@ -12994,8 +12988,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 116.69,
@@ -13004,8 +12998,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Affliction with at least 31 points, 51 points at level 60; variant leveling; pet: Voidwalker (leveling: keeps enemies off you); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.46, 2.93 },
@@ -13167,7 +13161,7 @@ ns.COMPUTED.WARLOCK = {
         split = "13/31/7",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -13176,8 +13170,8 @@ ns.COMPUTED.WARLOCK = {
             label = { de = "Grundverteilung, Sukkubus", en = "base build, Succubus" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 111.7,
@@ -13186,8 +13180,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Demonology with at least 31 points, 51 points at level 60; pet: Succubus; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -13348,7 +13342,7 @@ ns.COMPUTED.WARLOCK = {
         split = "8/31/12",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-demo",
         style = {
             key = "solo",
@@ -13361,8 +13355,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 123.48,
@@ -13371,8 +13365,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Demonology with at least 31 points, 51 points at level 60; variant leveling; pet: Succubus; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.46, 2.93 },
@@ -13528,7 +13522,7 @@ ns.COMPUTED.WARLOCK = {
         split = "0/31/20",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-demo",
         style = {
             key = "pvp",
@@ -13541,8 +13535,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 128.15,
@@ -13551,8 +13545,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Demonology with at least 31 points, 51 points at level 60; variant PvP; pet: Succubus; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -13711,7 +13705,7 @@ ns.COMPUTED.WARLOCK = {
         split = "8/31/12",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-demo",
         style = {
             key = "survival",
@@ -13724,8 +13718,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 111.26,
@@ -13734,8 +13728,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Demonology with at least 31 points, 51 points at level 60; variant survival; pet: Succubus; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -13892,7 +13886,7 @@ ns.COMPUTED.WARLOCK = {
         split = "2/18/31",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -13904,8 +13898,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 132.01,
@@ -13914,8 +13908,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Destruction with at least 31 points, 51 points at level 60; pet: Imp sacrificed (Demonic Sacrifice); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -14069,7 +14063,7 @@ ns.COMPUTED.WARLOCK = {
         split = "1/18/32",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-destro",
         style = {
             key = "solo",
@@ -14082,8 +14076,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 148.82,
@@ -14092,8 +14086,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Destruction with at least 31 points, 51 points at level 60; variant leveling; pet: Imp sacrificed (Demonic Sacrifice); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.46, 2.93 },
@@ -14247,7 +14241,7 @@ ns.COMPUTED.WARLOCK = {
         split = "1/18/32",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-destro",
         style = {
             key = "pvp",
@@ -14260,8 +14254,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 155.98,
@@ -14270,8 +14264,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Destruction with at least 31 points, 51 points at level 60; variant PvP; pet: Imp sacrificed (Demonic Sacrifice); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -14425,7 +14419,7 @@ ns.COMPUTED.WARLOCK = {
         split = "2/18/31",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-destro",
         style = {
             key = "survival",
@@ -14438,8 +14432,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 135.02,
@@ -14448,8 +14442,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Destruction with at least 31 points, 51 points at level 60; variant survival; pet: Imp sacrificed (Demonic Sacrifice); weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -14604,7 +14598,7 @@ ns.COMPUTED.WARLOCK = {
         split = "2/18/31",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-destro",
         style = {
             key = "pet",
@@ -14617,8 +14611,8 @@ ns.COMPUTED.WARLOCK = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 115.15,
@@ -14627,8 +14621,8 @@ ns.COMPUTED.WARLOCK = {
                 en = "Play style spell damage, main tree Destruction with at least 31 points, 51 points at level 60; pet: Succubus sacrificed (Demonic Sacrifice), Shadow Bolt; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 51 von 52 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 51 of 52 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [1225214] = { 1.13, 2.25 },
@@ -14783,7 +14777,7 @@ ns.COMPUTED.WARRIOR = {
         split = "31/18/2",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -14793,8 +14787,8 @@ ns.COMPUTED.WARRIOR = {
             label = { de = "Grundverteilung, Zweihand-Axt", en = "base build, two-handed axe" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 81.94,
@@ -14803,8 +14797,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Arms with at least 31 points, 51 points at level 60; weapons: two-handed axe; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12163] = { 2, 4, 6 },
@@ -14960,7 +14954,7 @@ ns.COMPUTED.WARRIOR = {
         split = "31/18/2",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-arms",
         style = {
             key = "solo",
@@ -14974,8 +14968,8 @@ ns.COMPUTED.WARRIOR = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 87.01,
@@ -14984,8 +14978,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Arms with at least 31 points, 51 points at level 60; variant leveling; weapons: two-handed axe; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12163] = { 2, 4, 6 },
@@ -15144,7 +15138,7 @@ ns.COMPUTED.WARRIOR = {
         split = "31/16/4",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-arms",
         style = {
             key = "pvp",
@@ -15158,8 +15152,8 @@ ns.COMPUTED.WARRIOR = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 86.7,
@@ -15168,8 +15162,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Arms with at least 31 points, 51 points at level 60; variant PvP; weapons: two-handed axe; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12163] = { 2, 4, 6 },
@@ -15327,7 +15321,7 @@ ns.COMPUTED.WARRIOR = {
         split = "32/17/2",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-arms",
         style = {
             key = "survival",
@@ -15341,8 +15335,8 @@ ns.COMPUTED.WARRIOR = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 76.62,
@@ -15351,8 +15345,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Arms with at least 31 points, 51 points at level 60; variant survival; weapons: two-handed axe; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12163] = { 1.7, 3.4, 5.1 },
@@ -15508,7 +15502,7 @@ ns.COMPUTED.WARRIOR = {
         split = "18/31/2",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "damage",
@@ -15518,8 +15512,8 @@ ns.COMPUTED.WARRIOR = {
             label = { de = "Grundverteilung, zwei Waffen", en = "base build, dual wield" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 114.41,
@@ -15528,8 +15522,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Fury with at least 31 points, 51 points at level 60; weapons: dual wield; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12282] = { 0.06, 0.12, 0.18 },
@@ -15679,7 +15673,7 @@ ns.COMPUTED.WARRIOR = {
         split = "18/31/2",
         grade = "computed",
         purpose = { "leveling", "solo" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-fury",
         style = {
             key = "solo",
@@ -15693,8 +15687,8 @@ ns.COMPUTED.WARRIOR = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 124.87,
@@ -15703,8 +15697,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Fury with at least 31 points, 51 points at level 60; variant leveling; weapons: dual wield; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12282] = { 0.09, 0.18, 0.27 },
@@ -15857,7 +15851,7 @@ ns.COMPUTED.WARRIOR = {
         split = "16/31/4",
         grade = "computed",
         purpose = { "pvp" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-fury",
         style = {
             key = "pvp",
@@ -15871,8 +15865,8 @@ ns.COMPUTED.WARRIOR = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 116.58,
@@ -15881,8 +15875,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Fury with at least 31 points, 51 points at level 60; variant PvP; weapons: dual wield; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12282] = { 0.06, 0.12, 0.18 },
@@ -16035,7 +16029,7 @@ ns.COMPUTED.WARRIOR = {
         split = "18/31/2",
         grade = "computed",
         purpose = { "leveling", "solo", "dungeon" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-fury",
         style = {
             key = "survival",
@@ -16049,8 +16043,8 @@ ns.COMPUTED.WARRIOR = {
             },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 108.23,
@@ -16059,8 +16053,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Fury with at least 31 points, 51 points at level 60; variant survival; weapons: dual wield; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12282] = { 0.06, 0.12, 0.18 },
@@ -16211,7 +16205,7 @@ ns.COMPUTED.WARRIOR = {
         split = "19/31/1",
         grade = "computed",
         purpose = { "dungeon", "raid" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         variantOf = "sim-fury",
         style = {
             key = "weapon",
@@ -16222,8 +16216,8 @@ ns.COMPUTED.WARRIOR = {
             label = { de = "Zweihand-Axt statt zwei Waffen", en = "two-handed axe instead of dual wield" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 96.59,
@@ -16232,8 +16226,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style melee damage, main tree Fury with at least 31 points, 51 points at level 60; weapons: two-handed axe; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12163] = { 2, 4, 6 },
@@ -16389,7 +16383,7 @@ ns.COMPUTED.WARRIOR = {
         split = "9/11/31",
         grade = "computed",
         purpose = { "tank" },
-        read = "2026-11-20",
+        read = "2026-11-22",
         style = {
             key = "raid",
             role = "tank",
@@ -16399,8 +16393,8 @@ ns.COMPUTED.WARRIOR = {
             label = { de = "Grundverteilung, Schild", en = "base build, shield" },
         },
         computed = {
-            date = "2026-11-20",
-            build = "1.60.1.70938",
+            date = "2026-11-22",
+            build = "1.60.1.71037",
             model = "3",
             provisional = true,
             value = 77.83,
@@ -16409,8 +16403,8 @@ ns.COMPUTED.WARRIOR = {
                 en = "Play style tanking, main tree Protection with at least 31 points, 51 points at level 60; weapons: shield; weights estimated, a single ability counts as 15 % of output; talents without a recognised effect count as zero; provisional, base stats estimated: from the client tables (wago.tools), not yet measured in the game (%s values, every level counts); without a rank curve each rank counts an equal share",
             },
             values = {
-                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.70938): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.70938, deDE)",
-                en = "Client tables according to wago.tools (wowf 1.60.1.70938): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.70938, deDE)",
+                de = "Client-Tabellen laut wago.tools (wowf 1.60.1.71037): Talentbäume, Schwellen, Vorgänger und Zahlen je Rang; Wirkung aus den englischen Texten erkannt, 49 von 53 Talenten; deutsche Namen laut wago.tools (wowf 1.60.1.71037, deDE)",
+                en = "Client tables according to wago.tools (wowf 1.60.1.71037): talent trees, thresholds, prerequisites and numbers per rank; effect recognised from the English texts, 49 of 53 talents; German names according to wago.tools (wowf 1.60.1.71037, deDE)",
             },
             weights = {
                 [12282] = { 0.05, 0.09, 0.13 },

@@ -39,6 +39,7 @@ local function Register()
     page:Slider("minPercent", 0, 20, 1, Percent)
 
     page:Header(L.OPT_HEADER_TOOLTIP, L.OPT_HEADER_TOOLTIP_TIP)
+    Check("tooltipAlts")
     Check("recipeCompare")
 
     page:Header(L.OPT_HEADER_CHARACTER)

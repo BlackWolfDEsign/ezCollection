@@ -20,6 +20,19 @@ local Core = ezCore
 --     Ahn'Qiraj Temple; die klassischen Namen bleiben als Kürzel (abbr). Die deutschen Namen liegen nicht in den Tabellen.
 --   - Ersatz-Stufenbereiche min/max: UNGEPRÜFT – Richtwerte aus Classic, im Spiel gegen den Client zu bestätigen
 --     (Forever kann andere Stufen haben; maßgeblich ist immer, was die Gruppensuche meldet).
+--     Abgleich mit den Client-Tabellen (T14-8, Paket „Daten auf Build 71037“, 22.11.2026; laut wago.tools, Produkt wowf,
+--     Build 1.60.1.71037, Tabellen MapDifficulty und ContentTuning): Der Client führt je Dungeon (Schwierigkeit 1) genau
+--     eine feste Stufe – MinLevelSquish = MaxLevelSquish, Kennzeichen 256, LfgMinLevel/LfgMaxLevel 0 –, keinen Bereich
+--     für Spieler. Die Schlachtzüge haben in MapDifficulty keine (in LFGDungeons, soweit dort geführt, 60), die offenen
+--     Gebiete 0–0 mit dem Kennzeichen 260 (sie skalieren). Die Zahl ist darum die Stufe, auf die der Inhalt festgelegt
+--     ist („Inhaltsstufe“),
+--     nicht die empfohlene Spielerstufe dieser Tabelle; dass die gewöhnlichen Gegner genau diese Stufe haben, ist eine
+--     Vermutung aus dem Aufbau der Tabelle (Spieltest: docs/roadmap/ezCore.md, „Im Spiel prüfen“, T14-8). Abweichung zu
+--     min/max: Bei 16 der 19 klassischen Dungeons liegt die Inhaltsstufe 1 bis 6 Stufen unter min (etwa Todesminen 16
+--     zu 17–26, Burg Schattenfang 18 zu 22–30, Uldaman 35 zu 41–51), bei Flammenschlund und den Höhlen des Wehklagens
+--     gleich min, beim Scharlachroten Kloster darüber (30 zu 26–45) – eine andere Größe, kein Widerspruch. Die Werte
+--     erzeugt tools/wago.lua aus den Tabellen (tools/daten/wago/kennungen.lua, maps[ID] Feld 3; keine Abschrift hier);
+--     tools/wago_pruefung.lua meldet einen Dungeon, dessen Inhaltsstufe über max liegt oder dem sie fehlt.
 --   - Kürzel (abbr) und Gebiet mit dem Eingang (ENTRANCES): eigene Sammlung aus dem Sprachgebrauch im Chat bzw. der
 --     Lage der Eingänge in Classic; ungeprüft für Forever (ROADMAP ezCore, „Im Spiel prüfen“).
 

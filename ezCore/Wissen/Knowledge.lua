@@ -284,6 +284,22 @@ K.ProfessionName = ProfessionName
 K.ClassName = ClassLabel
 K.StatName = StatLabel
 
+-- Berufe nach Schlüssel, Fertigkeitslinie und Name (KnowledgeData.PROFESSIONS; für Recipes.lua – eigene Berufe,
+-- 24.11.2026; eine Tabelle, Hinweis des Reviews)
+function K.ProfessionLine(key)
+    Setup()
+    local p = type(key) == "string" and PROF_BY_KEY[key] or nil
+    return p and Num(p.skillLine) or nil
+end
+function K.ProfessionOfLine(line)
+    Setup()
+    return PROF_BY_LINE[Num(line) or -1]
+end
+function K.ProfessionOfName(name)
+    Setup()
+    return ProfKeyFromName(name)
+end
+
 -- Schlüssel aus GetItemStats → eigener Wert-Schlüssel; Waffenschaden je nach Platz MELEEDPS oder RANGEDDPS.
 function K.StatKey(blizzKey, equipLoc)
     local data = ns.KnowledgeData or EMPTY   -- auch vor der Einrichtung (Setup) gültig
@@ -777,6 +793,13 @@ local function LearnedRecipe(key)
     return kdb and key and kdb.recipes[key]
 end
 
+-- Rezepte laut Client-Tabellen (24.11.2026; ezCore.ClientData, Form und Namen über Knowledge.Recipe in Recipes.lua)
+local function TableRecipe(key)
+    local rec = key and K.Recipe and K.Recipe(key)
+    return type(rec) == "table" and rec.os == "tables" and rec or nil
+end
+local function ClientData() return ezCore.ClientData end
+
 local function BuildRecipe(f, tip)
     local r = f.recipe
     if not r then return end
@@ -789,7 +812,11 @@ local function BuildRecipe(f, tip)
     r.createdMinLevel = tip.createdMinLevel
     r.createdUse = #tip.createdUse > 0 and tconcat(tip.createdUse, " ") or nil
     r.known = tip.flags.known or nil
-    r.createdItemID = ItemIDByName(r.createdName)
+    -- Was der Gegenstand lehrt, sagen die Client-Tabellen (24.11.2026); der Name im Tooltip ist der Rückfall
+    local CD = ClientData()
+    local taught = CD and CD.RecipeTaughtBy and CD.RecipeTaughtBy(f.itemID)
+    taught = taught and K.Recipe and K.Recipe(taught) or nil
+    r.createdItemID = taught and taught.o or ItemIDByName(r.createdName)
     if tip.createdSlot then
         r.createdSlotKey = D.SLOT_KEYS and D.SLOT_KEYS[tip.createdSlot]
         r.createdSlot, r.createdSubType = SlotLabel(tip.createdSlot), tip.createdSubType
@@ -801,8 +828,9 @@ local function BuildRecipe(f, tip)
         end
     end
     r.reagents = ParseReagents(tip.reagentText)
-    -- Keine Zutaten im Tooltip, aber das Rezept ist gelernt bekannt → aus der db.
-    local rec = r.createdItemID and kdb and LearnedRecipe(kdb.created[r.createdItemID])
+    -- Keine Zutaten im Tooltip: die des gelehrten Rezepts (K.Recipe: gesehen, sonst laut Client-Tabellen); ohne die
+    -- Tabellen das gesehene Rezept desselben Produkts.
+    local rec = taught or (r.createdItemID and kdb and LearnedRecipe(kdb.created[r.createdItemID])) or nil
     if #r.reagents == 0 and rec then
         for id, count in pairs(rec.r or EMPTY) do
             r.reagents[#r.reagents + 1] = { name = ItemNameByID(id) or ("#" .. id), count = count, itemID = id }
@@ -885,10 +913,17 @@ local function ParseClassList(text)
     return set
 end
 
--- Wer darf es tragen/benutzen? profLevel[Klasse] = ab welcher Stufe die Klasse die Art beherrscht.
+-- Wer darf es tragen/benutzen? profLevel[Klasse] = ab welcher Stufe die Klasse die Art beherrscht. Zuerst die
+-- Client-Tabellen dieses Builds (ezCore.Proficiency, Paket ezgear/lernbar-tragbar; Leitlinien 11 und 12), nur für Arten
+-- ohne Fertigkeit dort die ungeprüften Classic-Regeln aus KnowledgeData (ARMOR_PROF, WEAPONS_BY_CLASS).
 local function BuildUsable(f, tip)
     local prof
-    if f.isEquipment then
+    local P = ezCore.Proficiency
+    local levels = f.isEquipment and P and type(P.ClassLevels) == "function" and P.ClassLevels(f.classID, f.subClassID)
+    if levels then
+        prof = {}
+        for token, level in pairs(levels) do prof[token] = level end
+    elseif f.isEquipment then
         if f.classID == 4 then
             local rule = D.ARMOR_PROF and D.ARMOR_PROF[f.subClassID]
             if rule then
@@ -954,37 +989,85 @@ local function BuildGoodFor(f)
 end
 
 local function BuildReagentFor(f)
+    f._names = nil
     local profs, seen, recipes = {}, {}, {}
     local function add(key)
         if key and not seen[key] then seen[key] = true; profs[#profs + 1] = key end
     end
+    -- Berufe nach der Zahl ihrer Rezepte (feste Reihenfolge: der erste gilt ezBag beim Unterteilen nach Beruf)
+    local function addCounted(counts)
+        local keys = {}
+        for key in pairs(counts) do keys[#keys + 1] = key end
+        tsort(keys, function(a, b)
+            if counts[a] ~= counts[b] then return counts[a] > counts[b] end
+            return a < b
+        end)
+        for _, key in ipairs(keys) do add(key) end
+    end
     local learned = kdb and kdb.reagents[f.itemID]
     local seenRecipes = learned ~= nil and next(learned) ~= nil
-    if learned then
-        for key in pairs(learned) do
-            local rec = LearnedRecipe(key)
+    local counts = {}
+    for key in pairs(learned or EMPTY) do
+        local rec = LearnedRecipe(key)
+        if rec then
+            if rec.p then counts[rec.p] = (counts[rec.p] or 0) + 1 end
+            if rec.n then recipes[#recipes + 1] = rec.n end
+        end
+    end
+    addCounted(counts)
+    -- Rezepte laut Client-Tabellen, die noch kein Twink gesehen hat (24.11.2026; Leitlinie 11)
+    local CD = ClientData()
+    local tables = CD and CD.Table and CD.Table("recipeItems") ~= nil
+    local fromTables, seenProfs = 0, #profs
+    counts = {}
+    for key in pairs(tables and CD.RecipesUsing(f.itemID) or EMPTY) do
+        -- wie K.RecipesUsing: auch ein gesehenes Rezept, zu dem der Client keine Zutaten nannte
+        local own = LearnedRecipe(key)
+        if not own or next(own.r or EMPTY) == nil then
+            local rec = own or TableRecipe(key)
             if rec then
-                add(rec.p)
-                if rec.n then recipes[#recipes + 1] = rec.n end
+                if rec.p then counts[rec.p] = (counts[rec.p] or 0) + 1 end
+                recipes[#recipes + 1] = rec.n or ("#" .. key)       -- Name lädt noch: zählt mit, K.Describe baut neu
+                fromTables = fromTables + 1
+                if not rec.n then f._names = true end
             end
         end
     end
+    addCounted(counts)
+    local tableProfs = #profs > seenProfs
     if f.classID == 7 then
         local tg = D.TRADEGOODS and D.TRADEGOODS[f.subClassID]
         if tg then
             f.material = tg.mat
-            for _, key in ipairs(tg.profs or EMPTY) do add(key) end
+            -- Beruf nach der Warenart ist geraten („Grober Faden“ für Erste Hilfe) – nur ohne die Client-Tabellen
+            for _, key in ipairs(not tables and tg.profs or EMPTY) do add(key) end
         end
     end
-    if #profs > 0 or #recipes > 0 or f.isCraftingReagent then
+    -- Handwerksware (Stoff, Leder, Metall …) auch ohne jedes Rezept: die Zeile sagt dann, dass keins sie braucht
+    if #profs > 0 or #recipes > 0 or f.isCraftingReagent or (tables and f.material) then
         tsort(recipes)
-        -- Quelle je Angabe (Leitlinie 11, BAG-16): Rezepte kennt ezCore nur aus gesehenen Berufefenstern
-        f.reagentFor = { professions = profs, recipes = recipes, source = seenRecipes and "seen" or "client" }
+        -- Quelle je Angabe (Leitlinie 11, BAG-16): gesehene Berufefenster, sonst die Client-Tabellen; ohne Rezept die Art
+        -- der Ware laut Client. recipesSource gilt den Rezepten: "seen", "tables" oder "mixed" (beides)
+        f.reagentFor = { professions = profs, recipes = recipes,
+            source = (seenProfs > 0 and (tableProfs and "mixed" or "seen")) or (tableProfs and "tables")
+                or (seenRecipes and "seen") or "client",
+            recipesSource = fromTables == 0 and "seen" or (seenRecipes and "mixed" or "tables") }
     end
-    -- Hergestellt mit: gesehenes Rezept, sonst die Zuordnung laut AtlasLoot aus dieser Sitzung (Quelle je Zeile, Leitlinie 11)
+    -- Hergestellt mit: gesehenes Rezept, sonst laut Client-Tabellen, sonst die Zuordnung laut AtlasLoot aus dieser Sitzung
+    -- (Quelle je Zeile, Leitlinie 11)
     local key, src = kdb and kdb.created[f.itemID], "seen"
-    if not key and K.AtlasRecipeOf then key, src = K.AtlasRecipeOf(f.itemID), "atlasloot" end
     local rec = key and LearnedRecipe(key)
+    if not rec and CD and CD.RecipesOf then
+        for _, id in ipairs(CD.RecipesOf(f.itemID)) do
+            rec, src = TableRecipe(id), "tables"
+            if rec and rec.o == f.itemID then break end
+            rec = nil
+        end
+    end
+    if not rec and K.AtlasRecipeOf then
+        key, src = K.AtlasRecipeOf(f.itemID), "atlasloot"
+        rec = key and LearnedRecipe(key)
+    end
     if rec then f.craftedBy = { profession = rec.p, recipe = rec.n, source = src } end
 end
 
@@ -1119,10 +1202,14 @@ local function Build(itemID, link)
     -- Unvollständig: kein Tooltip, "Wird abgerufen …" oder Benutzen-Text fehlt noch (Zauberdaten laden nach).
     local needsUse = f.hasUseSpell and (f.classID == 0 or f.classID == 9)
     f._partial = lines == nil or tip.incomplete or (needsUse and #tip.use == 0) or nil
+    f._retrieving = tip.incomplete == true or nil
     if f._partial and f.useSpellID and C_Spell and C_Spell.RequestLoadSpellData then
         pcall(C_Spell.RequestLoadSpellData, f.useSpellID)
     end
-    if f.reagentFor or f.craftedBy or f.classID == 7 then RememberName(f.name, itemID) end
+    -- Namen merken (Rezept-Tooltips nennen Zutaten nur beim Namen): Handwerkswaren und selbst gesehene Rezepte. Was nur die
+    -- Client-Tabellen nennen, braucht ihn nicht – sie führen die IDs (24.11.2026).
+    local rf, cb = f.reagentFor, f.craftedBy
+    if f.classID == 7 or (rf and rf.source ~= "tables") or (cb and cb.source ~= "tables") then RememberName(f.name, itemID) end
     return f
 end
 
@@ -1149,6 +1236,15 @@ local function CanUse(f, class, level, charKey)
     return true, (level or 0) >= from, from
 end
 
+-- Fehlt einem Charakter die Berufsfertigkeit, die der Gegenstand verlangt („Benötigt Ingenieurskunst (200)“)? Nur, wenn
+-- seine Berufe bekannt sind.
+local function SkillMissing(f, charKey)
+    local req = f.reqSkill
+    if not (req and req.profession) then return false end
+    local rank, known = CharProfRank(charKey, req.profession)
+    return known and (rank or 0) < (req.rank or 0)
+end
+
 local function AltsFor(f)
     local chars = type(ns.db) == "table" and ns.db.chars
     if type(chars) ~= "table" then return nil end
@@ -1160,6 +1256,7 @@ local function AltsFor(f)
         if key ~= ns.charKey and type(c) == "table" and c.class then
             local ok, now, from = CanUse(f, c.class, Num(c.level), key)
             if ok and f.consumable and f.goodFor and not f.goodFor[c.class] then ok = false end
+            if ok and SkillMissing(f, key) then ok = false end
             if ok then
                 out = out or {}
                 out[#out + 1] = { key = key, name = c.name or key, class = c.class, level = c.level, now = now, from = from }
@@ -1191,7 +1288,7 @@ local function UpdateDynamic(f)
     if f._dyn == dynStamp then return end
     f._dyn = dynStamp
     local class, level = PlayerClass(), PlayerLevel()
-    f.usableNow, f.usableFrom = nil, nil
+    f.usableNow, f.usableFrom, f.learn, f.skillMissing = nil, nil, nil, nil
     local r = f.recipe
     if r and r.profession then
         local rank, knownChar = CharProfRank(ns.charKey, r.profession)
@@ -1206,11 +1303,31 @@ local function UpdateDynamic(f)
         local ok, now, from = CanUse(f, class, level, ns.charKey)
         if ok then
             f.usableFrom, f.usableNow = from, now
-            local req = f.reqSkill
-            local rank, knownChar = CharProfRank(ns.charKey, req and req.profession)
-            if req and req.profession and knownChar and (rank or 0) < (req.rank or 0) then f.usableNow = false end
+            -- fehlende Berufsfertigkeit: auch mit der Stufe nicht tragbar
+            if SkillMissing(f, ns.charKey) then f.usableNow, f.skillMissing = false, true end
+            -- Waffen- und Rüstungsfertigkeit (ezCore.Proficiency): Die Klasse kann sie, der Charakter hat sie aber noch
+            -- nicht gelernt (Waffenmeister, Platte ab 40) » f.learn = Weg (Proficiency.Way), nicht jetzt tragbar.
+            -- Sagt der Client nichts Verlässliches, bleibt es bei Klasse und Stufe.
+            local P = ezCore.Proficiency
+            if f.isEquipment and P and type(P.ForItem) == "function" then
+                local state, way = P.ForItem(f.classID, f.subClassID)
+                if state == "learn" then
+                    f.usableNow, f.learn = false, way
+                elseif state == "never" then
+                    f.usableNow, f.usableFrom = false, nil
+                end
+            end
         else
             f.usableNow = false
+            -- Kein Lehrer für die Klasse (etwa Schamane + Zweihandäxte: nur Zeilen mit 0x100, ezCore.Proficiency), der
+            -- Charakter hat die Fertigkeit laut Client aber schon » doch tragbar, sofern Blizzards Zeile „Klassen: …“
+            -- die Klasse nicht ausschließt.
+            local P = ezCore.Proficiency
+            if f.isEquipment and P and type(P.ForItem) == "function" and not (f.classLine and not f.classLine[class])
+                and P.ForItem(f.classID, f.subClassID) == "known" then
+                local from = f.minLevel or 1
+                f.usableFrom, f.usableNow = from, (level or 0) >= from
+            end
         end
     end
     local tags = {}
@@ -1253,23 +1370,25 @@ local function OnLoaded(itemID)
     end
 end
 
--- requested[] drosselt (höchstens alle 10 s), pending[] merkt "Bescheid geben, wenn da".
+-- requested[] drosselt (höchstens alle 10 s), pending[] merkt "Bescheid geben, wenn da". Angefordert wird direkt beim
+-- Client, die Antwort kommt über ITEM_DATA_LOAD_RESULT (unten) – nicht über Blizzards Item:ContinueOnItemLoad: das legt
+-- den Rückruf in Blizzards Warteliste ItemEventListener.callbacks[itemID] an (Blizzard_ObjectAPI/Mainline/
+-- AsyncCallbackSystem.lua, Zweig forever), also einen Eintrag aus Addon-Code, den Blizzards eigene Abfragen derselben ID
+-- danach lesen (Leitlinie 5; Fund des code-reviewers zu „Taint 4“, 23.11.2026).
 local function RequestLoad(itemID)
     pending[itemID] = true
     local now = GetTime and GetTime() or 0
     if requested[itemID] and now - requested[itemID] < 10 then return end
     requested[itemID] = now
-    local requestedOk = false
-    if Item and Item.CreateFromItemID then
-        local ok, item = pcall(Item.CreateFromItemID, Item, itemID)
-        if ok and type(item) == "table" and item.ContinueOnItemLoad then
-            requestedOk = pcall(item.ContinueOnItemLoad, item, function() OnLoaded(itemID) end)
-        end
-    end
-    if not requestedOk and C_Item and C_Item.RequestLoadItemDataByID then
+    if C_Item and C_Item.RequestLoadItemDataByID then
         pcall(C_Item.RequestLoadItemDataByID, itemID)
     end
 end
+-- Jede Antwort zählt, auch eine erfolglose – wie bisher der Rückruf von ContinueOnItemLoad (Blizzard ruft ihn für
+-- Gegenstände auch ohne Erfolg).
+ns.On("ITEM_DATA_LOAD_RESULT", function(_, itemID)
+    if not IsSecret(itemID) and itemID and pending[itemID] then OnLoaded(itemID) end
+end)
 
 -- Unvollständige facts bis zu dreimal nachladen, dann melden.
 local function ScheduleRetry(itemID, link, vkey)
@@ -1319,6 +1438,17 @@ function K.Get(itemOrLink)
     if ok then return f end
     K.lastError = f
     return nil
+end
+
+-- Ist dieses Wissen unvollständig (K.Incomplete)? Dann ändern sich seine Werte vielleicht noch – nicht merken; kommen sie
+-- nach, meldet es K.OnReady. K.Loading dazu: der Tooltip des Clients sagt „Gegenstandsinformationen werden abgerufen“ –
+-- die Werte sind noch gar nicht da. Beides gilt auch, wenn die eigenen Versuche (ScheduleRetry) aufgebraucht sind.
+function K.Incomplete(f)
+    return type(f) == "table" and f._partial ~= nil
+end
+
+function K.Loading(f)
+    return K.Incomplete(f) and f._retrieving == true
 end
 
 function K.OnReady(fn)
@@ -1379,9 +1509,34 @@ local function RelSet(f)
             for other in pairs(rec.r or EMPTY) do addID(other, format(LL.REL_REAGENT_OF, rec.n or "?")) end
         end
     end
+    -- dasselbe laut Client-Tabellen für Rezepte, die noch kein Twink gesehen hat (24.11.2026)
+    -- (K.Recipe: gesehen, sonst Tabellen; Mitzutaten nur bei höchstens REL_SHARED_MAX Rezepten – ein Faden steht in
+    -- hunderten, da sagt „gemeinsames Rezept“ nichts mehr)
+    local CD = ClientData()
+    local using = CD and CD.RecipesUsing and CD.RecipesUsing(f.itemID) or EMPTY
+    local count = 0
+    for _ in pairs(using) do count = count + 1 end
+    for key in pairs(using) do
+        local own = LearnedRecipe(key)
+        local rec = (not own or next(own.r or EMPTY) == nil) and K.Recipe(key)
+        if rec then
+            addID(rec.o, format(LL.REL_REAGENT_OF, rec.n or "?"))
+            for other in pairs(count <= K.REL_SHARED_MAX and rec.r or EMPTY) do
+                if other ~= f.itemID then addID(other, format(LL.REL_SHARED, rec.n or "?")) end
+            end
+        end
+    end
+    local product = r and r.createdItemID or f.itemID
+    for _, key in ipairs(CD and CD.RecipesOf and CD.RecipesOf(product) or EMPTY) do
+        local own = LearnedRecipe(key)
+        local rec = (not own or next(own.r or EMPTY) == nil) and K.Recipe(key)
+        for other in pairs(rec and rec.r or EMPTY) do addID(other, format(LL.REL_REAGENT_OF, rec.n or "?")) end
+    end
     f._rel = { ids = ids, names = names }
     return f._rel
 end
+
+K.REL_SHARED_MAX = 60
 
 local function RelatedOneWay(a, b)
     local rel = RelSet(a)
@@ -1713,6 +1868,8 @@ end
 --   K.CoverLine(key, owner, fn(facts) → true)   fn nil hebt auf. key:
 --     "recipes" (DL_RECIPES) | "crafted" (DL_CRAFTED)
 --     "wear"    Zeile „Tragbar/Benutzbar ab Stufe“   | "class"  Zeile „Nicht für deine Klasse“
+--     "alts"    Zeile „Twinks“ (wer es benutzen kann); fn(facts, tip) darf auch { [charKey] = true } liefern: nur diese
+--               Namen fehlen dann. tip = { link, data } im Tooltip, sonst nil.
 -- Liefert eins der fn true, lässt das Item-Wissen seine kurze Zeile weg (nichts doppelt im Tooltip).
 --
 -- Je Aussage eine Zeile, und nichts, was Blizzards Tooltip schon sagt (Spieltest 14.11.2026: „Benötigt Stufe 14“
@@ -1742,11 +1899,22 @@ local function Covered(key, f)
 end
 K.Covered = Covered
 
-local function Describe(f, full)
+-- Wie Covered, nur je Schlüssel: { [Schlüssel] = true } aller fn, die eine Tabelle liefern
+local function CoveredKeys(key, f, tip)
+    local out = {}
+    for _, fn in pairs(covers[key] or EMPTY) do
+        local ok, keys = pcall(fn, f, tip)
+        for k in pairs(ok and type(keys) == "table" and keys or EMPTY) do out[k] = true end
+    end
+    return out
+end
+
+local function Describe(f, full, tip)
     UpdateDynamic(f)
     local out = {}
     -- key: welche Aussage (Knowledge.ShowsLine); source: woher sie stammt ("client" = Gegenstand und Blizzards
-    -- Tooltip, "seen" = selbst gesehen, "atlasloot", "none" = noch nichts bekannt – BAG-16, Leitlinie 11)
+    -- Tooltip, "seen" = selbst gesehen, "tables" = Client-Tabellen, "mixed" = gesehen und Client-Tabellen, "atlasloot",
+    -- "none" = noch nichts bekannt – BAG-16, Leitlinie 11)
     local function add(label, text, tone, key, source)
         if (label and label ~= "") or (text and text ~= "") then
             out[#out + 1] = { label = label, text = text, tone = tone, key = key, source = source or "client" }
@@ -1796,6 +1964,7 @@ local function Describe(f, full)
         end
     end
 
+    if f._names then BuildReagentFor(f) end        -- Rezeptnamen fehlten beim Bauen: noch einmal fragen
     local rf = f.reagentFor
     if rf then
         local names = {}
@@ -1805,10 +1974,17 @@ local function Describe(f, full)
         if n > 0 and not Covered("recipes", f) then
             local list = {}
             for i = 1, math.min(n, 3) do list[i] = rf.recipes[i] end
-            add(format(LL.DL_RECIPES, n), tconcat(list, ", ") .. (n > 3 and ", …" or ""), nil, "recipes", "seen")
+            add(format(LL.DL_RECIPES, n), tconcat(list, ", ") .. (n > 3 and ", …" or ""), nil, "recipes",
+                rf.recipesSource or "seen")
         elseif n == 0 and f.classID == 7 and not Covered("recipes", f) then
-            -- Handwerksware ohne ein gesehenes Rezept: sagen, warum nichts dasteht (BAG-16, „statt Schweigen“)
-            add(LL.DL_RECIPES_ANY, LL.D_NOT_SEEN, nil, "recipes", "none")
+            -- Handwerksware ohne Rezept: sagen, warum nichts dasteht (BAG-16, „statt Schweigen“). Mit den Client-Tabellen
+            -- (24.11.2026) steht fest, dass kein Rezept dieses Builds sie braucht; ohne sie: noch keins gesehen
+            local CD = ClientData()
+            if CD and CD.Table and CD.Table("recipeItems") then
+                add(LL.DL_RECIPES_ANY, LL.D_NO_RECIPE, nil, "recipes", "tables")
+            else
+                add(LL.DL_RECIPES_ANY, LL.D_NOT_SEEN, nil, "recipes", "none")
+            end
         end
     end
     if f.craftedBy and f.craftedBy.profession and not Covered("crafted", f) then
@@ -1854,22 +2030,26 @@ local function Describe(f, full)
     if #special > 0 then add(LL.DL_SPECIAL, tconcat(special, ", "), nil, "special") end
 
     local alts = f.usefulForAlts
-    if alts and #alts > 0 then
-        local parts = {}
-        for i, a in ipairs(alts) do
-            if i > 5 then parts[#parts + 1] = "…"; break end
-            parts[#parts + 1] = a.now and tostring(a.name) or format(LL.D_ALT_LATER, tostring(a.name), a.from or 0)
+    if alts and #alts > 0 and (full or not Covered("alts", f)) then
+        local parts, hidden = {}, full and EMPTY or CoveredKeys("alts", f, tip)
+        for _, a in ipairs(alts) do
+            if not hidden[a.key] then
+                if #parts >= 5 then parts[#parts + 1] = "…"; break end
+                parts[#parts + 1] = a.now and tostring(a.name) or format(LL.D_ALT_LATER, tostring(a.name), a.from or 0)
+            end
         end
-        add(LL.DL_ALTS, tconcat(parts, ", "), nil, "alts", "seen")
+        if #parts > 0 then add(LL.DL_ALTS, tconcat(parts, ", "), nil, "alts", "seen") end
     end
     return out
 end
 
 -- Strukturierte Zeilen { label, text, tone } für Tooltips, die selbst einfärben.
 -- opts.full: auch die Zeilen, die Blizzards Tooltip schon zeigt (Stufe des Gegenstands, „Nur für: …“).
+-- opts.tip = { link, data }: die Zeilen stehen in diesem Gegenstands-Tooltip (für K.CoverLine).
 function K.DescribeLines(f, opts)
     if type(f) ~= "table" then return {} end
-    local ok, lines = pcall(Describe, f, type(opts) == "table" and opts.full == true)
+    opts = type(opts) == "table" and opts or EMPTY
+    local ok, lines = pcall(Describe, f, opts.full == true, opts.tip)
     return ok and lines or {}
 end
 
@@ -1887,9 +2067,11 @@ function K.ShowsLine(item, key)
     return false
 end
 
--- Text zur Quelle einer Zeile („bei dir gesehen“, „laut AtlasLoot“) oder nil für "client"/"none".
+-- Text zur Quelle einer Zeile („bei dir gesehen“, „laut AtlasLoot“, „laut Client-Tabellen“) oder nil für "client"/"none".
 function K.SourceText(source)
     if source == "seen" then return LL.SRC_seen end
+    if source == "tables" then return LL.SRC_tables end
+    if source == "mixed" then return LL.SRC_mixed end
     if source == "atlasloot" then return LL.SRC_atlasloot end
     return nil
 end
@@ -2115,9 +2297,9 @@ end
 -- C_TradeSkillUI.GetRecipeOutputItemData, dann der Gegenstands-Link des Rezepts (GetRecipeItemLink); AtlasLoot erst
 -- danach (K.RecipeFor in Recipes.lua, über Core.Sources). Jede Antwort mit Formprüfung (Felder dürfen leer oder
 -- gesperrt sein); ohne Antwort bleibt alles wie bisher (o = nil). → itemID, Quelle ("schematic" | "output" | "link")
--- DG-44 gemessen (Spieltest 15.11.2026, Build 70938, deDE): GetRecipeOutputItemData(2330) liefert bei offenem
--- Berufefenster nur { icon = … } – keine itemID, keinen Link. Auf Forever kommt das Produkt deshalb aus dem Schema
--- bzw. dem Rezept-Link; der Aufruf bleibt mit Formprüfung für andere Clients stehen (ohne Feld fällt er durch).
+-- DG-44 gemessen (Spieltest 15.11.2026, Build 70938, deDE): GetRecipeOutputItemData(2330) lieferte bei offenem
+-- Berufefenster nur { icon = … } – aber Rezept 2330 gibt es auf Forever nicht (SpellName, 24.11.2026): die Messung belegt
+-- nichts, die Abfrage ist offen (docs/datengrundlage.md 3.3). Der Aufruf bleibt mit Formprüfung (ohne Feld fällt er durch).
 local function ItemFromLink(link)
     link = Str(link)
     return link and ezCore.ItemID(link) or nil   -- Core.ItemID statt eigenem Muster (T16-16)

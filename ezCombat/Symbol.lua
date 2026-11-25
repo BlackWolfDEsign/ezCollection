@@ -26,13 +26,16 @@ local Core = ezCore
 -- verschwinden sie, sonst sind sie zu sehen. Die Spirale der Restzeit bekommt das Dauer-Objekt unverändert
 -- (SetCooldownFromDurationObject). Mitte und rechts bleiben davon unberührt. ezCombat liest die Restzeit dabei nie.
 --
--- Ein einzelnes Symbol steht in der Mitte (Wunsch des Nutzers vom 15.11.2026 nach dem Spieltest: „wenn es nur ein
+-- Ein seitliches Symbol allein steht in der Mitte (Wunsch des Nutzers vom 15.11.2026 nach dem Spieltest: „wenn es nur ein
 -- symbol gibt, sollte es doch in der mitte sein“ und „wenn direkt einer neuer zauber eingesetzt werden muss nach links
 -- rutschen bevor es verschwindet“; Schalter symbolCenter, ab Werk an): Zeigt nur der linke oder nur der rechte Platz
 -- etwas, steht er mittig über dem Charakter, sein Text darunter wie in der Mitte. Kommt ein zweiter Eintrag dazu
 -- (etwa die nächste Fähigkeit), gleitet er weich an seinen Platz – „läuft aus“ nach links, „wieder bereit“ nach
 -- rechts – und verschwindet dort nach seiner Anzeigedauer; bleibt er wieder allein, gleitet er zurück in die Mitte.
 -- Die Bewegung ist eine Translation am eigenen Rahmen (AnimationGroup), nichts Geschütztes.
+-- Die gesperrte Ebene links (DoT im Kampf) zählt dabei nur, wenn sonst nichts steht: Ob sie gerade zu sehen ist, weiß
+-- ezCombat nicht (Deckkraft aus Blizzards Kurve) – als sicherer Eintrag hielte ein unsichtbarer DoT „wieder bereit“
+-- rechts fest (Durchsicht 24.11.2026).
 --
 -- Noch nicht bereit (Wunsch des Nutzers vom 15.11.2026 abends: „wenn das mittige symbol auftaucht aber genau diese
 -- fähigkeit noch ne bereit ist muss man das auch sehen“): Trägt ein Eintrag seinen Zauber (spell), fragt die Anzeige
@@ -296,20 +299,11 @@ local moverPart
 -- Die gespeicherte Lage um die Hälfte einer Größenänderung der Mitte verschieben, damit die Mitte stehen bleibt.
 -- ezCore merkt sich nach dem Ziehen eine Ecke (Core.QuadrantPos: BOTTOMLEFT, TOPRIGHT …), keine Mitte; ohne
 -- Ausgleich wüchse die Mitte von dieser Ecke weg. Ohne gespeicherte Lage (Anker CENTER) ist nichts zu tun.
+-- Die Rechnung steht seit dem 23.11.2026 in ns.KeepCenter (Core.lua), die die Combo-Leiste mitnutzt; der Name bleibt.
 function Symbol.KeepCenter(delta)
     delta = ns.Num(delta)
     if not delta or delta == 0 or not moverPart then return false end
-    local pos = moverPart:Position()
-    local point = type(pos) == "table" and pos.point or nil
-    if type(point) ~= "string" then return false end
-    local half = delta / 2
-    local x, y = ns.Num(pos.x) or 0, ns.Num(pos.y) or 0
-    if point:find("LEFT", 1, true) then x = x - half elseif point:find("RIGHT", 1, true) then x = x + half end
-    if point:find("TOP", 1, true) then y = y + half elseif point:find("BOTTOM", 1, true) then y = y - half end
-    if x == pos.x and y == pos.y then return false end
-    Core.StorePosition(moverPart.key, { point = point, relPoint = pos.relPoint or point, x = x, y = y })
-    moverPart:Apply()
-    return true
+    return ns.KeepCenter(moverPart, delta, delta)
 end
 
 -- Einmalige Nachführung nach der Umstellung der Größen ab Werk (52 auf 45, ns.OnLoad, Merker iconSizes45): die
@@ -381,16 +375,19 @@ local function Slide(slot, fromX)
     anim:Play()
 end
 
--- Einzelnes Symbol in die Mitte, zwei und mehr an ihren Platz (shown[Platz] = zeigt etwas). Gleiten nur, wenn der
--- Platz schon zu sehen war; ein neu erscheinender springt an seiner Stelle auf.
+-- Einzelnes Symbol in die Mitte, zwei und mehr an ihren Platz (shown[Platz] = true: zeigt etwas, SECRET: nur die
+-- gesperrte Ebene, vielleicht unsichtbar). Gleiten nur, wenn der Platz schon zu sehen war; ein neu erscheinender springt
+-- an seiner Stelle auf.
+local SECRET = "secret"
 local function Arrange(shown, groupShown)
     local single, count = nil, 0
     for _, name in ipairs(Symbol.SLOTS) do
-        if shown[name] then
+        if shown[name] and shown[name] ~= SECRET then
             count = count + 1
             single = name
         end
     end
+    if count == 0 and shown.left == SECRET then single, count = "left", 1 end
     if count ~= 1 or single == "middle" or not ns.Enabled("symbolCenter") then single = nil end
     for _, name in ipairs({ "left", "right" }) do
         local slot = slots[name]
@@ -423,6 +420,7 @@ function Symbol.Layout(keepCenter)
     slots.left.frame:SetSize(left, left)
     slots.right.frame:SetSize(right, right)
     for _, name in ipairs(Symbol.SLOTS) do Anchor(slots[name]) end
+    if Symbol.PlaceLayers then Symbol.PlaceLayers() end   -- gemeinsame Ebenen (Symbol.NewLayer, weiter unten)
 end
 
 function Symbol.Frame()
@@ -622,7 +620,7 @@ end
 -- Spieltest 20.11.2026: „der goldene rahmen … taskleiste und symbol mitte“; ohne Zauber, bei unbekannter Antwort und
 -- in der Vorschau wie bisher). Die anderen Plätze leuchten immer. restart: neuer Eintrag – in seiner Art neu zeigen.
 local function SyncGlow(content, entry, restart, gated)
-    local on = not gated or entry.glowAlways == true or content.ready ~= false
+    local on = entry.glowNever ~= true and (not gated or entry.glowAlways == true or content.ready ~= false)
     if on and (restart or content.glowOn ~= true) then
         Glow.Show(content, false, entry.kind)
     elseif not on and content.glowOn ~= false then
@@ -647,13 +645,52 @@ end
 
 -- Wichtigster gültiger Eintrag eines Platzes (slotName) bzw. über alle Plätze (ohne slotName): Schlüssel, Eintrag.
 -- Das Beispiel (example) gehört in jeden Platz.
+-- Dieselbe Fähigkeit? Über den Zaubernamen (alle Ränge heißen gleich), sonst über den Namen des Eintrags.
+local function AbilityName(entry)
+    local spell = entry.spell
+    if type(spell) == "string" then return spell end
+    if spell ~= nil then return ns.SpellName(spell) end
+    return nil
+end
+local function SameAbility(a, b)
+    local nameA, nameB = AbilityName(a), AbilityName(b)
+    if type(nameA) == "string" and type(nameB) == "string" and not Core.IsSecret(nameA) and not Core.IsSecret(nameB) then
+        return nameA == nameB
+    end
+    return a.name ~= nil and a.name == b.name
+end
+Symbol.SameAbility = SameAbility
+
+-- Eine Fähigkeit nur an einem Platz (Spieltest 23.11.2026, Nutzer: „manchmal zeigt es eine fähigkeit in der mitte und
+-- rechts oder links an“): Steht sie als nächste Fähigkeit in der Mitte, zeigt der Platz links („läuft aus“) bzw.
+-- rechts („wieder bereit“) sie nicht noch einmal – die Mitte ist die Aufforderung, der Nebenplatz nur die Erinnerung.
+-- Der Nebenplatz zeigt dann seinen nächsten Eintrag oder nichts.
+local function Doubled(key, entry, slotName)
+    if slotName == nil or slotName == "middle" or key == "next" or key == "example" then return false end
+    local nextEntry = entries.next      -- „next“ kommt nur über Symbol.Set (dauerhaft)
+    return nextEntry ~= nil and SameAbility(entry, nextEntry)
+end
+
+-- Die gesperrte Ebene links (DoT mit gesperrter Restzeit, Symbol.SetSecret) zeigt dieselbe Fähigkeit wie die Mitte?
+-- Ihr Name ist offen, wenn ezCombat ihn aus dem eigenen Zauber kennt (Review vom 23.11.2026: im Kampf der häufigste Fall)
+local function SecretDoubled()
+    local nextEntry = entries.next
+    return secretInfo ~= nil and secretInfo.name ~= nil and nextEntry ~= nil
+        and SameAbility({ name = secretInfo.name }, nextEntry)
+end
+Symbol.SecretDoubled = SecretDoubled
+
 function Top(now, slotName)   -- weist dem lokalen Top von oben zu
     local bestKey, bestEntry
     for key, entry in pairs(entries) do
         if entry.untilTime and entry.untilTime <= now then
             entries[key] = nil
         elseif slotName == nil or key == "example" or Symbol.SLOT_OF[key] == slotName then
-            if not bestKey or (RANK_OF[key] or 99) < (RANK_OF[bestKey] or 99) then
+            if Doubled(key, entry, slotName) then
+                -- ein kurzer Eintrag („wieder bereit“, Buff-Erinnerung) ist mit der Mitte erledigt: verwerfen, sonst
+                -- spränge er nach einem Wechsel der Mitte verspätet auf (und sagte dann Falsches); dauerhafte bleiben
+                if entry.untilTime then entries[key] = nil end
+            elseif not bestKey or (RANK_OF[key] or 99) < (RANK_OF[bestKey] or 99) then
                 bestKey, bestEntry = key, entry
             end
         end
@@ -722,10 +759,18 @@ function Symbol.Waiting() return waitTicker ~= nil end
 function Symbol.TextOf(entry, mode)
     if type(entry) ~= "table" then return nil end
     mode = mode or Symbol.TextMode()
-    if mode == "full" then return entry.label end
-    if entry.always ~= nil then return entry.always end
-    if mode == "name" then return entry.name end
-    return nil
+    local base
+    if mode == "full" then
+        base = entry.label
+    elseif entry.always ~= nil then
+        base = entry.always
+    elseif mode == "name" then
+        base = entry.name
+    end
+    -- texts.note: eigene Zeile, unabhängig von „Text unter dem Symbol“ (Werte abwägen, Schalter rotationValuesText;
+    -- Spieltest 23.11.2026: „ist ja völlig falsche einstellung dafür“)
+    if entry.note then return base and (base .. "\n" .. entry.note) or entry.note end
+    return base
 end
 
 -- Grundtext eines Platzes: das Beispiel beim Verschieben mit seinem Text (jede Auswahl), sonst Symbol.TextOf.
@@ -744,7 +789,7 @@ local function RefreshSlot(slot, now, groupShown)
         content.glowOn = nil
         ClearWait(content)
         slot.shownKey, slot.shownVersion = nil, nil
-        return slot.name == "left" and secretInfo ~= nil
+        return slot.name == "left" and secretInfo ~= nil and not SecretDoubled() and SECRET
     end
     local changed = key ~= slot.shownKey or entry.version ~= slot.shownVersion
     local fresh = key ~= slot.shownKey or not groupShown or not content:IsShown()
@@ -773,8 +818,94 @@ local function RefreshSlot(slot, now, groupShown)
     return true
 end
 
+-- Ebenen anderer Teile an der Mitte (Tränke, Potions.lua; „Ziel fast tot“ der Rotation), deren Deckkraft Blizzards
+-- Kurve setzt: Solange eine bereitsteht (Symbol.Hold), bleibt die Gruppe sichtbar, auch ohne Eintrag – ob die Ebene
+-- gerade zu sehen ist, weiß ezCombat nicht (der Anteil ist gesperrt). Sie zählen nicht als Eintrag eines Platzes (kein
+-- Gleiten, keine Mitte). Symbol.NewLayer legt eine an (Leitlinie 2: eine Stelle für alle Teile), die Deckkraft setzt
+-- nur der Aufrufer. Lagen (Symbol.LAYER_PLACES): "center" genau über der Mitte, "above" über ihr (Abstand
+-- Symbol.LAYER_GAP), "corner" eine kleinere Marke unten rechts in der Mitte (Symbol.CORNER_SHARE ihrer Größe, unter den
+-- beiden anderen), "badge" dieselbe Größe unten links, über allen anderen (Heiltrank neben der Rettungsfähigkeit,
+-- Rescue.lua). Symbol.MoveLayer wechselt die Lage einer Ebene.
+Symbol.LAYER_GAP = 6
+Symbol.CORNER_SHARE = 0.55
+Symbol.LAYER_PLACES = { center = 20, above = 20, corner = 15, badge = 25 }   -- Lage → Ebene über der Gruppe
+local layers = {}
+
+local function PlaceLayer(layer)
+    local size = Symbol.Size("middle")
+    layer:SetFrameLevel((root:GetFrameLevel() or 1) + Symbol.LAYER_PLACES[layer.place])
+    layer:ClearAllPoints()
+    if layer.place == "above" then
+        layer:SetSize(size, size)
+        layer:SetPoint("BOTTOM", root, "TOP", 0, Symbol.LAYER_GAP)
+    elseif layer.place == "corner" or layer.place == "badge" then
+        local small = math.floor(size * Symbol.CORNER_SHARE + 0.5)
+        local point = layer.place == "corner" and "BOTTOMRIGHT" or "BOTTOMLEFT"
+        layer:SetSize(small, small)
+        layer:SetPoint(point, root, point, 0, 0)
+    else
+        layer:SetSize(size, size)
+        layer:SetPoint("CENTER", root, "CENTER", 0, 0)
+    end
+    -- der Leuchtrahmen misst sich beim Zeigen; ändert sich die Größe, solange er steht, neu anlegen (Review 23.11.2026)
+    local glow = layer.glowKind and Core.Glow.Get(layer)
+    if glow and glow:IsShown() then glow:Place() end
+end
+
+-- Ebene (.icon, .cooldown, .place, .glowKind) zum Schlüssel; derselbe Schlüssel liefert dieselbe Ebene. Anfangs
+-- verborgen, ohne Maus (Klicks gehen an die Mitte darunter). glowKind (Art aus ezCore.GLOW_KINDS): Leuchtrahmen wie an
+-- den Plätzen (Glow.Show, Blizzards Rahmen in der Farbe der Art) – er erscheint und verschwindet mit der Ebene und
+-- folgt als Kind ihrer Deckkraft (Blizzards Kurve). Spieltest 23.11.2026: „tränke funktioniert, nur der rahmen fehlt“.
+function Symbol.NewLayer(key, place, glowKind)
+    if layers[key] then return layers[key] end
+    Symbol.Frame()
+    place = Symbol.LAYER_PLACES[place] and place or "center"
+    local layer = CreateFrame("Frame", nil, root)
+    layer:EnableMouse(false)
+    layer.place = place
+    Glow.StyleIcon(layer)
+    local cooldown = CreateFrame("Cooldown", nil, layer, "CooldownFrameTemplate")
+    cooldown:SetAllPoints(layer.icon)
+    cooldown:Hide()
+    layer.cooldown = cooldown
+    layer:Hide()
+    if glowKind then
+        layer.glowKind = glowKind
+        layer:SetScript("OnShow", function(self) Glow.Show(self, false, self.glowKind) end)
+        layer:SetScript("OnHide", function(self) Glow.Hide(self) end)
+    end
+    layers[key] = layer
+    PlaceLayer(layer)
+    return layer
+end
+
+-- Lage einer Ebene wechseln; eine unbekannte Lage oder Ebene ändert nichts. → true, wenn sie jetzt dort liegt
+function Symbol.MoveLayer(key, place)
+    local layer = layers[key]
+    if not layer or not Symbol.LAYER_PLACES[place] then return false end
+    if layer.place ~= place then
+        layer.place = place
+        PlaceLayer(layer)
+    end
+    return true
+end
+
+function Symbol.PlaceLayers()
+    for _, layer in pairs(layers) do PlaceLayer(layer) end
+end
+
+local holds = {}
+function Symbol.Hold(key, on)
+    if (holds[key] ~= nil) == (on and true or false) then return end
+    holds[key] = on and true or nil
+    if root then Symbol.Refresh() end
+end
+
+function Symbol.Held() return next(holds) ~= nil end
+
 function Symbol.Refresh()
     local frame = Symbol.Frame()
+    Symbol.ApplySecret()            -- die Mitte kann gewechselt haben (eine Fähigkeit nur an einem Platz)
     local now = GetTime()
     local groupShown = frame:IsShown()
     local any, shown = false, {}
@@ -783,7 +914,7 @@ function Symbol.Refresh()
         if shown[name] then any = true end
     end
     Arrange(shown, groupShown)
-    if any then frame:Show() else frame:Hide() end
+    if any or next(holds) ~= nil then frame:Show() else frame:Hide() end
     ScheduleExpiry()
     WatchWait()
 end
@@ -800,33 +931,34 @@ local function PlainText(value)
     return value
 end
 local function Texts(texts)
-    if Core.IsSecret(texts) or type(texts) ~= "table" then return nil, nil end
-    return PlainText(texts.name), PlainText(texts.always)
+    if Core.IsSecret(texts) or type(texts) ~= "table" then return nil, nil, nil end
+    return PlainText(texts.name), PlainText(texts.always), PlainText(texts.note)
 end
 
 -- spell: Zauber des Eintrags (ID oder Name, offen) für „noch nicht bereit“; gesperrt gilt er als nicht genannt.
 -- texts.left (gezählte Restzeit der Abklingzeit, Rotation) und texts.glow (immer leuchten: Vorschau) für SyncGlow;
 -- sie ändern den Eintrag nicht (kein Neuzeichnen, nur nachgeführt).
+-- texts.glow = false: nie leuchten (der schießende Stab in der Mitte – nichts Neues zu drücken, Review 23.11.2026)
 local function GlowHints(texts)
-    if Core.IsSecret(texts) or type(texts) ~= "table" then return nil, nil end
+    if Core.IsSecret(texts) or type(texts) ~= "table" then return nil, nil, nil end
     local left = texts.left
     if Core.IsSecret(left) or type(left) ~= "number" then left = nil end
-    return left, texts.glow == true or nil
+    return left, texts.glow == true or nil, texts.glow == false or nil
 end
 
 local function Store(key, icon, label, kind, untilTime, timer, spell, texts)
     if Core.IsSecret(spell) then spell = nil end
-    local name, always = Texts(texts)
-    local left, glowAlways = GlowHints(texts)
+    local name, always, note = Texts(texts)
+    local left, glowAlways, glowNever = GlowHints(texts)
     local entry = entries[key]
     if entry and entry.icon == icon and entry.label == label and entry.kind == kind and not untilTime
         and not entry.untilTime and SameTimer(entry.timer, timer) and entry.spell == spell
-        and entry.name == name and entry.always == always then
-        entry.left, entry.glowAlways = left, glowAlways
+        and entry.name == name and entry.always == always and entry.note == note then
+        entry.left, entry.glowAlways, entry.glowNever = left, glowAlways, glowNever
         return false        -- unverändert (dauerhafte Einträge werden in jedem Takt erneut gemeldet)
     end
     entries[key] = { icon = icon, label = label, kind = kind, untilTime = untilTime, timer = timer, spell = spell,
-        name = name, always = always, left = left, glowAlways = glowAlways,
+        name = name, always = always, note = note, left = left, glowAlways = glowAlways, glowNever = glowNever,
         version = ((entry and entry.version) or 0) + 1 }
     return true
 end
@@ -885,14 +1017,30 @@ function Symbol.SetSecret(key, icon, label, alpha, gateAlpha, durationObject, te
         secretInfo = { key = key, label = label, name = name, always = always, durationObject = durationObject }
     end
     secretLayer:Show()
-    Glow.Show(secretLayer, false, "dot")
-    secretLayer:SetAlpha(alpha)
-    slots.left.gate:SetAlpha(gateAlpha)
-    -- Die gesperrte Ebene zählt als Eintrag des linken Platzes (einzelnes Symbol in der Mitte)
-    local shown = { left = true }
+    -- Kurven nur weitergereicht (dürfen gesperrt sein, nie verglichen); ApplySecret setzt sie bzw. blendet die Ebene
+    -- aus, solange dieselbe Fähigkeit in der Mitte steht
+    secretInfo.alpha, secretInfo.gateAlpha = alpha, gateAlpha
+    Symbol.ApplySecret()
+    -- Die gesperrte Ebene zählt als Eintrag des linken Platzes (allein in der Mitte), neben anderen nicht als sicherer
+    local shown = { left = slots.left.content:IsShown() or (not SecretDoubled() and SECRET) }
     for _, name in ipairs({ "middle", "right" }) do shown[name] = slots[name].content:IsShown() end
     Arrange(shown, frame:IsShown())
     frame:Show()
+end
+
+-- Deckkraft der gesperrten Ebene und des linken Platzes: aus den gemerkten Kurven, oder aus (0 bzw. 1), solange
+-- dieselbe Fähigkeit in der Mitte steht – eine Fähigkeit nur an einem Platz
+function Symbol.ApplySecret()
+    if not secretInfo then return end
+    if SecretDoubled() then
+        secretLayer:SetAlpha(0)
+        Glow.Hide(secretLayer)
+        slots.left.gate:SetAlpha(1)
+    else
+        Glow.Show(secretLayer, false, "dot")
+        secretLayer:SetAlpha(secretInfo.alpha)
+        slots.left.gate:SetAlpha(secretInfo.gateAlpha)
+    end
 end
 
 function Symbol.ClearSecret()
@@ -919,11 +1067,18 @@ function Symbol.Relabel()
 end
 
 -- „Zeigen“: alle drei Plätze zugleich – links ein auslaufender DoT mit Restzeit, in der Mitte die nächste
--- Fähigkeit, rechts „wieder bereit“ (kurz). Nach einigen Sekunden räumt die Vorschau ihre Einträge wieder ab.
-local DEMO_SECONDS = 4
+-- Fähigkeit, rechts „wieder bereit“ (kurz). Danach bleibt der DoT noch DEMO_ALONE allein: Mit symbolCenter gleitet er in
+-- die Mitte, sonst bleibt er links (24.11.2026: der Schalter war sonst nirgends zu sehen). Dann räumt die Vorschau ab.
+local DEMO_SECONDS, DEMO_ALONE = 4, 2
+local demoRun = 0           -- erneutes „Zeigen“: die Timer des vorigen Laufs räumen nichts mehr ab
 function Symbol.Demo()
     local now = GetTime()
-    Symbol.Set("dot", 136118, L.SYMBOL_DOT_PLAIN, "dot", { start = now - 2, duration = 2 + DEMO_SECONDS })
+    demoRun = demoRun + 1
+    local run = demoRun
+    -- „wieder bereit“ steht symbolHold Sekunden (bis 5): der DoT ist erst danach allein
+    local together = math.max(DEMO_SECONDS, (ns.Num(ns.S and ns.S.symbolHold) or 0) + FADE_SECONDS + 0.1)
+    local total = together + DEMO_ALONE
+    Symbol.Set("dot", 136118, L.SYMBOL_DOT_PLAIN, "dot", { start = now - 2, duration = 2 + total })
     local dot = entries.dot
     if not entries.next then
         Symbol.Set("next", DEFAULT_ICON, L.SYMBOL_NEXT:format(L.SYMBOL_DEMO_NEXT), "next", nil, nil,
@@ -931,11 +1086,16 @@ function Symbol.Demo()
     end
     local nextEntry = entries.next
     ns.Ready.Pulse(DEFAULT_ICON, "ready")
-    C_Timer.After(DEMO_SECONDS, function()
-        if entries.dot == dot then Symbol.Clear("dot") end
-        if entries.next == nextEntry and nextEntry.label == L.SYMBOL_NEXT:format(L.SYMBOL_DEMO_NEXT) then
+    if ns.Potions then ns.Potions.Demo(DEMO_SECONDS) end
+    if ns.Rescue then ns.Rescue.Demo(DEMO_SECONDS) end     -- nach den Tränken: der Heiltrank rückt zur Seite
+    if ns.RotationValue then ns.RotationValue.FinishDemo(DEMO_SECONDS) end   -- Marke „Stab reicht“ (Ziel fast tot)
+    C_Timer.After(together, function()
+        if run == demoRun and entries.next == nextEntry and nextEntry.label == L.SYMBOL_NEXT:format(L.SYMBOL_DEMO_NEXT) then
             Symbol.Clear("next")
         end
+    end)
+    C_Timer.After(total, function()
+        if run == demoRun and entries.dot == dot then Symbol.Clear("dot") end
     end)
     return true
 end
