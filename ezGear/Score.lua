@@ -23,6 +23,11 @@ local Core = ezCore
     verglichen wie bei einem tragbaren – Stand „learn“ (gelber Pfeil) statt „better“ (Entscheidung des Nutzers vom
     23.11.2026 „Vergleich + Hinweis (Empfohlen)“, Paket ezgear/lernbar-tragbar). Ebenso, wenn nur die Stufe fehlt – Stand
     „level“ (Nutzer am 24.11.2026: „ezgear zeigt pfeil nicht mehr weil das lvl höher ist als meins? blöd“).
+    Prozent (Nutzer am 25.11.2026, gewählt „Ganzer Charakter (Empfohlen)“): Angezeigt wird info.share – der Gewinn gemessen an
+    allem, was der Charakter trägt; info.percent (nur dieses Teil) entscheidet weiter über „besser“ (minPercent) und steht mit
+    Umschalt im Tooltip.
+    Rüstungsart zuerst (25.11.2026, gewählt „Rüstungsart zuerst (Empfohlen)“; Level.ArmorRule): Für Tanks und Nahkämpfer wird ein
+    Teil der eigenen Rüstungsart gegen ein leichteres nie rot und ein leichteres gegen die eigene Art nie grün – Stand „armor“.
 ]]
 
 local Score = {}
@@ -45,6 +50,7 @@ function Score.ScoredSlots(loc)
     if not slots or slots[1] == SLOT.AMMO then return nil end
     return slots
 end
+local Level = ns.Level
 local DUAL_WIELD_CLASSES = { WARRIOR = true, ROGUE = true, HUNTER = true }
 
 ---------------------------------------------------------------------------
@@ -59,10 +65,12 @@ local cache, cacheSize, cacheWeights = {}, 0, nil
 local waiting = {}        -- [itemID] = true: gefragt, als sein Item-Wissen noch unvollständig war
 
 local mates, mateMark = nil, nil   -- Gegenstücke aus den Taschen (Score.Mate), unten
+local whole                        -- Wert alles Angelegten (Score.Whole), bis sich etwas ändert
 
 function ns.ClearScoreCache()
     cache, cacheSize = {}, 0
-    mates = nil
+    mates, whole = nil, nil
+    ns.Level.Forget()
     if ns.Alts then ns.Alts.Reset() end
 end
 
@@ -144,13 +152,8 @@ local function Provisional(link, replaced, mate)
     return false
 end
 
---[[
-    Score.Trade(link, replaced, mate) → mehr, weniger: gezählte Werte, die gegenüber dem Ersetzten steigen bzw. fallen,
-    { { key, diff, part }, … }, der gewichtigste zuerst. replaced = Liste von Links (Zweihänder: Haupt- und Schildhand);
-    mate = Link des Gegenstücks aus der Tasche, das mitzählt (Paar gegen Zweihänder). nil, solange Daten fehlen.
-]]
-function Score.Trade(link, replaced, mate)
-    local weights = Weighting()
+-- Summen der Werte: Gegenstand (samt Gegenstück), Ersetztes → new, old | nil, solange Daten fehlen
+local function Sums(link, replaced, mate)
     local new = ns.Stats.Read(link)
     if not new then return nil end
     if mate then
@@ -167,6 +170,18 @@ function Score.Trade(link, replaced, mate)
         if not stats then return nil end
         for key, value in pairs(stats) do old[key] = (old[key] or 0) + value end
     end
+    return new, old
+end
+
+--[[
+    Score.Trade(link, replaced, mate) → mehr, weniger: gezählte Werte, die gegenüber dem Ersetzten steigen bzw. fallen,
+    { { key, diff, part }, … }, der gewichtigste zuerst. replaced = Liste von Links (Zweihänder: Haupt- und Schildhand);
+    mate = Link des Gegenstücks aus der Tasche, das mitzählt (Paar gegen Zweihänder). nil, solange Daten fehlen.
+]]
+function Score.Trade(link, replaced, mate)
+    local weights = Weighting()
+    local new, old = Sums(link, replaced, mate)
+    if not new then return nil end
     local more, less = {}, {}
     for key, w in pairs(weights) do
         local diff = (new[key] or 0) - (old[key] or 0)
@@ -231,6 +246,22 @@ local function SlotScore(slot)
     local link = EquippedLink(slot)
     if not link then return 0, nil end
     return Score.Of(link), link
+end
+
+-- Wert alles Angelegten (ohne Hemd, Wappenrock, Munition) → Summe, vollständig? (false: Daten eines Teils fehlen noch)
+Score.WORN = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 }
+function Score.Whole()
+    if wearer and wearer.whole then return wearer.whole, true end
+    if not wearer and whole and Weighting() == cacheWeights then return whole, true end
+    local sum, complete = 0, true
+    for _, slot in ipairs(Score.WORN) do
+        local value = SlotScore(slot)
+        if value == nil then complete = false else sum = sum + value end
+    end
+    if complete then
+        if wearer then wearer.whole = sum else whole = sum end
+    end
+    return sum, complete
 end
 
 ---------------------------------------------------------------------------
@@ -334,7 +365,9 @@ end
       info.floor       worüber das Paar kommen muss: der Zweihänder, oder das Gegenstück, wenn es allein schon mehr wert ist –
                        sonst gälte der Gewinn des Gegenstücks als Gewinn dieses Gegenstands (Review 24.11.2026)
       info.delta       score − base (Paar: total − floor)
-      info.percent     Prozent besser (bei leerem Platz 100), auf ganze Zahlen gerundet
+      info.percent     Prozent besser, nur dieses Teil (bei leerem Platz 100), auf ganze Zahlen gerundet
+      info.share       Prozent besser, gemessen an allem Angelegten (eine Nachkommastelle; nie 0, wenn sich etwas ändert)
+      info.armorRule   "own" | "lighter" (Level.ArmorRule) samt info.armorSub, info.armorWorn – nur Tanks und Nahkämpfer
       info.slot        Inventarplatz, der ersetzt würde
       info.replaces    Link des ersetzten Gegenstands (nil = leer)
       info.replaced    alle ersetzten Links (Zweihänder: Haupt- und Schildhand; leer = leerer Platz)
@@ -359,6 +392,14 @@ end
       info.mateOpen    true, solange Daten möglicher Gegenstücke noch laden
       info.pending     true, wenn Daten noch laden (dann ohne Ergebnis)
 ]]
+
+-- Gilt für den, für den verglichen wird, die Regel „Rüstungsart zuerst“ (Tank, Nahkämpfer)?
+local function Melee()
+    if wearer then return wearer.melee == true end
+    local _, _, key = ns.Weights.Active()
+    local _, melee = ns.Weights.RoleOf(key)
+    return melee
+end
 
 local function PlayerLevel()
     if wearer then return wearer.level end
@@ -487,7 +528,22 @@ function Score.Compare(link)
     else
         info.percent = info.delta > 0 and 100 or info.delta < 0 and -100 or 0
     end
-    info.provisional = info.mateOpen or Provisional(link, info.replaced, info.mate) or nil
+    -- gemessen an allem, was der Charakter trägt; ohne Vergleichswert gilt das Teil
+    local worn, complete = Score.Whole()
+    info.share = info.percent
+    if worn > 0 then
+        local share = info.delta / worn * 100
+        info.share = math.floor(math.abs(share) * 10 + 0.5) / 10
+        if info.share == 0 and info.delta ~= 0 then info.share = 0.1 end
+        if share < 0 then info.share = -info.share end
+    end
+    if Level.ARMOR_SLOTS[info.slot] and replaces and Melee() then
+        local sub, other = Level.ArmorOf(facts), Level.ArmorOf(ns.Stats.Facts(replaces))
+        local rule = Level.ArmorRule(sub, other, wearer)
+        if rule then info.armorRule, info.armorSub, info.armorWorn = rule, sub, other end
+    end
+    -- fehlen Werte eines angelegten Teils, ist der Anteil zu groß, bis sie da sind (Review 25.11.2026)
+    info.provisional = info.mateOpen or not complete or Provisional(link, info.replaced, info.mate) or nil
     return info
 end
 
@@ -501,6 +557,8 @@ end
                   steht „level“ (der Text nennt Stufe und Weg)
       "worse"     schlechter – roter Pfeil (mindestens minPercent bzw. 1 % schlechter, oder ohne zählende Werte
                   gegen etwas Angelegtes)
+      "armor"     Rüstungsart zuerst (info.armorRule): das Teil der eigenen Art wäre schlechter, das leichtere wäre besser –
+                  kein Pfeil, der Text sagt beides
       "same"      kaum Unterschied
       "nostats"   keine Werte, die für die Gewichtung zählen (und am Platz liegt nichts Besseres)
       "unusable"  die Klasse kann ihn nicht tragen (info.armorType)
@@ -523,13 +581,19 @@ function Score.Verdict(info)
     local min = (ns.S and tonumber(ns.S.minPercent)) or 0
     if info.score <= 0 and not info.rises then
         -- im Paar kann das Gegenstück allein besser sein: das macht diesen Gegenstand nicht schlechter
-        if (info.base or 0) > 0 and not (info.total and info.delta >= 0) then return "worse" end
+        if (info.base or 0) > 0 and not (info.total and info.delta >= 0) then
+            -- Rüstungsart zuerst auch ohne zählende Werte (Rüstung ohne Gewicht; Review 25.11.2026)
+            return info.armorRule == "own" and "armor" or "worse"
+        end
         return "nostats"
     end
     if info.empty or (info.delta > 0 and info.percent >= min) then
+        if info.armorRule == "lighter" then return "armor" end
         return info.usableFrom and "level" or info.learn and "learn" or "better"
     end
-    if info.delta < 0 and -info.percent >= math.max(min, 1) then return "worse" end
+    if info.delta < 0 and -info.percent >= math.max(min, 1) then
+        return info.armorRule == "own" and "armor" or "worse"
+    end
     return "same"
 end
 
@@ -594,7 +658,7 @@ function Score.BestOf(links, counts, total)
             local up, info = Score.IsUpgrade(link)
             if up == nil then pending = true end
             if up and info then
-                local gain = info.empty and math.huge or info.percent
+                local gain = info.empty and math.huge or info.delta     -- was es dem ganzen Charakter bringt
                 if bestGain == nil or gain > bestGain then upgradeIndex, bestGain = i, gain end
             end
             local price = ns.Stats.SellPrice(link)
@@ -694,6 +758,9 @@ end
 local DescribeBase   -- unten: die Aussage ohne das, was fehlt
 function Score.Describe(info, withoutLevel)
     local text, better, kind = DescribeBase(info)
+    if text and kind == "armor" then
+        text = L["TIP_ARMOR_" .. info.armorRule]:format(text, Level.ArmorName(info.armorSub), Level.ArmorName(info.armorWorn))
+    end
     local compared = info and kind ~= "pending" and kind ~= "unusable" and ((info.score or 0) > 0 or info.rises)
     local pair = text and compared and Score.PairText(info)
     if pair then text = text .. " " .. pair end
@@ -715,11 +782,46 @@ function Score.PairText(info)
     return L[key]:format(Core.ItemName(info.mate) or Core.ItemNameByID(info.mate) or info.mate)
 end
 
+-- Nur dieses Teil, für die Umschalt-Zeile: „Prozent gerechnet auf alles, was du trägst; dieses Teil allein −45 %“; nil ohne
+-- Vergleich mit etwas Angelegtem
+function Score.PartText(info)
+    if not (info and info.percent and info.share) or info.empty or info.percent == 0 or info.delta == 0 then return nil end
+    return (info.percent > 0 and L.TIP_PART_MORE or L.TIP_PART_LESS):format(math.abs(info.percent))
+end
+
+-- Was der Tausch beim Spieler ausmacht, aus Werten des Clients (Level.EffectOf): „Für dich: Gesundheit −8,8 %, erlittener
+-- Nahkampfschaden −2,3 %, eigener Nahkampfschaden +2,9 %“; nil, wenn nichts oder nicht lesbar
+local EFFECT_ORDER = { "health", "taken", "dealt" }
+function Score.EffectText(link, info)
+    if not (info and info.replaced) or wearer then return nil end
+    local new, old = Sums(link, info.replaced, info.mate)
+    if not new then return nil end
+    local diff = {}
+    for _, key in ipairs({ "STAMINA", "ARMOR", "STRENGTH", "AGILITY", "AP" }) do diff[key] = (new[key] or 0) - (old[key] or 0) end
+    -- bei Waffen zählt der Waffenschaden, nicht nur die Angriffskraft: den zeigt Blizzards Tooltip
+    local weapon = info.slot == SLOT.MAINHAND or info.slot == SLOT.OFFHAND
+    local effect = Level.EffectOf(diff, not weapon and Melee())
+    if not effect then return nil end
+    local parts = {}
+    for _, key in ipairs(EFFECT_ORDER) do
+        local value = effect[key]
+        if value then parts[#parts + 1] = L["EFFECT_" .. key]:format(Score.Signed(value)) end
+    end
+    return L.TIP_EFFECT:format(table.concat(parts, ", "))
+end
+
+-- „+3,4 %“, „−3,4 %“ (ganze Zahlen ohne Nachkommastelle)
+function Score.Signed(value)
+    local text = Core.Decimal(math.abs(value), math.abs(value) % 1 == 0 and 0 or 1)
+    return (value < 0 and L.PERCENT_MINUS or L.PERCENT_PLUS):format(text)
+end
+
 -- Schlechter, obwohl ein gezählter Wert steigt: „Mehr: Schaden pro Sekunde (Distanz) 3,2 · Weniger: Ausdauer 4“ –
 -- höchstens Score.TRADE_MAX Werte je Seite, der gewichtigste zuerst; sonst nil.
 Score.TRADE_MAX = 2
 function Score.TradeText(link, info)
-    if Score.Verdict(info) ~= "worse" or not info.replaced then return nil end
+    local kind = Score.Verdict(info)
+    if (kind ~= "worse" and kind ~= "armor") or not info.replaced then return nil end
     local more, less = Score.Trade(link, info.replaced, info.mate)
     if not more or #more == 0 or #less == 0 then return nil end
     local function List(list)
@@ -746,8 +848,8 @@ DescribeBase = function(info)
     if kind == "nostats" then return L.TIP_NOSTATS:format(label), false, kind end
     if info.empty then return L.TIP_EMPTY:format(label), true, kind end
     if info.score <= 0 and not info.rises then return L.TIP_NOSTATS_WORSE:format(label), false, kind end
-    if info.percent > 0 then return L.TIP_BETTER:format(info.percent, label), kind == "better", kind end
-    if info.percent < 0 then return L.TIP_WORSE:format(-info.percent, label), false, kind end
+    if info.percent > 0 then return L.TIP_BETTER:format(Score.Signed(info.share), label), kind == "better", kind end
+    if info.percent < 0 then return L.TIP_WORSE:format(Score.Signed(info.share), label), false, kind end
     return L.TIP_SAME:format(label), false, kind
 end
 
@@ -756,12 +858,12 @@ end
 ---------------------------------------------------------------------------
 
 -- Stände, die unvollständiges Item-Wissen (info.provisional) noch zum Pfeil wenden kann
-local OPEN_KINDS = { worse = true, same = true, nostats = true }
+local OPEN_KINDS = { worse = true, same = true, nostats = true, armor = true }
 
 ns.API = {
     Score = function(link) return Score.Of(link) end,
     Compare = function(link) return Score.Compare(link) end,
-    -- true/false (nil = Daten laden noch), Prozent-Gewinn, info wie Compare
+    -- true/false (nil = Daten laden noch), Prozent-Gewinn an diesem Platz (info.share: gemessen an allem Angelegten), info wie Compare
     IsUpgrade = function(link)
         local up, info = Score.IsUpgrade(link)
         return up, info and info.percent or nil, info
@@ -788,7 +890,8 @@ ns.API = {
         local kind = Score.Verdict(info)
         if kind == "pending" or (info and info.mateOpen and not Score.Keeps(kind)) then return nil end
         if info and info.provisional and OPEN_KINDS[kind] then return nil end
-        return Score.Keeps(kind)
+        -- „Rüstungsart zuerst“: wegen der Regel kein Pfeil, weggeworfen wird es deshalb nicht
+        return Score.Keeps(kind) or kind == "armor"
     end,
     -- true/false (nil = Daten laden noch): schlechter als das Angelegte (roter Pfeil; tragbar oder es fehlt nur die Stufe
     -- bzw. die Fertigkeit)

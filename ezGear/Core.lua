@@ -6,6 +6,7 @@ local Core = ezCore
     ezGear – bessere Ausrüstung erkennen, Itemlevel an den Plätzen, Sets und automatisches Umziehen.
 
       Stats.lua      Werte eines Gegenstands (C_Item.GetItemStats, ergänzt um das Item-Wissen von ezCore)
+      Level.lua      Gewichte für die Stufe, Rüstung aus der Formel des Clients, eigene Rüstungsart, Wirkung auf den Spieler
       Weights.lua    Gewichtung: Standard je Klasse und Rolle (Talentbaum), eingefügte Pawn-Skalen
       Score.lua      die EINE Bewertung „besser“ (auch für ezQuest und ezLoot, siehe ns.API)
       Marks.lua      grüner Pfeil und Gold-Symbol auf beliebigen Knöpfen (Blizzards Atlanten)
@@ -42,6 +43,7 @@ ns.DEFAULTS = {
 
     -- Tooltip: die Vergleichszeile „+12 % für Verstärkung“, auch „−8 %“ in Rot, ist fest (Nr. 41, 42; Rücksicht auf
     -- Pawn bleibt über ns.FOREIGN)
+    tooltipEffect = true,   -- Zeile „Für dich“: was der Tausch an Gesundheit und Nahkampfschaden ausmacht (Score.EffectText, 25.11.2026)
     tooltipAlts = true,     -- Zeile „Für Twinks“: wem ein weiterzugebender Gegenstand etwas bringt (Alts.lua, 24.11.2026)
     recipeCompare = true,   -- Rezept-Ergebnis mit der angelegten Ausrüstung vergleichen
 
@@ -62,7 +64,7 @@ ns.DEFAULTS = {
 }
 
 -- Seit der letzten Veröffentlichung neu und ab Werk an: die Blase „Neu seit dem Update“ nennt sie (ezCore, ConsentNews.lua)
-ns.NEWS = { "tooltipAlts" }
+ns.NEWS = { "tooltipAlts", "tooltipEffect" }
 
 -- Einstellungs-Prüfung vom 19.11.2026 (Entscheidung des Nutzers „Ja, alle umsetzen“): fest statt Schalter. Ihr alter
 -- Wert gilt nicht mehr; die Schlüssel fliegen einmal aus Einstellungen und Profilen (ns.MigrateSettings1911).
@@ -138,7 +140,9 @@ Core.NewModule(ADDON, ns, {
         -- „Für Twinks“ (Alts.lua, 24.11.2026; ohne neue Nummer)
         "More", "CharacterList", "GearOf", "AltRecipient", "CharName", "ItemID", "Prices.TooltipBound", "Knowledge.VariantKey",
         -- Rolle aus dem Talentbaum (24.11.2026; ohne neue Nummer)
-        "Talents.MainTree", "Talents.TreeName", "Talents.Role" },
+        "Talents.MainTree", "Talents.TreeName", "Talents.Role",
+        -- Bewertung für die Stufe und Rüstungsart (Level.lua, 25.11.2026; ohne neue Nummer)
+        "ClientData.Expected", "Spells.FormActive", "ItemClassName", "Decimal", "Round" },
     db = "ezGearDB", tables = { "scales", "chars", "hints", "ui" },
     onLoad = function(db) ns.MigrateSettings1911(db) end,
     login = true,
@@ -271,7 +275,8 @@ Core.Listen("TALENTS_CHANGED", function() ns.Changed() end, "ezGear")
 Core.Listen("PROFICIENCY_CHANGED", function() ns.Changed() end, "ezGear")
 
 ns.OnReady(function()
-    for _, event in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "PLAYER_SPECIALIZATION_CHANGED",
+    -- PLAYER_LEVEL_CHANGED: dann liefert UnitLevel schon die neue Stufe (die Gewichte hängen seit dem 25.11.2026 an ihr)
+    for _, event in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "PLAYER_LEVEL_CHANGED", "PLAYER_SPECIALIZATION_CHANGED",
         "ACTIVE_TALENT_GROUP_CHANGED", "CHARACTER_POINTS_CHANGED" }) do
         ns.On(event, function() ns.Changed() end)
     end

@@ -310,7 +310,7 @@ Core.NewModule(ADDON, ns, {
     -- (Welle 9/10, MAP-07): Books.Where, Books.From, Collections.Books.
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.NewTimerBar, Core.OptInOnce, Core.MigrateOnce, Core.TipClick
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
-    core = "1.15.0", needs = { "TrainerSpots.PositionKnown", "MapPins.Canvas", "AfterCombat", "Npcs", "OpenChatWith", "scaffoldHelpers", "Map.XY", "Map.Parent",
+    core = "1.15.0", needs = { "SettingsRows.Indent", "TrainerSpots.PositionKnown", "MapPins.Canvas", "AfterCombat", "Npcs", "OpenChatWith", "scaffoldHelpers", "Map.XY", "Map.Parent",
         -- Lehrer und Händler laut Questie, Zonen des Kontinents (22.11.2026, ohne neue Versionsnummer)
         "Map.Zones", "Npcs.SourceLabel",
         -- Tierausbilder-Regel aus ezCore (24.11.2026, „Wo kommt was“ Schritt b, ohne neue Versionsnummer)

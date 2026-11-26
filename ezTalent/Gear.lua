@@ -21,7 +21,8 @@ local Advice = ns.Advice
     ezGear-Wert, bevorzugte Waffe, Waffen der Spielweise; Rechenmodell 3, Annahmen und Quellen in Sim.GEAR). Im Spiel
     wird nichts gerechnet, nur ausgewählt.
 
-    Schnittstelle: ezCore.API("ezTalent").GearAdvice() → { weights, weapon, weapons, source, name, key, reason, pct },
+    Schnittstelle: ezCore.API("ezTalent").GearAdvice() → { weights, weapon, weapons, source, name, key, reason, pct, role
+    ("damage" | "tank" | "healer"), range ("melee" | "ranged" | "caster") },
     false (sicher keine: keine Punkte und kein Fragebogen, keine Verteilung mit Werten, Fehler beim Wählen – bis zur
     nächsten Änderung) oder nil (noch nicht lesbar: Baum beim Einloggen noch nicht geliefert; nichts gemerkt, die
     nächste Frage versucht es wieder). Dieselbe Tabelle bis zur nächsten Änderung (ezGears Zwischenspeicher vergleicht
@@ -119,7 +120,9 @@ function Gear.Advice()
         end
         local weights = {}
         for k, v in pairs(g.weights) do weights[k] = v end
-        out = { weights = weights, weapon = type(g.weapon) == "string" and g.weapon or nil, weapons = weapons,
+        local style = type(preset.style) == "table" and preset.style or {}
+        out = { weights = weights, role = style.role, range = style.range,
+            weapon = type(g.weapon) == "string" and g.weapon or nil, weapons = weapons,
             source = g.source or preset.computed.model, name = Templates.PresetName(preset), key = preset.key,
             reason = reason, pct = pct }
     end

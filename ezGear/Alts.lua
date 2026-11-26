@@ -35,7 +35,7 @@ Alts.KEEP = 200           -- so viele Antworten merkt sich Check (Blizzard baut 
 -- Pawn-Skalen nur als Schlüssel, ezTalents Werte als Kopie – sie gibt es nur, solange er angemeldet ist.
 function Alts.Remember()
     if not (ns.db and ns.charKey) then return false end
-    local weights, _, key = ns.Weights.Active()
+    local weights, _, key = ns.Weights.Resolve(ns.Weights.Choice())     -- für Stufe 60; umgerechnet wird beim Vergleich
     if type(weights) ~= "table" or next(weights) == nil or type(key) ~= "string" then return false end
     -- Talente noch nicht lesbar: Die Leveling-Rolle ist nur ein Platzhalter (auch im Waffenschaden zu ezTalents Werten).
     -- Was „Automatisch“ zuletzt nahm, bleibt bis TALENTS_CHANGED; eine frühere feste Wahl gilt nicht mehr.
@@ -43,6 +43,7 @@ function Alts.Remember()
     local before = ns.Char().last
     if auto and ns.Weights.RoleUnknown() and type(before) == "table" and before.auto == true then return false end
     local last = { key = key, auto = auto or nil }
+    last.tank, last.melee = ns.Weights.RoleOf(key)
     if key == "TALENT" then
         last.weights = {}
         for k, v in pairs(weights) do last.weights[k] = v end
@@ -57,8 +58,15 @@ local function Default(key)
     return (ns.Weights.WithWeapons(weights, key))
 end
 
--- → Gewichte oder nil
-function Alts.WeightsFor(key, class)
+-- → Gewichte (für seine Stufe umgerechnet, Level.Adapt; Pawn-Skalen unverändert), Nahkämpfer oder Tank? | nil
+function Alts.WeightsFor(key, class, level)
+    local weights, tank, melee = Alts.BaseFor(key, class)
+    if weights and tank ~= nil then weights = ns.Level.Adapt(weights, level, tank, class) end
+    return weights, melee == true
+end
+
+-- → Gewichte für Stufe 60, Tank?, Nahkämpfer oder Tank? (Tank nil: Pawn-Skala) | nil
+function Alts.BaseFor(key, class)
     local own = ns.db and ns.db.chars[key]
     own = type(own) == "table" and own or {}
     local last = type(own.last) == "table" and own.last or {}
@@ -66,13 +74,19 @@ function Alts.WeightsFor(key, class)
         if type(choice) == "string" then
             local kind, name = choice:match("^(%u+):(.+)$")
             local scale = kind == "PAWN" and type(ns.db.scales) == "table" and ns.db.scales[name] or nil
-            if type(scale) == "table" and type(scale.weights) == "table" then return scale.weights end
-            if kind == "DEF" and name:match("^(%u+)_") == class and Default(name) then return Default(name) end
-            if choice == "TALENT" and type(last.weights) == "table" and next(last.weights) ~= nil then return last.weights end
+            if type(scale) == "table" and type(scale.weights) == "table" then return scale.weights, nil, nil end
+            if kind == "DEF" and name:match("^(%u+)_") == class and Default(name) then
+                return Default(name), ns.Weights.RoleOf(choice)
+            end
+            if choice == "TALENT" and type(last.weights) == "table" and next(last.weights) ~= nil then
+                return last.weights, last.tank == true, last.melee == true
+            end
         end
     end
     local profiles = ns.Weights.CLASS_PROFILES[class or ""]
-    return profiles and Default(class .. "_" .. profiles[1]) or nil
+    local name = profiles and class .. "_" .. profiles[1]
+    if not name then return nil end
+    return Default(name), ns.Weights.RoleOf("DEF:" .. name)
 end
 
 ---------------------------------------------------------------------------
@@ -106,10 +120,10 @@ function Alts.List()
         local level = ns.Num(c.level)
         local _, reachable = Core.AltRecipient(entry.key)
         if type(c.class) == "string" and level and reachable == true and type(gear) == "table" and next(gear) ~= nil then
-            local weights = Alts.WeightsFor(entry.key, c.class)
+            local weights, melee = Alts.WeightsFor(entry.key, c.class, level)
             if weights then
                 list[#list + 1] = { key = entry.key, c = c, class = c.class, level = level, links = Links(gear),
-                    weights = weights, cache = {} }
+                    weights = weights, melee = melee, cache = {} }
             end
         end
     end
@@ -137,7 +151,7 @@ end
 
 local KIND_ORDER = { better = 1, level = 2, learn = 2 }
 
--- Alts.Check(link, facts) → { { key, c, kind, percent, empty, from }, … } (jetzt besser zuerst, dann nach Gewinn), laden
+-- Alts.Check(link, facts) → { { key, c, kind, percent (gemessen an allem, was er trägt), empty, from }, … } (jetzt besser zuerst, dann nach Gewinn), laden
 -- noch Daten?
 function Alts.Check(link, facts)
     if ns.IsSecret(link) or type(link) ~= "string" or type(facts) ~= "table" then return {}, false end
@@ -153,7 +167,7 @@ function Alts.Check(link, facts)
             local kind, info = ns.Score.For(who, link)
             if kind == "pending" or (info and info.provisional) then pending = true end
             if KIND_ORDER[kind] then
-                out[#out + 1] = { key = who.key, c = who.c, kind = kind, percent = info.percent, empty = info.empty,
+                out[#out + 1] = { key = who.key, c = who.c, kind = kind, percent = info.share, empty = info.empty,
                     from = info.usableFrom }
             end
         end
@@ -195,7 +209,7 @@ function Alts.Text(hits)
     for i = 1, math.min(#hits, Alts.MAX) do
         local hit = hits[i]
         local icon = ns.Score.LATER[hit.kind] and ns.Marks.LearnIcon() or ns.Marks.ArrowIcon()
-        local gain = hit.empty and L.ALTS_EMPTY or L.ALTS_GAIN:format(hit.percent)
+        local gain = hit.empty and L.ALTS_EMPTY or ns.Score.Signed(hit.percent)
         if hit.from then gain = L.ALTS_LATER:format(gain, L.TIP_FROM_LEVEL:format(hit.from)) end
         parts[i] = icon .. " " .. Core.CharName(hit.c, hit.key) .. " " .. gain
     end

@@ -4,14 +4,15 @@ local Core = ezCore
 
 --[[
     Ansagen für Anführer, Stufe 2 (MACRO-26): Eintrag „Ansage“ im Rechtsklick-Menü von Blizzards Gruppen- und
-    Raidrahmen, des Zielfensters, des Fokus und der Bossrahmen (Menu.ModifyMenu, Blizzards Menü bleibt sonst
-    unberührt). Fertige Sätze mit eingesetztem Namen und Zielsymbol:
+    Raidrahmen, des Zielfensters, des Fokus und der Bossrahmen (Core.Menu.ModifyUnits, Blizzards Menü bleibt
+    sonst unberührt). Fertige Sätze mit eingesetztem Namen und Zielsymbol:
       Mitspieler   „<Name> heilt <Ziel>.“ (mit freundlichem Ziel), „<Name> unterbricht {Symbol} <Ziel>.“ (mit
                    feindlichem Ziel, sonst nur „<Name> unterbricht.“), „Bitte <Name> heilen!“
       Gegner       „Fokus auf {Symbol} <Name>!“, „CC auf {Symbol} <Name> – nicht angreifen!“, „Unterbrechen:
                    {Symbol} <Name>!“
     Die Zeile kommt nur in die Chat-Eingabe – mit Blizzards Befehl für den Kanal davor (/rw, /raid, /i, /p), Enter
-    schickt sie ab (Core.OpenChatWith). Ob das Menü direkt senden darf, entscheidet der Spieltest (Welle 2, Punkte 3
+    schickt sie ab (Core.OpenChatWith). Wo Blizzard den Namen sperrt, steht der Eintrag nicht (Core.Menu.ModifyUnits, Spieltest
+    25.11.2026); der Knopf „Zum Ziel …“ geht auch dort. Ob das Menü direkt senden darf, entscheidet der Spieltest (Welle 2, Punkte 3
     bis 5 unter „Im Spiel prüfen“ in docs/roadmap/ezMacro.md); bis dahin sendet ezMacro hier nie selbst.
     Der Eintrag erscheint nur in einer Gruppe und mit der Einstellung „Eintrag „Ansage“ in Rechtsklick-Menüs“
     (announceMenu, ab Werk an). Sichtbarer Zugang (Leitlinie 3): Knopf „Zum Ziel …“ im Reiter „Chat“ (Ansagen) – dasselbe
@@ -89,7 +90,8 @@ function AM.Entries(unit, name)
     end
     if unit and Core.UnitPresent(unit) == true and Hostile(unit) then
         -- Gegner: Name und Symbol der Einheit selbst. Ist der Name gesperrt, geht das nur beim Ziel (%t setzt
-        -- dann Blizzards Chat beim Abschicken ein); bei anderen Einheiten bleibt das Menü ohne Ansage.
+        -- dann Blizzards Chat beim Abschicken ein; nur im eigenen Menü „Zum Ziel …“, Blizzards Menü bleibt dann
+        -- unberührt); bei anderen Einheiten gibt es keine Ansage.
         local _, why = ns.Announce.UnitName(unit)
         if why == "secret" and unit ~= "target" then return list end
         for _, def in ipairs(AM.ENEMY) do Add(def, { target = unit }) end
@@ -156,11 +158,9 @@ function AM.Hook()
     local blizzardMenu = rawget(_G, "Menu")
     if not (type(blizzardMenu) == "table" and type(blizzardMenu.ModifyMenu) == "function") then return false end
     AM.TAGS = AM.Tags()
-    for _, tag in ipairs(AM.TAGS) do
-        pcall(blizzardMenu.ModifyMenu, tag, function(_, root, contextData)
-            ns.Try("AnnounceMenu", AM.FromContext, root, contextData)
-        end)
-    end
+    -- nicht in Menüs mit gesperrtem Namen (Core.Menu.UnitLocked; Spieltest 25.11.2026: Blizzards Menü brach ab, die
+    -- Zielmarkierung ging nicht) – dafür gibt es den Knopf „Zum Ziel …“
+    Core.Menu.ModifyUnits(AM.TAGS, function(root, contextData) ns.Try("AnnounceMenu", AM.FromContext, root, contextData) end)
     hooked = true
     return true
 end

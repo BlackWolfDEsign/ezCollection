@@ -3,7 +3,7 @@
 ## Notes: Extends Blizzard's own auction house: price scan, auction price in the tooltip, market value and bargains in the results, a "Market" side panel with price history and hints, shopping lists in the category list, a bag list next to the sell area with a price rule and your last price, undercut marks and "Cancel undercut" on your auctions. Part of ezCollection.
 ## Notes-deDE: Erweitert Blizzards eigenes Auktionshaus: Preise erfassen, Auktionspreis im Tooltip, Marktwert und Schnäppchen in der Ergebnisliste, Seitenteil „Markt“ mit Preisverlauf und Hinweis, Einkaufslisten in der Kategorienliste, Taschenliste neben dem Verkaufsbereich mit Preisregel und letztem Preis, „unterboten“ und „Unterbotene abbrechen“ bei den eigenen Auktionen. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.7.0
+## Version: 1.7.1
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Scroll_03
 ## RequiredDeps: ezCore

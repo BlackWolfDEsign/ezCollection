@@ -72,6 +72,9 @@ local Core = ezCore
       Gebiete (24.11.2026): ClientData.Zone(gebiet) → { area, continent, from, to, count } oder nil; ClientData.Zones() →
               { [Gebiet] = dasselbe } – Erkundungsstufen der Teilgebiete; ClientData.Entrance(mapID) → { map, continent, x,
               y } (Weltkoordinaten, Eingang draußen) oder nil; ClientData.Entrances() → { [Map-ID] = dasselbe }
+      Erwartungswerte (25.11.2026, Paket ezgear/bewertung): ClientData.Expected(stufe) → { level, armor (Rüstungskonstante K:
+              erlittener Nahkampfschaden × K / (K + Rüstung)), health (erwartete Gesundheit eines Spielers) } oder nil; unter
+              1 gilt Stufe 1, über der höchsten die höchste
       F6  ClientData.ITEM_RUNTIME_FIELDS: die Felder der Entdecker-Datenbank, die C_Item zur Laufzeit liefert (DB.Client) –
           darum werden Gegenstände nicht ausgeliefert (docs/wago-tools.md, Abschnitt 7)
 ]]
@@ -92,7 +95,7 @@ ClientData.L = L
 
 ClientData.KEYS = { "recipes", "classSpells", "locks", "taxi", "reagents", "categories", "consumables", "enchants",
     "spellKinds", "periodic", "direct", "proficiencies", "spellBooks", "petBooks", "recipeItems",
-    "areas" }   -- spellKinds seit Welle 27 (Paket kern/ausgeloeste-zauber;
+    "areas", "expected" }   -- spellKinds seit Welle 27 (Paket kern/ausgeloeste-zauber;
                                  -- Leser ezCore.SpellKinds), periodic seit 22.11.2026 (Restschaden; Leser ezCore.Periodic),
                                  -- direct seit 23.11.2026 (Werte abwägen; Leser ezCore.SpellValue), proficiencies seit
                                  -- 23.11.2026 (Waffen- und Rüstungsfertigkeiten; Leser ezCore.Proficiency), spellBooks
@@ -649,4 +652,18 @@ function ClientData.Entrances()
     local out = {}
     for map, e in pairs(AreaData("entrances") or {}) do out[map] = ReadEntrance(map, e) end
     return out
+end
+
+---------------------------------------------------------------------------
+-- Erwartungswerte je Stufe (ExpectedStat)
+---------------------------------------------------------------------------
+
+function ClientData.Expected(level)
+    level = Id(level)
+    local data = level and ClientData.Table("expected")
+    local armor, health = data and data.armor, data and data.health
+    if type(armor) ~= "table" or type(health) ~= "table" or #armor == 0 then return nil end
+    level = math.max(1, math.min(math.floor(level), #armor))
+    if not (Num(armor[level]) and Num(health[level])) then return nil end
+    return { level = level, armor = armor[level], health = health[level] }
 end

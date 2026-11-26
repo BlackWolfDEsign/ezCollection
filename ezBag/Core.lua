@@ -45,15 +45,19 @@ ns.DEFAULTS = {
 -- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
 -- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
 -- risk hier: „Leichter zerstören“ hebt Blizzards Schutz gegen versehentliches Zerstören auf
--- choice hier (Spieltest 20.11.2026, Knopf mit „o fehlt“, wörtlich „mh was soll das sein“): „Gleiche Gegenstände zusammenfassen“ ändert nur die Darstellung der Tasche
+-- on (Entscheidung des Nutzers vom 25.11.2026, Spieltest mit Foto, wörtlich „Wieso sind die nicht automatisch zusammen gefasst?“,
+-- gewählt „Mit „Alle annehmen“ an (Empfohlen)“): „Gleiche Gegenstände zusammenfassen“ – bis dahin choice (nur Darstellung)
 ns.AGREE = {
-    compactStacks = "choice", easyDelete = "risk", transferStacksOnly = "choice",
+    compactStacks = "on", easyDelete = "risk", transferStacksOnly = "choice",
 }
 
 -- Neu seit v1.0.0-beta3 und ab Werk an; Einträge bleiben stehen (ezCore, Werkzeuge/ConsentNews.lua: Intro.NewsOnRows;
 -- Nutzer am 24.11.2026): Die Blase „Neu seit dem Update“ nennt sie einmal mit gesetztem Häkchen. tools/Tests/agree_test.lua
 -- ist rot, wenn ein neuer Schalter mit true hier fehlt.
-ns.NEWS = { { "reagentSection", needs = "grouping" }, "reagentAutoFill", "lootSpace" }
+-- accept (Nutzer am 25.11.2026, wörtlich „Reagenzien Tasche automatisch mit in großer ist nicht standardmäßig an? Muss aber
+-- nach alle annehmen.“, gewählt „Immer einschalten (Empfohlen)“): „Allem zustimmen“ und „Alle annehmen“ schalten es ein,
+-- auch wenn der Spieler es vorher ausgeschaltet hatte
+ns.NEWS = { { "reagentSection", needs = "grouping", accept = true }, "reagentAutoFill", "lootSpace" }
 
 -- Reihenfolge für Einstellungen und Slash-Befehle (Schlüssel, deutscher Befehl, Abschnitt der Einstellungsseite,
 -- optional der Funktionsschlüssel aus ezCores Liste fremder Addons für den Hinweis „Übernimmt schon: …“ im Tooltip;

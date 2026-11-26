@@ -661,6 +661,7 @@ local de = {
     BTN_CLICKBIND_TIP = "Öffnet Blizzards Fenster „Klick-Zauber“ (wie aus dem Zauberbuch) und hängt dieses Makro an den Mauszeiger: in die Liste klicken, dann mit der gewünschten Maus- und Umschalttaste auf die neue Zeile klicken und „Speichern“. Klick auf den Rahmen eines Mitspielers wirkt es dann auf ihn. Fehlt das Makro noch, legt ezMacro es an. Nur außerhalb des Kampfes.",
     CLICK_TIP_SUGGESTED = "Vorschlag aus ezHeal: %s",
     CLICK_HAND = "„%s“ hängt am Mauszeiger: In Blizzards Fenster „Klick-Zauber“ in die Liste klicken, dann mit der gewünschten Maus- und Umschalttaste auf die neue Zeile klicken und „Speichern“.",
+    CLICK_HAND_PLAIN = "Nicht mit dem einfachen Links- oder Rechtsklick – dort liegen Blizzards „Ziel“ und „Menü“.",
     CLICK_HAND_SELFCAST = "Nicht mit %s – das ist Blizzards Selbstwirk-Taste, ein Klick-Zauber darauf wirkt auf dich.",
     CLICK_HAND_NOFRAME = "„%s“ hängt am Mauszeiger, aber Blizzards Fenster „Klick-Zauber“ ging nicht auf: Öffne es selbst (am Zauberbuch oder unter Optionen, Tastaturbelegung) und klick dort in die Liste.",
     CLICK_HAND_SELF = "„%s“ hängt am Mauszeiger.",
@@ -706,7 +707,7 @@ local de = {
     ANN_TARGET_BUTTON = "Zum Ziel …",
     ANN_TARGET_BUTTON_TIP = "Fertige Sätze zu deinem Ziel: Fokus, CC und Unterbrechen bei Gegnern, Heilen und Unterbrechen bei Mitspielern – mit Name und Zielsymbol. Der Satz kommt in die Chat-Eingabe, Enter schickt ihn ab. Dasselbe steht in einer Gruppe als „Ansage“ im Rechtsklick-Menü der Gruppen- und Raidrahmen, des Zielfensters und des Fokus.",
     OPT_announceMenu = "Eintrag „Ansage“ in Rechtsklick-Menüs",
-    OPT_announceMenu_TIP = "In einer Gruppe steht im Rechtsklick-Menü der Gruppen- und Raidrahmen, des Zielfensters und des Fokus der Eintrag „Ansage“: fertige Sätze mit Name und Zielsymbol („<Name> heilt <Ziel>.“, „CC auf <Symbol> <Ziel>“). ezMacro legt den Satz in die Chat-Eingabe, du schickst ihn mit Enter ab. Ohne den Eintrag bleibt der Knopf „Zum Ziel …“ im Reiter „Chat“ (Ansagen).",
+    OPT_announceMenu_TIP = "In einer Gruppe steht im Rechtsklick-Menü der Gruppen- und Raidrahmen, des Zielfensters und des Fokus der Eintrag „Ansage“: fertige Sätze mit Name und Zielsymbol („<Name> heilt <Ziel>.“, „CC auf <Symbol> <Ziel>“). ezMacro legt den Satz in die Chat-Eingabe, du schickst ihn mit Enter ab. Wo Blizzard den Namen sperrt (etwa bei Gegnern im Dungeon), steht der Eintrag nicht. Ohne den Eintrag bleibt der Knopf „Zum Ziel …“ im Reiter „Chat“ (Ansagen).",
 
     -- Werkzeug „Kleine Helfer“ (InfoTools.lua, MACRO-29)
     TOOL_INFO = "Kleine Helfer",
@@ -1579,6 +1580,7 @@ local en = {
     BTN_CLICKBIND_TIP = "Opens Blizzard's “Click Casting” window (as from the spellbook) and puts this macro on your cursor: click into the list, then click the new row with the mouse button and modifier you want, and “Save”. Clicking a party member's frame then casts it on them. If the macro does not exist yet, ezMacro creates it. Only out of combat.",
     CLICK_TIP_SUGGESTED = "Suggested by ezHeal: %s",
     CLICK_HAND = "“%s” is on your cursor: in Blizzard's “Click Casting” window click into the list, then click the new row with the mouse button and modifier you want, and “Save”.",
+    CLICK_HAND_PLAIN = "Not with a plain left or right click – Blizzard's “Target” and “Menu” are there.",
     CLICK_HAND_SELFCAST = "Not with %s – that is Blizzard's self cast key, a click cast on it hits you.",
     CLICK_HAND_NOFRAME = "“%s” is on your cursor, but Blizzard's “Click Casting” window did not open: open it yourself (at the spellbook or under Options, Keybindings) and click into the list.",
     CLICK_HAND_SELF = "“%s” is on your cursor.",
@@ -1623,7 +1625,7 @@ local en = {
     ANN_TARGET_BUTTON = "For target …",
     ANN_TARGET_BUTTON_TIP = "Ready lines for your target: focus, CC and interrupt for enemies, heal and interrupt for party members – with name and raid marker. The line goes into the chat input, Enter sends it. In a group the same is in the right-click menu of party and raid frames, the target frame and the focus as \"Announce\".",
     OPT_announceMenu = "\"Announce\" entry in right-click menus",
-    OPT_announceMenu_TIP = "In a group the right-click menu of party and raid frames, the target frame and the focus gets an \"Announce\" entry: ready lines with name and raid marker (\"<name> heals <target>.\", \"CC <marker> <target>\"). ezMacro puts the line into the chat input, you send it with Enter. Without the entry the \"For target …\" button stays with the calls on the \"Chat\" tab.",
+    OPT_announceMenu_TIP = "In a group the right-click menu of party and raid frames, the target frame and the focus gets an \"Announce\" entry: ready lines with name and raid marker (\"<name> heals <target>.\", \"CC <marker> <target>\"). ezMacro puts the line into the chat input, you send it with Enter. Where Blizzard locks the name (such as enemies in a dungeon) there is no entry. Without the entry the \"For target …\" button stays with the calls on the \"Chat\" tab.",
 
     -- Tool "Little helpers" (InfoTools.lua, MACRO-29)
     TOOL_INFO = "Little helpers",

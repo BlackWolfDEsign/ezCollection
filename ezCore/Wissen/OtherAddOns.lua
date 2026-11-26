@@ -721,7 +721,8 @@ end
 --       key: Eintrag in Core.OTHER_ADDONS (dann kommen Name, Ordner und – wenn dort eine url steht – die Adresse
 --            von dort: das Modul nennt nur key und why) oder ein eigener Name (dann ist url Pflicht)
 --   Core.Companions(modul) → { { key, label, url, role, why, installed } … }, Pflicht zuerst
---   Core.AddCompanionButtons(layout, modul) / page:Companions() → Abschnitt „Ergänzende Addons“ unter „Erweitert“
+--   Core.AddCompanionButtons(layout, modul, kategorie) / page:Companions() → Abschnitt „Ergänzende Addons“ unter
+--       „Erweitert“ (die Kategorie braucht die Suchmarke der Knöpfe, Kern/SettingsRows.lua)
 ---------------------------------------------------------------------------
 
 Core.COMPANIONS = {}
@@ -762,9 +763,9 @@ function Core.Companions(module)
 end
 
 -- Knöpfe für eine Einstellungsseite: Name (Pflicht/ergänzend, installiert?), Klick zeigt den Link zum Kopieren.
-function Core.AddCompanionButtons(layout, module)
+function Core.AddCompanionButtons(layout, module, category)
     local list = Core.Companions(module)
-    if #list == 0 or not (layout and layout.AddInitializer and CreateSettingsButtonInitializer) then return 0 end
+    if #list == 0 or not (layout and layout.AddInitializer and Core.SettingsRows.Available()) then return 0 end
     local L = Core.L
     if CreateSettingsListSectionHeaderInitializer then
         layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(L.COMPANIONS_HEADER, L.COMPANIONS_HEADER_TIP))
@@ -773,9 +774,9 @@ function Core.AddCompanionButtons(layout, module)
         local label = L.COMPANION_LABEL:format(c.label, c.role == "required" and L.COMPANION_REQUIRED or L.COMPANION_OPTIONAL,
             c.installed and L.COMPANION_INSTALLED or L.COMPANION_MISSING)
         local tip = (type(c.why) == "string" and (c.why .. "\n\n") or "") .. c.url
-        layout:AddInitializer(CreateSettingsButtonInitializer(label, L.COMPANION_COPY, function()
+        layout:AddInitializer(Core.SettingsRows.Button(category, label, L.COMPANION_COPY, function()
             Core.AskText(L.COMPANION_COPY_PROMPT:format(c.label), c.url, function() end, 0)
-        end, tip, true))
+        end, tip, { label, L.COMPANION_COPY }))
     end
     return #list
 end

@@ -26,11 +26,15 @@ local Intro = Core.Intro
         kennt, also nur Schalter, die ab Werk aus sind – „Wo kommt was“ (ezMerchant, ab Werk an) stand in keiner Liste.
         Jedes Modul nennt sie in ns.NEWS neben ns.DEFAULTS ({ "Schlüssel", … } oder { "Schlüssel", needs = Oberschalter,
         available = fn }); die Blase zeigt sie nach den zustimmungspflichtigen mit gesetztem Häkchen und „(ab Werk an)“.
-        Wer das Häkchen wegnimmt, schaltet aus; „Alle annehmen“ und „Fertig“ lassen sie, wie sie sind, und erledigen nur
+        Wer das Häkchen wegnimmt, schaltet aus; „Alle annehmen“ und „Fertig“ lassen sie, wie sie sind (außer denen mit
+        accept = true, unten), und erledigen nur
         die Seiten, die zu sehen waren (weder Tooltip noch Chatzeile nennen sie). Ist der Oberschalter aus, bleibt die
         Zeile offen; hat der Spieler sie schon ausgeschaltet, gilt sie still als erledigt. Neuinstallation und Module,
         die zum ersten Mal laufen (ezCoreDB.intro.modules): Was am ersten Tag an ist, ist nicht neu (Intro.Known).
         tools/Tests/agree_test.lua ist rot, sobald ein neuer Schalter ab Werk an ist und nicht in ns.NEWS steht.
+      * accept = true an einem Eintrag in ns.NEWS (Entscheidung des Nutzers vom 25.11.2026 zu ezBags Reagenzientasche, gewählt
+        „Immer einschalten (Empfohlen)“): „Allem zustimmen“ und „Alle annehmen“ schalten die Funktion ein, auch wenn sie aus
+        ist – nur, wenn ihr Oberschalter an ist (needs) und sie hier wirken kann. Rückfrage, Tooltip und Chatzeile nennen sie.
       * Neuinstallation: wie bisher das Angebot der Einführung. Die Nachfrage gibt es nur, wenn der Spieler die
         Einführung schon hatte (angeboten, zugestimmt oder „Nicht mehr anbieten“) und das Angebot nicht mehr kommt.
         „Nicht mehr anbieten“ lehnt nur das Angebot ab, nicht die Nachfrage (vom Nutzer am 23.11.2026 bestätigt: „OK so
@@ -60,6 +64,7 @@ local Intro = Core.Intro
       Core.Intro.NewsRows()           → zu fragen (neu, zustimmungspflichtig, aus, hier wirksam; danach row.on: neu und
                                          ab Werk an), still erledigt (neu, aber an oder ab Werk an und ausgeschaltet)
       Core.Intro.NewsOnRows()         → Zeilen aus ns.NEWS der laufenden Module (row.on)
+      Core.Intro.AcceptRows()         → Zeilen mit accept = true, die aus sind (schalten beide Knöpfe ein; row.also)
       Core.Intro.LastNewsRows()       → Zeilen der letzten Nachfrage (laufende Module)
       Core.Intro.TryNews()            → true, wenn die Blase jetzt steht; false, Grund ("off" | "db" | "new" | "offer" |
                                          "shown" | "none" | "combat" | "instance" | "target")
@@ -90,7 +95,7 @@ local function NewsEntries(name)
     local list = mns and mns.NEWS
     for _, item in ipairs(type(list) == "table" and list or {}) do
         local entry = { name, type(item) == "table" and item[1] or item }
-        if type(item) == "table" then entry.needs, entry.available = item.needs, item.available end
+        if type(item) == "table" then entry.needs, entry.available, entry.accept = item.needs, item.available, item.accept end
         if type(entry[2]) == "string" then out[#out + 1] = entry end
     end
     return out
@@ -157,6 +162,21 @@ function Intro.NewsOnRows()
         end
     end
     return rows
+end
+
+-- Ab Werk an, aber ausgeschaltet, und „Allem zustimmen“/„Alle annehmen“ schalten es trotzdem ein (accept = true in
+-- ns.NEWS). Nur bei eingeschaltetem Oberschalter und wo es wirken kann. → Zeilen wie Intro.Rows (row.also, row.accept: in
+-- Rückfrage und Chat unter eigenem Satz, denn sie sind ab Werk an und stehen nicht auf der Seite „Einführung“)
+function Intro.AcceptRows()
+    local out = {}
+    for _, row in ipairs(Intro.NewsOnRows()) do
+        local entry = row.entry
+        if entry.accept == true and row.value == false and NeedsOn(entry) and Intro.CanSwitchOn(entry) then
+            out[#out + 1] = { entry = entry, module = row.module, key = row.key, value = false, default = true, also = true, accept = true,
+                label = Intro.Label(entry), what = row.what }
+        end
+    end
+    return out
 end
 
 function Intro.MarkKnown(rows)
@@ -265,6 +285,7 @@ end
 
 local function AcceptTip()
     local risk, plain, on = Split(open.rows)
+    for _, row in ipairs(Intro.AcceptRows()) do plain[#plain + 1] = Line(row) end
     local text
     if #plain == 0 and on > 0 then
         text = L.INTRO_NEWS_ALL_KEEP
@@ -491,6 +512,16 @@ function Intro.AcceptNews(rows)
             end
         else
             known[#known + 1] = row
+        end
+    end
+    -- ab Werk an, ausgeschaltet, und ausdrücklich mit „Alle annehmen“ einzuschalten (accept = true in ns.NEWS)
+    for _, row in ipairs(Intro.AcceptRows()) do
+        if Intro.Set(row.entry, true) then
+            done[#done + 1] = Line(row)
+            agreed[#agreed + 1] = row
+            known[#known + 1] = row   -- eingeschaltet und im Chat genannt: auch von einer ungezeigten Seite nicht mehr neu
+        else
+            failed[#failed + 1] = Line(row)
         end
     end
     Intro.SettleAll(agreed)

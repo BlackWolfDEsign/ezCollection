@@ -42,7 +42,7 @@ local Core = ezCore
       ezCore.OwnExportSkip(gruppe, { key = true })       -- Schalter, die „Alles sichern“ nicht mitnimmt
       ezCore.SharedOn / SetShared / AdoptShared / ResetModuleShared, page:SharedCheckbox   -- gemeinsame Schalter mehrerer Module (unten)
 
-    Abhängigkeiten (Unterschalter grau, solange der Oberschalter aus ist; Blizzards SetParentInitializer): jedes
+    Abhängigkeiten (Unterschalter grau, solange der Oberschalter aus ist; Core.SettingsRows.Child): jedes
     Steuerelement nimmt opts.parent = key | Zeile | Setting und/oder opts.enabledWhen = fn() → bool (page:Checkbox,
     Slider und Dropdown mit opts als letztem Argument, OwnCheckbox, ProxyCheckbox, ProxyDropdown, CVarCheckbox,
     CVarSlider, Button); der Tooltip der gesperrten Zeile nennt den Oberschalter. Beschreibung unten bei DependencyOf.
@@ -82,6 +82,7 @@ local ownCategories = setmetatable({}, { __mode = "k" })   -- Kategorie der ezCo
 local ownRows = setmetatable({}, { __mode = "k" })         -- Zeilen (Initializer) auf den Seiten der ezCollection
 local wrappedRows = setmetatable({}, { __mode = "k" })     -- Blizzards Zeilen-Rahmen, deren Beschriftung gerade umbricht
 local collectedRows = -1                                   -- Zeilen aller eigenen Seiten beim letzten Einsammeln
+local collectedChanges = -1                                -- Core.SettingsRows.changes beim letzten Einsammeln
 Core.SETTINGS_LABEL_LINES = 2
 
 local function OwnCategory(category, layout)
@@ -109,8 +110,9 @@ local function LayoutRows(category, layout, panel)
 end
 
 -- Sammelt die Zeilen aller Seiten der ezCollection ein (auch die, die ein Modul an den page:-Helfern vorbei über
--- Settings.CreateCheckbox oder layout:AddInitializer anlegt). Zeilen kommen nur hinzu – bleibt ihre Zahl gleich,
--- ist nichts zu tun. → Anzahl der Zeilen.
+-- Settings.CreateCheckbox oder layout:AddInitializer anlegt). Nichts zu tun, solange ihre Zahl gleich bleibt und
+-- ezCore keine Liste umgereiht hat (Kern/SettingsRows.lua: sonst kann eine neue Zeile eine ausgereihte ersetzen).
+-- → Anzahl der Zeilen.
 function Core.CollectOwnSettingsRows()
     local panel = rawget(_G, "SettingsPanel")
     local total = 0
@@ -118,12 +120,13 @@ function Core.CollectOwnSettingsRows()
         local rows = LayoutRows(category, layout, panel)
         if rows then total = total + #rows end
     end
-    if total == collectedRows then return total end
+    local changes = Core.SettingsRows and Core.SettingsRows.changes or 0
+    if total == collectedRows and changes == collectedChanges then return total end
     for category, layout in pairs(ownCategories) do
         local rows = LayoutRows(category, layout, panel)
         for i = 1, rows and #rows or 0 do OwnRow(rows[i]) end
     end
-    collectedRows = total
+    collectedRows, collectedChanges = total, changes
     return total
 end
 
@@ -144,6 +147,7 @@ function Core.WrapSettingsLabel(frame, initializer)
     local text = Core.Peek(frame, "Text")
     if type(text) ~= "table" or type(text.SetWordWrap) ~= "function" then return false end
     if Core.IsOwnSettingsRow(initializer) then
+        Core.SettingsRows.ApplyFont(frame, initializer)
         text:SetWordWrap(true)
         if type(text.SetMaxLines) == "function" then text:SetMaxLines(Core.SETTINGS_LABEL_LINES) end
         wrappedRows[frame] = true
@@ -512,11 +516,11 @@ end
 
 ---------------------------------------------------------------------------
 -- Abhängigkeiten: Unterschalter ausgrauen, solange ihr Oberschalter aus ist (Einstellungs-Prüfung 19.11.2026,
--- Querschnitt „Unterschalter ausgrauen“). Blizzards eigener Weg (Forever-Quelle Blizzard_Settings_Shared/
--- Blizzard_SettingControls.lua): initializer:SetParentInitializer(oberzeile, prädikat) rückt die Zeile ein, wenn die
--- Oberzeile auf derselben Seite steht, und wertet das Prädikat neu aus, sobald sich der Wert der Oberzeile ändert
--- (OnParentSettingValueChanged → EvaluateState); SettingsControlMixin:IsEnabled fragt EvaluateModifyPredicates, das
--- Kästchen, der Regler bzw. das Auswahlfeld wird grau. Ohne Oberzeile (nur opts.enabledWhen) nur AddModifyPredicate.
+-- Querschnitt „Unterschalter ausgrauen“). Blizzards Wege (Forever-Quelle Blizzard_Settings_Shared/
+-- Blizzard_SettingControls.lua): AddModifyPredicate – SettingsControlMixin:IsEnabled fragt EvaluateModifyPredicates, das
+-- Kästchen, der Regler bzw. das Auswahlfeld wird grau –, data.indent rückt ein, AddEvaluateStateCVar(Variable der Oberzeile)
+-- wertet neu aus, sobald sich ihr Wert ändert. Nicht SetParentInitializer: Blizzards Suche liest parentInitializer ungeschützt
+-- (Kern/SettingsRows.lua). Ohne Oberzeile (nur opts.enabledWhen) nur AddModifyPredicate.
 --   opts.parent       Schlüssel eines Steuerelements dieser Seite (page:Checkbox/OwnCheckbox/ProxyCheckbox …), die
 --                     Zeile (Initializer) oder das Setting-Objekt des Oberschalters
 --   opts.enabledWhen  fn() → bool: bedienbar, solange wahr (Standard mit opts.parent: der Oberschalter ist an)
@@ -542,7 +546,7 @@ local function ResolveParent(page, parent)
         return rows[parent], settings[parent] or page.settings[parent] or all[parent]
     end
     if type(parent) ~= "table" then return nil, nil end
-    if type(parent.GetSetting) == "function" or type(parent.SetParentInitializer) == "function" then
+    if type(parent.GetSetting) == "function" or type(parent.AddModifyPredicate) == "function" then
         local ok, setting = pcall(function() return parent:GetSetting() end)
         return parent, ok and type(setting) == "table" and setting or nil
     end
@@ -557,7 +561,7 @@ local function SettingOn(setting)
     return value ~= false and value ~= nil
 end
 
--- → Prädikat fn() → bool oder nil, Oberzeile, Name des Oberschalters (fn)
+-- → Prädikat fn() → bool oder nil, Oberzeile, Name des Oberschalters (fn), Setting des Oberschalters
 local function DependencyOf(page, opts)
     if type(opts) ~= "table" or (opts.parent == nil and type(opts.enabledWhen) ~= "function") then return nil end
     local row, setting = ResolveParent(page, opts.parent)
@@ -579,7 +583,7 @@ local function DependencyOf(page, opts)
         end
         return nil
     end
-    return Enabled, row, Name
+    return Enabled, row, Name, setting
 end
 Core.SettingsDependencyOf = DependencyOf
 
@@ -602,23 +606,22 @@ Core.SettingsDependentTip = DependentTip
 -- Abhängigkeit an der fertigen Zeile anmelden (nach Settings.Create…). → true, wenn angemeldet
 local function AddDependency(page, row, opts)
     if type(row) ~= "table" then return false end
-    local enabled, parentRow = DependencyOf(page, opts)
+    local enabled, parentRow, _, setting = DependencyOf(page, opts)
     if not enabled then return false end
-    if type(parentRow) == "table" and parentRow ~= row and type(row.SetParentInitializer) == "function" then
-        return (pcall(row.SetParentInitializer, row, parentRow, enabled))
-    end
+    if opts.parent ~= nil then Core.SettingsRows.Child(page, row, parentRow, setting) end
     if type(row.AddModifyPredicate) == "function" then return (pcall(row.AddModifyPredicate, row, enabled)) end
     return false
 end
 Core.AddSettingsDependency = AddDependency
 
 -- Zeile nur zeigen, solange shown() wahr ist; ein Fehler in shown landet in der Fehlerliste und blendet die Zeile aus.
-local function AddShown(owner, row, shown, where)
-    if type(shown) ~= "function" or type(row) ~= "table" or not row.AddShownPredicate then return end
-    row:AddShownPredicate(function()
-        local ok, value = Core.Try(owner, where .. " shown", shown)
-        return ok and value and true or false
-    end)
+local function AddShown(page, row, shown, where)
+    Core.SettingsRows.ShowWhen(page, row, shown, where)
+end
+
+-- dasselbe für eine fertige Zeile (Module: ezPanels Meldungsquellen)
+function Page:ShowWhen(row, shown, where)
+    return Core.SettingsRows.ShowWhen(self, row, shown, where)
 end
 
 function Page:OwnCheckbox(group, key, opts)
@@ -649,7 +652,7 @@ function Page:OwnCheckbox(group, key, opts)
         if opts.note then tip = tip .. "\n\n" .. opts.note end
         tip = page:WithNote(tip, "OPT_" .. group .. "_" .. key .. "_NOTE")
         resultRow = OwnRow(Settings.CreateCheckbox(page.category, setting, DependentTip(page, opts, tip)))
-        AddShown(page.owner, resultRow, opts.shown, "OwnCheckbox " .. key)
+        AddShown(page, resultRow, opts.shown, "OwnCheckbox " .. key)
         AddDependency(page, resultRow, opts)
         RememberRow(page, key, resultRow, setting)
         RememberRow(page, group .. "." .. key, resultRow, setting)
@@ -682,11 +685,11 @@ function Page:Header(text, tooltip)
 end
 
 -- Checkbox, Slider und Dropdown geben die Einstellung und die Zeile (Initializer) zurück, damit ein Modul die Zeile
--- später ausblenden kann (AddShownPredicate; Wunsch aus ezBars für die Unterseite einer abgemeldeten Leiste).
+-- später ausblenden kann (page:ShowWhen; Wunsch aus ezBars für die Unterseite einer abgemeldeten Leiste).
 -- → Setting, Initializer oder nil, wenn der Client es nicht kann oder ein Fehler auftrat (in der Fehlerliste).
 -- Dieselbe Reihenfolge wie page:ProxyDropdown und page:OwnCheckbox: zuerst die Einstellung, dann die Zeile.
 --   opts.shown  fn() → bool: Zeile nur zeigen, solange fn() wahr ist (wie page:Button und page:ProxyDropdown; vorher
---               bauten ezMacro (ShownIf) und ezBars (ShowWhen) das je selbst über AddShownPredicate)
+--               bauten ezMacro (ShownIf) und ezBars (ShowWhen) das je selbst)
 
 -- Zweiter Absatz eines Tooltips (Welle 23a, A59): der Text noteKey, wenn es ihn gibt. page:OwnCheckbox fragt
 -- OPT_<gruppe>_<schlüssel>_NOTE (eindeutig je ezCore-Schalter – ein Modul mit gleichnamigem eigenem Schalter erbt
@@ -721,7 +724,7 @@ function Page:Checkbox(key, tooltip, opts)
         if who and type(tip) == "string" then tip = tip .. "\n\n" .. Core.L.COMFORT_HANDLED:format(who) end
         if opts.note and type(tip) == "string" then tip = tip .. "\n\n" .. opts.note end
         row = OwnRow(Settings.CreateCheckbox(self.category, setting, DependentTip(self, opts, tip)))
-        AddShown(self.owner, row, opts.shown, "Checkbox " .. tostring(key))
+        AddShown(self, row, opts.shown, "Checkbox " .. tostring(key))
         AddDependency(self, row, opts)
         RememberRow(self, key, row, setting)
     end)
@@ -746,7 +749,7 @@ function Page:Slider(key, minValue, maxValue, step, formatter, tooltip, opts)
         end
         row = OwnRow(Settings.CreateSlider(self.category, setting, options,
             DependentTip(self, opts, tooltip or self.L["OPT_" .. key .. "_TIP"])))
-        AddShown(self.owner, row, opts.shown, "Slider " .. tostring(key))
+        AddShown(self, row, opts.shown, "Slider " .. tostring(key))
         AddDependency(self, row, opts)
         RememberRow(self, key, row, setting)
     end)
@@ -769,7 +772,7 @@ function Page:Dropdown(key, values, tooltip, opts)
         end
         row = OwnRow(create(self.category, setting, GetOptions,
             DependentTip(self, opts, tooltip or self.L["OPT_" .. key .. "_TIP"])))
-        AddShown(self.owner, row, opts.shown, "Dropdown " .. tostring(key))
+        AddShown(self, row, opts.shown, "Dropdown " .. tostring(key))
         AddDependency(self, row, opts)
         RememberRow(self, key, row, setting)
     end)
@@ -784,7 +787,7 @@ end
 --   opts.id      Zusatz für den Namen der Einstellung, wenn derselbe key mehrfach vorkommt (je Klasse ein Feld)
 --   opts.label, opts.tooltip   statt OPT_<key> und OPT_<key>_TIP
 --   opts.default Standardwert (sonst der jetzige Wert, sonst ""); opts.varType (Standard Settings.VarType.String)
---   opts.shown   fn() → bool für AddShownPredicate (Zeile nur zeigen, wenn …)
+--   opts.shown   fn() → bool: Zeile nur zeigen, wenn …
 -- „Einstellungen zurücksetzen“ lässt den Wert stehen (er gehört nicht zu ns.S). Fehler in get, set, values und
 -- shown landen in der Fehlerliste des Moduls. → Setting, Zeile (Initializer) oder nil, wenn der Client es nicht kann.
 function Page:ProxyDropdown(key, values, get, set, opts)
@@ -826,7 +829,7 @@ function Page:ProxyDropdown(key, values, get, set, opts)
             return container:GetData()
         end
         row = OwnRow(create(self.category, setting, GetOptions, DependentTip(self, opts, tip)))
-        AddShown(owner, row, opts.shown, where)
+        AddShown(self, row, opts.shown, where)
         AddDependency(self, row, opts)
         RememberRow(self, key, row, setting)
     end)
@@ -839,7 +842,7 @@ end
 -- wieder den echten Stand. Wie page:ProxyDropdown:
 --   opts.label, opts.tooltip  statt OPT_<key> und OPT_<key>_TIP
 --   opts.default              Standard für Blizzards Knopf „Standard“ (sonst der jetzige Wert)
---   opts.shown                fn() → bool für AddShownPredicate
+--   opts.shown                fn() → bool: Zeile nur zeigen, wenn …
 -- Fehler in get und set landen in der Fehlerliste des Moduls. → Setting, Zeile (Initializer) oder nil
 function Page:ProxyCheckbox(key, get, set, opts)
     opts = type(opts) == "table" and opts or {}
@@ -874,7 +877,7 @@ function Page:ProxyCheckbox(key, get, set, opts)
         setting = Settings.RegisterProxySetting(self.category, self.prefix .. key, Settings.VarType.Boolean, label, default,
             Get, Set)
         row = OwnRow(Settings.CreateCheckbox(self.category, setting, DependentTip(self, opts, tip)))
-        AddShown(owner, row, opts.shown, where)
+        AddShown(self, row, opts.shown, where)
         AddDependency(self, row, opts)
         RememberRow(self, key, row, setting)
     end)
@@ -914,7 +917,7 @@ function Page:CVarCheckbox(key, cvar, tooltip, opts)
             self.L["OPT_" .. key], opts)
         row = OwnRow(Settings.CreateCheckbox(self.category, setting,
             DependentTip(self, opts, tooltip or self.L["OPT_" .. key .. "_TIP"])))
-        AddShown(self.owner, row, opts.shown, "CVarCheckbox " .. tostring(key))
+        AddShown(self, row, opts.shown, "CVarCheckbox " .. tostring(key))
         AddDependency(self, row, opts)
         RememberRow(self, key, row, setting)
     end)
@@ -934,7 +937,7 @@ function Page:CVarSlider(key, cvar, minValue, maxValue, step, formatter, tooltip
         end
         row = OwnRow(Settings.CreateSlider(self.category, setting, options,
             DependentTip(self, opts, tooltip or self.L["OPT_" .. key .. "_TIP"])))
-        AddShown(self.owner, row, opts.shown, "CVarSlider " .. tostring(key))
+        AddShown(self, row, opts.shown, "CVarSlider " .. tostring(key))
         AddDependency(self, row, opts)
         RememberRow(self, key, row, setting)
     end)
@@ -945,11 +948,11 @@ end
 -- Knöpfe tun im Kampf nichts außer einem Hinweis).
 -- opts.shown = fn() → bool: Zeile nur zeigen, solange fn() wahr ist (wie page:Checkbox).
 -- opts.parent, opts.enabledWhen, opts.parentLabel: Knopf grau, solange der Oberschalter aus ist (Abhängigkeit, oben).
--- opts.search = false: Blizzards Suchmarken (Beschriftung, Knopftext) nicht setzen; opts.searchTags = { text … }:
--- stattdessen diese Marken (etwa die zweite Zeile von page:AllToggle: Beschriftung " ", gefunden über die der Gruppe).
+-- opts.search = false: über Blizzards Suche nicht zu finden (sonst über Beschriftung und Knopftext); opts.searchTags =
+-- { text … }: stattdessen über diese Texte (etwa die zweite Zeile von page:AllToggle: Beschriftung " ", gefunden über die der Gruppe).
 function Page:Button(label, buttonText, onClick, tooltip, opts)
     local layout = self.layout
-    if not (layout and layout.AddInitializer and CreateSettingsButtonInitializer) then return end
+    if not (layout and layout.AddInitializer and Core.SettingsRows.Available()) then return end
     local initializer
     if type(opts) == "table" and opts.protected and type(onClick) == "function" then
         local run, owner = onClick, self.owner
@@ -962,18 +965,16 @@ function Page:Button(label, buttonText, onClick, tooltip, opts)
         end
     end
     self:Try(function()
-        local tags = type(opts) == "table" and type(opts.searchTags) == "table" and opts.searchTags or nil
-        initializer = OwnRow(CreateSettingsButtonInitializer(label, buttonText, onClick, DependentTip(self, opts, tooltip),
-            not (tags or (type(opts) == "table" and opts.search == false))))
-        -- (fehlt AddSearchTags in einem anderen Client-Stand, bleibt die Zeile ohne Marken – Blizzards Forever-Quelle hat sie)
-        if tags and type(initializer) == "table" and type(initializer.AddSearchTags) == "function" then
-            initializer:AddSearchTags(unpack(tags))
+        local tags = { label, buttonText }
+        if type(opts) == "table" then
+            if type(opts.searchTags) == "table" then tags = opts.searchTags elseif opts.search == false then tags = nil end
         end
+        initializer = OwnRow(Core.SettingsRows.Button(self.category, label, buttonText, onClick, DependentTip(self, opts, tooltip), tags))
         layout:AddInitializer(initializer)
-        AddShown(self.owner, initializer, type(opts) == "table" and opts.shown, "Button " .. tostring(label))
+        AddShown(self, initializer, type(opts) == "table" and opts.shown, "Button " .. tostring(label))
         AddDependency(self, initializer, opts)
     end)
-    return initializer   -- z. B. für initializer:AddShownPredicate(fn) (Zeile nur zeigen, solange fn() wahr ist)
+    return initializer   -- z. B. für page:ShowWhen(initializer, fn) (Zeile nur zeigen, solange fn() wahr ist)
 end
 
 -- „Alle auswählen / Alle abwählen“ auf einer Einstellungsseite (Design-System, Regel „Mehrfachauswahl“,
@@ -1177,7 +1178,7 @@ end
 -- Abschnitt „Ergänzende Addons“ (unter „Erweitert“): je Addon ein Knopf, der den CurseForge-Link zum Kopieren zeigt.
 function Page:Companions()
     local page = self
-    return self:Try(function() return Core.AddCompanionButtons(page.layout, page.owner) end)
+    return self:Try(function() return Core.AddCompanionButtons(page.layout, page.owner, page.category) end)
 end
 
 -- Knopf „Status“ (unter „Erweitert“): schreibt den Stand des Moduls in den Chat – der sichtbare Weg zu

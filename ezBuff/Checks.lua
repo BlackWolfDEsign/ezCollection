@@ -711,7 +711,7 @@ end
 
 -- Segen-Wahl (Rechtsklick-Menü an Blizzards Gruppenrahmen, Group.lua), Entscheidung des Nutzers 13.11.2026
 -- „Zusätzlich je Spieler“: die Wahl je Klasse bleibt, eine Wahl für einen einzelnen Spieler überstimmt sie.
--- Reihenfolge: Spieler → Klasse → Standard (nil: ezBuff wählt wie für dich).
+-- Reihenfolge: Spieler → Klasse → Klasse und Rolle (Check.BlessingPlan, seit 26.11.2026) → deine eigene Wahl.
 
 -- Schlüssel eines Spielers aus Name-Realm (wie Core.charKey) und Anzeigename; nil bei gesperrtem oder fehlendem
 -- Namen – dann ist keine Einzelwahl möglich. Rechnet ezCore (Core.UnitKey, EC-112; BF-11): Forever „Vorname
@@ -791,6 +791,66 @@ function Check.ClearPlayerBlessings()
     return n
 end
 
+---------------------------------------------------------------------------
+-- Segen nach Klasse und Rolle (Paladin; Entscheidung des Nutzers vom 26.11.2026 „Nach Klasse/Rolle (Empfohlen)“ auf
+-- „Ezbuff muss auch von zaubern unterscheiden z.b. segen der macht vs Segen der Weisheit“). Ohne deine Wahl für den
+-- Spieler oder seine Klasse wählt ezBuff selbst (Schalter blessingAuto, ab Werk an):
+--   Klasse   Krieger, Schurke → Macht; Magier, Hexenmeister, Priester → Weisheit; Jäger → Weisheit, weil Segen der
+--            Macht laut Client nur die Nahkampf-Angriffskraft erhöht: SpellEffect aller Ränge und beider Großen Segen
+--            hat Aura 99 (SPELL_AURA_MOD_ATTACK_POWER), keine 124 (SPELL_AURA_MOD_RANGED_ATTACK_POWER) – laut
+--            wago.tools, Build 1.60.1.71037 (tools/daten/wago/zauber.lua); Namen der Auren laut TrinityCore,
+--            SpellAuraDefines.h. Geprüft in Tests/segen_rolle_test.lua (Leitlinie 12).
+--   Rolle    Druide, Schamane, Paladin nach der Rolle in der Gruppe (Core.UnitRole): Tank → Macht, Heiler → Weisheit,
+--            Paladin mit Rolle Schaden (Vergeltung, Nahkampf) → Macht
+--   Gestalt  Druide in Bär- oder Katzengestalt (Kraft Wut bzw. Energie, UnitPowerType) → Macht
+-- Sonst (Schamane oder Druide mit Rolle Schaden ohne Gestalt, keine Rolle) oder solange du den Segen für die Stufe des
+-- Mitglieds nicht kannst: keine Wahl – jeder Segen zählt, vorgeschlagen wird deine eigene Wahl.
+---------------------------------------------------------------------------
+Check.BLESSING_CLASS = { WARRIOR = "might", ROGUE = "might", MAGE = "wisdom", WARLOCK = "wisdom", PRIEST = "wisdom",
+    HUNTER = "wisdom" }
+Check.BLESSING_ROLE = { TANK = "might", HEALER = "wisdom" }
+Check.BLESSING_DAMAGER = { PALADIN = "might" }
+
+-- Druide in Bär- oder Katzengestalt? (Enum.PowerType Rage bzw. Energy; ohne Enum Blizzards Zahlen 1 und 3)
+local function FormBlessing(unit)
+    local power = ns.Num(Value(rawget(_G, "UnitPowerType"), unit))
+    if not power then return nil end
+    local enum = rawget(_G, "Enum")
+    local types = type(enum) == "table" and type(enum.PowerType) == "table" and enum.PowerType or {}
+    if power == (types.Rage or 1) or power == (types.Energy or 3) then return "might" end
+    return nil
+end
+
+-- Vorschlag nach Klasse, Rolle oder Gestalt für ein Mitglied m = { unit, class }: Segen-Schlüssel, Grund
+-- ("auto-class" | "auto-role" | "auto-form"), Rolle – oder nil (Schalter aus, nichts erkennbar).
+function Check.AutoBlessing(m)
+    if not (ns.S and ns.S.blessingAuto) or type(m) ~= "table" then return nil end
+    local class = m.class
+    if ns.IsSecret(class) or type(class) ~= "string" then return nil end
+    if Check.BLESSING_CLASS[class] then return Check.BLESSING_CLASS[class], "auto-class" end
+    local role = type(m.unit) == "string" and Core.UnitRole and Core.UnitRole(m.unit) or nil
+    if role and Check.BLESSING_ROLE[role] then return Check.BLESSING_ROLE[role], "auto-role", role end
+    if role == "DAMAGER" and Check.BLESSING_DAMAGER[class] then return Check.BLESSING_DAMAGER[class], "auto-role", role end
+    if class == "DRUID" and type(m.unit) == "string" then
+        local key = FormBlessing(m.unit)
+        if key then return key, "auto-form" end
+    end
+    return nil
+end
+
+-- Welchen Segen bekommt ein Mitglied m = { unit, class, level, key }? → Schlüssel, Grund, Rolle | nil
+--   Grund: "player" (deine Wahl für den Spieler), "class" (deine Wahl für die Klasse), sonst Check.AutoBlessing – das
+--   nur, wenn du den Segen für die Stufe des Mitglieds kannst. nil: keine Wahl (jeder Segen zählt, vorgeschlagen wird
+--   deine eigene Wahl). Eine Rechnung für Symbol, Durchbuffen, Großen Segen und „Wer bekommt welchen Segen?“.
+function Check.BlessingPlan(m)
+    if type(m) ~= "table" then return nil end
+    local key, source = Check.BlessingFor(m.class, m.key or Check.PlayerKey(m.unit))
+    if key then return key, source end
+    local auto, why, role = Check.AutoBlessing(m)
+    if auto and Buffs.BestRank(auto, m.level) then return auto, why, role end
+    return nil
+end
+
 -- Zustand einer Buff-Liste auf der Einheit: "ok" | "expiring" (läuft bald aus) | "missing", Aura. Je Schlüssel
 -- über Buffs.State – „läuft aus“ nach ezCores Regel (Spells.BuffState), nicht mehr aus eigener Rechnung.
 local function StateOf(auras, keys, minLeft)
@@ -807,8 +867,9 @@ Check.StateOf = StateOf
 
 -- Was braucht ein Mitglied von mir? m = { unit, name, class, level }, own = der Spieler selbst (alle eigenen
 -- Buff-Gruppen, auch „nur auf dich“ wie Rüstungen). Liste { key, buffKey, spell, icon, name, state, left, inRange }.
--- Segen: die Einzelwahl für dieses Mitglied, sonst die Wahl für seine Klasse, sonst zählt jeder Segen (und
--- vorgeschlagen wird die eigene Wahl). m.key = Schlüssel aus Check.PlayerKey (sonst aus m.unit gerechnet).
+-- Segen: der Plan aus Check.BlessingPlan (Einzelwahl, Wahl für die Klasse, Klasse und Rolle) – dann zählt nur dieser
+-- Segen –, sonst zählt jeder Segen (und vorgeschlagen wird die eigene Wahl). m.key = Schlüssel aus Check.PlayerKey
+-- (sonst aus m.unit gerechnet).
 function Check.MemberNeeds(m, auras, minLeft, own)
     local needs = {}
     if type(m) ~= "table" or type(auras) ~= "table" then return needs end
@@ -817,7 +878,10 @@ function Check.MemberNeeds(m, auras, minLeft, own)
     for _, group in ipairs(Groups(ns.playerClass)) do
         if (own or group.target == "any") and Castable(group) then
             local keys, entry, spell = KeysOf(group), nil, nil
-            local chosen = not own and group.kind == "blessing" and Check.BlessingFor(m.class, who)
+            local chosen, why, role
+            if not own and group.kind == "blessing" then
+                chosen, why, role = Check.BlessingPlan({ unit = m.unit, class = m.class, level = level, key = who })
+            end
             if chosen then
                 for _, e in ipairs(group.entries) do
                     if e.key == chosen then entry = e end
@@ -838,10 +902,14 @@ function Check.MemberNeeds(m, auras, minLeft, own)
                     end
                 end
                 if entry and spell then
+                    -- warum dieser Segen (Group.BlessingWhy, Leitlinie 11) – nur, wenn es der geplante ist
+                    local planned = chosen ~= nil and entry.key == chosen
                     needs[#needs + 1] = { key = group.id, buffKey = entry.key, keys = keys, spell = spell,
                         icon = Spells.Icon(spell), name = Buffs.Name(entry, spell), state = state,
                         left = aura and Buffs.Left(aura) or nil,
-                        inRange = own and true or InRange(spell, m.unit) }
+                        inRange = own and true or InRange(spell, m.unit),
+                        why = planned and why or nil, whyRole = planned and role or nil,
+                        whyClass = planned and m.class or nil }
                 end
             end
         end
@@ -938,14 +1006,14 @@ function Check.Subgroup(unit)
     return ok and ns.Num(ns.Plain(subgroup)) or nil
 end
 
--- Welchen Segen will ein Mitglied? Bedarf (need.buffKey), sonst die Einzelwahl bzw. Wahl der Klasse, beim Spieler
--- seine gemerkte Wahl; nil = keine Wahl (jeder Segen zählt).
+-- Welchen Segen will ein Mitglied? Bedarf (need.buffKey), sonst Check.BlessingPlan (Einzelwahl, Wahl der Klasse,
+-- Klasse und Rolle), beim Spieler seine gemerkte Wahl; nil = keine Wahl (jeder Segen zählt).
 local function WantedBlessing(m)
     for _, need in ipairs(m.needs or {}) do
         if need.key == "blessing" then return need.buffKey end
     end
     if m.unit == "player" then return Check.Prefer("blessing") end
-    return (Check.BlessingFor(m.class, m.key or Check.PlayerKey(m.unit)))
+    return (Check.BlessingPlan(m))
 end
 
 -- Gruppenfassungen in die Bedarfe eintragen (nach Check.Members; nur mit „Gruppenfassung ab“ ≥ 2 – 1 heißt aus):
@@ -1290,8 +1358,9 @@ ns.OnReady(function()
     end
     -- Kampfbeginn: Die Liste der letzten Prüfung gilt nach außen erst wieder nach der nächsten Prüfung (V-147).
     ns.On("PLAYER_REGEN_DISABLED", Check.Stale)
+    -- PLAYER_ROLES_ASSIGNED: neue Rollen in der Gruppe (Segen nach Rolle, Check.AutoBlessing)
     for _, event in ipairs({ "BAG_UPDATE_DELAYED", "PLAYER_REGEN_ENABLED", "GROUP_ROSTER_UPDATE", "PLAYER_LEVEL_UP",
-        "SPELLS_CHANGED", "PLAYER_ALIVE", "PLAYER_UNGHOST", "ZONE_CHANGED_NEW_AREA" }) do
+        "SPELLS_CHANGED", "PLAYER_ALIVE", "PLAYER_UNGHOST", "ZONE_CHANGED_NEW_AREA", "PLAYER_ROLES_ASSIGNED" }) do
         ns.On(event, function() Check.Request() end)
     end
     -- Waffe gewechselt (auch Waffen- und Schildhand getauscht, ohne dass sich die Tasche ändert): je Hand gilt dann

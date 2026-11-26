@@ -5,7 +5,7 @@ local Core = ezCore
 --[[
     „In Gilde einladen“ im Rechtsklick-Menü der Spieler (Welle 16, Wunsch des Nutzers vom 15.11.2026: „rechtsklick
     auf charakter(rahmen) muss in gilde einladen ermöglichen“). Blizzards Menüs bleiben Blizzards (Leitlinie 1):
-    ezSocial hängt über Menu.ModifyMenu einen Eintrag an, liest nur aus contextData und schreibt nichts in Blizzards
+    ezSocial hängt über Core.Menu.ModifyUnits (Menu.ModifyMenu, nicht bei gesperrtem Namen) einen Eintrag an, liest nur aus contextData und schreibt nichts in Blizzards
     Tabellen (Leitlinie 5).
 
     Wo: die Spieler-Menüs aus ezCore (Core.Menu.PLAYER_MENUS) ohne eigenen Charakter, Gegenfraktion, Offline,
@@ -245,9 +245,7 @@ function GI.Hook()
     if not (Menu and type(Menu.ModifyMenu) == "function") then return false end
     local tags = GI.Tags()
     if #tags == 0 then return false end
-    for _, tag in ipairs(tags) do
-        pcall(Menu.ModifyMenu, tag, function(_, root, contextData) ns.Try("GuildInvite", GI.AddEntry, root, contextData) end)
-    end
+    Core.Menu.ModifyUnits(tags, function(root, contextData) ns.Try("GuildInvite", GI.AddEntry, root, contextData) end)
     hooked = true
     return true
 end

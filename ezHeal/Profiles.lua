@@ -108,8 +108,19 @@ function PR.Load(name, opts)
     if not (cb and cb.Writable()) then return false, "missing" end
     if Core.InCombat() then return false, "combat" end
     if not cb.Has(name) then return false, "unknown" end
-    local ok, reason, detail = cb.Load(name, { owner = ADDON, quiet = opts.quiet })
+    -- Schalter „Rechtsklick bleibt „Menü““: das Profil kommt gleich mit „Menü“ auf dem Rechtsklick; detail.kept nennt, was
+    -- dort lag (ein Schreibvorgang; die Optionen wie Core.ClickBindings.Load)
+    local profile = type(cb.Profile) == "function" and cb.Profile(name) or nil
+    local list, kept = profile and profile.list or nil, nil
+    if list and ns.MenuClick then list, kept = ns.MenuClick.Fix(list) end
+    local ok, reason, detail
+    if kept then
+        ok, reason, detail = cb.Set(list, { owner = ADDON, quiet = opts.quiet, checkSpells = true })
+    else
+        ok, reason, detail = cb.Load(name, { owner = ADDON, quiet = opts.quiet })
+    end
     if not ok then return false, reason, detail end
+    if kept and type(detail) == "table" then detail.kept = kept end
     if reason ~= "same" then ns.Templates.ProfileLoaded() end
     -- Blizzards offenes Fenster lädt ezCore nach dem Schreiben selbst neu (Core.ClickBindings.Reload, T4-NG2)
     return true, reason, detail
@@ -190,6 +201,8 @@ function PR.LoadNow(name)
         if #dropped > 0 then
             ns.Print(L.PROFILE_DROPPED:format(#dropped, PR.EntryText(dropped, PR.SKIP_MAX)))
         end
+        local text = type(detail) == "table" and ns.MenuClick and ns.MenuClick.KeptText(detail.kept) or nil
+        if text then ns.Print(text) end
     else
         ns.Print(Explain(reason))
     end

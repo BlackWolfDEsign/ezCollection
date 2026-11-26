@@ -93,7 +93,7 @@ end
 
 -- Graues Zeichen der Stände ohne Pfeil (Score.Verdict; "noslot" = kein bewerteter Platz: Hemd, Wappenrock). Eine Tabelle für
 -- alle Listen, die den Stand zeigen (API.StatusSign; ezAuction, ezCraft). „<“ nur, solange der rote Pfeil aus ist.
-Marks.STATUS_SIGNS = { same = "=", equipped = "=", nostats = "–", unusable = "–", noslot = "–", pending = "…" }
+Marks.STATUS_SIGNS = { same = "=", armor = "=", equipped = "=", nostats = "–", unusable = "–", noslot = "–", pending = "…" }
 Marks.STATUS_WORSE = "<"
 
 function Marks.StatusSign(kind)

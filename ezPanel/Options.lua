@@ -133,7 +133,8 @@ local function Register()
         -- Meldet ein Modul dieselbe Kennung mit anderem Namen neu an (AddWarning), bekommt sie ein neues Häkchen mit dem
         -- neuen Namen und Tooltip; das alte blendet seine Bedingung aus. Blizzards Einstellungen lassen sich nach dem
         -- Anlegen nicht umbenennen, und in Blizzards Tabellen schreibt ezPanel nicht (Leitlinie 5) – nur Blizzards
-        -- eigene Aufrufe (RegisterAddOnSetting, CreateCheckbox, AddShownPredicate). Das neue steht am Ende der Liste.
+        -- eigene Aufrufe (RegisterAddOnSetting, CreateCheckbox) und ezCores page:ShowWhen (reiht in der Zeilenliste der
+        -- eigenen Seite ein und aus, Leitlinie 5, Ausnahme 6). Das neue steht am Ende der Liste.
         function ns.AddAlertSetting(source)
             local id = source.id
             if type(id) ~= "string" or not (ns.blocks.alerts and ns.blocks.alerts.cfg) then return end
@@ -150,10 +151,8 @@ local function Register()
                     ns.SetAlertSourceEnabled(id, value)
                 end)
                 local init = Settings.CreateCheckbox(alerts.category, setting, ns.AlertSourceTip(source))
-                if type(init) == "table" and init.AddShownPredicate then
-                    init:AddShownPredicate(function() return alertSettings[id] == setting and ns.AlertSourceKnown(id) end)
-                end
                 alertSettings[id], alertNames[id], alertCount[id] = setting, name, n
+                alerts:ShowWhen(init, function() return alertSettings[id] == setting and ns.AlertSourceKnown(id) end, "Meldung " .. id)
             end)
         end
         for _, source in ipairs(ns.AlertSources()) do ns.AddAlertSetting(source) end

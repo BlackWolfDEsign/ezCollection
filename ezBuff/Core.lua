@@ -44,6 +44,9 @@ ns.DEFAULTS = {
     -- den Buff (in Reichweite); 1 = aus (Einstellungs-Prüfung 19.11.2026, Nr. 75: nur noch der Regler, bis dahin dazu
     -- das Kästchen groupSpells)
     groupMin = 3,
+    -- Paladin: ohne Wahl für Klasse oder Spieler den Segen nach Klasse und Rolle (Check.AutoBlessing; Entscheidung des
+    -- Nutzers vom 26.11.2026 „Nach Klasse/Rolle (Empfohlen)“)
+    blessingAuto = true,
     -- Waffenverzauberung (Gift, Wetzstein, Öl) als Aufgabe am Knopf (BF-17). Ab Werk an seit der Einstellungs-Prüfung
     -- vom 19.11.2026 (Abschnitt 4): handelt nur auf Klick; ezCombat warnt vor dem Ablauf, ezBuff bietet den Klick an.
     weapon = true,
@@ -55,6 +58,10 @@ ns.DEFAULTS = {
     -- Meldungen bei ezPanels Baustein „Meldungen“: kein eigener Schalter mehr, ezPanels Auswahl der Meldungsquellen ist
     -- die eine Stelle (Einstellungs-Prüfung 19.11.2026, Nr. 76)
 }
+
+-- Seit der letzten Veröffentlichung neu und ab Werk an: die Blase „Neu seit dem Update“ nennt sie (ezCore, ConsentNews.lua).
+-- „Segen nach Klasse und Rolle“ nur für Paladine (die anderen Klassen haben keine Segen).
+ns.NEWS = { { "blessingAuto", available = function() return ns.playerClass == "PALADIN" end } }
 
 -- „Allem zustimmen“ (ezCore, Werkzeuge/FirstStart.lua: Intro.Registered; Spieltest 20.11.2026): jeder Schalter oben,
 -- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
@@ -91,7 +98,7 @@ Core.NewModule(ADDON, ns, {
         "More",
         -- Welle 23 (ezCore 1.13.0 ohne neue Versionsnummer, Paket kern/reste-23a):
         -- A1 Spieler-Menüs mit der Art „frame“ (die Art kam im selben Paket wie Debug.AddLine, docs/ezcore.md)
-        "Menu.PlayerMenus", "Debug.AddLine",
+        "Menu.PlayerMenus", "Menu.ModifyUnits", "Debug.AddLine",
         -- A3 gemeinsamer Leser der Waffenverzauberung, A4 Waffenzauber des Schamanen
         "WeaponEnchantInfo", "Spells.WeaponImbues", "Spells.BestImbueRank",
         -- heutige Zauber-Abfrage statt IsPlayerSpell (Paket kern/abgeloeste-namen, 24.11.2026, ohne neue Nummer)

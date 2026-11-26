@@ -120,6 +120,9 @@ function ClickCast.HandText(entry, name)
         if ClickCast.HitsSelfCast(entry.click[2]) then suggested = suggested .. " " .. Core.Red(L.CLICK_SELFCAST) end
         parts[#parts + 1] = suggested .. "."
     end
+    -- ein Links- oder Rechtsklick ohne Umschalttaste auf die Zeile nähme Blizzards „Ziel“ bzw. „Menü“ die Taste (Spieltest
+    -- des Nutzers vom 24. und 25.11.2026: Rechtsklick auf die Gruppenrahmen ohne Menü)
+    parts[#parts + 1] = L.CLICK_HAND_PLAIN
     local cb = Core.ClickBindings
     local selfKey = type(cb) == "table" and type(cb.SelfCastKey) == "function" and cb.SelfCastKey() or nil
     if selfKey then

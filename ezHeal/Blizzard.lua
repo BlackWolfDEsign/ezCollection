@@ -82,10 +82,21 @@ function B.Create()
     button:SetScript("OnLeave", function() GameTooltip:Hide() end)
     B.button = button
     -- Rundgang beim ersten Öffnen von Blizzards Fenster (Tour.lua, UE-28; nur zuhören)
-    parent:HookScript("OnShow", function() ns.Tour.Start() end)
-    -- dort „Menü“ oder „Ziel“ verloren (Zauber auf Rechts- bzw. Linksklick gespeichert): einmal sagen (MenuClick.lua)
-    parent:HookScript("OnHide", function() C_Timer.After(0.5, function() ns.Try("Menü per Klick", ns.MenuClick.Say) end) end)
-    if parent:IsShown() then ns.Tour.Start() end
+    parent:HookScript("OnShow", function()
+        ns.Try("Menü per Klick", ns.MenuClick.WindowShown)
+        ns.Tour.Start()
+    end)
+    -- dort „Menü“ oder „Ziel“ verloren (Zauber auf Rechts- bzw. Linksklick gespeichert): „Menü“ zurücklegen, sonst einmal
+    -- sagen (MenuClick.lua)
+    parent:HookScript("OnHide", function() ns.Try("Menü per Klick", ns.MenuClick.WindowClosed) end)
+    -- schon beim Belegen: Blizzard nennt die Zeile, die ihre Taste verliert (nur zuhören)
+    if type(parent.SetUnboundText) == "function" and hooksecurefunc then
+        hooksecurefunc(parent, "SetUnboundText", function(_, element) ns.Try("Menü per Klick", ns.MenuClick.OnUnbound, element) end)
+    end
+    if parent:IsShown() then
+        ns.Try("Menü per Klick", ns.MenuClick.WindowShown)
+        ns.Tour.Start()
+    end
     return button
 end
 

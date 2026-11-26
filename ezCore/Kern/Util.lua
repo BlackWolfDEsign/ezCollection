@@ -1935,6 +1935,19 @@ function Core.PlayerRole()
     return nil
 end
 
+-- Rolle eines Gruppenmitglieds (26.11.2026, für ezBuffs Segen nach Rolle): für den Spieler wie Core.PlayerRole, sonst
+-- die Rolle in der Gruppe (UnitGroupRolesAssigned; „NONE“, gesperrt oder unbekannt → nil). Talente anderer Spieler liest
+-- ezCore nicht (Betrachten kostet je Spieler eine Anfrage). → "TANK" | "HEALER" | "DAMAGER" | nil, Quelle
+function Core.UnitRole(unit)
+    if Core.IsSecret(unit) or type(unit) ~= "string" then return nil end
+    local okSelf, isSelf = Call(rawget(_G, "UnitIsUnit"), unit, "player")
+    if unit == "player" or (okSelf and not Core.IsSecret(isSelf) and isSelf == true) then return Core.PlayerRole() end
+    local ok, role = Call(rawget(_G, "UnitGroupRolesAssigned"), unit)
+    role = ok and KnownRole(role) or nil
+    if role then return role, "group" end
+    return nil
+end
+
 -- Kann der Spieler heilen (Klasse)? → true | false | nil (Klasse unbekannt)
 function Core.PlayerCanHeal()
     local ok, _, class = Call(rawget(_G, "UnitClass"), "player")

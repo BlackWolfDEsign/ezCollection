@@ -62,11 +62,9 @@ function ns.FillSettings(target)
     target:Dropdown("priceRule", { { "blizzard", L.RULE_blizzard }, { "undercut", L.RULE_undercut },
         { "percent", L.RULE_PERCENT_OPTION } })
     -- nur bei der Preisregel „Prozent“, Bereich 1 bis 25 % (Einstellungs-Prüfung vom 19.11.2026, Abschnitt 4)
-    local _, percentRow = target:Slider("undercutPercent", 1, ns.UNDERCUT_PERCENT_MAX, 1,
-        function(value) return Core.Percent(value) end)
-    if percentRow and percentRow.AddShownPredicate then
-        percentRow:AddShownPredicate(function() return ns.S ~= nil and ns.S.priceRule == "percent" end)
-    end
+    local function ByPercent() return ns.S ~= nil and ns.S.priceRule == "percent" end
+    target:Slider("undercutPercent", 1, ns.UNDERCUT_PERCENT_MAX, 1, function(value) return Core.Percent(value) end, nil,
+        { parent = "priceRule", enabledWhen = ByPercent, shown = ByPercent })
     target:Checkbox("neverBelowVendor")
     target:Checkbox("floorTrend")
     target:Checkbox("rememberPost")

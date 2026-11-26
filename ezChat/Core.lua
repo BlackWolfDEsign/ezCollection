@@ -228,7 +228,7 @@ Core.NewModule(ADDON, ns, {
         "More",
         -- Welle 23: Spieler-Menüs aus ezCores Liste (Chat.lua); Kontakte mit Quelle je Angabe und „zuletzt online“
         -- der Gilde (Delivery.lua)
-        "Menu.PlayerMenus", "contactFrom", "contactLastOnline",
+        "Menu.PlayerMenus", "Menu.ModifyUnits", "contactFrom", "contactLastOnline",
         -- Gesamtreview 18.11.2026 (T16-NZ4, T16-NZ5): Zeitbasis (Community.lua) und Datum der Fehlerliste (KeepError)
         "Time",
         -- Gesamtreview 18.11.2026 (P13 Teil D2): Addon-Fach, Befehl ohne Wort, Zurücksetzen, Menüeintrag, Weg

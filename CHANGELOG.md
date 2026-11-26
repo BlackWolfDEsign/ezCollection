@@ -3,6 +3,77 @@
 Written by hand before every release; it describes what each module can do, not every commit. English first, German below each entry.
 Von Hand vor jeder Veröffentlichung gepflegt; beschreibt, was jedes Modul kann, nicht jeden Commit. Englisch zuerst, Deutsch darunter.
 
+## v1.0.0-beta5
+
+Fifth beta for WoW Forever: ezBuff picks a paladin's blessing by class and group role, ezGear rates gear for your level and armor type and tells what an item does for you, ezCollection's settings pages no longer cause an error in Blizzard's settings, the plain right click on party frames stays “Menu”, and right-click menus of units with a hidden name no longer break. Please restart the game completely after updating – this version brings new files, a /reload is not enough. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).
+Fünfte Beta für WoW Forever: ezBuff wählt den Segen des Paladins nach Klasse und Gruppenrolle, ezGear bewertet Ausrüstung für deine Stufe und Rüstungsart und sagt, was ein Teil für dich bewirkt, die Einstellungsseiten der ezCollection lösen in Blizzards Einstellungen keinen Fehler mehr aus, der einfache Rechtsklick auf Gruppenrahmen bleibt „Menü“, und Rechtsklick-Menüs von Einheiten mit verborgenem Namen gehen nicht mehr kaputt. Nach dem Update das Spiel bitte ganz neu starten – diese Fassung bringt neue Dateien, `/reload` genügt nicht. Vieles ist im Spiel noch ungetestet; Fehler bitte mit der Fehlerliste zum Kopieren melden (Esc » Optionen » AddOns » ezCollection » Erweitert).
+
+### ezCore
+
+- ezCollection's settings pages leave Blizzard's settings list alone: no more message about the protected function IsUserOAuthed() when scrolling or searching Blizzard's settings. The settings search still finds ezCollection's buttons; a row that depends on another switch turns grey at once and is gone the next time you open the page. A found sub-option is shown without its parent row.
+- Die Einstellungsseiten der ezCollection lassen Blizzards Einstellungsliste in Ruhe: keine Meldung mehr über die geschützte Funktion IsUserOAuthed() beim Rollen oder Suchen in Blizzards Einstellungen. Die Suche findet die Knöpfe der ezCollection weiter; eine Zeile, die von einem anderen Schalter abhängt, wird sofort grau und ist beim nächsten Öffnen der Seite weg. Ein gefundener Unterschalter erscheint ohne seine Oberzeile.
+- Right-click menus of a unit whose name the game keeps hidden are left as they are; this removes an error in the menu of the target frame, for example after marking enemies.
+- Rechtsklick-Menüs einer Einheit, deren Namen das Spiel verbirgt, bleiben, wie sie sind; das behebt einen Fehler im Menü des Zielfensters, etwa nach dem Markieren von Gegnern.
+
+### ezAuction
+
+- “Upgrades only” follows ezGear's new rating: for tanks and melee, an item of a lighter armor type than yours shows the grey “=” and does not count as an upgrade. The slider “Percent below lowest” stands indented below the price rule.
+- „Nur Verbesserungen“ folgt ezGears neuer Bewertung: Bei Tanks und Nahkämpfern zeigt ein Teil einer leichteren Rüstungsart als deiner das graue „=“ und zählt nicht als Verbesserung. Der Regler „Prozent unter Tiefstpreis“ steht eingerückt unter der Preisregel.
+
+### ezBag
+
+- “Agree to everything” and “Accept all” also switch on “Combine identical items” and “Reagent bag inside the bag” – the reagent bag even if you had switched it off (only with “Group the bag automatically” on).
+- „Allem zustimmen“ und „Alle annehmen“ schalten auch „Gleiche Gegenstände zusammenfassen“ und „Reagenzientasche in der Tasche“ ein – die Reagenzientasche auch dann, wenn du sie ausgeschaltet hattest (nur mit „Tasche automatisch gruppieren“).
+
+### ezBuff
+
+- Paladins: without your own choice ezBuff picks the blessing by class and group role – Might for warriors, rogues, tanks and paladins in the damage role, Wisdom for mages, warlocks, priests, healers and hunters (Blessing of Might only raises melee attack power). A druid in bear or cat form gets Might; otherwise your own blessing. Then only that blessing counts, even if another one is up. Your choice per class or player comes first. Switch “Blessings by class and role”, on by default; in the menu “Same as for you” is now “Automatic (ezBuff picks)”.
+- Paladine: Ohne deine Wahl wählt ezBuff den Segen nach Klasse und Gruppenrolle – Macht für Krieger, Schurken, Tanks und Paladine mit Rolle Schaden, Weisheit für Magier, Hexenmeister, Priester, Heiler und Jäger (Segen der Macht erhöht nur die Nahkampf-Angriffskraft). Ein Druide in Bär- oder Katzengestalt bekommt Macht, sonst dein eigener Segen. Dann zählt nur dieser Segen, auch wenn schon ein anderer liegt. Deine Wahl je Klasse oder Spieler geht vor. Schalter „Segen nach Klasse und Rolle“, ab Werk an; im Menü heißt „Wie für dich“ jetzt „Automatisch (ezBuff wählt)“.
+- The tooltip on the party frame names the reason; “Who gets which blessing?” » “Show in chat” writes one line per member into the chat. Its entries in right-click menus are left out for a unit with a hidden name.
+- Der Tooltip am Gruppenrahmen nennt den Grund; „Wer bekommt welchen Segen?“ » „Im Chat zeigen“ schreibt je Mitglied eine Zeile in den Chat. Seine Einträge in Rechtsklick-Menüs fehlen bei einer Einheit mit verborgenem Namen.
+
+### ezChat
+
+- Its entries in right-click menus are left out for a unit with a hidden name.
+- Seine Einträge in Rechtsklick-Menüs fehlen bei einer Einheit mit verborgenem Namen.
+
+### ezGear
+
+- Gear is rated for your level instead of level 60, armor by the game's own formula. For tanks and melee, an item of a lighter armor type than yours gets no green arrow, one of your own type no red arrow against lighter gear; the tooltip says why. The percentage counts on everything you wear (Shift: this item alone).
+- Ausrüstung wird für deine Stufe bewertet statt für Stufe 60, Rüstung nach der Formel des Spiels. Für Tanks und Nahkämpfer bekommt ein Teil einer leichteren Rüstungsart als deiner keinen grünen Pfeil, eines deiner eigenen Art keinen roten gegen leichtere Ausrüstung; der Tooltip sagt, warum. Der Prozentwert rechnet auf alles, was du trägst (Umschalt: nur dieses Teil).
+- New line “For you” in the tooltip: what the swap does to your health and the melee damage you take (or deal), also in bear form. Switch “Effect on you”, on by default.
+- Neue Zeile „Für dich“ im Tooltip: was der Tausch bei deiner Gesundheit und dem erlittenen (oder eigenen) Nahkampfschaden ausmacht, auch in Bärengestalt. Schalter „Wirkung auf dich“, ab Werk an.
+
+### ezHeal
+
+- The plain right click on player, party and raid frames stays “Menu”: if Blizzard's click casting puts something else there, ezHeal puts “Menu” back, removes what was there and names it in the chat. Right click with Shift, Ctrl or Alt stays yours. Switch “Right click stays “Menu””, on by default.
+- Der einfache Rechtsklick auf Spieler-, Gruppen- und Raidrahmen bleibt „Menü“: Legt Blizzards Klick-Zaubern etwas anderes darauf, legt ezHeal „Menü“ zurück, entfernt, was dort lag, und nennt es im Chat. Rechtsklick mit Umschalt, Strg oder Alt bleibt deiner. Schalter „Rechtsklick bleibt „Menü““, ab Werk an.
+
+### ezMacro
+
+- “Announce” is left out of the menu of a unit with a hidden name; the button “For target …” still works. After the button “Click cast”, the chat hint adds: not on the plain left or right click.
+- „Ansage“ fehlt im Menü einer Einheit mit verborgenem Namen; der Knopf „Zum Ziel …“ geht weiter. Nach dem Knopf „Klick-Zauber“ sagt der Hinweis im Chat dazu: nicht mit dem einfachen Links- oder Rechtsklick.
+
+### ezMap
+
+- Sub-options in its settings stay indented below their switch, now without touching Blizzard's settings list.
+- Unterschalter in seinen Einstellungen stehen weiter eingerückt unter ihrem Schalter, jetzt ohne Blizzards Einstellungsliste anzufassen.
+
+### ezPanel
+
+- Rows for alerts in its settings show only for a known source, now without touching Blizzard's settings list.
+- Zeilen für Warnungen in seinen Einstellungen erscheinen nur bei bekannter Quelle, jetzt ohne Blizzards Einstellungsliste anzufassen.
+
+### ezSocial
+
+- Its entries in right-click menus are left out for a unit with a hidden name.
+- Seine Einträge in Rechtsklick-Menüs fehlen bei einer Einheit mit verborgenem Namen.
+
+### ezTalent
+
+- Its gear weights leave armor to ezGear, which weighs it for your level by the game's formula, and count stamina by the health it gives; ezGear also gets the role and range of your template.
+- Seine Gewichtung überlässt die Rüstung ezGear, das sie für deine Stufe nach der Formel des Spiels wiegt, und zählt Ausdauer nach der Gesundheit, die sie bringt; ezGear bekommt dazu Rolle und Reichweite deiner Vorlage.
+
 ## v1.0.0-beta4
 
 Fourth beta for WoW Forever: a second spellbook page that tells where you learn what, rotations that go onto your action bars, rescue and dispel hints, an auction house that shows upgrades at a glance, a wider recipe list, a suggestion for full bags, talent templates linked to rotations, an anonymous contribution text made in the game, and all shipped data brought up to client build 1.60.1. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).

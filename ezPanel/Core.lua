@@ -81,7 +81,7 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.XPBlocked, Core.Durability.ReportText, Core.SwitchCVar, Core.ItemIconText
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",
-    needs = { "TrainerSpots.PositionKnown", "AfterCombat", "OpenPanel", "OpenChatWith", "ItemCount", "ForEachBagItem", "Lockouts.List",
+    needs = { "SettingsRows.Refresh", "TrainerSpots.PositionKnown", "AfterCombat", "OpenPanel", "OpenChatWith", "ItemCount", "ForEachBagItem", "Lockouts.List",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Reparatur-Meldung (T16-12), Ersatzsymbol (T16-NM6)
         "Durability.ReportText", "ICON_FALLBACK",
         "Currencies.Known", "ItemLevelOf", "LastFaction", "UnitHealthText", "UnitPowerText", "scaffoldHelpers",

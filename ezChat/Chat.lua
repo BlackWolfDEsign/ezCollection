@@ -496,11 +496,9 @@ ns.OnReady(function()
         local ok, err = pcall(ChatTabMenu, owner, root)
         if not ok then ns.Error(err) end
     end)
-    for _, tag in ipairs(Chat.UnitMenus()) do
-        pcall(Menu.ModifyMenu, tag, function(_, root, contextData)
-            ns.Seen(tag)
-            local ok, err = pcall(UnitMenu, root, contextData)
-            if not ok then ns.Error(err) end
-        end)
-    end
+    ezCore.Menu.ModifyUnits(Chat.UnitMenus(), function(root, contextData, tag)
+        ns.Seen(tag)
+        local ok, err = pcall(UnitMenu, root, contextData)
+        if not ok then ns.Error(err) end
+    end)
 end)

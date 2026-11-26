@@ -20,6 +20,8 @@ local Core = ezCore
         nennt die Zeile einen Weg („erst … lernen“), steht darunter, woher Stufe, Lehrer und Ort stammen.
         Beim Drücken und Loslassen zeichnet der Tooltip neu (RefreshData, wie ezLoot) – auch das Fenster eines
         im Chat angeklickten Links (ItemRefTooltip).
+        Darunter (Schalter tooltipEffect, 25.11.2026) „Für dich: Gesundheit −8,8 %, erlittener Nahkampfschaden −2,3 %“ – was der
+        Tausch beim Spieler ausmacht, aus Werten des Clients; mit Umschalt auch, wie viel das Teil allein ausmacht.
       * Zeile „Für Twinks: ↑ Mira +18 %“ (Alts.lua, Schalter tooltipAlts; Nutzer am 24.11.2026): wem ein Gegenstand, den du
         weitergeben kannst, etwas bringt. Diese Namen fehlen dann in der Zeile „Twinks“ des Item-Wissens (wer ihn tragen
         kann). Laden die Daten seiner Ausrüstung noch, zeichnet der Tooltip neu, sobald sie da sind.
@@ -90,7 +92,7 @@ function Tip.Line(link)
 end
 
 -- Stände, deren Aussage aus der Gewichtung kommt – nur dort nennt die Umschalt-Zeile deren Quelle.
-local WEIGHTED = { better = true, learn = true, level = true, worse = true, same = true, nostats = true }
+local WEIGHTED = { better = true, learn = true, level = true, worse = true, same = true, nostats = true, armor = true }
 
 -- Tip.SourceLine(kind) → „Quelle der Gewichtung: …“ (Weights.Source) – nur mit gedrückter Umschalt-Taste und nur
 -- bei einem Stand, der aus der Gewichtung kommt; sonst nil
@@ -197,15 +199,20 @@ Core.Tooltip.AddItemSection("ezGear.upgrade", 25, function(tooltip, _, data)
     if ns.Active("tooltip") then
         local text, color, kind, info = Tip.Line(link)
         if text then
-            Add(text, color, info and info.mateHand ~= nil)    -- mit dem Gegenstück wird die Zeile lang: umbrechen
+            -- mit dem Gegenstück bzw. der Rüstungsart wird die Zeile lang: umbrechen
+            Add(text, color, info and (info.mateHand ~= nil or info.armorRule ~= nil))
             -- schlechter, obwohl ein gezählter Wert steigt: was dafür und was dagegen spricht (Nutzer am 24.11.2026 zum
             -- Schurken mit Bogen: „stimmt die ezgear aussage“)
-            local trade = kind == "worse" and ns.Score.TradeText(link, info)
+            local trade = (kind == "worse" or kind == "armor") and ns.Score.TradeText(link, info)
             if trade then Add(trade, GREY, true) end
+            local effect = WEIGHTED[kind] and ns.Enabled("tooltipEffect") and ns.Score.EffectText(link, info)
+            if effect then Add(effect, GREY, true) end
             if WEIGHTED[kind] then
                 Watch(tooltip)
                 weightedShown[tooltip] = true
                 local source = Tip.SourceLine(kind)
+                local part = source and ns.Score.PartText(info)
+                if part then Add(part, GREY, true) end
                 if source then Add(source, GREY, true) end
                 local way = Tip.WaySourceLine(link)
                 if way then Add(way, GREY, true) end

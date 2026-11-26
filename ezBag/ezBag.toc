@@ -3,7 +3,7 @@
 ## Notes: The original Blizzard bag, grouped into framed, customizable groups - plus bank/alt counts in tooltips and bag comfort features. Part of ezCollection.
 ## Notes-deDE: Die originale Blizzard-Tasche in eingerahmten, anpassbaren Gruppen - dazu Bank-/Twink-Anzahl im Tooltip und Komfortfunktionen. Teil der ezCollection.
 ## Author: BlackWolf-Design
-## Version: 1.16.0
+## Version: 1.16.1
 ## Category: ezCollection
 ## IconTexture: Interface\Icons\INV_Misc_Bag_08
 ## SavedVariables: ezBagDB, TaschenGruppenDB

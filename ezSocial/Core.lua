@@ -85,7 +85,7 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.NewTimerBar, Core.SlashReset, Core.TipClick, Core.HelpLines
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",
-    needs = { "AfterCombat", "OpenPanel", "PanelShown", "CompleteName", "Contacts.FirstNameCount", "Contacts.State",
+    needs = { "Menu.ModifyUnits", "AfterCombat", "OpenPanel", "PanelShown", "CompleteName", "Contacts.FirstNameCount", "Contacts.State",
         "scaffoldHelpers", "Uptime", "Style.Color", "Style.ICON",
         -- Welle 17: Helfer und Texte, die ezCore ohne neue Versionsnummer bekam (tools/texte.lua, Regel 4)
         "More",

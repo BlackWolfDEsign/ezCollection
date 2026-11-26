@@ -159,7 +159,7 @@ ns.CORE_NEEDS = { "scaffold", "unitEvents", "tourOwner", "AfterCombat", "OpenPan
     "More",
     -- Welle 23 (Reste vor der Doku-Welle; ezCore aus kern/reste-23a, ohne neue Nummer): Spieler-Menüs, Zauber-Teil
     -- der Makro-Logik, Emote-Index (alle Schreibweisen, Befehl zu Emote), Wahrheitswert mit nil als „nein“
-    "Menu.PlayerMenus", "Spells.MacroCast", "EmoteCommands", "EmoteToken", "Flag",
+    "Menu.PlayerMenus", "Menu.ModifyUnits", "Spells.MacroCast", "EmoteCommands", "EmoteToken", "Flag",
     -- Welle 26 (ezCore-Paket kern/ezcore-reste-24, ohne neue Nummer): „Was fehlt für diesen Zauber?“ aus ezCore
     "Spells.MissingReagents", "Spells.ReagentList", "Spells.ReagentText", "Spells.ReagentSource",
     -- Welle 27 (Paket modul/ezmacro-faehigkeiten, ohne neue Nummer): Art eines Zaubers (Client, sonst Client-Tabellen)

@@ -872,9 +872,19 @@ function T.Restore(which)
     local cb = CB()
     if not (cb and cb.Writable()) then return false, "missing" end
     if Core.InCombat() then return false, "combat" end
-    if not cb.Backup(which) then return false, "nobackup" end
+    local backup = cb.Backup(which)
+    if not backup then return false, "nobackup" end
     local writer, writerName = T.LastWriter()
-    local ok, reason = cb.Restore(which, { owner = ADDON })
+    -- Schalter „Rechtsklick bleibt „Menü““: der alte Stand kommt gleich mit „Menü“ auf dem Rechtsklick (ein Schreibvorgang,
+    -- eine Sicherung); kept nennt, was dort lag
+    local list, kept = backup.list, nil
+    if ns.MenuClick then list, kept = ns.MenuClick.Fix(list) end
+    local ok, reason
+    if kept then
+        ok, reason = cb.Set(list, { owner = ADDON, keepDefaults = false })
+    else
+        ok, reason = cb.Restore(which, { owner = ADDON })
+    end
     if not ok then return false, reason end
     -- Merkliste mitführen: „Zurück“ tauscht sie mit dem Stand davor – aber nur, wenn die Sicherung von ezHeal stammt
     -- (HL-06). Hat ein anderes Modul dazwischen geschrieben, stellt „Zurück“ dessen Stand davor her; ezHeals Tasten
@@ -892,7 +902,7 @@ function T.Restore(which)
             store.foreign = writer == "other" and writerName or true   -- Name des Moduls, true = unbekannt
         end
     end
-    return true, reason
+    return true, reason, kept
 end
 
 -- Nach dem Laden eines benannten Profils (Profiles.lua): Was dort liegt, hat ezHeal nicht als Vorlage geschrieben –
@@ -1002,8 +1012,13 @@ end
 
 function ns.RestoreNow(which)
     which = which == "first" and "first" or "last"
-    local ok, reason = T.Restore(which)
-    ns.Print(ok and (which == "first" and L.RESTORED_FIRST or L.RESTORED) or Explain(reason))
+    local ok, reason, kept = T.Restore(which)
+    local done = which == "first" and L.RESTORED_FIRST or L.RESTORED
+    -- unterschied sich der alte Stand nur im Rechtsklick, hat sich mit dem Schalter „Rechtsklick bleibt „Menü““ nichts geändert
+    if kept and reason == "same" then done = L.KEEPMENU_SAME end
+    ns.Print(ok and done or Explain(reason))
+    local text = ok and kept and ns.MenuClick.KeptText(kept) or nil
+    if text then ns.Print(text) end
     return ok, reason
 end
 

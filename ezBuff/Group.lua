@@ -58,7 +58,7 @@ local Core = ezCore
     Sperre greift erst danach) leert ezBuff die Aktionen aller Knöpfe und blendet die Zeichen aus; die Symbole blendet
     Blizzards Zustandstreiber aus (hideInCombat). Nach dem Kampf prüft ezBuff neu.
     Taint-sicher (Leitlinie 5): In Blizzards Rahmen wird nichts geschrieben; eigene Daten je Rahmen stehen in
-    Core.GroupFrames.Data, das Menü wird nur über Menu.ModifyMenu ergänzt.
+    Core.GroupFrames.Data, das Menü wird nur über Core.Menu.ModifyUnits ergänzt.
     Läuft Party Buff Tracker Forever (Core.WhoHandles("groupBuffs")), hält sich der Abschnitt zurück (Leitlinie 9).
 ]]
 
@@ -184,10 +184,13 @@ function Group.SpellLines(need, name)
     if type(need) ~= "table" then return lines end
     local Check = ns.Check
     local source
+    local why = Group.BlessingWhy(need)
     if need.groupSpell then
         lines[#lines + 1] = L.GROUP_CLICK_GROUP:format(Core.Spells.Name(need.groupSpell) or "?", need.groupCount or 0)
+        if why then lines[#lines + 1] = L.BLESSING_WHY:format(why) end
     else
         lines[#lines + 1] = L.GROUP_CLICK:format(need.name, name or "?")
+        if why then lines[#lines + 1] = L.BLESSING_WHY:format(why) end
         if need.groupReagent then
             lines[#lines + 1] = L.GROUP_NO_REAGENT:format(Core.ItemNameByID(need.groupReagent) or ("#" .. need.groupReagent))
             source = need.groupReagentSource or "list"
@@ -701,7 +704,8 @@ end
 
 -- Zweite Stufe „Für <Name>“ (Entscheidung des Nutzers 13.11.2026 „Zusätzlich je Spieler“): eine Wahl für genau
 -- diesen Spieler überstimmt die Klasse, „Wie Klasse“ löscht sie. Nicht für dich selbst (deine eigenen Buffs wählt
--- ezBuff wie bisher) und nicht bei gesperrtem Namen (Check.PlayerKey gibt nil – nichts wird gespeichert).
+-- ezBuff wie bisher) und nicht bei gesperrtem Namen (Check.PlayerKey gibt nil – nichts wird gespeichert; Blizzards Menü
+-- bleibt dort seit 25.11.2026 ganz unberührt, Core.Menu.ModifyUnits).
 function Group.AddPlayerMenu(sub, unit, class, list)
     if unit == "player" or ns.Value(UnitIsUnit, unit, "player") == true then return false end
     local who, name = ns.Check.PlayerKey(unit)
@@ -719,13 +723,89 @@ end
 
 -- Einstellungen → Gruppe → „Segen für <Klasse>“ (Leitlinie 3: die Wahl aus dem Rechtsklick-Menü auch sichtbar als
 -- Auswahlfeld, Options.lua). Dieselbe Quelle wie das Menü (Check.BlessingFor/SetBlessing, je Charakter); Group.AUTO
--- steht für „Wie für dich“ (keine Wahl gespeichert).
+-- steht für „Automatisch“ (keine Wahl gespeichert: Klasse und Rolle bzw. wie für dich, Check.BlessingPlan).
 Group.AUTO = "auto"
 
--- Nur Paladine sehen die Auswahlfelder (Blizzards AddShownPredicate).
+---------------------------------------------------------------------------
+-- Warum welcher Segen (Check.BlessingPlan; Leitlinie 11: jede Angabe nennt ihre Quelle)
+---------------------------------------------------------------------------
+
+local ROLE_TEXT = { TANK = "ROLE_TANK", HEALER = "ROLE_HEALER", DAMAGER = "ROLE_DAMAGER" }
+
+-- Grund eines geplanten Segens als Text oder nil. need = { why, whyClass, whyRole } (aus Check.MemberNeeds).
+function Group.BlessingWhy(need)
+    if type(need) ~= "table" or type(need.why) ~= "string" then return nil end
+    local class = need.whyClass and (Core.ClassName(need.whyClass) or need.whyClass) or "?"
+    if need.why == "player" then return L.BLESSING_WHY_PLAYER end
+    if need.why == "class" then return L.BLESSING_WHY_CLASS_CHOICE:format(class) end
+    if need.why == "auto-class" then
+        if need.whyClass == "HUNTER" then return L.BLESSING_WHY_HUNTER end
+        return L.BLESSING_WHY_AUTO_CLASS:format(class)
+    end
+    if need.why == "auto-role" then
+        local role = ROLE_TEXT[need.whyRole]
+        return L.BLESSING_WHY_AUTO_ROLE:format(role and L[role] or "?")
+    end
+    if need.why == "auto-form" then return L.BLESSING_WHY_AUTO_FORM end
+    return nil
+end
+
+-- Segen-Gruppe deiner Klasse (ns.Check.Groups) oder nil
+local function BlessingGroup()
+    for _, group in ipairs(ns.Check.Groups(ns.playerClass)) do
+        if group.kind == "blessing" then return group end
+    end
+    return nil
+end
+
+-- Wer bekommt welchen Segen? Je Mitglied der Gruppe, das online ist und lebt (Check.GroupUnits, Check.Member), eine
+-- Zeile „Name: Segen (Grund)“ – dieselbe Rechnung wie Symbol und Durchbuffen (Check.BlessingPlan; geht kein Rang des
+-- geplanten Segens auf die Stufe des Mitglieds, wie Check.MemberNeeds der Segen, den ezBuff für dich wählt). Frage des Nutzers vom 26.11.2026: „Welcher Charakter bekommt was wenn ich es mit
+-- ezbuff ausführe“.
+function Group.BlessingPlanLines()
+    local lines = {}
+    local group = BlessingGroup()
+    if not group then return lines end
+    for _, unit in ipairs(ns.Check.GroupUnits()) do
+        local m = ns.Check.Member(unit)
+        if m then
+            local key, why, role = ns.Check.BlessingPlan(m)
+            local name, reason
+            if key and ns.Buffs.BestRank(key, m.level) then
+                name = Group.BlessingName(key)
+                reason = Group.BlessingWhy({ why = why, whyClass = m.class, whyRole = role })
+            else
+                local entry, spell = ns.Check.Choose(group, m.level)
+                name = entry and spell and ns.Buffs.Name(entry, spell) or nil
+                reason = L.BLESSING_WHY_OWN
+            end
+            lines[#lines + 1] = L.BLESSING_PLAN_LINE:format(Core.ClassText(Core.ShortName(m.name), m.class),
+                name or L.BLESSING_PLAN_NOTHING, reason or "?")
+        end
+    end
+    return lines
+end
+
+-- Knopf „Wer bekommt welchen Segen?“ → Anzahl der Zeilen
+function Group.PrintBlessingPlan()
+    if not BlessingGroup() then
+        ns.Print(L.BLESSING_PLAN_NO_BLESSINGS)
+        return 0
+    end
+    local lines = Group.BlessingPlanLines()
+    if #lines == 0 then
+        ns.Print(L.BLESSING_PLAN_NONE)
+        return 0
+    end
+    ns.Print(L.BLESSING_PLAN_HEAD:format(#lines))
+    for _, line in ipairs(lines) do ns.Print("  " .. line) end
+    return #lines
+end
+
+-- Nur Paladine sehen die Auswahlfelder (page:ProxyDropdown mit opts.shown).
 function Group.BlessingSettingsShown() return ns.playerClass == "PALADIN" end
 
--- Einträge eines Auswahlfelds: { { Wert, Text } … } – „Wie für dich“, dann die gelernten Segen.
+-- Einträge eines Auswahlfelds: { { Wert, Text } … } – „Automatisch“, dann die gelernten Segen.
 function Group.BlessingChoices()
     local list = { { Group.AUTO, L.MENU_BLESSING_AUTO } }
     for _, item in ipairs(Group.Blessings()) do list[#list + 1] = { item.key, item.name } end
@@ -801,9 +881,7 @@ end
 function Group.HookMenus()
     if menuHooked then return true end
     if not (Menu and type(Menu.ModifyMenu) == "function") then return false end
-    for _, tag in ipairs(Group.MENUS) do
-        pcall(Menu.ModifyMenu, tag, function(_, root, contextData) ns.Try("Menu", Group.AddMenu, root, contextData) end)
-    end
+    Core.Menu.ModifyUnits(Group.MENUS, function(root, contextData) ns.Try("Menu", Group.AddMenu, root, contextData) end)
     menuHooked = true
     return true
 end

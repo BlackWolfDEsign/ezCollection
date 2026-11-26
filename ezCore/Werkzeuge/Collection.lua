@@ -205,7 +205,7 @@ end
 
 -- Charakterverwaltung auf der Seite „ezCollection“ (V-004, Leitlinie 3): unter „Bekannte Charaktere“ jeder Twink
 -- eine Zeile mit Knopf „Vergessen“ (Rückfrage über Core.AskForgetChar). Ein vergessener Twink verschwindet aus der
--- Liste (Blizzards AddShownPredicate); der gespielte Charakter hat keinen Knopf (er steht im Tooltip der
+-- Liste (page:ShowWhen); der gespielte Charakter hat keinen Knopf (er steht im Tooltip der
 -- Überschrift). Bewusst keine eigene Unterseite: Die Zeilen stehen dort, wo auch „Verlauf leeren“ steht.
 -- → Anzahl Zeilen mit Knopf
 function Core.AddCharRows(page)
@@ -221,9 +221,7 @@ function Core.AddCharRows(page)
             local key = entry.key
             local initializer = page:Button(Core.CharRowLabel(entry), L.CHARS_FORGET_BUTTON, function() Core.AskForgetChar(key, ns) end,
                 L.CHARS_FORGET_TIP:format(key))
-            if initializer and initializer.AddShownPredicate then
-                initializer:AddShownPredicate(function() return Core.Chars()[key] ~= nil end)
-            end
+            page:ShowWhen(initializer, function() return Core.Chars()[key] ~= nil end, "Charakter " .. key)
             rows = rows + 1
         end
     end
@@ -267,8 +265,13 @@ function Core.RefreshGuildRows()
     end
     return n
 end
-Core.Listen("GUILDBANK_CHANGED", function() Core.RefreshGuildRows() end, "ezCore.GuildRows")
-Core.Listen("CHAR_FORGOTTEN", function() Core.RefreshGuildRows() end, "ezCore.GuildRows")
+-- Vergessenes verschwindet beim nächsten Öffnen der Seite von der Liste; bis dahin ist sein Knopf grau (Kern/SettingsRows.lua)
+local function RowsChanged()
+    Core.RefreshGuildRows()
+    Core.SettingsRows.Refresh(true)
+end
+Core.Listen("GUILDBANK_CHANGED", RowsChanged, "ezCore.GuildRows")
+Core.Listen("CHAR_FORGOTTEN", RowsChanged, "ezCore.GuildRows")
 
 -- Rückfrage und Vergessen einer gemerkten Gildenbank (Knopf unter „Gemerkte Gildenbanken“). → true, wenn gefragt wurde
 function Core.AskForgetGuild(key, mns)
@@ -299,9 +302,7 @@ function Core.AddGuildRows(page)
     for _, key in ipairs(keys) do
         local initializer = page:Button(Core.GuildRowLabel(key, Core.Guilds()[key]), L.CHARS_FORGET_BUTTON,
             function() Core.AskForgetGuild(key, ns) end, L.GUILDS_FORGET_TIP:format(key))
-        if initializer and initializer.AddShownPredicate then
-            initializer:AddShownPredicate(function() return Core.Guilds()[key] ~= nil end)
-        end
+        page:ShowWhen(initializer, function() return Core.Guilds()[key] ~= nil end, "Gildenbank " .. key)
         if initializer then guildRows[key] = initializer end
     end
     return #keys
@@ -370,7 +371,7 @@ local function BuildOverview()
     if CreateSettingsListSectionHeaderInitializer then
         Add(CreateSettingsListSectionHeaderInitializer(L.OVERVIEW_HEADER, L.OVERVIEW_HEADER_TIP))
     end
-    if CreateSettingsButtonInitializer then
+    if Core.SettingsRows.Available() then
         for _, name in ipairs(Core.ModuleNames()) do
             local state = Core.ModuleState(name)
             local label = state == "loaded" and L.OVERVIEW_LOADED:format(name, Core.Version(name))
@@ -378,7 +379,7 @@ local function BuildOverview()
 
             local open = ModuleSettings(name)
             if open then
-                Add(CreateSettingsButtonInitializer(label, L.OVERVIEW_OPEN, function() open() end, Core.ModuleTip(name), true))
+                Add(Core.SettingsRows.Button(cat, label, L.OVERVIEW_OPEN, function() open() end, Core.ModuleTip(name), { label, L.OVERVIEW_OPEN }))
             elseif CreateSettingsListSectionHeaderInitializer then
                 Add(CreateSettingsListSectionHeaderInitializer(label, (Core.ModuleTip(name))))
             end
@@ -500,7 +501,7 @@ local function BuildOverview()
             if not okDB then Core.Error(ADDON, errDB, "Discovery") end
         end
         if Core.AddCompanionButtons then
-            local okComp, errComp = pcall(Core.AddCompanionButtons, adv.layout or layout, "ezCore")
+            local okComp, errComp = pcall(Core.AddCompanionButtons, adv.layout or layout, "ezCore", adv.category or cat)
             if not okComp then Core.Error(ADDON, errComp, "Companions") end
         end
     end

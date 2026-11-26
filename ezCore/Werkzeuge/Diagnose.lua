@@ -341,6 +341,7 @@ Core.SELFTEST = {
         { "Frame", "NineSliceCodeTemplate", optional = true },
         { "Frame", "PagingControlsHorizontalTemplate", optional = true },
         { "Frame", "SpellBookHeaderTemplate", optional = true },
+        { "Frame", "SettingButtonControlTemplate", optional = true },   -- Knopfzeile mit Suchmarke (Kern/SettingsRows.lua)
         { "AuraContainer", "CustomAuraContainerTemplate", optional = true },
         { "Frame", "DisableUntrustedLayoutScriptsTemplate", optional = true },
         { "Cooldown", "CooldownFrameTemplate", optional = true },   -- Spirale der AuraRow-Vorlage (sonst ohne)
@@ -403,7 +404,8 @@ Core.SELFTEST = {
         { "Settings.RegisterVerticalLayoutSubcategory", optional = true }, { "Settings.RegisterCanvasLayoutSubcategory", optional = true },
         { "Settings.RegisterProxySetting", optional = true }, { "Settings.CreateSlider", optional = true },
         { "Settings.CreateSliderOptions", optional = true }, { "Settings.CreateControlTextContainer", optional = true },
-        { "CreateSettingsButtonInitializer" }, { "CreateSettingsListSectionHeaderInitializer" },
+        { "CreateSettings" .. "ButtonInitializer" }, { "CreateSettingsListSectionHeaderInitializer" },   -- (Regel 16 des Lints: Name, kein Aufruf)
+        { "Settings.CreateSettingInitializer", optional = true }, { "SettingsInbound.RepairDisplay", optional = true },
         { "SettingsPanel", optional = true },
         -- Addons, CVars
         { "C_AddOns.IsAddOnLoaded" }, { "C_AddOns.GetAddOnMetadata" }, { "C_AddOns.DoesAddOnExist", optional = true },

@@ -80,6 +80,9 @@ local Core = ezCore
           Symbol eines Berufs (Zauber über die API), Beruf aus dem Titel eines Lehrers (auch Wortstamm, 17.11.2026)
       ezCore.Menu.InsertRoot(root, stelle) → Hülle: Einträge an dieser Stelle einfügen (MenuUtil.Create…, root:Insert)
       ezCore.Menu.PLAYER_MENUS   Blizzards Rechtsklick-Menüs mit einem Spieler (Tag für Menu.ModifyMenu und Art)
+      ezCore.Menu.ModifyUnits(tags, fn(root, contextData, tag, owner)) → Anzahl; der eine Weg, Blizzards Einheiten-Menüs zu
+                                     ergänzen: fn läuft nicht, wenn im Menü etwas gesperrt ist (Menu.UnitLocked)
+      ezCore.Menu.UnitLocked(contextData) → true, wenn Name oder Einheit des Menüs gesperrt sind
       ezCore.Menu.PlayerMenus(filter) → { tag, … }, z. B. { offline = false, guild = false } (Welle 16);
         { frame = true } → die Menüs der Gruppen- und Raidrahmen SELF, PARTY, RAID_PLAYER (Welle 23a)
 ]]
@@ -1137,6 +1140,44 @@ Menu.PLAYER_MENUS = {
     { tag = "MENU_UNIT_RECENT_ALLY" },
     { tag = "MENU_UNIT_RECENT_ALLY_OFFLINE", offline = true },
 }
+
+-- Zeigt das Menü einer Einheit einen Namen, den Blizzard sperrt (etwa NPCs im Dungeon)? Blizzards Titel ist dann gesperrt
+-- breit, und damit sind es die Lagen aller Zeilen. Hängt ein Addon etwas an, rechnet Blizzards Layout mit diesen Werten in
+-- verunreinigter Ausführung und bricht ab (wahrscheinliche Ursache, docs/blizzard-regeln.md T22; Spieltest des Nutzers vom 25.11.2026: „Kumpel hat npcs markiert und folgender
+-- Fehler“, FrameUtil.lua:223 „attempt to perform arithmetic on local 'frameLeft' (a secret number value, while execution
+-- tainted by 'ezCore')“, Stapel TargetFrame.lua → UnitPopupShared.lua → Menu.lua → LayoutFrame.lua) – Markieren ging nicht.
+-- Der Titel kommt nur aus dem Namen; C_Secrets ist Reserve. Kann der Client nicht antworten, gilt: nicht gesperrt. → bool
+function Menu.UnitLocked(contextData)
+    if Core.IsSecret(contextData) then return true end
+    if type(contextData) ~= "table" then return false end
+    if Core.IsSecret(contextData.name) or Core.IsSecret(contextData.unit) then return true end
+    local unit = contextData.unit
+    if type(unit) ~= "string" then return false end
+    if Core.IsSecret((Core.Call(rawget(_G, "UnitName"), unit))) then return true end
+    local secrets = rawget(_G, "C_Secrets")
+    local ask = type(secrets) == "table" and secrets.ShouldUnitIdentityBeSecret
+    if type(ask) ~= "function" then return false end
+    local locked = Core.Call(ask, unit)
+    return Core.IsSecret(locked) or locked == true
+end
+
+-- Blizzards Einheiten-Menüs ergänzen (Menu.ModifyMenu). fn(root, contextData, tag, owner) hängt an root an; ist etwas
+-- gesperrt, läuft fn nicht, und Blizzards Menü bleibt, wie es ist. Ein Fehler in fn steht in der Fehlerliste von ezCore;
+-- Blizzard ruft fn bei einem schon gezeigten Menü sofort beim Anmelden, ein Fehler dort ließe die Anmeldung scheitern.
+-- → Anzahl der angemeldeten Menüs (0: der Client hat Menu.ModifyMenu nicht)
+function Menu.ModifyUnits(tags, fn)
+    local blizzard = rawget(_G, "Menu")
+    if type(blizzard) ~= "table" or type(blizzard.ModifyMenu) ~= "function" then return 0 end
+    local count = 0
+    for _, tag in ipairs(tags or {}) do
+        local ok = pcall(blizzard.ModifyMenu, tag, function(owner, root, contextData)
+            if Menu.UnitLocked(contextData) then return end
+            Core.Try(nil, "Menu.ModifyUnits", fn, root, contextData, tag, owner)
+        end)
+        if ok then count = count + 1 end
+    end
+    return count
+end
 
 -- Tags der Spieler-Menüs, deren Art zum Filter passt: { offline = false } lässt Offline-Menüs weg, { unit = true }
 -- nimmt nur Menüs mit Einheit. Ohne Filter alle, in der Reihenfolge der Liste.

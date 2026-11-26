@@ -149,7 +149,7 @@ local function ExtraPage(id)
     -- Abgemeldet (der Anbieter zeigt die Leiste nicht mehr, die Seite bleibt bis zum nächsten Laden): Die erste Zeile
     -- sagt, warum sich auf dem Bildschirm nichts ändert. Die Regler bleiben – ihre Werte gelten bei der nächsten
     -- Anmeldung; „Standardplatz“ hätte nichts zu tun und verschwindet. Ein- und Ausblenden über ezCores opts.shown
-    -- (page:Button; Blizzards AddShownPredicate, ein Fehler landet in der Fehlerliste).
+    -- (page:Button; Kern/SettingsRows.lua, ein Fehler landet in der Fehlerliste).
     sub:Button(L.OPT_EXTRA_GONE, L.OPT_EXTRA_GONE_BUTTON, function() ns.ExtraGoneHint(id) end, L.OPT_EXTRA_GONE_TIP,
         { shown = function() return not Registered() end })
     sub:Header(L.OPT_HEADER_LAYOUT)

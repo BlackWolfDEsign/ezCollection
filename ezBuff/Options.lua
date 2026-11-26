@@ -96,6 +96,10 @@ local function Register()
     -- Vorlage „Durchbuffen“ je Klasse (Wunsch des Nutzers vom 15.11.2026, Macro.lua): Makro in Blizzards Verwaltung
     page:Button(L.OPT_MACRO, L.OPT_MACRO_BUTTON, function() ns.Macro.Create() end, function() return ns.Macro.Tip() end)
     page:Button(L.OPT_GROUP_KEY, L.OPT_GROUP_KEY_BUTTON, function() ns.Group.OpenKeyBindings() end, L.OPT_GROUP_KEY_TIP)
+    -- Paladin: Segen nach Klasse und Rolle (Check.AutoBlessing) und die Übersicht dazu (Entscheidung vom 26.11.2026)
+    page:Checkbox("blessingAuto", nil, { shown = ns.Group.BlessingSettingsShown })
+    page:Button(L.OPT_BLESSING_PLAN, L.OPT_BLESSING_PLAN_BUTTON, function() ns.Group.PrintBlessingPlan() end,
+        L.OPT_BLESSING_PLAN_TIP, { shown = ns.Group.BlessingSettingsShown })
     for _, class in ipairs(ezCore.CLASSES) do BlessingDropdown(class) end
 
     page:Header(L.OPT_HEADER_REBUFF)

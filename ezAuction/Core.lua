@@ -139,7 +139,7 @@ Core.NewModule(ADDON, ns, {
     -- 1.15.0: Bausteine aus dem Gesamtreview vom 18.11.2026, u. a. Core.SlashCmd, Core.HelpLines, Core.TipTitle, Core.Tooltip.Gap
     -- (Liste je Modul in docs/roadmap/uebergreifend.md, P7)
     core = "1.15.0",
-    needs = { "AskModule", "GearStatus", "History.PERIODS", "History.PeriodLabel", "History.TypeLabel", "CompartmentHandlers", "Style.ColorText",
+    needs = { "SettingsRows.Refresh", "AskModule", "GearStatus", "History.PERIODS", "History.PeriodLabel", "History.TypeLabel", "CompartmentHandlers", "Style.ColorText",
         -- Gesamtreview 18.11.2026, P19c (ohne neue Versionsnummer): Qualitätsname aus ezCore (T16-6)
         "QualityName",
         "Style.BUTTON", "Style.ICON",

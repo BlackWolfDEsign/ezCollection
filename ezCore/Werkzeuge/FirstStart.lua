@@ -1024,6 +1024,16 @@ function Intro.SplitAlso(rows)
     return consent, also
 end
 
+-- Mit-Schalter trennen: ab Werk aus (Intro.ALSO, Anmeldungen) und ab Werk an, vom Spieler ausgeschaltet (row.accept,
+-- Intro.AcceptRows). → zwei Listen
+local function SplitAccept(also)
+    local plain, again = {}, {}
+    for _, row in ipairs(also) do
+        if row.accept then again[#again + 1] = row else plain[#plain + 1] = row end
+    end
+    return plain, again
+end
+
 -- Namen der Zeilen („ezMap: Sammel-Fundorte …“), mit Komma. → Text
 local function RowNames(rows)
     local names = {}
@@ -1317,7 +1327,8 @@ end
 ---------------------------------------------------------------------------
 
 -- Was „Allem zustimmen“ einschalten würde: die Zeilen laufender Module, die jetzt aus sind – ohne Schalter, die auf
--- diesem Client nie wirken (Intro.CanSwitchOn; nicht in Rückfrage, Anzahl und Chatzeile). → Liste wie Intro.Rows
+-- diesem Client nie wirken (Intro.CanSwitchOn; nicht in Rückfrage, Anzahl und Chatzeile) –, dazu die Zeilen aus
+-- Intro.AcceptRows (row.accept: ab Werk an, vom Spieler ausgeschaltet). → Liste wie Intro.Rows
 function Intro.AgreeRows()
     local out = {}
     for _, row in ipairs(Intro.Rows(true)) do
@@ -1325,6 +1336,8 @@ function Intro.AgreeRows()
             out[#out + 1] = row
         end
     end
+    -- ab Werk an, ausgeschaltet, und ausdrücklich mit einzuschalten (accept = true in ns.NEWS; ConsentNews.lua)
+    for _, row in ipairs(Intro.AcceptRows()) do out[#out + 1] = row end
     return out
 end
 
@@ -1397,10 +1410,15 @@ function Intro.ApplyAll()
     for _, row in ipairs(Intro.Rows(true)) do
         if not failedIds[EntryId(row.entry)] then offered[#offered + 1] = row end
     end
+    for _, row in ipairs(agreed) do if row.accept then offered[#offered + 1] = row end end
     MarkKnown(offered)
-    -- die Anzahl nennt nur Abläufe ohne Klick, die Mit-Schalter (Intro.ALSO) stehen in einer eigenen Zeile
-    if done > #also or #also == 0 then
-        ns.Print(L.INTRO_AGREE_DONE:format(done - #also, Core.SlashCmd(ns, L.INTRO_CMD_WORD)))
+    -- die Anzahl nennt nur Abläufe ohne Klick, die Mit-Schalter (Intro.ALSO) stehen in einer eigenen Zeile, ebenso, was
+    -- wieder angeht (row.accept)
+    local count = done - #also
+    local again
+    also, again = SplitAccept(also)
+    if count > 0 or (#also == 0 and #again == 0) then
+        ns.Print(L.INTRO_AGREE_DONE:format(count, Core.SlashCmd(ns, L.INTRO_CMD_WORD)))
     end
     -- viele Mit-Schalter (Anmeldungen der Module): die Anzahl statt einer überlangen Chatzeile; die Namen standen in
     -- der Rückfrage und stehen in der Kurzfassung
@@ -1409,6 +1427,7 @@ function Intro.ApplyAll()
     elseif #also > 0 then
         ns.Print(L.INTRO_AGREE_ALSO_DONE:format(RowNames(also)))
     end
+    if #again > 0 then ns.Print(L.INTRO_AGREE_AGAIN_DONE:format(RowNames(again))) end
     if failed > 0 then ns.Print(L.INTRO_AGREE_FAILED:format(failed, table.concat(names, ", "))) end
     local off = Intro.StaysOff()
     if off then ns.Print(off) end
@@ -1440,14 +1459,19 @@ function Intro.AgreeAll(onCancel)
     local _, modules = Intro.AgreeList(rows)
     -- die Anzahl nennt nur Abläufe ohne Klick; Mit-Schalter (Intro.ALSO) unter eigenem Satz
     local consent, also = Intro.SplitAlso(rows)
+    local again
+    also, again = SplitAccept(also)
     local prompt
-    if #consent == 0 then
+    if #consent == 0 and #also == 0 then
+        prompt = L.INTRO_AGREE_CONFIRM_AGAIN
+    elseif #consent == 0 then
         prompt = L.INTRO_AGREE_CONFIRM_ALSO:format((Intro.AgreeList(also)))
     else
         local list = Intro.AgreeList(consent)
         if #also > 0 then list = list .. "\n\n" .. L.INTRO_AGREE_ALSO:format((Intro.AgreeList(also))) end
         prompt = L.INTRO_AGREE_CONFIRM:format(#consent, list)
     end
+    if #again > 0 then prompt = prompt .. "\n\n" .. L.INTRO_AGREE_AGAIN:format((Intro.AgreeList(again))) end
     if skipped then prompt = prompt .. "\n\n" .. L.INTRO_AGREE_SKIPPED:format(skipped) end
     local risk = Intro.Excluded("risk")
     if risk then prompt = prompt .. "\n\n" .. L.INTRO_AGREE_RISK:format(risk) end

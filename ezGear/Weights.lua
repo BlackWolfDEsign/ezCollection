@@ -10,13 +10,17 @@ local Core = ezCore
     Leveling-Rolle der Klasse. Bis zum 24.11.2026 fragte es die Spezialisierung des Clients über eine Globale, die es auf
     Forever nicht gibt – es galt immer die Leveling-Rolle.
     Werte für Treffer und kritische Treffer gelten je Prozentpunkt („+1 % Trefferchance“ wie auf Forever-Gegenständen).
+    Die Tabellen gelten für Stufe 60; für die Stufe des Charakters rechnet Level.lua sie um (Prozent-Werte, Rüstung aus der
+    Formel des Clients). Rüstung steht darum in keiner Tabelle als eigener Wert, außer als Rückfall ohne Client-Tabelle.
     Eigene Werte: Pawn-Skalen als Text einfügen, z. B.
       ( Pawn: v1: "Verstärkung": Class=Shaman, Strength=1, Agility=0.6, Stamina=0.3, MeleeDps=4 )
     Pawn-Skalen gelten für alle Charaktere, gewählt wird je Charakter (ezGearDB.chars[charKey].scale).
 
     HERKUNFT der Standardwerte (Weights.DEFAULTS; Leitlinien 10 und 11, Gesamtreview 18.11.2026, T5-9): eigene,
     von Hand geschätzte Startwerte, angelegt mit dem Modulgerüst von ezGear (git log -S: 67554cb0, 13.11.2026) – keine
-    Simulation und nicht aus Pawn oder einem anderen Addon übernommen. Im Spiel nennt Weights.Source() die Quelle der
+    Simulation und nicht aus Pawn oder einem anderen Addon übernommen. Tank-Tabellen seit 25.11.2026 aus ezTalents
+    Rechenmodell (tools/talent_sim.lua, Sim.Gear für den Tank ohne Talente), damit beide Quellen dasselbe sagen; von Hand bleiben
+    darin Blockwert, Zaubermacht, Intelligenz, Distanzwaffe und Gesundheitsregeneration. Im Spiel nennt Weights.Source() die Quelle der
     aktiven Gewichtung („ezGears Standardwerte“ bzw. die eingefügte Pawn-Skala; Texte WEIGHTS_SOURCE_DEFAULT und
     WEIGHTS_SOURCE_PAWN).
 
@@ -40,14 +44,14 @@ local W = {}
 
 W.WARRIOR_DPS = { STRENGTH = 1, AGILITY = 0.65, STAMINA = 0.3, AP = 0.5, CRIT = 10, HIT = 10, MELEEDPS = 4,
     RANGEDDPS = 0.5, ARMOR = 0.02, DEFENSE = 0.1, DODGE = 4, PARRY = 3, HP5 = 0.5, SPIRIT = 0.05 }
-W.WARRIOR_TANK = { STAMINA = 1, STRENGTH = 0.5, AGILITY = 0.6, ARMOR = 0.1, DEFENSE = 1.5, DODGE = 12, PARRY = 10,
-    BLOCK = 6, BLOCKVALUE = 0.4, HIT = 6, CRIT = 2, AP = 0.2, MELEEDPS = 1.5, RANGEDDPS = 0.2, HP5 = 0.5 }
+W.WARRIOR_TANK = { STAMINA = 1, STRENGTH = 0.16, AGILITY = 0.33, ARMOR = 0.05, DEFENSE = 0.83, DODGE = 5.27, PARRY = 5.27,
+    BLOCK = 1.76, BLOCKVALUE = 0.4, HIT = 2.2, CRIT = 1.32, AP = 0.08, MELEEDPS = 1.1, RANGEDDPS = 0.2, HP5 = 0.5 }
 W.PALADIN_DPS = { STRENGTH = 1, AGILITY = 0.5, INTELLECT = 0.35, STAMINA = 0.3, AP = 0.5, CRIT = 8, HIT = 8,
     SPELL = 0.3, MELEEDPS = 3.5, ARMOR = 0.02, MP5 = 0.5, SPIRIT = 0.1 }
 W.PALADIN_HEAL = { INTELLECT = 1, HEAL = 0.6, SPELL = 0.6, MP5 = 1.5, SPELLCRIT = 8, SPIRIT = 0.2, STAMINA = 0.3,
     ARMOR = 0.005 }
-W.PALADIN_TANK = { STAMINA = 1, STRENGTH = 0.5, AGILITY = 0.5, DEFENSE = 1.5, ARMOR = 0.1, DODGE = 12, PARRY = 10,
-    BLOCK = 6, BLOCKVALUE = 0.4, SPELL = 0.4, INTELLECT = 0.3, HIT = 5, MELEEDPS = 1 }
+W.PALADIN_TANK = { STAMINA = 1, STRENGTH = 0.16, AGILITY = 0.33, DEFENSE = 0.83, ARMOR = 0.05, DODGE = 5.27, PARRY = 5.27,
+    BLOCK = 1.76, BLOCKVALUE = 0.4, SPELL = 0.2, INTELLECT = 0.1, HIT = 2.2, CRIT = 1.32, AP = 0.08, MELEEDPS = 1.1 }
 W.HUNTER_DPS = { AGILITY = 1, RAP = 0.5, AP = 0.45, INTELLECT = 0.3, STAMINA = 0.3, CRIT = 10, HIT = 10,
     RANGEDDPS = 4, MELEEDPS = 0.4, STRENGTH = 0.05, SPIRIT = 0.05, MP5 = 0.5, ARMOR = 0.01 }
 W.ROGUE_DPS = { AGILITY = 1, STRENGTH = 0.5, AP = 0.5, STAMINA = 0.3, CRIT = 10, HIT = 12, MELEEDPS = 4,
@@ -68,8 +72,8 @@ W.WARLOCK_DPS = { SPELL = 1, STAMINA = 0.6, INTELLECT = 0.6, SPELLHIT = 10, SPEL
     RANGEDDPS = 1.5, ARMOR = 0.005 }
 W.DRUID_MELEE = { AGILITY = 1, STRENGTH = 0.9, AP = 0.45, STAMINA = 0.3, CRIT = 9, HIT = 9, ARMOR = 0.02,
     INTELLECT = 0.1 }
-W.DRUID_TANK = { STAMINA = 1, AGILITY = 0.7, ARMOR = 0.12, STRENGTH = 0.5, DEFENSE = 1.2, DODGE = 12, HIT = 5,
-    CRIT = 3, AP = 0.2 }
+W.DRUID_TANK = { STAMINA = 1, AGILITY = 0.33, ARMOR = 0.05, STRENGTH = 0.16, DEFENSE = 0.83, DODGE = 5.27, HIT = 2.2,
+    CRIT = 1.32, AP = 0.08 }
 W.DRUID_CASTER = { SPELL = 1, INTELLECT = 0.9, SPELLCRIT = 8, SPELLHIT = 8, SPIRIT = 0.4, MP5 = 1, STAMINA = 0.3,
     HEAL = 0.2 }
 W.DRUID_HEAL = { INTELLECT = 1, HEAL = 0.6, SPELL = 0.6, SPIRIT = 0.6, MP5 = 1.5, SPELLCRIT = 6, STAMINA = 0.3 }
@@ -318,9 +322,27 @@ function Weights.Resolve(choice)
     return W[key] and (Weights.WithWeapons(W[key], key)) or EMPTY, label, "DEF:" .. key
 end
 
--- Gewählte Gewichtung des Charakters → weights, label, key
+-- Tank? Nahkämpfer (samt Tank)? – für die gelösten Gewichte (key wie Weights.Resolve). Pawn-Skalen: weder noch.
+-- Nahkampf-Profile der Standardtabellen; der Jäger ist Fernkämpfer.
+Weights.MELEE_KEYS = { WARRIOR_DPS = true, PALADIN_DPS = true, ROGUE_DPS = true, SHAMAN_MELEE = true, DRUID_MELEE = true }
+function Weights.RoleOf(key)
+    if type(key) ~= "string" then return false, false end
+    if key == "TALENT" then
+        local talent = Weights.Talent()
+        local tank = talent ~= nil and talent.role == "tank"
+        return tank, tank or (talent ~= nil and talent.role == "damage" and talent.range == "melee")
+    end
+    local name = key:match("^DEF:(.+)$")
+    if not name then return false, false end
+    local tank = name:match("_TANK$") ~= nil
+    return tank, tank or Weights.MELEE_KEYS[name] == true
+end
+
+-- Gewählte Gewichtung des Charakters, umgerechnet auf seine Stufe (Level.Adapt; Pawn-Skalen unverändert) → weights, label, key
 function Weights.Active()
-    return Weights.Resolve(Weights.Choice())
+    local weights, label, key = Weights.Resolve(Weights.Choice())
+    if key:sub(1, 5) ~= "PAWN:" then weights = ns.Level.Adapt(weights, ns.Level.Player(), (Weights.RoleOf(key)), ns.playerClass, ns.Level.KnownForm) end
+    return weights, label, key
 end
 
 -- „Krieger: Tank“

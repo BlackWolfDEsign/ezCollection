@@ -112,8 +112,8 @@ function Upgrade.LinkOf(itemKey)
     return link, true
 end
 
--- Stand laut ezGear (gear.Status: "better", "learn", "level", "worse", "same", "nostats", "unusable", "equipped",
--- "pending") und der Text dazu; "noslot", wenn ezGear diesen Platz nicht bewertet (Hemd, Wappenrock); nil
+-- Stand laut ezGear (gear.Status: "better", "learn", "level", "worse", "armor" (Rüstungsart zuerst: kein Pfeil, graues
+-- „=“, keine Verbesserung), "same", "nostats", "unusable", "equipped", "pending") und der Text dazu; "noslot", wenn ezGear diesen Platz nicht bewertet (Hemd, Wappenrock); nil
 -- ohne Auskunft.
 function Upgrade.Status(link)
     if not Upgrade.Gear() then return nil end

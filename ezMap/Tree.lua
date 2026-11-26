@@ -812,10 +812,8 @@ Tree.ALL_MENU = {}
 
 local STATES = { "on", "off", "mixed" }
 
-local function Indent(row, parentRow)
-    if type(row) == "table" and type(parentRow) == "table" and type(row.SetParentInitializer) == "function" then
-        pcall(row.SetParentInitializer, row, parentRow, function() return true end)
-    end
+local function Indent(page, row, parentRow)
+    Core.SettingsRows.Indent(page, row, parentRow)
 end
 
 local function AddSettingsNode(page, id, parentRow)
@@ -824,7 +822,7 @@ local function AddSettingsNode(page, id, parentRow)
     if not IsGroup(node) then
         if node.key then
             local _, row = page:Checkbox(node.key)
-            Indent(row, parentRow)
+            Indent(page, row, parentRow)
         end
         return
     end
@@ -843,7 +841,7 @@ local function AddSettingsNode(page, id, parentRow)
             -- des code-reviewers vor dem Merge) – sie haben eigene Zeilen auf der Seite
             if state == "mixed" then Tree.Restore(id) else Tree.Set(id, state == "on", true) end
         end, { label = Tree.Label(id), tooltip = Tree.Tip(id), id = id })
-    Indent(row, parentRow)
+    Indent(page, row, parentRow)
     if node.dyn then return end
     for _, child in ipairs(node.children or {}) do AddSettingsNode(page, NodeID(child), row) end
 end

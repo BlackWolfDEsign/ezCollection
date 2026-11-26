@@ -37,12 +37,15 @@ ns.DEFAULTS = {
     -- Blizzards „Selbstwirken: Automatisch“ einmal aus („Tastendruck“; Entscheidung des Nutzers vom 23.11.2026, „Ja, genau
     -- so“); aus = alter Wert zurück (ns.SelfCastApply/ns.SelfCastRestore unten)
     noAutoSelfCast = true,
+    -- Der Rechtsklick ohne Umschalttaste bleibt Blizzards „Menü“ (MenuClick.lua; Nutzer am 25.11.2026: „Einfaches
+    -- Rechtsklick muss im ezheal verboten sein, dann entsteht das Problem nicht“)
+    keepMenu = true,
 }
 
 -- Neu seit v1.0.0-beta3 und ab Werk an; Einträge bleiben stehen (ezCore, Werkzeuge/ConsentNews.lua: Intro.NewsOnRows;
 -- Nutzer am 24.11.2026): Die Blase „Neu seit dem Update“ nennt sie einmal mit gesetztem Häkchen. tools/Tests/agree_test.lua
 -- ist rot, wenn ein neuer Schalter mit true hier fehlt.
-ns.NEWS = { "noAutoSelfCast" }
+ns.NEWS = { "noAutoSelfCast", "keepMenu" }
 
 -- Befehle zusätzlich zu den Standardwörtern des Gerüsts (Optionen, Status, Hilfe)
 local COMMANDS = {

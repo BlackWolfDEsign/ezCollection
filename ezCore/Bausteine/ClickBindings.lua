@@ -88,7 +88,8 @@ local Core = ezCore
       .Interactions(liste) → { { action, button, state = "ok" | "moved" | "missing", entry, on } } | nil: wo Blizzards
                                        „Ziel“ und „Menü“ liegen (Spieltest 24.11.2026); entry = der Eintrag, on = was
                                        sonst auf der Taste des Standards liegt
-      .RestoreInteractions(liste) → neue Liste, Anzahl: beides wieder auf Blizzards Standardtaste (Links, Rechts)
+      .RestoreInteractions(liste, nur) → neue Liste, Anzahl: beides wieder auf Blizzards Standardtaste (Links, Rechts);
+                                       nur = { menu = true } bzw. { target = true }: nur diese Interaktion
       .Assign(eintrag, opts) / .Unassign(knopf, umschalttasten, opts) → lesen, ändern, Set (ein Aufruf fürs Modul).
                                        Wartet schon ein Wunsch (im Kampf), bauen sie auf dessen Liste auf statt auf
                                        Blizzards Belegung: zwei Assign im Kampf schreiben beide, Load + Assign das
@@ -867,10 +868,12 @@ function CB.Interactions(list)
 end
 
 -- „Ziel“ und „Menü“ wieder auf ihre Standardtaste: Was dort liegt, weicht; von der verlegten Taste geht die Interaktion weg.
-function CB.RestoreInteractions(list)
+-- only: { menu = true } bzw. { target = true } – nur diese Interaktion (ezHeals Schalter „Rechtsklick bleibt „Menü““)
+function CB.RestoreInteractions(list, only)
     local out, count = Core.CopyTable(list), 0
     for _, info in ipairs(CB.Interactions(list) or {}) do
-        local entry = info.state ~= "ok" and CB.Interaction(info.action, info.button) or nil
+        local wanted = type(only) ~= "table" or only[info.action] == true
+        local entry = wanted and info.state ~= "ok" and CB.Interaction(info.action, info.button) or nil
         if entry then
             for index = #out, 1, -1 do
                 local old = out[index]
