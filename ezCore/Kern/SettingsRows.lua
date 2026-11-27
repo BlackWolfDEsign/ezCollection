@@ -16,8 +16,17 @@ local Core = ezCore
 
     Rows.Button(kategorie, beschriftung, knopftext, onClick, tooltip, tags) → Zeile. Die Suchmarke setzt Blizzard selbst,
       geschützt, beim Anlegen einer Zeile mit Einstellung (Settings.CreateSettingInitializer nimmt deren Namen). Dafür gibt es
-      eine Träger-Einstellung, deren Name eine Funktion ist; danach ist die Zeile wieder eine reine Knopfzeile.
-      tags = { text … } oder nil (nicht über die Suche zu finden). Kennt der Client den Träger nicht: ohne Marke.
+      je Text einer Suchmarke eine Träger-Einstellung (Name = dieser Text, Variable ezCore_rows_tag<n>); danach ist die Zeile
+      wieder eine reine Knopfzeile. tags = { text … } oder nil (nicht über die Suche zu finden). Kennt der Client den Träger
+      nicht: ohne Marke.
+    Rows.TagCarrierCount() → wie viele Träger für Suchmarken angemeldet sind (Auskunft für Prüfungen)
+
+    Jeder Träger heißt mit festem Text, nie mit einer Funktion (Spieltest vom 26.11.2026, docs/blizzard-regeln.md, T23):
+    Blizzard prüft den Namen beim geschützten Anlegen (Blizzard_Setting.lua: ProxySettingMixin:Init →
+    ErrorIfInvalidSettingArguments → GetNameType → GetOrCallName) und ruft eine Funktion dort ohne securecallfunction auf.
+    Ab da lief Blizzards geschützter Weg „tainted by ezCore“, auch für Blizzards eigene Einstellungen, die danach
+    entstanden – und jeder Klick auf einen Aktionsknopf liest sie (Settings.GetValue("lockActionBars") →
+    SettingsPanel:GetSetting), UseAction war blockiert.
     Rows.Available() → gibt es Blizzards Knopfzeilen auf diesem Client?
     Rows.ShowWhen(page, zeile, fn, wo) – Zeile nur auf der Seite, solange fn() wahr ist: Sie wird in die Zeilenliste der
       eigenen Seite ein- und ausgereiht (Leitlinie 5, Ausnahme 6; Blizzard liest die Liste nur geschützt über
@@ -39,25 +48,66 @@ local Core = ezCore
 local Rows = {}
 Core.SettingsRows = Rows
 
-Rows.CARRIER = "ezCore_rows"                -- Variable der Träger-Einstellung (nie gespeichert)
+Rows.CARRIER = "ezCore_rows"                -- Variable des Trägers für „neu auswerten“ (nie gespeichert)
+Rows.TAG_PREFIX = "ezCore_rows_tag"         -- Variablen der Träger für Suchmarken: …1, …2 (nie gespeichert)
 Rows.BUTTON_TEMPLATE = "SettingButtonControlTemplate"   -- wie CreateSettingsButtonInitializer
 Rows.changes = 0                            -- wie oft ezCore eine Zeilenliste geändert hat (Core.CollectOwnSettingsRows)
 
 ---------------------------------------------------------------------------
--- Knopfzeile mit Suchmarke
+-- Träger-Einstellungen (Name immer ein fester Text, Kopf oben)
 ---------------------------------------------------------------------------
 
-local carrier                               -- Träger-Einstellung (false: geht auf diesem Client nicht)
-local carrierText                           -- ihr Name, während eine Zeile entsteht
+local carrier                               -- Träger für „neu auswerten“ (false: geht auf diesem Client nicht)
+local tagCarriers, tagCount = {}, 0         -- [Text der Suchmarke] = Träger; Zahl der angemeldeten
+local tagsFailed                            -- true: der Client nahm keinen Träger an (dann Knopfzeilen ohne Marke)
+
+local function CanRegister(category)
+    return type(category) == "table" and type(Settings) == "table" and Settings.RegisterProxySetting ~= nil
+        and Settings.CreateSettingInitializer ~= nil
+end
+
+-- → Träger oder false (der Client lehnte ab); name ist immer ein Text. Blizzards Weg liefert das Ergebnis über den Rahmen
+-- (GetSecureAttributeResults) – nur ein Objekt mit genau dieser Variable gilt als angelegt.
+local function Register(category, variable, name)
+    if type(name) ~= "string" then return false end
+    local ok, setting = pcall(Settings.RegisterProxySetting, category, variable, Settings.VarType.Boolean, name, false,
+        function() return false end, function() end)
+    if not (ok and type(setting) == "table" and type(setting.GetVariable) == "function") then return false end
+    local okVar, var = pcall(setting.GetVariable, setting)
+    return okVar and var == variable and setting or false
+end
 
 local function Carrier(category)
     if carrier ~= nil then return carrier or nil end
-    if type(category) ~= "table" or not (Settings and Settings.RegisterProxySetting and Settings.CreateSettingInitializer) then return nil end
-    local ok, setting = pcall(Settings.RegisterProxySetting, category, Rows.CARRIER, Settings.VarType.Boolean,
-        function() return carrierText or Core.TITLE end, false, function() return false end, function() end)
-    carrier = ok and type(setting) == "table" and setting or false
+    if not CanRegister(category) then return nil end
+    -- Name: der Titel der Sammlung (Core.TITLE, „ezCollection“); Variable Rows.CARRIER
+    carrier = Register(category, Rows.CARRIER, type(Core.TITLE) == "string" and Core.TITLE or "ezCollection")
     return carrier or nil
 end
+
+local function TagCarrier(category, text)
+    if tagsFailed then return nil end
+    if tagCarriers[text] then return tagCarriers[text] end
+    if not CanRegister(category) then return nil end
+    tagCount = tagCount + 1
+    local setting = Register(category, Rows.TAG_PREFIX .. tagCount, text)
+    if not setting then
+        tagsFailed = true                   -- nur einmal versuchen
+        return nil
+    end
+    tagCarriers[text] = setting
+    return setting
+end
+
+function Rows.TagCarrierCount()
+    local n = 0
+    for _ in pairs(tagCarriers) do n = n + 1 end
+    return n
+end
+
+---------------------------------------------------------------------------
+-- Knopfzeile mit Suchmarke
+---------------------------------------------------------------------------
 
 local function Joined(tags)
     local out = {}
@@ -74,16 +124,14 @@ end
 
 function Rows.Button(category, label, buttonText, onClick, tooltip, tags)
     local text = Joined(tags)
-    local setting = text and Carrier(category)
+    local setting = text and TagCarrier(category, text)
     if not setting then
         -- ohne Suchmarke, oder der Client kennt den Träger nicht: Blizzards Knopfzeile ohne Marke. Eine Marke aus
         -- Addon-Code verunreinigte Blizzards Suche wieder (Review 26.11.2026) – dann findet die Suche den Knopf eben nicht.
         return CreateSettingsButtonInitializer(label, buttonText, onClick, tooltip, false)
     end
     local data = { name = label, buttonText = buttonText, buttonClick = onClick, tooltip = tooltip, setting = setting }
-    carrierText = text
     local ok, row = pcall(Settings.CreateSettingInitializer, Rows.BUTTON_TEMPLATE, data)
-    carrierText = nil
     data.setting = nil                      -- ab hier eine Knopfzeile wie jede andere: Beschriftung aus data.name
     if not ok then error(row, 0) end
     return row
