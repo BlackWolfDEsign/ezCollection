@@ -944,9 +944,11 @@ function Intro.Registered()
 end
 
 -- Intro.ALSO und alle Anmeldungen mit „on“ (wie Einträge in Intro.CONSENT). → Liste
--- Kennung einer Zeile: Modul[.Gruppe].Schlüssel (ezCores Schlüssel gibt es in mehreren Gruppen)
+-- Kennung einer Zeile: Modul[.Gruppe].Schlüssel (ezCores Schlüssel gibt es in mehreren Gruppen); ein Standard-Wechsel
+-- (flip = true in ns.NEWS, ConsentNews.lua) mit „#an“, damit ein früher still Gemerktes das Angebot nicht verhindert
 local function EntryId(entry)
     return tostring(entry[1]) .. "." .. (entry.group and (entry.group .. ".") or "") .. tostring(entry[2])
+        .. (entry.flip == true and "#an" or "")
 end
 Intro.EntryId = EntryId
 

@@ -39,7 +39,8 @@ ns.DEFAULTS = {
     missingTab = true,       -- Reiter „Was kommt wann“ und „Wo kommt was“ am gewählten Beruf (bis 24.11.2026 „Fehlend“)
     recipeWhere = true,      -- Fundorte der Rezepte: „Erhältlich bei“ im Tooltip von Rezepten (Welle 15b)
     recipeWaypoint = true,   -- „Auf der Karte zeigen“ setzt auch Blizzards Wegpunkt
-    chanceNumber = false,    -- dieselbe Chance als kleine Zahl rechts in der Zeile
+    chanceNumber = true,     -- dieselbe Chance als kleine Zahl rechts in der Zeile (ab Werk an seit 27.11.2026, Nutzer:
+                             -- „Ja, ab Werk an“; vorher ab Werk aus und in ns.AGREE als „choice“)
     rowArrow = true,         -- ezGears Pfeil in der Rezeptzeile (nur mit ezGear; Rows.lua, 24.11.2026)
     rowLevel = true,         -- nötige Stufe des hergestellten Gegenstands in der Rezeptzeile (Rows.lua, 24.11.2026)
     rowWide = true,          -- Rezeptliste und Berufefenster etwas breiter (Wide.lua, 24.11.2026)
@@ -64,13 +65,16 @@ ns.DEFAULTS = {
 -- der ab Werk aus ist und kein Ablauf ohne Klick (die stehen in Intro.CONSENT). "on": mit der Zustimmung gesetzt;
 -- "risk": bleibt aus, riskiert Blizzards Regeln oder Schutz; "choice": Geschmack, Filter, Leitlinie 9 oder 11.
 -- tools/Tests/agree_test.lua prüft, dass jeder neue Schalter mit false hier oder in Intro.CONSENT steht.
--- choice hier (Spieltest 20.11.2026, Knopf mit „o fehlt“, wörtlich „mh was soll das sein“): die Chance steht schon als Farbe da, die Zahl daneben ist zusätzlicher Text
+-- chanceNumber ist seit 27.11.2026 ab Werk an und steht deshalb nicht mehr hier (ns.NEWS unten)
 ns.AGREE = {
-    chanceNumber = "choice", countGuild = "choice", costsBeside = "choice",
+    countGuild = "choice", costsBeside = "choice",
 }
 
 -- Seit der letzten Veröffentlichung neu und ab Werk an: die Blase „Neu seit dem Update“ nennt sie (ezCore, ConsentNews.lua)
-ns.NEWS = { { "rowArrow", available = function() return Core.API("ezGear") ~= nil end }, "rowLevel", "rowWide" }
+-- chanceNumber: ab Werk an seit 27.11.2026 (Nutzer: „Ja, ab Werk an“); flip: der Standard wechselte von aus auf an, die
+-- Blase bietet es bestehenden Spielern einmal an, „Alle annehmen“ schaltet es ein (Nutzer am 27.11.2026: „Ja, anbieten“)
+ns.NEWS = { { "rowArrow", available = function() return Core.API("ezGear") ~= nil end }, "rowLevel", "rowWide",
+    { "chanceNumber", flip = true } }
 
 -- Ein- und Ausschalten per /ezcraft <wort> (Core.HandleToggle); en: das englische Wort (T10-1, englischer Client).
 ns.TOGGLES = {

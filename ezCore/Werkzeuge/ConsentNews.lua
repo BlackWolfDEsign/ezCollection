@@ -20,7 +20,8 @@ local Intro = Core.Intro
         Module gelten kontoweit).
       * Gefragt wird nach Zeilen, die zustimmungspflichtig sind (ab Werk nicht an), beim Spieler aus sind und hier wirken
         können (Intro.CanSwitchOn). Neue Zeilen, die schon an sind, und solche, die ab Werk an sind, aber aus (das hat der
-        Spieler selbst entschieden), gelten still als angeboten – bekannte Entscheidungen bleiben unberührt.
+        Spieler selbst entschieden), gelten still als angeboten – bekannte Entscheidungen bleiben unberührt (außer bei
+        einem Standard-Wechsel, flip = true, unten).
       * Dazu neue Funktionen, die ab Werk an sind (Spieltest des Nutzers vom 24.11.2026, wörtlich: „ezcore hat
         neuerungen (zauberbuch) nicht erkannt“): Ursache war, dass Intro.Rows nur Intro.CONSENT und die Anmeldungen „on“
         kennt, also nur Schalter, die ab Werk aus sind – „Wo kommt was“ (ezMerchant, ab Werk an) stand in keiner Liste.
@@ -35,6 +36,15 @@ local Intro = Core.Intro
       * accept = true an einem Eintrag in ns.NEWS (Entscheidung des Nutzers vom 25.11.2026 zu ezBags Reagenzientasche, gewählt
         „Immer einschalten (Empfohlen)“): „Allem zustimmen“ und „Alle annehmen“ schalten die Funktion ein, auch wenn sie aus
         ist – nur, wenn ihr Oberschalter an ist (needs) und sie hier wirken kann. Rückfrage, Tooltip und Chatzeile nennen sie.
+      * flip = true an einem Eintrag in ns.NEWS: Der Standard wechselte von aus auf an (Entscheidung des Nutzers vom
+        27.11.2026 auf die Frage „Soll die Blase nach einem Update Schalter anbieten, deren Standard auf „an“ wechselte?“:
+        „Ja, anbieten“). Wer das Modul schon geladen hatte, hat den alten Standard aus gespeichert (Core.FillDefaults).
+        Ist die Zeile aus, bietet die Blase sie EINMAL an wie eine Zeile, die ab Werk aus ist: ohne Häkchen, „Alle
+        annehmen“ schaltet sie ein, „Fertig“ lässt sie aus (row.flip). Anders als accept schalten spätere „Alle
+        annehmen“ und „Allem zustimmen“ sie nicht wieder ein. Ist ihr Oberschalter aus oder wirkt sie hier nicht, bleibt
+        sie offen. Eigene Kennung im Merker (Intro.EntryId hängt „#an“ an): Was vor dem Wechsel still gemerkt wurde,
+        verhindert das Angebot nicht. tools/Tests/agree_test.lua verlangt flip für jeden Schalter, der zur letzten
+        Veröffentlichung ab Werk aus war (tools/Tests/aus_basis.lua) und jetzt ab Werk an ist.
       * Neuinstallation: wie bisher das Angebot der Einführung. Die Nachfrage gibt es nur, wenn der Spieler die
         Einführung schon hatte (angeboten, zugestimmt oder „Nicht mehr anbieten“) und das Angebot nicht mehr kommt.
         „Nicht mehr anbieten“ lehnt nur das Angebot ab, nicht die Nachfrage (vom Nutzer am 23.11.2026 bestätigt: „OK so
@@ -62,7 +72,8 @@ local Intro = Core.Intro
       Core.Intro.Known()              → { [Kennung] = true } (legt den Merker an)
       Core.Intro.MarkKnown(zeilen)    → Anzahl neu als angeboten gemerkter Zeilen (Zeilen wie Intro.Rows oder Einträge)
       Core.Intro.NewsRows()           → zu fragen (neu, zustimmungspflichtig, aus, hier wirksam; danach row.on: neu und
-                                         ab Werk an), still erledigt (neu, aber an oder ab Werk an und ausgeschaltet)
+                                         ab Werk an; row.flip: Standard auf an gewechselt, aus – vor den row.on),
+                                         still erledigt (neu, aber an oder ab Werk an und ausgeschaltet)
       Core.Intro.NewsOnRows()         → Zeilen aus ns.NEWS der laufenden Module (row.on)
       Core.Intro.AcceptRows()         → Zeilen mit accept = true, die aus sind (schalten beide Knöpfe ein; row.also)
       Core.Intro.LastNewsRows()       → Zeilen der letzten Nachfrage (laufende Module)
@@ -95,7 +106,9 @@ local function NewsEntries(name)
     local list = mns and mns.NEWS
     for _, item in ipairs(type(list) == "table" and list or {}) do
         local entry = { name, type(item) == "table" and item[1] or item }
-        if type(item) == "table" then entry.needs, entry.available, entry.accept = item.needs, item.available, item.accept end
+        if type(item) == "table" then
+            entry.needs, entry.available, entry.accept, entry.flip = item.needs, item.available, item.accept, item.flip
+        end
         if type(entry[2]) == "string" then out[#out + 1] = entry end
     end
     return out
@@ -179,6 +192,16 @@ function Intro.AcceptRows()
     return out
 end
 
+-- Standard von aus auf an gewechselt (flip = true): aus und einschaltbar → Zeile wie eine, die ab Werk aus ist (row.flip;
+-- „Alle annehmen“ schaltet sie ein, „Fertig“ lässt sie aus), sonst nil
+local function OfferRow(row)
+    local entry = row.entry
+    if entry.flip == true and row.value == false and NeedsOn(entry) and Intro.CanSwitchOn(entry) then
+        return { entry = entry, module = row.module, key = row.key, value = false, default = true, flip = true,
+            label = Intro.Label(entry), what = row.what }
+    end
+end
+
 function Intro.MarkKnown(rows)
     local known = Intro.Known()
     if not known or type(rows) ~= "table" then return 0 end
@@ -211,15 +234,21 @@ function Intro.NewsRows()
             end
         end
     end
+    local on = {}
     for _, row in ipairs(Intro.NewsOnRows()) do
         if not known[Intro.EntryId(row.entry)] then
-            if row.value == false then
-                settled[#settled + 1] = row   -- schon selbst ausgeschaltet
+            local offer = OfferRow(row)
+            if offer then
+                ask[#ask + 1] = offer         -- Standard auf an gewechselt, aus: anbieten (vor den Zeilen „ab Werk an“)
+            elseif row.value == false then
+                -- schon selbst ausgeschaltet; ein Standard-Wechsel mit ausgeschaltetem Oberschalter bleibt offen
+                if row.entry.flip ~= true then settled[#settled + 1] = row end
             elseif NeedsOn(row.entry) and Intro.CanSwitchOn(row.entry) then
-                ask[#ask + 1] = row
+                on[#on + 1] = row
             end
         end
     end
+    for _, row in ipairs(on) do ask[#ask + 1] = row end
     return ask, settled
 end
 
@@ -230,7 +259,7 @@ function Intro.LastNewsRows()
     if type(ids) ~= "table" then return out end
     local byId = {}
     for _, row in ipairs(Intro.Rows(true)) do byId[Intro.EntryId(row.entry)] = row end
-    for _, row in ipairs(Intro.NewsOnRows()) do byId[Intro.EntryId(row.entry)] = row end
+    for _, row in ipairs(Intro.NewsOnRows()) do byId[Intro.EntryId(row.entry)] = OfferRow(row) or row end
     for _, id in ipairs(ids) do
         if type(id) == "string" and byId[id] then out[#out + 1] = byId[id] end
     end

@@ -3,6 +3,21 @@
 Written by hand before every release; it describes what each module can do, not every commit. English first, German below each entry.
 Von Hand vor jeder Veröffentlichung gepflegt; beschreibt, was jedes Modul kann, nicht jeden Commit. Englisch zuerst, Deutsch darunter.
 
+## v1.0.0-beta6
+
+Sixth beta for WoW Forever: ezCraft shows the chance of a skill point as a percentage in the recipe rows by default, and after an update ezCollection offers switches whose default changed to “on”. It also contains the fix from the updated beta5 package: abilities on the action bars work again. Coming from beta5, a /reload is enough; coming from beta4 or older, restart the game completely. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).
+Sechste Beta für WoW Forever: ezCraft zeigt die Chance auf einen Fertigkeitspunkt ab Werk als Prozentzahl in den Rezeptzeilen, und nach einem Update bietet ezCollection Schalter an, deren Standard auf „an“ wechselte. Dazu enthält sie den Fix aus dem neuen Paket von beta5: Fähigkeiten auf den Aktionsleisten gehen wieder. Von beta5 aus genügt `/reload`; von beta4 oder älter das Spiel bitte ganz neu starten. Vieles ist im Spiel noch ungetestet; Fehler bitte mit der Fehlerliste zum Kopieren melden (Esc » Optionen » AddOns » ezCollection » Erweitert).
+
+### ezCore
+
+- After an update, the bubble “New since the update” also offers switches whose default changed from off to on – once and unticked, if you have them off: “Accept all” turns them on, “Done” leaves them off. “Agree to everything” and “Accept all” for later news leave them as they are; the button “New since the update” offers them again.
+- Nach einem Update bietet die Blase „Neu seit dem Update“ auch Schalter an, deren Standard von aus auf an wechselte – einmal und ohne Häkchen, wenn du sie aus hast: „Alle annehmen“ schaltet sie ein, „Fertig“ lässt sie aus. „Allem zustimmen“ und „Alle annehmen“ bei späteren Neuerungen lassen sie, wie sie sind; der Knopf „Neu seit dem Update“ bietet sie wieder an.
+
+### ezCraft
+
+- The chance of a skill point as a small percentage on the right of each recipe row where it is known (“Chance as a number next to the name”) is on by default, in the color of the recipe. If you have it off, the bubble “New since the update” offers it once.
+- Die Chance auf einen Fertigkeitspunkt als kleine Prozentzahl rechts in jeder Rezeptzeile, wo sie bekannt ist („Chance als Zahl neben dem Namen“), ist ab Werk an, in der Farbe des Rezepts. Hast du sie aus, bietet die Blase „Neu seit dem Update“ sie einmal an.
+
 ## v1.0.0-beta5
 
 **Updated package (27 Nov 2026, ezCore 1.19.1):** abilities on the action bars work again. The first package of this version blocked every click on an action button with the message “AddOn 'ezCore' tried to call the protected function 'UNKNOWN()'”. If you downloaded it before, replace it with this one and restart the game completely.

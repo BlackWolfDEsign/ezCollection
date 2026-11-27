@@ -33,7 +33,7 @@ local Data = ns.Data
     zusätzlich Blizzards eigenen Filter „Hat Fertigkeitsanstieg“ ein, der graue Rezepte wirklich ausblendet
     (Empfehlung umgesetzt, Antwort offen: Abblenden statt Ausblenden). Der Tooltip einer Zeile nennt die Chance
     (über Blizzards Nachricht „Professions.RecipeListOnEnter“); auf Wunsch steht sie als kleine Zahl rechts in der Zeile
-    (Schalter chanceNumber, ab Werk aus; gezeichnet in Rows.lua, zusammen mit Stufe und ezGears Pfeil).
+    (Schalter chanceNumber, ab Werk an seit 27.11.2026; gezeichnet in Rows.lua, zusammen mit Stufe und ezGears Pfeil).
 
       Skill.Color(info)            → "orange" | "yellow" | "green" | "gray" | "white" | "unlearned" (nicht gelernt:
                                      der Client meldet dann orange, ohne dass das etwas bedeutet – Probe 10, Station J3;
