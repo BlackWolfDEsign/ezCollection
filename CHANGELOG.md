@@ -3,6 +3,11 @@
 Written by hand before every release; it describes what each module can do, not every commit. English first, German below each entry.
 Von Hand vor jeder Veröffentlichung gepflegt; beschreibt, was jedes Modul kann, nicht jeden Commit. Englisch zuerst, Deutsch darunter.
 
+## v1.0.0
+
+First release version of ezCollection for WoW Forever: everything from the betas up to v1.0.0-beta6 (sections below), no longer marked as a beta. Coming from v1.0.0-beta5 or beta6, `/reload` is enough; coming from beta4 or older, restart the game completely. Many features have not been tested in the game for long yet – please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced) in the comments or as a GitHub issue.
+Erste Release-Fassung der ezCollection für WoW Forever: alles aus den Betas bis v1.0.0-beta6 (Abschnitte unten), nicht mehr als Beta gekennzeichnet. Von v1.0.0-beta5 oder beta6 aus genügt `/reload`; von beta4 oder älter das Spiel bitte ganz neu starten. Vieles ist im Spiel noch nicht lange erprobt – Fehler bitte mit der Fehlerliste zum Kopieren (Esc » Optionen » AddOns » ezCollection » Erweitert) in den Kommentaren oder als GitHub-Issue melden.
+
 ## v1.0.0-beta6
 
 Sixth beta for WoW Forever: ezCraft shows the chance of a skill point as a percentage in the recipe rows by default, and after an update ezCollection offers switches whose default changed to “on”. It also contains the fix from the updated beta5 package: abilities on the action bars work again. Coming from beta5, a /reload is enough; coming from beta4 or older, restart the game completely. Many features are still untested in the game; please report errors with the copyable error list (Esc » Options » AddOns » ezCollection » Advanced).

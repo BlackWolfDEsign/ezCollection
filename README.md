@@ -6,7 +6,7 @@ Schlanke Addons für **WoW Forever**, die sich anfühlen wie das Original von Bl
 
 *Lightweight addons for **WoW Forever** that extend Blizzard's own windows instead of replacing them. Every module is a separate addon; all of them need the included base “ezCollection (Base)” (folder `ezCore`). German and English. Getting started in English: [docs/erste-schritte.md](docs/erste-schritte.md#english).*
 
-**Stand: Beta.** Vieles ist im Spiel noch nicht lange erprobt – Rückmeldungen sind willkommen (unten, „Mitmachen und Unterstützen“).
+**Stand: Version 1.0.0** (erste Release-Fassung). Vieles ist im Spiel noch nicht lange erprobt – Rückmeldungen sind willkommen (unten, „Mitmachen und Unterstützen“).
 
 **Über ezCollection:** Ich habe ezCollection für mich und meine Freunde entwickeln lassen – mit KI-Unterstützung – und teile es, weil es vielleicht auch dir das Spiel bequemer macht. Wünsche und Kritik werden geprüft und umgesetzt.
 
@@ -108,7 +108,7 @@ ezCollection baut bewusst nicht nach, was diese Addons mit gepflegten Daten gut 
 
 ## Mitmachen und Unterstützen
 
-ezCollection ist eine **Beta**. Fühl dich frei zu kommentieren, zu kritisieren, Fehler zu melden und dir etwas zu wünschen – jede Meldung wird gelesen, Wünsche und Kritik werden geprüft und umgesetzt. Entwickelt wird mit KI-Unterstützung (Claude von Anthropic); das macht schnelle Antworten auf Meldungen möglich.
+ezCollection ist noch jung (erste Release-Fassung 1.0.0). Fühl dich frei zu kommentieren, zu kritisieren, Fehler zu melden und dir etwas zu wünschen – jede Meldung wird gelesen, Wünsche und Kritik werden geprüft und umgesetzt. Entwickelt wird mit KI-Unterstützung (Claude von Anthropic); das macht schnelle Antworten auf Meldungen möglich.
 
 - **Fehler melden:** in den Kommentaren auf CurseForge bzw. Wago oder als Issue in diesem Repo. Am meisten hilft die Fehlerliste aus dem Spiel: Esc » Optionen » AddOns » ezCollection » Erweitert » „Fehlerliste zum Kopieren“, dazu ein Bildschirmfoto und was du gerade getan hast.
 - **Wünsche und Kritik:** ebenfalls in den Kommentaren oder als Issue – gern mit dem Fenster, an dem dir etwas fehlt.
